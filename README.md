@@ -1,2 +1,2 @@
 # Viam-Staubli-Apera-PLC-Mobile-POC
-This is a proof of concept to create an observation platform using Viam for an autonomous robot powered by AI vision used in extremely harsh conditions for industrial use cases.
+Remote monitoring proof of concept using Viam Robotics for a Stäubli CS9 robot arm with Apera AI vision in harsh industrial environments. Demonstrates real-time fault detection and alerting across PLCs, vision systems, and robot controllers.
