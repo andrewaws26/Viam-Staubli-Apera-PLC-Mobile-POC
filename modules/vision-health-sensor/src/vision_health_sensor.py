@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Apera AI Vision Health Sensor Module for Viam.
 
@@ -28,6 +29,8 @@ from viam.utils import SensorReading
 
 LOGGER = getLogger(__name__)
 
+DEFAULT_HOST = "8.8.8.8"
+DEFAULT_PORT = 53
 PING_TIMEOUT_S = 2
 TCP_TIMEOUT_S = 3
 
@@ -56,16 +59,8 @@ class VisionHealthSensor(Sensor):
         config: ComponentConfig,
         dependencies: Mapping[ResourceName, ResourceBase],
     ) -> Self:
-        fields = config.attributes.fields
-        sensor = cls(
-            config.name,
-            host=fields["host"].string_value or "192.168.1.50",
-            port=int(fields["port"].number_value or 8080),
-        )
-        LOGGER.info(
-            "VisionHealthSensor configured: host=%s port=%d",
-            sensor.host, sensor.port,
-        )
+        sensor = cls(config.name, host=DEFAULT_HOST, port=DEFAULT_PORT)
+        sensor.reconfigure(config, dependencies)
         return sensor
 
     @classmethod
@@ -74,6 +69,20 @@ class VisionHealthSensor(Sensor):
         if "host" not in fields or not fields["host"].string_value:
             raise ValueError("'host' attribute is required (vision server IP address)")
         return []
+
+    def reconfigure(
+        self,
+        config: ComponentConfig,
+        dependencies: Mapping[ResourceName, ResourceBase],
+    ):
+        fields = config.attributes.fields
+        self.host = fields["host"].string_value if "host" in fields else DEFAULT_HOST
+        port_field = fields.get("port")
+        self.port = int(port_field.number_value) if port_field else DEFAULT_PORT
+        LOGGER.info(
+            "VisionHealthSensor configured: host=%s port=%d",
+            self.host, self.port,
+        )
 
     async def _ping(self) -> bool:
         """ICMP ping the vision server. Returns True if reachable."""

@@ -1,25 +1,19 @@
 {
-  "cloud": {
-    "id": "",
-    "secret": "",
-    "app_address": "https://app.viam.com:443",
-    "_comment": "Populate 'id' and 'secret' from Viam app after creating the machine. See https://docs.viam.com/operate/get-started/"
-  },
   "modules": [
     {
       "type": "local",
       "name": "plc-sensor-module",
-      "executable_path": "/opt/viam-modules/plc-sensor/src/plc_sensor.py"
+      "executable_path": "/home/pi/Viam-Staubli-Apera-PLC-Mobile-POC/modules/plc-sensor/src/plc_sensor.py"
     },
     {
       "type": "local",
       "name": "robot-arm-sensor-module",
-      "executable_path": "/opt/viam-modules/robot-arm-sensor/src/robot_arm_sensor.py"
+      "executable_path": "/home/pi/Viam-Staubli-Apera-PLC-Mobile-POC/modules/robot-arm-sensor/src/robot_arm_sensor.py"
     },
     {
       "type": "local",
       "name": "vision-health-sensor-module",
-      "executable_path": "/opt/viam-modules/vision-health-sensor/src/vision_health_sensor.py"
+      "executable_path": "/home/pi/Viam-Staubli-Apera-PLC-Mobile-POC/modules/vision-health-sensor/run.sh"
     }
   ],
   "components": [
@@ -33,7 +27,21 @@
         "button_coil": 0,
         "fault_coil": 1
       },
-      "depends_on": []
+      "depends_on": [],
+      "service_configs": [
+        {
+          "type": "data_manager",
+          "attributes": {
+            "capture_methods": [
+              {
+                "method": "Readings",
+                "capture_frequency_hz": 0.2,
+                "additional_params": {}
+              }
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "robot-arm-monitor",
@@ -44,7 +52,21 @@
         "port": 502,
         "protocol": "modbus"
       },
-      "depends_on": []
+      "depends_on": [],
+      "service_configs": [
+        {
+          "type": "data_manager",
+          "attributes": {
+            "capture_methods": [
+              {
+                "method": "Readings",
+                "capture_frequency_hz": 0.2,
+                "additional_params": {}
+              }
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "vision-health-monitor",
@@ -54,7 +76,21 @@
         "host": "192.168.1.50",
         "port": 8080
       },
-      "depends_on": []
+      "depends_on": [],
+      "service_configs": [
+        {
+          "type": "data_manager",
+          "attributes": {
+            "capture_methods": [
+              {
+                "method": "Readings",
+                "capture_frequency_hz": 0.2,
+                "additional_params": {}
+              }
+            ]
+          }
+        }
+      ]
     }
   ],
   "services": [
