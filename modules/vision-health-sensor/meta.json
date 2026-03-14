@@ -9,7 +9,7 @@
       "model": "viam-staubli-apera-poc:monitor:vision-health-sensor"
     }
   ],
-  "entrypoint": "src/vision_health_sensor.py",
+  "entrypoint": "run.sh",
   "build": {
     "build": "",
     "setup": "./setup.sh"

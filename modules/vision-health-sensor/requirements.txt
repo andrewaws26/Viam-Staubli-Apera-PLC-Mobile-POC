@@ -1,1 +1,2 @@
 viam-sdk>=0.69.0
+typing_extensions>=4.0
