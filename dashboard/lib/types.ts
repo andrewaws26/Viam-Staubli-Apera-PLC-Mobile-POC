@@ -2,7 +2,7 @@
 // Fields that could identify operators, shift times, or personnel must never
 // be added here. See docs/architecture.md section 6 for the full policy.
 
-export type ComponentStatus = "healthy" | "fault" | "error" | "loading";
+export type ComponentStatus = "healthy" | "fault" | "error" | "loading" | "pending";
 
 export type SensorReadings = Record<string, unknown>;
 

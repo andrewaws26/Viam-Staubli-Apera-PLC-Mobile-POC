@@ -1,10 +1,11 @@
 import { SensorReadings } from "./types";
 
-// Viam component names must match the names configured in viam-server.json
+// Viam component names must match the names configured in the Viam app.
+// Components not yet deployed will be handled gracefully as "pending".
 export const VIAM_COMPONENT_NAMES = {
-  robotArm: "robot-arm-monitor",
-  vision: "vision-health-monitor",
-  plc: "plc-monitor",
+  robotArm: "robot-arm-sensor",
+  vision: "vision-health",
+  plc: "plc-sensor",
 } as const;
 
 export type ComponentName =

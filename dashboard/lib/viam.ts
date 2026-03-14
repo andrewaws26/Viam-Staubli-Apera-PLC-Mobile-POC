@@ -38,17 +38,31 @@ async function getClient(): Promise<RobotClient> {
 
   _connecting = true;
   try {
+    console.log("[viam] Connecting to", host);
     _client = await createRobotClient({
       host,
       credentials: {
         type: "api-key",
+        authEntity: apiKeyId,
         payload: apiKey,
       },
-      authEntity: apiKeyId,
+      signalingAddress: "https://app.viam.com:443",
+      reconnectMaxAttempts: 3,
     });
+    console.log("[viam] Connected successfully");
     return _client;
+  } catch (err) {
+    console.error("[viam] Connection failed:", err);
+    throw err;
   } finally {
     _connecting = false;
+  }
+}
+
+export class ComponentNotFoundError extends Error {
+  constructor(componentName: string) {
+    super(`Component "${componentName}" not configured on this machine`);
+    this.name = "ComponentNotFoundError";
   }
 }
 
@@ -56,9 +70,28 @@ export async function getSensorReadings(
   componentName: string
 ): Promise<SensorReadings> {
   const client = await getClient();
-  const sensor = new SensorClient(client, componentName);
-  const readings = await sensor.getReadings();
-  return readings as SensorReadings;
+  try {
+    const sensor = new SensorClient(client, componentName);
+    const readings = await sensor.getReadings();
+    return readings as SensorReadings;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`[viam] getSensorReadings("${componentName}") error:`, msg);
+    // Viam SDK / gRPC returns various error messages when a component
+    // doesn't exist on the machine. Catch them all so the dashboard
+    // can show "pending" instead of "error".
+    if (
+      /not found/i.test(msg) ||
+      /no resource/i.test(msg) ||
+      /unknown/i.test(msg) ||
+      /does not exist/i.test(msg) ||
+      /no component/i.test(msg) ||
+      /unimplemented/i.test(msg)
+    ) {
+      throw new ComponentNotFoundError(componentName);
+    }
+    throw err;
+  }
 }
 
 export async function disconnectViam(): Promise<void> {

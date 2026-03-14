@@ -89,9 +89,8 @@ export default function Dashboard() {
     // Lazily import the real Viam client only in non-mock mode.
     // (The module is never bundled if NEXT_PUBLIC_MOCK_MODE=true at build time,
     // but lazy import ensures no SSR issues regardless.)
-    const viamFetch = IS_MOCK
-      ? null
-      : (await import("../lib/viam")).getSensorReadings;
+    const viamModule = IS_MOCK ? null : await import("../lib/viam");
+    const viamFetch = viamModule?.getSensorReadings ?? null;
 
     const newStates: ComponentState[] = [];
     const currentFaultIds = new Set<string>();
@@ -128,13 +127,27 @@ export default function Dashboard() {
 
         if (!IS_MOCK) setSdkConnected(true);
       } catch (err) {
-        status = "error";
-        faultMessage = "Sensor read error";
-        currentFaultIds.add(cfg.id);
+        // Distinguish "component not configured yet" from real errors.
+        // ComponentNotFoundError means the SDK connected fine but the
+        // component doesn't exist on the machine — show as pending.
+        const isNotFound =
+          viamModule &&
+          err instanceof viamModule.ComponentNotFoundError;
 
-        if (!IS_MOCK) {
-          setSdkConnected(false);
-          setSdkError(err instanceof Error ? err.message : "Connection error");
+        if (isNotFound) {
+          status = "pending";
+          faultMessage = "Not configured in Viam yet";
+          // Still mark SDK as connected — the machine link works fine
+          setSdkConnected(true);
+        } else {
+          status = "error";
+          faultMessage = "Sensor read error";
+          currentFaultIds.add(cfg.id);
+
+          if (!IS_MOCK) {
+            setSdkConnected(false);
+            setSdkError(err instanceof Error ? err.message : "Connection error");
+          }
         }
       }
 
@@ -189,9 +202,9 @@ export default function Dashboard() {
   // Mock-only: manual fault injection buttons for stakeholder demos
   // -------------------------------------------------------------------------
   const mockFaultTargets: { label: string; component: ComponentName }[] = [
-    { label: "Arm", component: "robot-arm-monitor" },
-    { label: "Vision", component: "vision-health-monitor" },
-    { label: "PLC", component: "plc-monitor" },
+    { label: "Arm", component: "robot-arm-sensor" },
+    { label: "Vision", component: "vision-health" },
+    { label: "PLC", component: "plc-sensor" },
   ];
 
   return (
