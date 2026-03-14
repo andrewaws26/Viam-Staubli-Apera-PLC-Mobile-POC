@@ -1,0 +1,75 @@
+import { ComponentState } from "../lib/types";
+
+interface Props {
+  component: ComponentState;
+}
+
+export default function StatusCard({ component }: Props) {
+  const { status, label, icon, faultMessage, lastUpdated } = component;
+
+  const isHealthy = status === "healthy";
+  const isFault = status === "fault" || status === "error";
+  const isLoading = status === "loading";
+
+  return (
+    <div
+      className={[
+        "rounded-2xl border flex flex-col items-center gap-4 p-6 transition-all duration-300",
+        isHealthy ? "border-green-800 bg-gray-900" : "",
+        isFault ? "border-red-700 bg-red-950/40" : "",
+        isLoading ? "border-gray-800 bg-gray-900" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      {/* Status circle with ping ring on fault */}
+      <div className="relative flex items-center justify-center w-36 h-36">
+        {isFault && (
+          <span className="absolute inset-0 rounded-full bg-red-500 opacity-25 animate-ping" />
+        )}
+        <div
+          className={[
+            "w-36 h-36 rounded-full flex flex-col items-center justify-center shadow-lg select-none",
+            isHealthy ? "bg-green-500 shadow-green-900/60" : "",
+            isFault ? "bg-red-600 shadow-red-900/60 animate-pulse" : "",
+            isLoading ? "bg-gray-700" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
+          {isLoading ? (
+            <span className="text-gray-400 text-3xl">…</span>
+          ) : (
+            <>
+              <span className="text-4xl">{icon}</span>
+              <span className="text-white font-black text-xl mt-1">
+                {isHealthy ? "OK" : "FAULT"}
+              </span>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Label */}
+      <h2 className="text-lg font-bold tracking-widest uppercase text-center text-gray-100">
+        {label}
+      </h2>
+
+      {/* Fault message */}
+      {isFault && faultMessage && (
+        <p className="text-sm text-red-300 text-center leading-snug font-medium">
+          {faultMessage}
+        </p>
+      )}
+
+      {/* Last updated */}
+      <p className="text-xs text-gray-600 mt-auto font-mono">
+        {lastUpdated
+          ? lastUpdated.toLocaleTimeString()
+          : isLoading
+          ? "connecting…"
+          : "—"}
+      </p>
+    </div>
+  );
+}

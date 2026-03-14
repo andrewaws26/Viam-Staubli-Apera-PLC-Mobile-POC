@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+/* Full-screen red flash when a fault is first detected.
+   The flash overlay div is keyed to re-mount on each new fault. */
+@keyframes flashOut {
+  0%   { background-color: rgba(220, 38, 38, 0.55); }
+  100% { background-color: rgba(220, 38, 38, 0); }
+}
+
+/* Alert banner slide-in */
+@keyframes bannerIn {
+  from { transform: translateY(-100%); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
+}
