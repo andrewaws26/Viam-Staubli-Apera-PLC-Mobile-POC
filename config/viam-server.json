@@ -1,0 +1,71 @@
+{
+  "cloud": {
+    "id": "",
+    "secret": "",
+    "app_address": "https://app.viam.com:443",
+    "_comment": "Populate 'id' and 'secret' from Viam app after creating the machine. See https://docs.viam.com/operate/get-started/"
+  },
+  "modules": [
+    {
+      "type": "local",
+      "name": "plc-sensor-module",
+      "executable_path": "/opt/viam-modules/plc-sensor/src/plc_sensor.py"
+    },
+    {
+      "type": "local",
+      "name": "robot-arm-sensor-module",
+      "executable_path": "/opt/viam-modules/robot-arm-sensor/src/robot_arm_sensor.py"
+    },
+    {
+      "type": "local",
+      "name": "vision-health-sensor-module",
+      "executable_path": "/opt/viam-modules/vision-health-sensor/src/vision_health_sensor.py"
+    }
+  ],
+  "components": [
+    {
+      "name": "plc-monitor",
+      "api": "rdk:component:sensor",
+      "model": "viam-staubli-apera-poc:monitor:plc-sensor",
+      "attributes": {
+        "host": "192.168.1.100",
+        "port": 502,
+        "button_coil": 0,
+        "fault_coil": 1
+      },
+      "depends_on": []
+    },
+    {
+      "name": "robot-arm-monitor",
+      "api": "rdk:component:sensor",
+      "model": "viam-staubli-apera-poc:monitor:robot-arm-sensor",
+      "attributes": {
+        "host": "192.168.1.10",
+        "port": 502,
+        "protocol": "modbus"
+      },
+      "depends_on": []
+    },
+    {
+      "name": "vision-health-monitor",
+      "api": "rdk:component:sensor",
+      "model": "viam-staubli-apera-poc:monitor:vision-health-sensor",
+      "attributes": {
+        "host": "192.168.1.50",
+        "port": 8080
+      },
+      "depends_on": []
+    }
+  ],
+  "services": [
+    {
+      "name": "data-manager",
+      "type": "data_manager",
+      "attributes": {
+        "capture_dir": "/tmp/viam-data",
+        "sync_interval_mins": 0.1,
+        "tags": ["robot-cell-monitor"]
+      }
+    }
+  ]
+}

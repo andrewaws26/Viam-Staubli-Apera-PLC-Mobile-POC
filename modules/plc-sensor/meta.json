@@ -1,0 +1,17 @@
+{
+  "module_id": "viam-staubli-apera-poc:plc-sensor",
+  "visibility": "private",
+  "url": "",
+  "description": "PLC Modbus TCP sensor for industrial remote monitoring POC. Reads digital I/O states (connection, fault, button) from a PLC.",
+  "models": [
+    {
+      "api": "rdk:component:sensor",
+      "model": "viam-staubli-apera-poc:monitor:plc-sensor"
+    }
+  ],
+  "entrypoint": "src/plc_sensor.py",
+  "build": {
+    "build": "",
+    "setup": "./setup.sh"
+  }
+}

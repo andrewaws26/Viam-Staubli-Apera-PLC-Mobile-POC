@@ -1,0 +1,17 @@
+{
+  "module_id": "viam-staubli-apera-poc:vision-health-sensor",
+  "visibility": "private",
+  "url": "",
+  "description": "Vision system health check sensor for industrial remote monitoring POC. Performs ICMP ping and TCP port probe against the vision server. Does not access image data or vision results.",
+  "models": [
+    {
+      "api": "rdk:component:sensor",
+      "model": "viam-staubli-apera-poc:monitor:vision-health-sensor"
+    }
+  ],
+  "entrypoint": "src/vision_health_sensor.py",
+  "build": {
+    "build": "",
+    "setup": "./setup.sh"
+  }
+}
