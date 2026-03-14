@@ -314,3 +314,37 @@ These need answers from the hardware integration lead before committing to imple
 | 6 | Is there a managed switch on the cell network with a free port for the Viam agent? | Physical connectivity requirement |
 | 7 | Are there any IT/OT network segmentation policies that would block the Viam agent from reaching Viam Cloud? | May require proxy configuration or firewall rules |
 | 8 | Can the hardware lead write and deploy a VAL3 program to the CS9 for testing? | Required for Option A of robot monitoring |
+
+---
+
+## 9. Current Implementation State
+
+This section was added on March 14, 2026, after the first deployment to real hardware. It maps the architecture described above to what was actually built and notes where the implementation diverged from the original plan.
+
+### What is deployed
+
+A Raspberry Pi 5 running Debian Trixie serves as the Viam agent host. viam-server v0.116.0 runs as a systemd service and connects to Viam Cloud. The machine is registered as "staubli-pi" in Andrew's org.
+
+The vision-health-sensor module is deployed to `/opt/viam-modules/vision-health-sensor/` and registered in the Viam app as a local module. It targets 8.8.8.8:53 (Google DNS) as a stand-in for the Apera vision server. The sensor returns live readings every time it is polled.
+
+A Next.js dashboard runs on the Pi and connects to Viam Cloud via the TypeScript SDK over WebRTC. It displays four status indicators, one of which (Vision System) shows live data. The other three show "Pending" because their backing sensors are not deployed.
+
+### Divergences from the plan
+
+**Raspberry Pi 5 instead of Pi 4 or NUC.** Section 2 mentioned "Raspberry Pi 4/5, Intel NUC, or similar." The Pi 5 was used because it was available. The system runs comfortably on it. viam-server's resource usage is modest.
+
+**Component naming.** The architecture document and config files used names like "vision-health-monitor" and "plc-monitor". The deployed system uses "vision-health" for the vision sensor component. The dashboard code was updated to match. When the PLC and robot arm sensors are deployed, they should use "plc-sensor" and "robot-arm-sensor" to match the dashboard's sensor config.
+
+**Dashboard reads directly from machine, not from cloud data API.** Section 2 shows the dashboard reading from "Viam API (gRPC/REST)" in the cloud layer. The actual implementation connects the browser directly to viam-server on the Pi via WebRTC, negotiated through Viam Cloud. This is functionally equivalent but has lower latency because readings come directly from the machine rather than being stored and queried from cloud data storage. The trade-off is that the dashboard only works when the machine is online. For the POC demo, this is the right choice. For production unattended monitoring, reading from the cloud data API would be more resilient.
+
+**No Viam Triggers configured.** Section 4 mentioned "Viam Triggers to webhook to email/Slack." These have not been configured yet. The dashboard handles alerting client-side with audio and visual alerts. Cloud-side triggers are a Phase 2 item.
+
+**Privacy architecture is fully enforced.** Section 6 described the privacy constraints. The implementation follows them exactly. The vision-health-sensor returns only `connected` (bool) and `process_running` (bool). The dashboard's type system enforces `SensorReadings = Record<string, unknown>` with health predicates defined per component. No camera, audio, or personnel data is collected or displayable.
+
+### What the pending modules need
+
+The PLC sensor module code is complete and handles Modbus TCP configuration. It returns placeholder values. To activate it, someone needs to provide the PLC brand/model, confirm Modbus TCP support, and supply the register map for fault bits and button states. Then update the `host`, `port`, `button_coil`, and `fault_coil` attributes in the Viam app and uncomment the pymodbus dependency.
+
+The robot arm sensor module code is complete for both protocol options (Modbus TCP and VAL3 socket). It returns placeholder values. To activate it, someone needs to confirm which protocol the CS9 exposes and provide either the Modbus register addresses or confirm that a VAL3 socket server is running.
+
+The wire/connection indicator on the dashboard derives its state from the PLC sensor. It does not have its own module. When the PLC sensor is live, wire state will be inferred from PLC communication faults, as described in section 1 of this document.

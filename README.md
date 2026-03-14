@@ -4,15 +4,43 @@ Remote monitoring proof of concept using [Viam Robotics](https://www.viam.com/) 
 
 **One-sentence summary:** Pull a wire and watch the dashboard react.
 
+## Current Status
+
+This system is live on a Raspberry Pi 5 connected to Viam Cloud. The vision-health-sensor module is deployed and returning real readings every 2 seconds. A Next.js dashboard running on the Pi connects to Viam Cloud via the TypeScript SDK and displays live component health with audible alarms on fault detection.
+
+The full pipeline is proven working: hardware sensor on Pi reads target, viam-server pushes data to Viam Cloud, browser-based dashboard pulls readings via WebRTC and renders status in real time.
+
+Three of the four dashboard indicators show "Pending" because their backing hardware (Staubli robot arm, PLC, junction box wiring) has not been connected yet. The system is architecturally ready for them. When those sensor modules are deployed and registered in Viam, the dashboard will pick them up automatically with no code changes.
+
+### Module Status
+
+| Module | Status | What It Does |
+|---|---|---|
+| `vision-health-sensor` | **Live on Pi** | ICMP ping + TCP port probe against a target host. Currently targeting 8.8.8.8:53 (Google DNS) as a stand-in for the Apera vision server. Returns `connected` and `process_running` booleans. Deployed to `/opt/viam-modules/vision-health-sensor/`. |
+| `plc-sensor` | Scaffold | Returns placeholder values. Blocked on PLC brand/model confirmation and Modbus register map from hardware lead. Code structure and Viam registration are complete. |
+| `robot-arm-sensor` | Scaffold | Returns placeholder values. Blocked on Staubli CS9 protocol confirmation (Modbus TCP vs VAL3 socket). Code structure and Viam registration are complete. |
+
+### Dashboard Status
+
+| Feature | State |
+|---|---|
+| Vision System indicator | Green, live readings from Viam Cloud |
+| Robot Arm indicator | Yellow, "Pending" (sensor not deployed) |
+| PLC / Controller indicator | Yellow, "Pending" |
+| Wire / Connection indicator | Yellow, "Pending" (derived from PLC) |
+| Fault detection + alarm | Working (audible klaxon, red flash, alert banner) |
+| Fault history log | Working (last 10 events, timestamped) |
+| Mock mode for demos | Working (toggle via env var) |
+
 ## What This System Does
 
 Three custom Viam sensor modules monitor hardware state from a robot cell:
 
-- **PLC Sensor** — Reads digital I/O states (connection health, fault bits, operator button) from a PLC via Modbus TCP.
-- **Robot Arm Sensor** — Monitors a Stäubli CS9 controller for connection state, operating mode, and fault codes.
-- **Vision Health Sensor** — Checks network reachability (ICMP ping) and service availability (TCP port probe) of an Apera AI vision server.
+- **PLC Sensor** -- Reads digital I/O states (connection health, fault bits, operator button) from a PLC via Modbus TCP.
+- **Robot Arm Sensor** -- Monitors a Staubli CS9 controller for connection state, operating mode, and fault codes.
+- **Vision Health Sensor** -- Checks network reachability (ICMP ping) and service availability (TCP port probe) of an Apera AI vision server.
 
-Sensor readings flow through Viam's data management service to Viam Cloud, where a remote dashboard displays live status and triggers alerts on faults.
+Sensor readings flow through viam-server to Viam Cloud, where a browser-based dashboard displays live status and triggers alerts on faults.
 
 ## What This System Does NOT Collect
 
@@ -24,92 +52,67 @@ This system is scoped strictly to machine and component state. By design, it doe
 - Audio from the work area
 - Any data that could be used to track, identify, or evaluate personnel
 
-Each sensor module has a fixed return schema defined in its `get_readings()` method. Expanding the data collected requires writing new module code, reviewing it, building it, and deploying it — not a configuration change. See `docs/architecture.md` section 6 for the full privacy architecture.
+Each sensor module has a fixed return schema defined in its `get_readings()` method. Expanding the data collected requires writing new module code, reviewing it, building it, and deploying it. This is not a configuration change. See `docs/architecture.md` section 6 for the full privacy architecture.
 
 ## Project Structure
 
 ```
 .
 ├── config/
-│   └── viam-server.json          # Viam agent configuration (all three modules)
-├── dashboard/                     # Monitoring dashboard (placeholder, Phase 1)
+│   ├── viam-server.json              # Full Viam agent config (all three modules)
+│   └── test-vision-only.json         # Minimal config for vision sensor testing
+├── dashboard/                         # Next.js monitoring dashboard (live)
+│   ├── app/                           # Next.js pages and layout
+│   ├── components/                    # React components (Dashboard, StatusCard, etc.)
+│   ├── lib/                           # Viam SDK wrapper, sensor configs, types
+│   ├── .env.local.example             # Template for credentials
+│   └── package.json
 ├── docs/
-│   └── architecture.md           # Full system architecture document
+│   ├── architecture.md                # Full system architecture document
+│   ├── deploy-rpi5.md                 # Raspberry Pi 5 deployment guide
+│   ├── build-log.md                   # Chronological build narrative
+│   └── interview-prep.md             # Technical interview preparation
 ├── modules/
-│   ├── plc-sensor/               # Phase 1 priority — PLC Modbus integration
-│   │   ├── meta.json
-│   │   ├── requirements.txt
-│   │   ├── setup.sh
-│   │   └── src/
-│   │       └── plc_sensor.py
-│   ├── robot-arm-sensor/         # Scaffold only — pending hardware details
-│   │   ├── meta.json
-│   │   ├── requirements.txt
-│   │   ├── setup.sh
-│   │   └── src/
-│   │       └── robot_arm_sensor.py
-│   └── vision-health-sensor/     # Functional — ICMP ping + TCP port check
-│       ├── meta.json
-│       ├── requirements.txt
-│       ├── setup.sh
-│       └── src/
-│           └── vision_health_sensor.py
-├── requirements.txt              # Top-level Python dependencies
+│   ├── plc-sensor/                    # Scaffold -- pending hardware details
+│   ├── robot-arm-sensor/              # Scaffold -- pending protocol confirmation
+│   └── vision-health-sensor/          # Live -- deployed on Pi 5
+├── DEMO.md                            # How to run the demo
+├── requirements.txt                   # Top-level Python dependencies
 └── README.md
 ```
 
-## Hardware Prerequisites
+## Hardware
 
-- **Viam agent host:** Raspberry Pi 5 running Raspberry Pi OS (or any Linux SBC/PC on the cell network)
-- **PLC:** Any model supporting Modbus TCP (brand/model TBD — confirm register map with hardware lead)
-- **Robot arm:** Stäubli CS9 controller with Modbus TCP enabled or VAL3 socket server deployed
-- **Vision server:** Dell server running Apera AI Vue with a known IP address and listening TCP port
-- **Network:** All devices on the same subnet or routable to each other; Viam agent needs outbound HTTPS to `app.viam.com`
+- **Deployed:** Raspberry Pi 5 (Debian Trixie, aarch64) running viam-server v0.116.0
+- **Pending:** PLC with Modbus TCP support, Staubli CS9 robot controller, Dell server running Apera AI Vue
+- **Network:** Pi on local network with outbound HTTPS to app.viam.com
 
-## Setup
+## Quick Start
 
-### 1. Install viam-server on the Raspberry Pi
-
-Follow the [Viam installation guide](https://docs.viam.com/operate/get-started/) for Raspberry Pi OS.
-
-### 2. Clone this repository
+### Run with mock data (no hardware needed)
 
 ```bash
-git clone <repo-url>
-cd Viam-Staubli-Apera-PLC-Mobile-POC
+cd dashboard
+cp .env.local.example .env.local
+# .env.local already has NEXT_PUBLIC_MOCK_MODE=true
+npm install
+npm run dev
 ```
 
-### 3. Install Python dependencies
+Open http://localhost:3000. Faults fire randomly every 15-20 seconds. Use the Demo Controls buttons to trigger faults manually.
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
+### Run with live Viam data
 
-### 4. Configure the Viam agent
-
-1. Create a machine in the [Viam app](https://app.viam.com/).
-2. Copy the machine's cloud credentials (`id` and `secret`) into `config/viam-server.json`.
-3. Update the IP addresses in the component attributes to match your cell network.
-4. Copy modules to the Viam agent host (paths in config default to `/opt/viam-modules/`).
-
-### 5. Run
-
-```bash
-viam-server -config config/viam-server.json
-```
-
-Sensor readings will appear in the Viam app under the machine's **Control** tab. The dashboard (Phase 1 deliverable) will provide a dedicated monitoring view.
-
-## Module Status
-
-| Module | Status | Notes |
-|---|---|---|
-| `plc-sensor` | Placeholder values | Replace with real Modbus reads after PLC register map is confirmed |
-| `robot-arm-sensor` | Scaffold only | Blocked on hardware protocol confirmation (see architecture doc section 8) |
-| `vision-health-sensor` | Functional | Works against any IP:port — no Apera-specific integration needed yet |
+See [DEMO.md](DEMO.md) for the full walkthrough, or [docs/deploy-rpi5.md](docs/deploy-rpi5.md) for the detailed deployment guide.
 
 ## Architecture
 
 See [`docs/architecture.md`](docs/architecture.md) for the full system architecture, including data flow diagrams, phased build plan, privacy constraints, and the list of hardware assumptions requiring validation.
+
+## Documentation
+
+- [`docs/architecture.md`](docs/architecture.md) -- System architecture, privacy design, hardware assessment
+- [`docs/deploy-rpi5.md`](docs/deploy-rpi5.md) -- Step-by-step Pi deployment guide
+- [`docs/build-log.md`](docs/build-log.md) -- Narrative of what was built and why
+- [`docs/interview-prep.md`](docs/interview-prep.md) -- Technical interview preparation
+- [`DEMO.md`](DEMO.md) -- How to run the demo for a non-technical audience
