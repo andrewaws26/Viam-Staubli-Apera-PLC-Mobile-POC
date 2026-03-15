@@ -144,6 +144,7 @@ class PLCModbusServer:
             ir=ModbusSequentialDataBlock(0, [0] * _REGISTER_COUNT),
             di=ModbusSequentialDataBlock(0, [0] * 32),
             co=ModbusSequentialDataBlock(0, [0] * 32),
+            zero_mode=True,
         )
         # pymodbus 3.x uses 'devices' instead of 'slaves'
         try:
@@ -190,8 +191,8 @@ class PLCModbusServer:
         self.write_register(base + REG_GYRO_X, _float_to_int16(gyro.get("gyro_x", 0)))
         self.write_register(base + REG_GYRO_Y, _float_to_int16(gyro.get("gyro_y", 0)))
         self.write_register(base + REG_GYRO_Z, _float_to_int16(gyro.get("gyro_z", 0)))
-        self.write_register(base + REG_TEMPERATURE, int(round(temperature_f * 10)))
-        self.write_register(base + REG_HUMIDITY, int(round(humidity_pct * 10)))
+        self.write_register(base + REG_TEMPERATURE, _float_to_int16(temperature_f, 10.0))
+        self.write_register(base + REG_HUMIDITY, _float_to_int16(humidity_pct, 10.0))
         self.write_register(base + REG_PRESSURE, pressure)
         self.write_register(base + REG_SERVO1_POS, int(round(servo1_pos)))
         self.write_register(base + REG_SERVO2_POS, int(round(servo2_pos)))

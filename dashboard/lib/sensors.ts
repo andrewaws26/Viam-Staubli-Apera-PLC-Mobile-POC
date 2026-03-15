@@ -54,8 +54,9 @@ export const SENSOR_CONFIGS: SensorConfig[] = [
     isHealthy: (r) => r.connected === true && r.fault === false,
     getFaultMessage: (r) => {
       if (r.connected !== true) return "No Modbus TCP connection";
-      if (r.fault_coil) return "Fault coil active";
-      return "PLC fault detected";
+      if (r.system_state === "e-stopped") return "E-STOP ACTIVE";
+      const fault = r.last_fault ?? "unknown";
+      return `Fault: ${String(fault).toUpperCase()}`;
     },
   },
   {
@@ -69,80 +70,26 @@ export const SENSOR_CONFIGS: SensorConfig[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// PLC register-to-field mapping.
-// The plc-monitor sensor returns raw Modbus registers as register_100..113
-// plus top-level booleans (connected, fault, fault_coil, button_state).
-// This table maps each register to a human-friendly label and optional unit,
-// with a `scale` divisor for fixed-point values (e.g. register / 10 → °F).
+// PLC detail panel field definitions.
+// The plc-sensor module (plc_sensor.py) reads raw Modbus registers and
+// returns ALREADY-DECODED named keys: system_state is a string like "idle",
+// temperature_f is a float like 72.5, etc.  No additional decoding needed
+// on the dashboard side — just display the values.
 // ---------------------------------------------------------------------------
-export const PLC_REGISTER_MAP: {
-  register: string;
+export const PLC_DETAIL_FIELDS: {
+  key: string;
   label: string;
   unit?: string;
-  scale?: number;
 }[] = [
-  { register: "register_100", label: "System State" },
-  { register: "register_101", label: "Cycle Count" },
-  { register: "register_102", label: "Temperature", unit: "°F", scale: 10 },
-  { register: "register_103", label: "Humidity", unit: "%", scale: 10 },
-  { register: "register_104", label: "Vibration X", unit: "m/s²", scale: 100 },
-  { register: "register_105", label: "Vibration Y", unit: "m/s²", scale: 100 },
-  { register: "register_106", label: "Vibration Z", unit: "m/s²", scale: 100 },
-  { register: "register_107", label: "Pressure", unit: "psi", scale: 10 },
-  { register: "register_108", label: "Servo 1 Pos", unit: "°", scale: 10 },
-  { register: "register_109", label: "Servo 2 Pos", unit: "°", scale: 10 },
-  { register: "register_110", label: "Servo 3 Pos", unit: "°", scale: 10 },
-  { register: "register_111", label: "Servo 4 Pos", unit: "°", scale: 10 },
-  { register: "register_112", label: "Servo 5 Pos", unit: "°", scale: 10 },
-  { register: "register_113", label: "Servo 6 Pos", unit: "°", scale: 10 },
+  { key: "system_state", label: "System State" },
+  { key: "cycle_count", label: "Cycle Count" },
+  { key: "temperature_f", label: "Temperature", unit: "°F" },
+  { key: "humidity_pct", label: "Humidity", unit: "%" },
+  { key: "vibration_x", label: "Vibration X", unit: "m/s²" },
+  { key: "vibration_y", label: "Vibration Y", unit: "m/s²" },
+  { key: "vibration_z", label: "Vibration Z", unit: "m/s²" },
+  { key: "pressure_simulated", label: "Pressure" },
+  { key: "servo1_position", label: "Servo 1 Pos", unit: "°" },
+  { key: "servo2_position", label: "Servo 2 Pos", unit: "°" },
+  { key: "last_fault", label: "Last Fault" },
 ];
-
-// System-state integer → human label
-const SYSTEM_STATES: Record<number, string> = {
-  0: "idle",
-  1: "running",
-  2: "fault",
-  3: "e-stopped",
-  4: "paused",
-};
-
-/** Decode raw plc-monitor readings into display-friendly key/value pairs. */
-export function decodePlcReadings(
-  raw: SensorReadings
-): { label: string; value: string; unit?: string }[] {
-  const rows: { label: string; value: string; unit?: string }[] = [];
-
-  for (const { register, label, unit, scale } of PLC_REGISTER_MAP) {
-    const v = raw[register];
-    if (v === undefined || v === null) continue;
-
-    let display: string;
-    if (register === "register_100") {
-      // Decode system state integer to label
-      const num = typeof v === "number" ? v : parseInt(String(v), 10);
-      display = SYSTEM_STATES[num] ?? String(v);
-    } else if (scale && typeof v === "number") {
-      display = (v / scale).toFixed(scale >= 100 ? 2 : 1);
-    } else {
-      display = String(v);
-    }
-
-    rows.push({ label, value: display, unit });
-  }
-
-  // Append top-level boolean fields
-  if (raw.button_state !== undefined) {
-    rows.push({
-      label: "Button State",
-      value: raw.button_state ? "PRESSED" : "released",
-    });
-  }
-  if (raw.fault_coil !== undefined) {
-    rows.push({
-      label: "Fault Coil",
-      value: raw.fault_coil ? "ACTIVE" : "clear",
-    });
-  }
-
-  return rows;
-}

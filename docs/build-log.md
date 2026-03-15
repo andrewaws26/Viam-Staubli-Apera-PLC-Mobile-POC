@@ -212,3 +212,46 @@ Updated config/viam-server.json to point the plc-sensor at `raiv-plc.local:502`,
 4. Copy the display code to the Matrix Portal S3.
 5. Verify the full pipeline: Pi Zero W sensors → Modbus registers → Pi 5 plc-sensor → Viam Cloud → Vercel dashboard.
 6. The PLC indicator on the dashboard should flip from yellow Pending to green OK.
+
+---
+
+## March 15, 2026 — Pi Zero W Deployment, Live Modbus Pipeline, Dashboard Fixes
+
+### Starting Point
+
+The PLC simulator code and the plc-sensor module code were written but not deployed. The dashboard showed three yellow "Pending" cards (PLC, Wire, Robot Arm) and one green card (Vision). The goal was to flash the Pi Zero W, deploy the simulator, connect the plc-sensor module on the Pi 5, and get the PLC indicator green on the dashboard.
+
+### Pi Zero W Setup
+
+The Pi Zero W was flashed with Raspberry Pi OS Lite and connected to the local WiFi network at 192.168.1.74 (`raiv-plc.local` via mDNS). Setup scripts in `pi-zero-setup/` automated the process: install system packages (python3, pip, i2c-tools, libgpiod), clone the repository, create a Python virtual environment with pymodbus, RPi.GPIO, smbus2, adafruit-circuitpython-dht, and install the systemd service.
+
+The PLC simulator starts on boot via `plc-simulator.service`. It binds Modbus TCP to port 502 (using `CAP_NET_BIND_SERVICE` for the privileged port). The GY-521 accelerometer reads via I2C bus 1, the DHT22 reads via GPIO pin 4, and two servos run on PWM pins 12 and 13. The work cycle state machine starts in IDLE and transitions to RUNNING when the Plate Cycle register is set.
+
+### Modbus TCP Working Across Network
+
+The Pi 5 at 192.168.1.89 runs viam-server with the plc-sensor module. The module connects to `raiv-plc.local:502` and reads all Modbus registers every second. The full pipeline was verified: Pi Zero W physical sensors → Modbus register writes → network → Pi 5 Modbus reads → plc_sensor.py decoding → Viam SDK → Viam Cloud → Vercel dashboard.
+
+Register test script (`pi-zero-setup/04-test-registers.sh`) confirmed all 14 sensor registers (100-113) return valid data: vibration X/Y/Z near 0/0/9.81 m/s², temperature ~72°F, humidity ~45%, pressure ~512, servo positions updating during work cycle, system state toggling between idle (0) and running (1).
+
+### plc-sensor Module — Real pymodbus Reads
+
+The plc-sensor module (`modules/plc-sensor/src/plc_sensor.py`) was updated from scaffold to production code using pymodbus. It reads two register blocks per poll: E-Cat cable registers (0-24) for digital I/O states, and sensor data registers (100-113) for analog values. Signed int16 decoding handles accelerometer and gyroscope values that can be negative. Temperature and humidity use `_int16_to_float` with a scale of 10 to handle edge cases where the DHT22 returns values that encode as negative int16. System state and fault codes are decoded from integer register values to human-readable labels ("idle", "running", "fault", "e-stopped").
+
+### Dashboard — Live PLC Data
+
+The dashboard component name was updated from `plc-sensor` to `plc-monitor` to match the Viam component instance name. The PLC detail panel displays decoded sensor values directly from the plc-sensor module's named keys: system state, cycle count, temperature (°F), humidity (%), vibration X/Y/Z (m/s²), pressure, servo positions (°), and last fault. The PLC card health logic is: green/OK when `connected === true && fault === false`, red/FAULT when fault is true, yellow/PENDING when the component isn't reachable.
+
+Data decoding bugs were fixed:
+- **Signed int16 handling:** The simulator's Modbus server now encodes temperature and humidity using the same `_float_to_int16` function as vibration/gyro, ensuring consistent unsigned int16 encoding. The reader uses `_int16_to_float` for decoding. This prevents negative values from appearing when raw register values cross the signed/unsigned boundary.
+- **zero_mode=True:** Added explicit `zero_mode=True` to the Modbus server's `ModbusSlaveContext` to eliminate address offset ambiguity between pymodbus versions.
+- **Dashboard field mapping:** The dashboard detail panel now uses the correct named keys from plc_sensor.py (`system_state`, `cycle_count`, `temperature_f`, `humidity_pct`, etc.) instead of raw register keys.
+
+### Current State
+
+Three of four dashboard cards are green:
+- **Vision System:** OK — pinging 8.8.8.8:53
+- **PLC / Controller:** OK — live Modbus data from Pi Zero W
+- **Wire / Connection:** OK — derived from PLC connected state
+- **Robot Arm:** Pending — hardware not available
+
+The PLC detail panel shows live sensor data updating every 2 seconds. The full digital twin pipeline is working: physical sensors on the Pi Zero W → Modbus TCP → Pi 5 plc-sensor module → Viam Cloud → Vercel dashboard.

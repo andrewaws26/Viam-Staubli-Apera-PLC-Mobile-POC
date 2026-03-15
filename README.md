@@ -12,21 +12,21 @@ A Pi Zero W runs the PLC simulator — a standalone Modbus TCP server that mirro
 
 ### Module Status
 
-| Module | Status | What It Does |
-|---|---|---|
-| `vision-health-sensor` | **Live on Pi** | ICMP ping + TCP port probe against a target host. Currently targeting 8.8.8.8:53 (Google DNS) as a stand-in for the Apera vision server. Returns `connected` and `process_running` booleans. Deployed to `/opt/viam-modules/vision-health-sensor/`. Data capture configured, readings sync to Viam Cloud. |
-| `plc-sensor` | **Ready** | Reads PLC state via Modbus TCP from the Pi Zero W PLC simulator. Returns 25-pin E-Cat cable signals, vibration, temperature, humidity, pressure, servo positions, cycle count, system state, and fault codes. Data capture at 1 Hz. |
-| `robot-arm-sensor` | Scaffold | Returns placeholder values. Blocked on Staubli CS9 protocol confirmation (Modbus TCP vs VAL3 socket). Code structure and Viam registration are complete. |
+| Module | Viam Component | Status | What It Does |
+|---|---|---|---|
+| `vision-health-sensor` | `vision-health` | **Working** | ICMP ping + TCP port probe against a target host. Currently targeting 8.8.8.8:53 (Google DNS) as a stand-in for the Apera vision server. Returns `connected` and `process_running` booleans. Deployed to `/opt/viam-modules/vision-health-sensor/`. Data capture configured, readings sync to Viam Cloud. |
+| `plc-sensor` | `plc-monitor` | **Working** | Reads PLC state via Modbus TCP from the Pi Zero W PLC simulator. Returns 25-pin E-Cat cable signals, vibration, temperature, humidity, pressure, servo positions, cycle count, system state, and fault codes. Data capture at 1 Hz. Deployed and returning real Modbus data. |
+| `robot-arm-sensor` | `robot-arm-monitor` | Pending hardware | Returns placeholder values. Blocked on Staubli CS9 protocol confirmation (Modbus TCP vs VAL3 socket). Code structure and Viam registration are complete. |
 
 ### Dashboard Status
 
 | Feature | State |
 |---|---|
-| Vision System indicator | Green, live readings from Viam Cloud |
-| Robot Arm indicator | Yellow, "Pending" (sensor not deployed) |
-| PLC / Controller indicator | Green when plc-sensor is connected to PLC simulator |
-| Wire / Connection indicator | Derived from PLC readings |
-| PLC Sensor Data panel | Live — vibration, temperature, humidity, servo positions, cycle count |
+| Vision System indicator | Green OK, live readings from Viam Cloud |
+| PLC / Controller indicator | Green OK, live Modbus data from Pi Zero W |
+| Wire / Connection indicator | Green OK, derived from PLC readings |
+| Robot Arm indicator | Yellow "Pending" (hardware not available) |
+| PLC Sensor Data panel | Live — vibration, temperature, humidity, servo positions, cycle count, system state |
 | Fault detection + alarm | Working (audible klaxon, red flash, alert banner) |
 | Fault history log | Working (last 10 events, timestamped) |
 | Mock mode for demos | Working (toggle via env var) |
@@ -89,11 +89,17 @@ Each sensor module has a fixed return schema defined in its `get_readings()` met
 │   ├── plc-sensor/                       # Modbus TCP reader — connects to PLC simulator
 │   ├── robot-arm-sensor/                 # Scaffold — pending protocol confirmation
 │   └── vision-health-sensor/             # Live — deployed on Pi 5
+├── pi-zero-setup/                        # Automated setup scripts for Pi Zero W
+│   ├── 01-install-packages.sh            # System packages and Python deps
+│   ├── 02-clone-and-setup.sh             # Clone repo and create venv
+│   ├── 03-configure-and-run.sh           # Configure and start simulator
+│   ├── 04-test-registers.sh              # Verify Modbus registers via pymodbus
+│   └── run-all.sh                        # Run all setup scripts in sequence
 ├── plc-simulator/                        # Pi Zero W PLC simulator
 │   ├── src/                              # Modbus server, sensors, actuators, work cycle
 │   ├── tests/                            # Unit tests (fault detection, register map)
 │   ├── config.yaml                       # GPIO pins, thresholds, polling rates
-│   ├── systemd/plc-simulator.service     # systemd unit file
+│   ├── systemd/plc-simulator.service     # systemd unit file for boot startup
 │   └── requirements.txt
 ├── DEMO.md                               # How to run the demo
 ├── requirements.txt                      # Top-level Python dependencies
@@ -130,7 +136,21 @@ For local development against live data, see [DEMO.md](DEMO.md) for the full wal
 
 ### Run the PLC simulator (Pi Zero W)
 
-See [`plc-simulator/README.md`](plc-simulator/README.md) for setup instructions.
+The PLC simulator runs on a Pi Zero W at `raiv-plc.local` (192.168.1.74), exposing Modbus TCP on port 502. It starts automatically on boot via systemd.
+
+**First-time setup** (from a fresh Pi Zero W):
+
+```bash
+# Copy setup scripts to the Pi
+scp -r pi-zero-setup/ pi@raiv-plc.local:~/
+
+# SSH in and run
+ssh pi@raiv-plc.local
+chmod +x ~/pi-zero-setup/*.sh
+~/pi-zero-setup/run-all.sh
+```
+
+This installs packages, clones the repo, creates a venv, installs the systemd service, and starts the simulator. See [`plc-simulator/README.md`](plc-simulator/README.md) for the full register map and manual operation.
 
 ## Architecture
 
