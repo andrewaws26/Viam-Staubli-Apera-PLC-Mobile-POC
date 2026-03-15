@@ -101,14 +101,18 @@ class DHT22Sensor:
         self._last_read_time: float = 0
 
         if gpio_config.has_dht():
-            import adafruit_dht
-            import board
-            pin_obj = getattr(board, f"D{self._pin}", None)
-            if pin_obj:
-                self._device = adafruit_dht.DHT22(pin_obj)
-                logger.info("DHT22 initialized on GPIO %d", self._pin)
-            else:
-                logger.warning("Board pin D%d not found, using simulation", self._pin)
+            try:
+                import adafruit_dht
+                import board
+                pin_obj = getattr(board, f"D{self._pin}", None)
+                if pin_obj:
+                    self._device = adafruit_dht.DHT22(pin_obj)
+                    logger.info("DHT22 initialized on GPIO %d", self._pin)
+                else:
+                    logger.warning("Board pin D%d not found, using simulation", self._pin)
+            except (RuntimeError, OSError, Exception) as e:
+                logger.warning("DHT22 init failed (%s) — using simulated data", e)
+                self._device = None
 
     def read(self) -> Dict[str, float]:
         """Return temperature (°F) and humidity (%)."""
@@ -122,7 +126,7 @@ class DHT22Sensor:
                 self._last_temp_f = round(temp_c * 9.0 / 5.0 + 32.0, 1)
                 self._last_humidity = round(humidity, 1)
                 self._last_read_time = time.time()
-        except RuntimeError as e:
+        except (RuntimeError, OSError) as e:
             # DHT22 frequently throws read errors — use last known values
             logger.debug("DHT22 read error (using cached): %s", e)
 
