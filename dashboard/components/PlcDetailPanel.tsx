@@ -1,5 +1,5 @@
 import { SensorReadings } from "../lib/types";
-import { decodePlcReadings } from "../lib/sensors";
+import { PLC_DETAIL_FIELDS } from "../lib/sensors";
 
 interface Props {
   readings: SensorReadings | null;
@@ -10,25 +10,15 @@ export default function PlcDetailPanel({ readings }: Props) {
     return null;
   }
 
-  const rows = decodePlcReadings(readings);
-
-  if (rows.length === 0) return null;
-
-  // Color the System State value
-  const stateColor = (value: string) => {
-    switch (value) {
-      case "running":
-        return "text-green-400";
-      case "fault":
-      case "e-stopped":
-        return "text-red-400";
-      case "idle":
-      case "paused":
-        return "text-yellow-400";
-      default:
-        return "text-gray-200";
-    }
-  };
+  const stateStr = String(readings.system_state ?? "unknown");
+  const stateColor =
+    stateStr === "running"
+      ? "text-green-400"
+      : stateStr === "fault"
+      ? "text-red-400"
+      : stateStr === "e-stopped"
+      ? "text-red-500"
+      : "text-yellow-400";
 
   return (
     <div className="border border-gray-800 rounded-2xl p-6">
@@ -36,11 +26,13 @@ export default function PlcDetailPanel({ readings }: Props) {
         PLC Sensor Data — Live
       </h3>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-3">
-        {rows.map(({ label, value, unit }) => {
-          const isState = label === "System State";
-          const isFaultCoil = label === "Fault Coil" && value === "ACTIVE";
+        {PLC_DETAIL_FIELDS.map(({ key, label, unit }) => {
+          const val = readings[key];
+          if (val === undefined) return null;
+          const isState = key === "system_state";
+          const isFault = key === "last_fault" && val !== "none";
           return (
-            <div key={label} className="flex flex-col">
+            <div key={key} className="flex flex-col">
               <span className="text-xs text-gray-600 uppercase tracking-wide">
                 {label}
               </span>
@@ -48,15 +40,15 @@ export default function PlcDetailPanel({ readings }: Props) {
                 className={[
                   "text-sm font-mono font-bold",
                   isState
-                    ? stateColor(value)
-                    : isFaultCoil
+                    ? stateColor
+                    : isFault
                     ? "text-red-400"
                     : "text-gray-200",
                 ]
                   .filter(Boolean)
                   .join(" ")}
               >
-                {value}
+                {String(val)}
                 {unit && (
                   <span className="text-gray-600 font-normal ml-0.5">
                     {unit}

@@ -27,6 +27,11 @@ echo ">>> Running Step 6: Test Modbus registers..."
 bash "$SCRIPT_DIR/04-test-registers.sh"
 echo ""
 
+echo ">>> Running Step 7: Install systemd service for boot startup..."
+bash "$SCRIPT_DIR/05-install-systemd.sh"
+echo ""
+
 echo "=========================================="
 echo "  ALL STEPS COMPLETE"
+echo "  PLC simulator starts on boot via systemd"
 echo "=========================================="

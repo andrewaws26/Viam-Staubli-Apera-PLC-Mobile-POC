@@ -5,8 +5,8 @@ After=network.target
 [Service]
 Type=simple
 User=pi
-WorkingDirectory=/home/pi/plc-simulator
-ExecStart=/home/pi/plc-simulator/venv/bin/python -m src.main
+WorkingDirectory=/home/pi/Viam-Staubli-Apera-PLC-Mobile-POC/plc-simulator
+ExecStart=/home/pi/Viam-Staubli-Apera-PLC-Mobile-POC/plc-simulator/venv/bin/python -m src.main
 Restart=always
 RestartSec=5
 StandardOutput=journal

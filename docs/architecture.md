@@ -329,21 +329,21 @@ Last updated: March 15, 2026. This section maps every component in the architect
 
 **Robot Arm Sensor module.** Scaffold only. Code is complete with Viam registration, configuration handling, and placeholder readings for both Modbus TCP and VAL3 socket protocols. Not deployed to the Pi. Blocked on Staubli CS9 protocol confirmation from the hardware lead.
 
-**PLC / Modbus Sensor module.** Scaffold only. Code is complete with Modbus TCP configuration handling and placeholder readings. Not deployed to the Pi. Blocked on PLC brand/model confirmation and register map from the hardware lead.
+**PLC / Modbus Sensor module.** Deployed and working. Custom Python module at `modules/plc-sensor/` registered as Viam component `plc-monitor`. Connects via Modbus TCP to the Pi Zero W PLC simulator at `raiv-plc.local:502`. Reads 25 E-Cat cable registers (0-24) and 14 sensor data registers (100-113). Decodes signed int16 values for vibration, temperature, humidity. Returns structured dict with human-readable keys. Data capture at 1 Hz, readings sync to Viam Cloud. The Pi Zero W (192.168.1.74) runs the PLC simulator as a systemd service on port 502, reading physical GY-521 accelerometer and DHT22 temperature/humidity sensors. The Pi 5 (192.168.1.89) runs viam-server with the plc-sensor module connecting across the local network.
 
-**Wire / Connection monitoring.** Not a separate module. The dashboard derives wire state from the PLC sensor. When the PLC sensor is deployed, wire state will be inferred from PLC communication faults as described in section 1.
+**Wire / Connection monitoring.** Derived from PLC sensor readings. The dashboard Wire/Connection card shows green when the PLC sensor reports `connected: true` and `fault: false`. When the Pi Zero W loses power or network, the Modbus connection fails and the card turns red.
 
 **Viam Data Management Service.** Deployed and working. Configured in the Viam app with capture directory at `/tmp/viam-data`, sync interval of 6 seconds, tagged with "robot-cell-monitor". Historical readings are visible in the Viam app Data tab.
 
 **Viam Triggers.** Not configured. Dashboard handles alerting client-side. Cloud-side triggers for email/Slack are a future item.
 
-**Monitoring Dashboard.** Deployed and working. Next.js 14 application deployed to Vercel. Accessible from any browser with internet access. Connects to viam-server on the Pi via the Viam TypeScript SDK (@viamrobotics/sdk v0.34.0) over WebRTC, negotiated through Viam Cloud. Polls sensor readings every 2 seconds. Vision System shows green OK. Robot Arm, PLC, and Wire/Connection show yellow Pending. Fault detection with audible klaxon, red screen flash, alert banner, and 10-event fault history log. Mock mode available via environment variable for demos without hardware.
+**Monitoring Dashboard.** Deployed and working. Next.js application deployed to Vercel. Accessible from any browser with internet access. Connects to viam-server on the Pi 5 via the Viam TypeScript SDK (@viamrobotics/sdk v0.34.0) over WebRTC, negotiated through Viam Cloud. Polls sensor readings every 2 seconds. Three of four cards are green: Vision System (OK), PLC / Controller (OK), Wire / Connection (OK). Robot Arm shows yellow Pending (hardware not available). PLC detail panel shows live decoded sensor data: system state, cycle count, temperature, humidity, vibration, pressure, servo positions. Fault detection with audible klaxon, red screen flash, alert banner, and 10-event fault history log. Mock mode available via environment variable for demos without hardware.
 
 ### Divergences from the original plan
 
 **Raspberry Pi 5 instead of Pi 4 or NUC.** Section 2 mentioned "Raspberry Pi 4/5, Intel NUC, or similar." The Pi 5 was used because it was available. viam-server runs comfortably on it.
 
-**Component naming.** The config files used names like "vision-health-monitor". The deployed system uses "vision-health" for the vision sensor. The dashboard expects "plc-sensor" and "robot-arm-sensor" for the pending components.
+**Component naming.** The Viam module directories use model names like `plc-sensor` and `robot-arm-sensor`, but the Viam component instance names differ: `plc-monitor`, `robot-arm-monitor`, `vision-health`. The dashboard uses the component instance names to query readings. The vision sensor is `vision-health`, the PLC sensor is `plc-monitor`, the robot arm is `robot-arm-sensor` (pending).
 
 **Dashboard hosted on Vercel, not on the Pi.** Section 4 listed "Vercel or local machine" as hosting options. Vercel was chosen because the dashboard should be available even when the Pi is offline. When the Pi loses power, the dashboard still loads and shows the fault state. If the dashboard ran on the Pi, it would go down at exactly the moment you most need it.
 
@@ -353,8 +353,8 @@ Last updated: March 15, 2026. This section maps every component in the architect
 
 ### What the pending modules need
 
-The PLC sensor module code is complete and handles Modbus TCP configuration. It returns placeholder values. To activate it: provide the PLC brand/model, confirm Modbus TCP support, supply the register map for fault bits and button states, update the `host`, `port`, `button_coil`, and `fault_coil` attributes in the Viam app, and uncomment the pymodbus dependency.
+The PLC sensor module is deployed and working. It reads real Modbus data from the Pi Zero W PLC simulator. When the real Click PLC is available, the only change needed is updating the `host` attribute in the Viam app from `raiv-plc.local` to the real PLC's IP address. The register map is identical.
 
 The robot arm sensor module code is complete for both protocol options. To activate it: confirm which protocol the CS9 exposes and provide either the Modbus register addresses or confirm that a VAL3 socket server is running.
 
-The wire/connection indicator derives its state from the PLC sensor. It will activate automatically when the PLC sensor goes live.
+The wire/connection indicator derives its state from the PLC sensor and is now active — it shows green when the PLC is connected and turns red when the connection drops.
