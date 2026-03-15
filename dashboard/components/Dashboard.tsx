@@ -205,7 +205,7 @@ export default function Dashboard() {
   const mockFaultTargets: { label: string; component: ComponentName }[] = [
     { label: "Arm", component: "robot-arm-sensor" },
     { label: "Vision", component: "vision-health" },
-    { label: "PLC", component: "plc-sensor" },
+    { label: "PLC", component: "plc-monitor" },
   ];
 
   return (
