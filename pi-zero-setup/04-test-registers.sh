@@ -50,7 +50,7 @@ def main():
     print("=" * 65)
 
     # Read registers 100-113 (14 registers)
-    result = client.read_holding_registers(address=100, count=14, slave=1)
+    result = client.read_holding_registers(address=100, count=14)
 
     if result.isError():
         print(f"FAIL: Error reading registers: {result}")
@@ -91,7 +91,7 @@ def main():
     print("-" * 65)
 
     # Also read a few E-Cat registers (0-8) to verify broader register space
-    ecat_result = client.read_holding_registers(address=0, count=25, slave=1)
+    ecat_result = client.read_holding_registers(address=0, count=25)
     if not ecat_result.isError():
         print(f"\nE-Cat registers 0-24: {ecat_result.registers}")
     else:
