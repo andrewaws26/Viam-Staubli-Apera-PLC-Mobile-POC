@@ -28,8 +28,6 @@ export const SENSOR_CONFIGS: SensorConfig[] = [
     label: "Robot Arm",
     icon: "🦾",
     componentName: VIAM_COMPONENT_NAMES.robotArm,
-    // Healthy when connected and no active fault
-    // Schema: { connected: bool, mode: string, fault: bool, fault_code: int }
     isHealthy: (r) => r.connected === true && r.fault === false,
     getFaultMessage: (r) =>
       r.connected !== true
@@ -41,8 +39,6 @@ export const SENSOR_CONFIGS: SensorConfig[] = [
     label: "Vision System",
     icon: "📷",
     componentName: VIAM_COMPONENT_NAMES.vision,
-    // Healthy when server is reachable and vision process is running
-    // Schema: { connected: bool, process_running: bool }
     isHealthy: (r) => r.connected === true && r.process_running === true,
     getFaultMessage: (r) =>
       r.connected !== true
@@ -54,22 +50,39 @@ export const SENSOR_CONFIGS: SensorConfig[] = [
     label: "PLC / Controller",
     icon: "🖥",
     componentName: VIAM_COMPONENT_NAMES.plc,
-    // Healthy when Modbus connection is live and no fault bit is set
-    // Schema: { connected: bool, fault: bool, button_state: bool }
-    isHealthy: (r) => r.connected === true && r.fault === false,
-    getFaultMessage: (r) =>
-      r.connected !== true
-        ? "No Modbus TCP connection"
-        : "Communication fault bit set",
+    // Healthy when Modbus connection is live, system is not faulted/e-stopped
+    isHealthy: (r) =>
+      r.connected === true &&
+      r.fault === false &&
+      r.system_state !== "e-stopped",
+    getFaultMessage: (r) => {
+      if (r.connected !== true) return "No Modbus TCP connection";
+      if (r.system_state === "e-stopped") return "E-STOP ACTIVE";
+      const fault = r.last_fault ?? "unknown";
+      return `Fault: ${String(fault).toUpperCase()}`;
+    },
   },
   {
     id: "wire",
     label: "Wire / Connection",
     icon: "🔌",
-    // Derived from PLC readings: a pulled wire shows up as a PLC fault or
-    // loss of connection — there is no direct wire-state sensor
     componentName: VIAM_COMPONENT_NAMES.plc,
     isHealthy: (r) => r.connected === true && r.fault === false,
     getFaultMessage: () => "Wire disconnected — junction box signal lost",
   },
 ];
+
+// PLC sensor data field labels for the detail panel
+export const PLC_SENSOR_FIELDS = [
+  { key: "system_state", label: "System State" },
+  { key: "cycle_count", label: "Cycle Count" },
+  { key: "temperature_f", label: "Temperature", unit: "°F" },
+  { key: "humidity_pct", label: "Humidity", unit: "%" },
+  { key: "vibration_x", label: "Vibration X", unit: "m/s²" },
+  { key: "vibration_y", label: "Vibration Y", unit: "m/s²" },
+  { key: "vibration_z", label: "Vibration Z", unit: "m/s²" },
+  { key: "pressure_simulated", label: "Pressure" },
+  { key: "servo1_position", label: "Servo 1 Pos", unit: "°" },
+  { key: "servo2_position", label: "Servo 2 Pos", unit: "°" },
+  { key: "last_fault", label: "Last Fault" },
+] as const;

@@ -1,3 +1,2 @@
 viam-sdk>=0.69.0
-# Uncomment when connecting to real PLC/robot hardware via Modbus:
-# pymodbus>=3.6.0
+pymodbus>=3.6.0

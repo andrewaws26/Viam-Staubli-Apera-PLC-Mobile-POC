@@ -1,0 +1,16 @@
+[Unit]
+Description=RAIV Digital Twin Status API
+After=network.target viam-server.service
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/Viam-Staubli-Apera-PLC-Mobile-POC/api
+ExecStart=/home/pi/Viam-Staubli-Apera-PLC-Mobile-POC/api/venv/bin/python src/status_api.py --plc-host raiv-plc.local --port 8080
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

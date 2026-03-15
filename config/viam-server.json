@@ -22,10 +22,8 @@
       "api": "rdk:component:sensor",
       "model": "viam-staubli-apera-poc:monitor:plc-sensor",
       "attributes": {
-        "host": "192.168.1.100",
-        "port": 502,
-        "button_coil": 0,
-        "fault_coil": 1
+        "host": "raiv-plc.local",
+        "port": 502
       },
       "depends_on": [],
       "service_configs": [
@@ -35,7 +33,7 @@
             "capture_methods": [
               {
                 "method": "Readings",
-                "capture_frequency_hz": 0.2,
+                "capture_frequency_hz": 1,
                 "additional_params": {}
               }
             ]
@@ -73,8 +71,8 @@
       "api": "rdk:component:sensor",
       "model": "viam-staubli-apera-poc:monitor:vision-health-sensor",
       "attributes": {
-        "host": "192.168.1.50",
-        "port": 8080
+        "host": "8.8.8.8",
+        "port": 53
       },
       "depends_on": [],
       "service_configs": [
@@ -91,6 +89,15 @@
           }
         }
       ]
+    },
+    {
+      "name": "pi-camera",
+      "api": "rdk:component:camera",
+      "model": "rdk:builtin:webcam",
+      "attributes": {
+        "video_path": "video0"
+      },
+      "depends_on": []
     }
   ],
   "services": [
@@ -100,7 +107,7 @@
       "attributes": {
         "capture_dir": "/tmp/viam-data",
         "sync_interval_mins": 0.1,
-        "tags": ["robot-cell-monitor"]
+        "tags": ["robot-cell-monitor", "raiv-digital-twin"]
       }
     }
   ]

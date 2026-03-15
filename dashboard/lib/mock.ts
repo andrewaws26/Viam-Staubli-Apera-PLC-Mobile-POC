@@ -60,7 +60,19 @@ export function getMockReadings(componentName: ComponentName): SensorReadings {
       return {
         connected: !isFaulted,
         fault: isFaulted,
-        button_state: !isFaulted,
+        system_state: isFaulted ? "fault" : "running",
+        last_fault: isFaulted ? "vibration" : "none",
+        servo_power_on: true,
+        plate_cycle_active: !isFaulted,
+        vibration_x: isFaulted ? 12.5 : +(Math.random() * 0.2 - 0.1).toFixed(2),
+        vibration_y: isFaulted ? 8.3 : +(Math.random() * 0.2 - 0.1).toFixed(2),
+        vibration_z: 9.81 + +(Math.random() * 0.2 - 0.1).toFixed(2),
+        temperature_f: +(70 + Math.random() * 5).toFixed(1),
+        humidity_pct: +(43 + Math.random() * 5).toFixed(1),
+        pressure_simulated: 500 + Math.floor(Math.random() * 50),
+        servo1_position: Math.floor(Math.random() * 180),
+        servo2_position: Math.random() > 0.5 ? 90 : 0,
+        cycle_count: 47 + Math.floor(Math.random() * 10),
       };
     default:
       return {};
