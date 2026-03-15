@@ -67,8 +67,14 @@ def setup_estop_callback(config, work_cycle: WorkCycle, modbus: PLCModbusServer)
             modbus.write_register(PIN_ESTOP_ENABLE, 1)
             modbus.write_register(PIN_ESTOP_OFF, 0)
 
-    GPIO.add_event_detect(estop_pin, GPIO.BOTH, callback=estop_handler, bouncetime=200)
-    logging.getLogger(__name__).info("E-stop interrupt registered on GPIO %d", estop_pin)
+    try:
+        GPIO.add_event_detect(estop_pin, GPIO.BOTH, callback=estop_handler, bouncetime=200)
+        logging.getLogger(__name__).info("E-stop interrupt registered on GPIO %d", estop_pin)
+    except RuntimeError as e:
+        logging.getLogger(__name__).warning(
+            "Could not register E-stop edge detection on GPIO %d (%s) — "
+            "E-stop button will not work, but simulator continues", estop_pin, e
+        )
 
 
 async def led_updater(config, work_cycle: WorkCycle):
