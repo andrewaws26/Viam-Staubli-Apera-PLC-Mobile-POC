@@ -33,12 +33,17 @@ class MPU6050:
         self._bus = None
 
         if gpio_config.has_i2c():
-            import smbus2
-            self._bus = smbus2.SMBus(self._bus_num)
-            # Wake up MPU6050 (exits sleep mode)
-            self._bus.write_byte_data(self._addr, _MPU6050_PWR_MGMT_1, 0x00)
-            logger.info("MPU6050 initialized on I2C bus %d addr 0x%02X",
-                        self._bus_num, self._addr)
+            try:
+                import smbus2
+                self._bus = smbus2.SMBus(self._bus_num)
+                # Wake up MPU6050 (exits sleep mode)
+                self._bus.write_byte_data(self._addr, _MPU6050_PWR_MGMT_1, 0x00)
+                logger.info("MPU6050 initialized on I2C bus %d addr 0x%02X",
+                            self._bus_num, self._addr)
+            except (FileNotFoundError, OSError) as e:
+                logger.warning("I2C bus %d not available (%s) — using simulated IMU",
+                               self._bus_num, e)
+                self._bus = None
 
     def read(self) -> Dict[str, float]:
         """Return accel (m/s^2) and gyro (°/s) for all 3 axes."""
