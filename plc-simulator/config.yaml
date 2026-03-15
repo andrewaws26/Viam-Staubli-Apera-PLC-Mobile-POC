@@ -1,0 +1,57 @@
+# PLC Simulator Configuration
+# Adjust these values for your Pi Zero W wiring and test thresholds.
+
+# Modbus server settings
+modbus:
+  host: "0.0.0.0"
+  port: 502
+
+# GPIO pin assignments (BCM numbering)
+gpio:
+  servo1_pin: 12          # PWM0 — grinder head positioning
+  servo2_pin: 13          # PWM1 — clamp actuator
+  estop_pin: 17           # E-stop button (NO contact, pull-down resistor)
+  led_green_pin: 22       # RUNNING indicator
+  led_yellow_pin: 23      # FAULT indicator
+  led_red_pin: 24         # E-STOP indicator
+  led_blue_pin: 25        # Modbus client connected indicator
+  dht22_pin: 4            # DHT22 data pin
+
+# I2C settings (GY-521 / MPU6050)
+i2c:
+  bus: 1
+  mpu6050_address: 0x68
+
+# MCP3008 ADC settings (for potentiometer)
+# Set enabled: false to use simulated pressure values
+adc:
+  enabled: false
+  spi_bus: 0
+  spi_device: 0
+  pot_channel: 0
+  simulated_value: 512    # Default simulated pressure (0-1023)
+
+# Sensor polling rates
+polling:
+  mpu6050_hz: 10          # Accelerometer/gyro polling rate
+  dht22_interval_s: 2     # DHT22 temperature/humidity interval
+  register_update_hz: 10  # How often to write sensor values to Modbus registers
+
+# Work cycle timing
+work_cycle:
+  servo1_sweep_time_s: 3.0    # Time for full 0→180→0 sweep
+  servo2_hold_time_s: 1.0     # Time clamp holds at 90 degrees
+  servo1_min_angle: 0
+  servo1_max_angle: 180
+  servo2_open_angle: 90
+  servo2_closed_angle: 0
+
+# Fault detection thresholds
+thresholds:
+  vibration_magnitude_max: 15.0   # m/s^2 — above this triggers vibration fault
+  temperature_max_f: 120.0        # Fahrenheit — above this triggers temperature fault
+  pressure_min: 100               # Below this triggers pressure fault (0-1023 scale)
+
+# Logging
+logging:
+  level: INFO   # DEBUG, INFO, WARNING, ERROR

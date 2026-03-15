@@ -149,3 +149,66 @@ A mobile robot car controlled via GPIO will be added as a physical demonstration
 #### Remaining Production Items
 
 Viam Triggers for email/Slack alerting on faults. Grafana for historical trend analysis using the data already being captured by the data_manager service.
+
+---
+
+## March 15, 2026 — Phase 1 Build: PLC Simulator + Full Digital Twin Pipeline
+
+### Starting Point
+
+The system had one live sensor (vision-health) and three pending indicators. The PLC sensor module was scaffold-only, returning placeholder values. There was no physical PLC to connect to. The goal was to build a complete PLC simulation on a Pi Zero W that mirrors the real RAIV truck's Click PLC, connect it to the existing Viam infrastructure, and light up the PLC indicator on the dashboard.
+
+### What Was Built
+
+#### PLC Simulator (plc-simulator/)
+
+A standalone Python application for the Pi Zero W that simulates the Click PLC. This is NOT a Viam module — the Pi Zero W does not run Viam. It is a pure Modbus TCP server that exposes the same register map as the real PLC on the truck.
+
+**Modbus Register Map.** The register layout mirrors the real RAIV truck's 25-pin E-Cat cable pinout. Registers 0-8 are command signals (Servo Power ON, Plate Cycle, Abort/Stow, etc.) that can be written by a remote operator. Registers 9-17 are status lamp feedback. Registers 18-24 are system state (E-Mag, POE, E-stop). Registers 100-113 are sensor data: accelerometer X/Y/Z, gyroscope X/Y/Z, temperature, humidity, pressure, servo positions, cycle count, system state, and fault codes.
+
+**Physical Sensors.** The simulator reads a GY-521 (MPU6050) accelerometer/gyroscope via I2C for vibration monitoring and a DHT22 for temperature and humidity via GPIO. The potentiometer is simulated in software because the Pi Zero W has no ADC — the real Click PLC has built-in analog inputs.
+
+**Servo Actuators.** Two SG90 micro servos on PWM GPIO pins simulate the grinder head positioning (sweeps 0-180°) and clamp actuator (opens to 90°, holds, closes to 0°). These run through an automated work cycle state machine.
+
+**Work Cycle State Machine.** IDLE → RUNNING → loops. The cycle runs servo sweeps and clamp actuation while polling sensors and checking fault conditions. Faults (vibration, temperature, pressure thresholds) halt the cycle and set fault registers. E-stop GPIO interrupt immediately stops all servos.
+
+**Fault Detection.** Configurable thresholds in config.yaml for vibration magnitude, temperature max, and pressure minimum. The fault monitor runs continuously during the work cycle. 25 unit tests cover the fault detection logic and register encoding.
+
+**Hardware-Independent.** The simulator detects missing GPIO/I2C/DHT libraries and falls back to simulated sensor values. This means it runs fine on any machine for testing the Modbus interface without Pi hardware.
+
+#### PLC Sensor Module Update (modules/plc-sensor/)
+
+The existing scaffold was replaced with a real Modbus TCP implementation using pymodbus. The module connects to the Pi Zero W (or any Modbus TCP host), reads all 25 E-Cat cable registers and 14 sensor data registers, decodes signed int16 values back to floats, and returns a structured dict with human-readable keys. The host and port are configurable via Viam component attributes.
+
+#### Status API (api/)
+
+A lightweight Flask HTTP server that runs on the Pi 5. It reads PLC state directly via Modbus TCP and exposes it as JSON at `/status` and `/health`. This serves the Matrix Portal S3 LED display and any other HTTP client. Deployed as a systemd service.
+
+#### Matrix Portal S3 Display (display/)
+
+CircuitPython code for the Adafruit Matrix Portal S3 driving a 64x32 RGB LED matrix. Connects to WiFi, polls the status API every second, and renders 6 colored status blocks: GRINDER (vibration), CLAMP (servo state), TEMP (temperature), PRESSURE (pressure), NETWORK (connectivity), POWER (POE status). Scrolls fault messages along the bottom rows when a fault is active.
+
+#### Dashboard Update
+
+The Vercel dashboard was updated to handle the richer PLC sensor data. The PLC health check now considers system_state and last_fault in addition to connected/fault. A new PlcDetailPanel component shows live sensor data (vibration, temperature, humidity, servo positions, cycle count, system state) below the status grid. The mock mode was updated to return realistic PLC data for demos.
+
+#### Viam Server Configuration
+
+Updated config/viam-server.json to point the plc-sensor at `raiv-plc.local:502`, set data capture at 1 Hz for PLC readings, added a Pi camera component, and tagged the data manager for the digital twin use case.
+
+### Architecture Decisions
+
+**Why a separate Pi Zero W instead of simulating on the Pi 5.** The real architecture has the PLC on a separate device communicating via Modbus TCP over the network. Running the simulator on a separate Pi preserves this boundary and proves the Modbus TCP integration works across a real network. It also means the Pi 5 runs exactly the same code it will run when connected to the real Click PLC.
+
+**Why Flask instead of FastAPI for the status API.** Flask is simpler, has no async complexity, and the API has exactly two endpoints with no concurrent load. FastAPI's async advantages are not needed here.
+
+**Why the register map mirrors the real E-Cat cable.** When the real PLC is connected, the plc-sensor module's code does not change. The register addresses are the same. The only config change is the IP address in the Viam app.
+
+### What Comes Next
+
+1. Flash the Pi Zero W, wire the hardware, and boot the PLC simulator.
+2. Deploy the updated plc-sensor module to the Pi 5.
+3. Deploy the status API on the Pi 5.
+4. Copy the display code to the Matrix Portal S3.
+5. Verify the full pipeline: Pi Zero W sensors → Modbus registers → Pi 5 plc-sensor → Viam Cloud → Vercel dashboard.
+6. The PLC indicator on the dashboard should flip from yellow Pending to green OK.

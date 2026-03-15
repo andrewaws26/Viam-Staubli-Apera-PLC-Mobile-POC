@@ -10,6 +10,7 @@ import { ComponentState, FaultEvent, SensorReadings } from "../lib/types";
 import StatusCard from "./StatusCard";
 import AlertBanner from "./AlertBanner";
 import FaultHistory from "./FaultHistory";
+import PlcDetailPanel from "./PlcDetailPanel";
 import ConnectionDot from "./ConnectionDot";
 import { getMockReadings, injectFault } from "../lib/mock";
 
@@ -254,6 +255,17 @@ export default function Dashboard() {
               <StatusCard key={comp.id} component={comp} />
             ))}
           </div>
+
+          {/* -------------------------------------------------------------- */}
+          {/* PLC Sensor Data Detail Panel                                   */}
+          {/* -------------------------------------------------------------- */}
+          {(() => {
+            const plcComp = components.find((c) => c.id === "plc");
+            if (plcComp && plcComp.readings && plcComp.status !== "pending") {
+              return <PlcDetailPanel readings={plcComp.readings} />;
+            }
+            return null;
+          })()}
 
           {/* -------------------------------------------------------------- */}
           {/* Mock mode: manual fault injection for demos                    */}
