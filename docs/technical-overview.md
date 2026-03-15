@@ -1,6 +1,6 @@
-# Interview Preparation
+# Technical Overview
 
-Technical context for discussing this project in an FDE or Solutions Architect interview at Viam or a similar robotics/IoT company.
+Technical context and design rationale for the remote monitoring POC. Covers what was built, why each decision was made, what Viam handles natively vs what required custom work, and the honest current state of the system.
 
 ## The Problem
 
@@ -58,7 +58,7 @@ Third, network architecture. In a real factory deployment, the Pi would be on an
 
 ## What Was Learned About Apera's Locked-Down OS
 
-The Apera AI vision system runs on a Dell server with a locked-down OS. This has implications for the integration architecture that are worth discussing in an interview because they represent a common pattern in industrial automation.
+The Apera AI vision system runs on a Dell server with a locked-down OS. This has implications for the integration architecture and represents a common pattern in industrial automation.
 
 The original architecture considered two approaches for vision system monitoring: a lightweight agent running on the vision server, or an external health check from the Pi. The locked-down OS makes the first approach impractical. Installing custom software on the vision server would require Apera's cooperation, would risk voiding support agreements, and would need to be re-applied after every Apera software update.
 
@@ -136,16 +136,16 @@ The vision-health-sensor module's `get_readings` runs two async checks concurren
 - Viam Triggers for email/Slack alerting
 - Grafana for historical trend analysis
 
-## How This Demonstrates FDE/SA Skills
+## Engineering Approach
 
-**Integration across heterogeneous systems.** The system connects a Raspberry Pi, a cloud platform, a CDN-hosted dashboard, and a browser application using four different protocols (gRPC for module communication, WebRTC for remote access, HTTPS for cloud sync, WebSocket for SDK signaling). An FDE needs to bridge systems that were not designed to work together.
+**Integration across heterogeneous systems.** The system connects a Raspberry Pi, a cloud platform, a CDN-hosted dashboard, and a browser application using four different protocols (gRPC for module communication, WebRTC for remote access, HTTPS for cloud sync, WebSocket for SDK signaling). Industrial monitoring requires bridging systems that were not designed to work together.
 
-**Working within constraints.** The privacy architecture is not an afterthought. It was designed into the system from the start and enforced at the code level. The Apera locked-down OS constraint was handled by designing around it rather than fighting it. An FDE at a customer-facing company needs to build systems that respect customer concerns, not just technically function.
+**Working within constraints.** The privacy architecture is not an afterthought. It was designed into the system from the start and enforced at the code level. The Apera locked-down OS constraint was handled by designing around it rather than fighting it. Systems that touch the shop floor need to respect operational concerns, not just technically function.
 
-**Knowing what to build vs what to use.** The project uses Viam's module system, data pipeline, and cloud connectivity. It builds custom sensor modules, a custom dashboard, and custom error handling. It uses Vercel for hosting rather than building deployment infrastructure. An SA needs to know where the platform ends and custom work begins.
+**Knowing what to build vs what to use.** The project uses Viam's module system, data pipeline, and cloud connectivity. It builds custom sensor modules, a custom dashboard, and custom error handling. It uses Vercel for hosting rather than building deployment infrastructure. Knowing where the platform ends and custom work begins keeps the project lean.
 
-**Unblocking yourself.** The PLC and robot arm sensors are blocked on hardware details. Rather than waiting, the vision sensor was deployed as a working proof of concept using a universally available target (Google DNS). This proves the architecture works while the hardware questions are resolved.
+**Unblocking on hardware dependencies.** The PLC and robot arm sensors are blocked on hardware details. Rather than waiting, the vision sensor was deployed as a working proof of concept using a universally available target (Google DNS). This proves the architecture works while the hardware questions are resolved.
 
-**Production thinking from day one.** The systemd service, the Vercel deployment, the power cycle test, and the data capture configuration are not afterthoughts. They are engineering decisions that demonstrate readiness for real-world deployment.
+**Production thinking from day one.** The systemd service, the Vercel deployment, the power cycle test, and the data capture configuration are not afterthoughts. They are engineering decisions that ensure readiness for real-world deployment.
 
-**Documentation as engineering output.** The architecture document, deployment guide, build log, and this interview prep are not afterthoughts. They are how a multi-person project communicates design intent, records decisions, and enables the next person to pick up the work.
+**Documentation as engineering output.** The architecture document, deployment guide, build log, and this technical overview are not afterthoughts. They are how a multi-person project communicates design intent, records decisions, and enables the next person to pick up the work.

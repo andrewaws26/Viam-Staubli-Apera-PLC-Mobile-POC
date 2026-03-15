@@ -122,7 +122,7 @@ The data_manager service was configured in the Viam app to capture sensor readin
 
 ### Documentation Overhaul
 
-All project documentation was rewritten to reflect the actual deployed state. The README was updated with the current module status, dashboard status, and deployment details. The architecture document got a new section mapping every planned component to its actual implementation state. The interview prep document was expanded with new sections on the Vercel deployment decision and lessons learned. A demo guide was written with the exact procedure for the power cycle demo.
+All project documentation was rewritten to reflect the actual deployed state. The README was updated with the current module status, dashboard status, and deployment details. The architecture document got a new section mapping every planned component to its actual implementation state. The technical overview was expanded with new sections on the Vercel deployment decision and lessons learned. A demo guide was written with the exact procedure for the power cycle demo.
 
 ### Architecture Decisions Made Today
 

@@ -72,7 +72,7 @@ Each sensor module has a fixed return schema defined in its `get_readings()` met
 │   ├── architecture.md                # Full system architecture document
 │   ├── deploy-rpi5.md                 # Raspberry Pi 5 deployment guide
 │   ├── build-log.md                   # Chronological build narrative
-│   └── interview-prep.md             # Technical interview preparation
+│   └── technical-overview.md          # Technical overview and design rationale
 ├── modules/
 │   ├── plc-sensor/                    # Scaffold -- pending hardware details
 │   ├── robot-arm-sensor/              # Scaffold -- pending protocol confirmation
@@ -117,5 +117,5 @@ See [`docs/architecture.md`](docs/architecture.md) for the full system architect
 - [`docs/architecture.md`](docs/architecture.md) -- System architecture, privacy design, hardware assessment
 - [`docs/deploy-rpi5.md`](docs/deploy-rpi5.md) -- Step-by-step Pi deployment guide
 - [`docs/build-log.md`](docs/build-log.md) -- Narrative of what was built and why
-- [`docs/interview-prep.md`](docs/interview-prep.md) -- Technical interview preparation
+- [`docs/technical-overview.md`](docs/technical-overview.md) -- Technical overview and design rationale
 - [`DEMO.md`](DEMO.md) -- How to run the demo
