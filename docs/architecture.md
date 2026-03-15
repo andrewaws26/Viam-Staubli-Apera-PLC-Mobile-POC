@@ -4,7 +4,7 @@
 
 This document describes the architecture for a proof-of-concept remote monitoring system for an industrial robot cell using Viam Robotics. The goal is to demonstrate real-time hardware state monitoring from a remote location and trigger alerts when faults occur.
 
-**One-sentence summary:** Pull a wire and watch the dashboard react.
+**One-sentence summary:** Unplug the Pi and watch the dashboard react.
 
 ### Hardware in Scope
 
@@ -319,32 +319,42 @@ These need answers from the hardware integration lead before committing to imple
 
 ## 9. Current Implementation State
 
-This section was added on March 14, 2026, after the first deployment to real hardware. It maps the architecture described above to what was actually built and notes where the implementation diverged from the original plan.
+Last updated: March 15, 2026. This section maps every component in the architecture diagram above to its actual current state.
 
-### What is deployed
+### Component-by-component status
 
-A Raspberry Pi 5 running Debian Trixie serves as the Viam agent host. viam-server v0.116.0 runs as a systemd service and connects to Viam Cloud. The machine is registered as "staubli-pi" in Andrew's org.
+**Viam Agent (viam-server).** Deployed and working. Runs on a Raspberry Pi 5 (Raspberry Pi OS Lite 64-bit, aarch64) as a systemd service. Version 0.116.0. Auto-starts on boot, auto-recovers from power loss. Connected to Viam Cloud at `staubli-pi-main.djgpitarpm.viam.cloud`. Machine shows "Live" in the Viam app. Power cycle test passed: unplugging the Pi and plugging it back in results in full automatic recovery with no manual intervention.
 
-The vision-health-sensor module is deployed to `/opt/viam-modules/vision-health-sensor/` and registered in the Viam app as a local module. It targets 8.8.8.8:53 (Google DNS) as a stand-in for the Apera vision server. The sensor returns live readings every time it is polled.
+**Vision Health Sensor module.** Deployed and working. Custom Python module at `/opt/viam-modules/vision-health-sensor/`. Registered in Viam app as component "vision-health". Targets 8.8.8.8:53 (Google DNS) as a stand-in for the Apera vision server. Returns `{"connected": true, "process_running": true}` on every poll. Both ICMP ping and TCP port probe run concurrently with timeouts. Data capture configured at 0.2 Hz, readings sync to Viam Cloud via the data_manager service.
 
-A Next.js dashboard runs on the Pi and connects to Viam Cloud via the TypeScript SDK over WebRTC. It displays four status indicators, one of which (Vision System) shows live data. The other three show "Pending" because their backing sensors are not deployed.
+**Robot Arm Sensor module.** Scaffold only. Code is complete with Viam registration, configuration handling, and placeholder readings for both Modbus TCP and VAL3 socket protocols. Not deployed to the Pi. Blocked on Staubli CS9 protocol confirmation from the hardware lead.
 
-### Divergences from the plan
+**PLC / Modbus Sensor module.** Scaffold only. Code is complete with Modbus TCP configuration handling and placeholder readings. Not deployed to the Pi. Blocked on PLC brand/model confirmation and register map from the hardware lead.
 
-**Raspberry Pi 5 instead of Pi 4 or NUC.** Section 2 mentioned "Raspberry Pi 4/5, Intel NUC, or similar." The Pi 5 was used because it was available. The system runs comfortably on it. viam-server's resource usage is modest.
+**Wire / Connection monitoring.** Not a separate module. The dashboard derives wire state from the PLC sensor. When the PLC sensor is deployed, wire state will be inferred from PLC communication faults as described in section 1.
 
-**Component naming.** The architecture document and config files used names like "vision-health-monitor" and "plc-monitor". The deployed system uses "vision-health" for the vision sensor component. The dashboard code was updated to match. When the PLC and robot arm sensors are deployed, they should use "plc-sensor" and "robot-arm-sensor" to match the dashboard's sensor config.
+**Viam Data Management Service.** Deployed and working. Configured in the Viam app with capture directory at `/tmp/viam-data`, sync interval of 6 seconds, tagged with "robot-cell-monitor". Historical readings are visible in the Viam app Data tab.
 
-**Dashboard reads directly from machine, not from cloud data API.** Section 2 shows the dashboard reading from "Viam API (gRPC/REST)" in the cloud layer. The actual implementation connects the browser directly to viam-server on the Pi via WebRTC, negotiated through Viam Cloud. This is functionally equivalent but has lower latency because readings come directly from the machine rather than being stored and queried from cloud data storage. The trade-off is that the dashboard only works when the machine is online. For the POC demo, this is the right choice. For production unattended monitoring, reading from the cloud data API would be more resilient.
+**Viam Triggers.** Not configured. Dashboard handles alerting client-side. Cloud-side triggers for email/Slack are a future item.
 
-**No Viam Triggers configured.** Section 4 mentioned "Viam Triggers to webhook to email/Slack." These have not been configured yet. The dashboard handles alerting client-side with audio and visual alerts. Cloud-side triggers are a Phase 2 item.
+**Monitoring Dashboard.** Deployed and working. Next.js 14 application deployed to Vercel. Accessible from any browser with internet access. Connects to viam-server on the Pi via the Viam TypeScript SDK (@viamrobotics/sdk v0.34.0) over WebRTC, negotiated through Viam Cloud. Polls sensor readings every 2 seconds. Vision System shows green OK. Robot Arm, PLC, and Wire/Connection show yellow Pending. Fault detection with audible klaxon, red screen flash, alert banner, and 10-event fault history log. Mock mode available via environment variable for demos without hardware.
 
-**Privacy architecture is fully enforced.** Section 6 described the privacy constraints. The implementation follows them exactly. The vision-health-sensor returns only `connected` (bool) and `process_running` (bool). The dashboard's type system enforces `SensorReadings = Record<string, unknown>` with health predicates defined per component. No camera, audio, or personnel data is collected or displayable.
+### Divergences from the original plan
+
+**Raspberry Pi 5 instead of Pi 4 or NUC.** Section 2 mentioned "Raspberry Pi 4/5, Intel NUC, or similar." The Pi 5 was used because it was available. viam-server runs comfortably on it.
+
+**Component naming.** The config files used names like "vision-health-monitor". The deployed system uses "vision-health" for the vision sensor. The dashboard expects "plc-sensor" and "robot-arm-sensor" for the pending components.
+
+**Dashboard hosted on Vercel, not on the Pi.** Section 4 listed "Vercel or local machine" as hosting options. Vercel was chosen because the dashboard should be available even when the Pi is offline. When the Pi loses power, the dashboard still loads and shows the fault state. If the dashboard ran on the Pi, it would go down at exactly the moment you most need it.
+
+**Dashboard reads directly from machine via WebRTC, not from cloud data API.** Section 2 shows the dashboard reading from "Viam API (gRPC/REST)" in the cloud layer. The actual implementation connects the browser directly to viam-server on the Pi via WebRTC, negotiated through Viam Cloud. This has lower latency but means live readings require the machine to be online. The data_manager service separately syncs readings to cloud storage for historical access.
+
+**Privacy architecture is fully enforced.** Section 6 described the privacy constraints. The implementation follows them exactly. The vision-health-sensor returns only `connected` (bool) and `process_running` (bool). No camera, audio, or personnel data is collected or displayable.
 
 ### What the pending modules need
 
-The PLC sensor module code is complete and handles Modbus TCP configuration. It returns placeholder values. To activate it, someone needs to provide the PLC brand/model, confirm Modbus TCP support, and supply the register map for fault bits and button states. Then update the `host`, `port`, `button_coil`, and `fault_coil` attributes in the Viam app and uncomment the pymodbus dependency.
+The PLC sensor module code is complete and handles Modbus TCP configuration. It returns placeholder values. To activate it: provide the PLC brand/model, confirm Modbus TCP support, supply the register map for fault bits and button states, update the `host`, `port`, `button_coil`, and `fault_coil` attributes in the Viam app, and uncomment the pymodbus dependency.
 
-The robot arm sensor module code is complete for both protocol options (Modbus TCP and VAL3 socket). It returns placeholder values. To activate it, someone needs to confirm which protocol the CS9 exposes and provide either the Modbus register addresses or confirm that a VAL3 socket server is running.
+The robot arm sensor module code is complete for both protocol options. To activate it: confirm which protocol the CS9 exposes and provide either the Modbus register addresses or confirm that a VAL3 socket server is running.
 
-The wire/connection indicator on the dashboard derives its state from the PLC sensor. It does not have its own module. When the PLC sensor is live, wire state will be inferred from PLC communication faults, as described in section 1 of this document.
+The wire/connection indicator derives its state from the PLC sensor. It will activate automatically when the PLC sensor goes live.

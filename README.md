@@ -2,13 +2,13 @@
 
 Remote monitoring proof of concept using [Viam Robotics](https://www.viam.com/) for an industrial robot cell. Demonstrates real-time fault detection and alerting across PLCs, vision systems, and robot controllers.
 
-**One-sentence summary:** Pull a wire and watch the dashboard react.
+**One-sentence summary:** Unplug the Pi and watch the dashboard react.
 
 ## Current Status
 
-This system is live on a Raspberry Pi 5 connected to Viam Cloud. The vision-health-sensor module is deployed and returning real readings every 2 seconds. A Next.js dashboard running on the Pi connects to Viam Cloud via the TypeScript SDK and displays live component health with audible alarms on fault detection.
+This system is live. A Raspberry Pi 5 runs viam-server as a systemd service, connected to Viam Cloud at `staubli-pi-main.djgpitarpm.viam.cloud`. The vision-health-sensor module is deployed and returns real readings every 2 seconds. A Next.js dashboard is deployed to Vercel and accessible from any browser with an internet connection. The dashboard connects to Viam Cloud via the TypeScript SDK over WebRTC and displays live component health with audible alarms on fault detection.
 
-The full pipeline is proven working: hardware sensor on Pi reads target, viam-server pushes data to Viam Cloud, browser-based dashboard pulls readings via WebRTC and renders status in real time.
+The full pipeline is proven end to end: sensor module on Pi reads target, viam-server pushes data to Viam Cloud, Vercel-hosted dashboard pulls readings via WebRTC and renders status in real time. The power cycle test passed. Unplugging the Pi triggered dashboard fault alarms within seconds. Plugging it back in restored green status automatically with no manual intervention.
 
 Three of the four dashboard indicators show "Pending" because their backing hardware (Staubli robot arm, PLC, junction box wiring) has not been connected yet. The system is architecturally ready for them. When those sensor modules are deployed and registered in Viam, the dashboard will pick them up automatically with no code changes.
 
@@ -16,7 +16,7 @@ Three of the four dashboard indicators show "Pending" because their backing hard
 
 | Module | Status | What It Does |
 |---|---|---|
-| `vision-health-sensor` | **Live on Pi** | ICMP ping + TCP port probe against a target host. Currently targeting 8.8.8.8:53 (Google DNS) as a stand-in for the Apera vision server. Returns `connected` and `process_running` booleans. Deployed to `/opt/viam-modules/vision-health-sensor/`. |
+| `vision-health-sensor` | **Live on Pi** | ICMP ping + TCP port probe against a target host. Currently targeting 8.8.8.8:53 (Google DNS) as a stand-in for the Apera vision server. Returns `connected` and `process_running` booleans. Deployed to `/opt/viam-modules/vision-health-sensor/`. Data capture configured, readings sync to Viam Cloud. |
 | `plc-sensor` | Scaffold | Returns placeholder values. Blocked on PLC brand/model confirmation and Modbus register map from hardware lead. Code structure and Viam registration are complete. |
 | `robot-arm-sensor` | Scaffold | Returns placeholder values. Blocked on Staubli CS9 protocol confirmation (Modbus TCP vs VAL3 socket). Code structure and Viam registration are complete. |
 
@@ -31,6 +31,7 @@ Three of the four dashboard indicators show "Pending" because their backing hard
 | Fault detection + alarm | Working (audible klaxon, red flash, alert banner) |
 | Fault history log | Working (last 10 events, timestamped) |
 | Mock mode for demos | Working (toggle via env var) |
+| Vercel deployment | Live, accessible from any browser |
 
 ## What This System Does
 
@@ -61,7 +62,7 @@ Each sensor module has a fixed return schema defined in its `get_readings()` met
 ├── config/
 │   ├── viam-server.json              # Full Viam agent config (all three modules)
 │   └── test-vision-only.json         # Minimal config for vision sensor testing
-├── dashboard/                         # Next.js monitoring dashboard (live)
+├── dashboard/                         # Next.js monitoring dashboard (deployed to Vercel)
 │   ├── app/                           # Next.js pages and layout
 │   ├── components/                    # React components (Dashboard, StatusCard, etc.)
 │   ├── lib/                           # Viam SDK wrapper, sensor configs, types
@@ -83,7 +84,7 @@ Each sensor module has a fixed return schema defined in its `get_readings()` met
 
 ## Hardware
 
-- **Deployed:** Raspberry Pi 5 (Debian Trixie, aarch64) running viam-server v0.116.0
+- **Deployed:** Raspberry Pi 5 (Raspberry Pi OS Lite 64-bit, aarch64) running viam-server v0.116.0 as a systemd service. Auto-starts on boot, auto-recovers on power cycle. SSH key authentication configured for passwordless access.
 - **Pending:** PLC with Modbus TCP support, Staubli CS9 robot controller, Dell server running Apera AI Vue
 - **Network:** Pi on local network with outbound HTTPS to app.viam.com
 
@@ -103,7 +104,9 @@ Open http://localhost:3000. Faults fire randomly every 15-20 seconds. Use the De
 
 ### Run with live Viam data
 
-See [DEMO.md](DEMO.md) for the full walkthrough, or [docs/deploy-rpi5.md](docs/deploy-rpi5.md) for the detailed deployment guide.
+The dashboard is deployed to Vercel. Open the Vercel URL in any browser. No local setup needed.
+
+For local development against live data, see [DEMO.md](DEMO.md) for the full walkthrough, or [docs/deploy-rpi5.md](docs/deploy-rpi5.md) for the detailed deployment guide.
 
 ## Architecture
 
@@ -115,4 +118,4 @@ See [`docs/architecture.md`](docs/architecture.md) for the full system architect
 - [`docs/deploy-rpi5.md`](docs/deploy-rpi5.md) -- Step-by-step Pi deployment guide
 - [`docs/build-log.md`](docs/build-log.md) -- Narrative of what was built and why
 - [`docs/interview-prep.md`](docs/interview-prep.md) -- Technical interview preparation
-- [`DEMO.md`](DEMO.md) -- How to run the demo for a non-technical audience
+- [`DEMO.md`](DEMO.md) -- How to run the demo
