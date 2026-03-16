@@ -75,8 +75,23 @@ def setup_gpio(config: Dict[str, Any]) -> None:
     GPIO.setmode(GPIO.BCM)
     GPIO.setwarnings(False)
 
+    # Push button — Fuji AR22F0L, NO contact, internal pull-up, active LOW
+    button_pin = gpio_cfg.get("button_pin")
+    if button_pin is not None:
+        GPIO.setup(button_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
     # E-stop button — input with pull-down (NO contact, goes HIGH when pressed)
-    GPIO.setup(gpio_cfg["estop_pin"], GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+    estop_pin = gpio_cfg.get("estop_pin")
+    if estop_pin is not None:
+        GPIO.setup(estop_pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+
+    # E-Cat GPIO pins — inputs with pull-down (wire disconnected = 0)
+    ecat_pins = gpio_cfg.get("ecat_gpio_pins", {})
+    for reg, pin in ecat_pins.items():
+        # Skip if same as button_pin (already set up with pull-up)
+        if pin == button_pin:
+            continue
+        GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 
     # LED outputs
     for pin_key in ["led_green_pin", "led_yellow_pin", "led_red_pin", "led_blue_pin"]:

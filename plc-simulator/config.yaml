@@ -10,12 +10,19 @@ modbus:
 gpio:
   servo1_pin: 12          # PWM0 — grinder head positioning
   servo2_pin: 13          # PWM1 — clamp actuator
-  estop_pin: 17           # E-stop button (NO contact, pull-down resistor)
+  button_pin: 17          # Fuji AR22F0L push button (NO contact, internal pull-up, active LOW)
+  estop_pin: 27           # E-stop button (moved from GPIO 17; NO contact, pull-down resistor)
   led_green_pin: 22       # RUNNING indicator
   led_yellow_pin: 23      # FAULT indicator
   led_red_pin: 24         # E-STOP indicator
   led_blue_pin: 25        # Modbus client connected indicator
   dht22_pin: 4            # DHT22 data pin
+  # E-Cat GPIO pin mapping: register -> GPIO BCM pin
+  # Only pins that are physically wired get entries here.
+  # Unwired registers remain simulated. If a wire is disconnected,
+  # the pull-up/pull-down ensures the register reads 0.
+  ecat_gpio_pins:
+    2: 17                  # Plate Cycle / Start — Fuji AR22F0L push button
 
 # I2C settings (GY-521 / MPU6050)
 i2c:
