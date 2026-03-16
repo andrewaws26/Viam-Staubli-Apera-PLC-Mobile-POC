@@ -30,6 +30,8 @@ from .modbus_server import (
     PIN_PLATE_CYCLE,
     PIN_SERVO_POWER_ON,
     PLCModbusServer,
+    REG_SYSTEM_STATE,
+    SENSOR_BASE,
     STATE_ESTOPPED,
     STATE_IDLE,
     STATE_RUNNING,
@@ -67,8 +69,11 @@ def setup_button_callback(config, work_cycle: WorkCycle, modbus: PLCModbusServer
     def button_handler(pin, level):
         if level == 0:
             # Button pressed — active LOW
+            # Refuse if E-stop is active
+            if modbus.read_register(PIN_ESTOP_OFF) == 1:
+                btn_logger.info("Servo Power rejected — E-stop active")
+                return
             # Latch servo_power_on (register 0) so the monitor sees a persistent change
-            servo_was_on = modbus.read_register(PIN_SERVO_POWER_ON)
             btn_logger.info(
                 "BUTTON PRESSED  — GPIO %d LOW  — latching register %d=1, "
                 "setting register %d=1, coil 0=True",
@@ -97,7 +102,14 @@ def setup_button_callback(config, work_cycle: WorkCycle, modbus: PLCModbusServer
 
 
 def setup_estop_callback(config, work_cycle: WorkCycle, modbus: PLCModbusServer):
-    """Register GPIO interrupt for the E-stop button."""
+    """Register GPIO interrupt for the E-stop button.
+
+    Wiring: JZMTE HB38 E-stop with Normally Closed (NC) contact.
+      Terminal 11 → GND, Terminal 12 → GPIO 27.
+      NOT pressed: NC closed → GPIO 27 pulled LOW through closed contact.
+      Pressed (or wire disconnected): NC opens → internal pull-up → GPIO 27 HIGH.
+    This is fail-safe: a disconnected wire reads the same as E-stop pressed.
+    """
     if not has_gpio():
         return
 
@@ -105,20 +117,34 @@ def setup_estop_callback(config, work_cycle: WorkCycle, modbus: PLCModbusServer)
     if estop_pin is None:
         return
 
+    estop_logger = logging.getLogger("plc-simulator.estop")
+
     def estop_handler(pin, level):
         if level == 1:
-            # Button pressed — E-stop engaged
-            work_cycle.trigger_estop()
+            # GPIO HIGH — E-stop pressed or wire disconnected (fail-safe)
+            estop_logger.warning(
+                "E-STOP ACTIVATED — GPIO %d HIGH — killing servo power, system halted",
+                estop_pin,
+            )
+            modbus.write_register(PIN_SERVO_POWER_ON, 0)
             modbus.write_register(PIN_ESTOP_ENABLE, 0)
             modbus.write_register(PIN_ESTOP_OFF, 1)
+            modbus.write_register(SENSOR_BASE + REG_SYSTEM_STATE, STATE_ESTOPPED)
+            work_cycle.trigger_estop()
         else:
-            # Button released — E-stop released
-            work_cycle.release_estop()
+            # GPIO LOW — E-stop released (twisted to reset), NC contact closed
+            estop_logger.info(
+                "E-STOP RELEASED — GPIO %d LOW — system ready "
+                "(servo power must be re-enabled manually)",
+                estop_pin,
+            )
             modbus.write_register(PIN_ESTOP_ENABLE, 1)
             modbus.write_register(PIN_ESTOP_OFF, 0)
+            work_cycle.release_estop()
+            # Do NOT re-enable servo power — operator must press Servo Power button
 
-    if not add_edge_detect(estop_pin, estop_handler, edge="both", pull="down", bouncetime_ms=200):
-        logging.getLogger(__name__).warning(
+    if not add_edge_detect(estop_pin, estop_handler, edge="both", pull="up", bouncetime_ms=200):
+        estop_logger.warning(
             "Could not register E-stop edge detection on GPIO %d — "
             "E-stop button will not work, but simulator continues", estop_pin
         )
@@ -212,8 +238,27 @@ async def main_async(config_path: Path):
     modbus.start()
     logger.info("Modbus TCP server running")
 
-    # Set E-stop enable register (system is ready)
-    modbus.write_register(PIN_ESTOP_ENABLE, 1)
+    # Read initial E-stop state from GPIO 27 and set registers accordingly.
+    # NC wiring: LOW = safe (contact closed), HIGH = E-stop active (contact open).
+    estop_pin = config["gpio"].get("estop_pin")
+    if estop_pin is not None and has_gpio():
+        initial_estop = read_pin(estop_pin)
+        if initial_estop == 1:
+            logger.warning(
+                "E-STOP active at startup (GPIO %d HIGH) — system halted",
+                estop_pin,
+            )
+            modbus.write_register(PIN_ESTOP_ENABLE, 0)
+            modbus.write_register(PIN_ESTOP_OFF, 1)
+            modbus.write_register(SENSOR_BASE + REG_SYSTEM_STATE, STATE_ESTOPPED)
+            work_cycle.trigger_estop()
+        else:
+            logger.info("E-stop not active at startup (GPIO %d LOW) — system ready", estop_pin)
+            modbus.write_register(PIN_ESTOP_ENABLE, 1)
+            modbus.write_register(PIN_ESTOP_OFF, 0)
+    else:
+        # No E-stop pin configured or no GPIO — default to safe state
+        modbus.write_register(PIN_ESTOP_ENABLE, 1)
 
     # Start work cycle, LED updater, and E-Cat GPIO reader as concurrent tasks
     tasks = [

@@ -16,7 +16,7 @@ export default function FaultHistory({ events }: Props) {
       ) : (
         <div className="space-y-0">
           {events.map((evt, idx) => {
-            const isRecovery = evt.message.includes("Restored");
+            const isRecovery = evt.message.includes("Restored") || evt.message.includes("Released");
             return (
               <div
                 key={evt.id}

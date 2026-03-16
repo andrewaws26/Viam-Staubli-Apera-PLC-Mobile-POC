@@ -50,8 +50,9 @@ export const SENSOR_CONFIGS: SensorConfig[] = [
     label: "PLC / Controller",
     icon: "🖥",
     componentName: VIAM_COMPONENT_NAMES.plc,
-    // Healthy when Modbus connection is live and no fault active
-    isHealthy: (r) => r.connected === true && r.fault === false,
+    // Healthy when Modbus connection is live, no fault, and not e-stopped
+    isHealthy: (r) =>
+      r.connected === true && r.fault === false && r.system_state !== "e-stopped",
     getFaultMessage: (r) => {
       if (r.connected !== true) return "No Modbus TCP connection";
       if (r.system_state === "e-stopped") return "E-STOP ACTIVE";
@@ -64,8 +65,12 @@ export const SENSOR_CONFIGS: SensorConfig[] = [
     label: "Wire / Connection",
     icon: "🔌",
     componentName: VIAM_COMPONENT_NAMES.plc,
-    isHealthy: (r) => r.connected === true && r.fault === false,
-    getFaultMessage: () => "Wire disconnected — junction box signal lost",
+    isHealthy: (r) =>
+      r.connected === true && r.fault === false && r.system_state !== "e-stopped",
+    getFaultMessage: (r) =>
+      r.system_state === "e-stopped"
+        ? "E-STOP — system halted"
+        : "Wire disconnected — junction box signal lost",
   },
 ];
 

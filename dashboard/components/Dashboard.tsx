@@ -80,8 +80,11 @@ export default function Dashboard() {
   const [sdkError, setSdkError] = useState<string | null>(null);
   const [flashKey, setFlashKey] = useState(0); // bumping triggers flash animation
 
+  const [isEstop, setIsEstop] = useState(false);
+
   const prevFaultIds = useRef<Set<string>>(new Set());
   const prevEcatSignals = useRef<Record<string, number>>({});
+  const prevSystemState = useRef<string | null>(null);
   const playAlarm = useRef(buildAlarmPlayer());
 
   // -------------------------------------------------------------------------
@@ -215,6 +218,31 @@ export default function Dashboard() {
       if (ecatEvents.length > 0) {
         newFaultEvents.push(...ecatEvents);
       }
+
+      // E-stop state change detection — log dedicated history entries
+      const curState = String(plcState.readings.system_state ?? "");
+      const prevState = prevSystemState.current;
+      if (prevState !== null && prevState !== curState) {
+        if (curState === "e-stopped") {
+          newFaultEvents.push({
+            id: `estop-activated-${Date.now()}`,
+            componentId: "plc",
+            componentLabel: "E-Stop",
+            message: "E-Stop Activated — system halted",
+            timestamp: new Date(),
+          });
+        } else if (prevState === "e-stopped") {
+          newFaultEvents.push({
+            id: `estop-released-${Date.now()}`,
+            componentId: "plc",
+            componentLabel: "E-Stop",
+            message: "E-Stop Released — system ready",
+            timestamp: new Date(),
+          });
+        }
+      }
+      prevSystemState.current = curState;
+      setIsEstop(curState === "e-stopped");
     }
 
     prevFaultIds.current = currentFaultIds;
@@ -284,8 +312,8 @@ export default function Dashboard() {
         {/* ---------------------------------------------------------------- */}
         {/* Alert Banner — shown only when faults are active                */}
         {/* ---------------------------------------------------------------- */}
-        {activeFaultLabels.length > 0 && (
-          <AlertBanner faultNames={activeFaultLabels} />
+        {(activeFaultLabels.length > 0 || isEstop) && (
+          <AlertBanner faultNames={activeFaultLabels} isEstop={isEstop} />
         )}
 
         {/* ---------------------------------------------------------------- */}
