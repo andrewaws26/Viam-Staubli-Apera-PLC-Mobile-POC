@@ -159,8 +159,8 @@ def setup_estop_callback(
     estop_logger = logging.getLogger("plc-simulator.estop")
 
     def estop_handler(pin, level):
-        if level == 1:
-            # GPIO HIGH — E-stop pressed or wire disconnected (fail-safe)
+        if level == 0:
+            # GPIO LOW — E-stop pressed down (contact closes to GND)
             analytics.estop_count += 1
             analytics.estop_start_time = time.monotonic()
             analytics.servo_on_time = None  # reset uptime
@@ -172,7 +172,7 @@ def setup_estop_callback(
             modbus.write_register(SENSOR_BASE + REG_UPTIME, 0)
 
             estop_logger.warning(
-                "E-STOP ACTIVATED — GPIO %d HIGH — estop_count=%d, "
+                "E-STOP ACTIVATED — GPIO %d LOW — estop_count=%d, "
                 "killing servo power, system halted",
                 estop_pin, analytics.estop_count,
             )
@@ -184,7 +184,7 @@ def setup_estop_callback(
             modbus.write_register(SENSOR_BASE + REG_SYSTEM_STATE, STATE_ESTOPPED)
             work_cycle.trigger_estop()
         else:
-            # GPIO LOW — E-stop released (twisted to reset), NC contact closed
+            # GPIO HIGH — E-stop released (twisted up), contact opens
             # Calculate E-stop duration
             if analytics.estop_start_time is not None:
                 duration = int(time.monotonic() - analytics.estop_start_time)
@@ -202,7 +202,7 @@ def setup_estop_callback(
                 analytics.was_running = False
 
             estop_logger.info(
-                "E-STOP RELEASED — GPIO %d LOW — system idle, awaiting servo power "
+                "E-STOP RELEASED — GPIO %d HIGH — system idle, awaiting servo power "
                 "(demo_cycle=%d, estop_duration=%ds)",
                 estop_pin, analytics.demo_cycle_count, analytics.last_estop_duration,
             )
@@ -319,13 +319,13 @@ async def main_async(config_path: Path):
     logger.info("Modbus TCP server running")
 
     # Read initial E-stop state from GPIO 27 and set registers accordingly.
-    # NC wiring: LOW = safe (contact closed), HIGH = E-stop active (contact open).
+    # Button wiring: LOW = E-stop pressed (contact closed to GND), HIGH = released.
     estop_pin = config["gpio"].get("estop_pin")
     if estop_pin is not None and has_gpio():
         initial_estop = read_pin(estop_pin)
-        if initial_estop == 1:
+        if initial_estop == 0:
             logger.warning(
-                "E-STOP active at startup (GPIO %d HIGH) — system halted",
+                "E-STOP active at startup (GPIO %d LOW) — system halted",
                 estop_pin,
             )
             modbus.write_register(PIN_ESTOP_ENABLE, 0)
@@ -339,7 +339,7 @@ async def main_async(config_path: Path):
             )
             work_cycle.trigger_estop()
         else:
-            logger.info("E-stop not active at startup (GPIO %d LOW) — system idle", estop_pin)
+            logger.info("E-stop not active at startup (GPIO %d HIGH) — system idle", estop_pin)
             modbus.write_register(PIN_ESTOP_ENABLE, 1)
             modbus.write_register(PIN_ESTOP_OFF, 0)
     else:
