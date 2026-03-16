@@ -15,30 +15,45 @@ export default function FaultHistory({ events }: Props) {
         <p className="text-gray-700 text-sm">No faults recorded.</p>
       ) : (
         <div className="space-y-0">
-          {events.map((evt, idx) => (
-            <div
-              key={evt.id}
-              className={[
-                "flex items-baseline gap-4 py-2.5 text-sm",
-                idx < events.length - 1 ? "border-b border-gray-800" : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-            >
-              {/* Timestamp */}
-              <span className="font-mono text-xs text-red-500 shrink-0 tabular-nums">
-                {evt.timestamp.toLocaleTimeString()}
-              </span>
+          {events.map((evt, idx) => {
+            const isRecovery = evt.message.includes("Restored");
+            return (
+              <div
+                key={evt.id}
+                className={[
+                  "flex items-baseline gap-4 py-2.5 text-sm",
+                  idx < events.length - 1 ? "border-b border-gray-800" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+              >
+                {/* Timestamp */}
+                <span
+                  className={[
+                    "font-mono text-xs shrink-0 tabular-nums",
+                    isRecovery ? "text-green-500" : "text-red-500",
+                  ].join(" ")}
+                >
+                  {evt.timestamp.toLocaleTimeString()}
+                </span>
 
-              {/* Component */}
-              <span className="font-bold text-gray-300 shrink-0 w-36">
-                {evt.componentLabel}
-              </span>
+                {/* Component */}
+                <span className="font-bold text-gray-300 shrink-0 w-36">
+                  {evt.componentLabel}
+                </span>
 
-              {/* Message */}
-              <span className="text-gray-500 truncate">{evt.message}</span>
-            </div>
-          ))}
+                {/* Message */}
+                <span
+                  className={[
+                    "truncate",
+                    isRecovery ? "text-green-600" : "text-gray-500",
+                  ].join(" ")}
+                >
+                  {evt.message}
+                </span>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

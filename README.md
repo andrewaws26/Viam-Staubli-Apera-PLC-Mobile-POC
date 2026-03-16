@@ -8,14 +8,18 @@ Remote monitoring proof of concept using [Viam Robotics](https://www.viam.com/) 
 
 This system is live. A Raspberry Pi 5 runs viam-server as a systemd service, connected to Viam Cloud at `staubli-pi-main.djgpitarpm.viam.cloud`. The vision-health-sensor module is deployed and returns real readings every 2 seconds. A Next.js dashboard is deployed to Vercel and accessible from any browser with an internet connection. The dashboard connects to Viam Cloud via the TypeScript SDK over WebRTC and displays live component health with audible alarms on fault detection.
 
-A Pi Zero W runs the PLC simulator — a standalone Modbus TCP server that mirrors the real RAIV truck's Click PLC register map (25-pin E-Cat cable). It reads physical sensors (GY-521 accelerometer, DHT22 temperature/humidity) and drives servos through an automated work cycle with fault detection. The plc-sensor Viam module on the Pi 5 connects to the Pi Zero W via Modbus TCP and reads all registers, surfacing them on the dashboard as live sensor data.
+A Pi Zero W (`raiv-plc.local`, 192.168.0.173 on the shop network) runs the PLC simulator — a standalone Modbus TCP server that mirrors the real RAIV truck's Click PLC register map (25-pin E-Cat cable). It reads physical sensors (GY-521 accelerometer, DHT22 temperature/humidity) and drives servos through an automated work cycle with fault detection.
+
+A Fuji AR22F0L E3 industrial push button (same model used on the RAIV trucks) is wired to GPIO 17 via a Keyestudio T-cobbler breakout board. Pressing the button triggers the Plate Cycle (register 2) and starts the work cycle state machine. The button state is exposed as Modbus coil 0 and displayed on the dashboard as "pressed" or "released".
+
+The plc-sensor Viam module on the Pi 5 connects to the Pi Zero W via Modbus TCP and reads all registers (0-24 E-Cat signals + 100-113 sensor data), surfacing them on the dashboard as live data. The dashboard shows two data panels: PLC sensor readings and a 25-signal E-Cat status grid with green/red indicators.
 
 ### Module Status
 
 | Module | Viam Component | Status | What It Does |
 |---|---|---|---|
 | `vision-health-sensor` | `vision-health` | **Working** | ICMP ping + TCP port probe against a target host. Currently targeting 8.8.8.8:53 (Google DNS) as a stand-in for the Apera vision server. Returns `connected` and `process_running` booleans. Deployed to `/opt/viam-modules/vision-health-sensor/`. Data capture configured, readings sync to Viam Cloud. |
-| `plc-sensor` | `plc-monitor` | **Working** | Reads PLC state via Modbus TCP from the Pi Zero W PLC simulator. Returns 25-pin E-Cat cable signals, vibration, temperature, humidity, pressure, servo positions, cycle count, system state, and fault codes. Data capture at 1 Hz. Deployed and returning real Modbus data. |
+| `plc-sensor` | `plc-monitor` | **Working** | Reads PLC state via Modbus TCP from the Pi Zero W PLC simulator. Returns 25-pin E-Cat cable signals (registers 0-24), push button state (coil 0), vibration, temperature, humidity, pressure, servo positions, cycle count, system state, and fault codes. Unsigned int16 handling ensures correct decoding. Data capture at 1 Hz. |
 | `robot-arm-sensor` | `robot-arm-monitor` | Pending hardware | Returns placeholder values. Blocked on Staubli CS9 protocol confirmation (Modbus TCP vs VAL3 socket). Code structure and Viam registration are complete. |
 
 ### Dashboard Status
@@ -26,9 +30,11 @@ A Pi Zero W runs the PLC simulator — a standalone Modbus TCP server that mirro
 | PLC / Controller indicator | Green OK, live Modbus data from Pi Zero W |
 | Wire / Connection indicator | Green OK, derived from PLC readings |
 | Robot Arm indicator | Yellow "Pending" (hardware not available) |
-| PLC Sensor Data panel | Live — vibration, temperature, humidity, servo positions, cycle count, system state |
+| PLC Sensor Data panel | Live — temperature, humidity, vibration, pressure, servos, cycle count, system state, button state |
+| E-Cat Signal Status grid | Live — 25 signals with green/red dot indicators |
+| E-Cat signal fault logging | Working — logs signal loss and recovery with pin number and signal name |
 | Fault detection + alarm | Working (audible klaxon, red flash, alert banner) |
-| Fault history log | Working (last 10 events, timestamped) |
+| Fault history log | Working (last 10 events, timestamped, color-coded) |
 | Mock mode for demos | Working (toggle via env var) |
 | Vercel deployment | Live, accessible from any browser |
 
@@ -36,12 +42,12 @@ A Pi Zero W runs the PLC simulator — a standalone Modbus TCP server that mirro
 
 Three custom Viam sensor modules monitor hardware state from a robot cell:
 
-- **PLC Sensor** -- Reads the full Modbus register map from the PLC (25-pin E-Cat cable signals + sensor data) via Modbus TCP.
+- **PLC Sensor** -- Reads the full Modbus register map from the PLC (25-pin E-Cat cable signals + sensor data + push button coil) via Modbus TCP. Includes unsigned int16 handling for robust data decoding.
 - **Robot Arm Sensor** -- Monitors a Staubli CS9 controller for connection state, operating mode, and fault codes.
 - **Vision Health Sensor** -- Checks network reachability (ICMP ping) and service availability (TCP port probe) of an Apera AI vision server.
 
 Additionally:
-- **PLC Simulator** -- Runs on a Pi Zero W, simulating the Click PLC with real sensors and actuators. Exposes the same Modbus register map as the real truck.
+- **PLC Simulator** -- Runs on a Pi Zero W, simulating the Click PLC with real sensors and actuators. Exposes the same Modbus register map as the real truck. Reads a Fuji AR22F0L push button on GPIO 17 with 50ms debounce and internal pull-up.
 - **Status API** -- Flask HTTP server on the Pi 5, exposing PLC state as JSON for the LED matrix display and touchscreen.
 - **LED Matrix Display** -- CircuitPython code for the Matrix Portal S3, rendering 6 subsystem status blocks on a 64x32 RGB LED panel.
 
@@ -69,7 +75,7 @@ Each sensor module has a fixed return schema defined in its `get_readings()` met
 │   └── requirements.txt
 ├── config/
 │   ├── viam-server.json                  # Full Viam agent config
-│   └── test-vision-only.json             # Minimal config for vision sensor testing
+│   └── test-vision-only.json
 ├── dashboard/                            # Next.js monitoring dashboard (deployed to Vercel)
 │   ├── app/                              # Next.js pages and layout
 │   ├── components/                       # React components (Dashboard, StatusCard, PlcDetailPanel)
@@ -108,11 +114,12 @@ Each sensor module has a fixed return schema defined in its `get_readings()` met
 
 ## Hardware
 
-- **Pi 5:** Raspberry Pi 5 (Raspberry Pi OS Lite 64-bit, aarch64) running viam-server v0.116.0 as a systemd service. Also runs the Status API (Flask).
-- **Pi Zero W:** Runs the PLC simulator — Modbus TCP server with GY-521, DHT22, servos, E-stop button, LEDs.
+- **Pi 5 (192.168.0.172):** Raspberry Pi 5 (Raspberry Pi OS Lite 64-bit, aarch64) running viam-server v0.116.0 as a systemd service. Also runs the Status API (Flask) and the plc-sensor Viam module.
+- **Pi Zero W (192.168.0.173):** Runs the PLC simulator — Modbus TCP server with GY-521, DHT22, servos, Fuji AR22F0L push button, LEDs. Accessible via `raiv-plc.local` mDNS.
+- **Fuji AR22F0L E3:** Industrial push button (same model as RAIV trucks). NO contact wired GPIO 17 → GND via Keyestudio T-cobbler breakout board. Internal pull-up, active LOW, 50ms debounce.
 - **Matrix Portal S3:** Adafruit Matrix Portal S3 driving a 64x32 RGB LED matrix for at-a-glance status.
 - **Pending:** Staubli CS9 robot controller, Dell server running Apera AI Vue
-- **Network:** Both Pis on the same WiFi network. Pi 5 has outbound HTTPS to app.viam.com.
+- **Network:** Shop network (192.168.0.x). Both Pis on same WiFi. Pi 5 has outbound HTTPS to app.viam.com. SSH to Pi Zero W is done from Pi 5 (not directly from Mac).
 
 ## Quick Start
 
@@ -136,18 +143,23 @@ For local development against live data, see [DEMO.md](DEMO.md) for the full wal
 
 ### Run the PLC simulator (Pi Zero W)
 
-The PLC simulator runs on a Pi Zero W at `raiv-plc.local` (192.168.1.74), exposing Modbus TCP on port 502. It starts automatically on boot via systemd.
+The PLC simulator runs on a Pi Zero W at `raiv-plc.local` (192.168.0.173), exposing Modbus TCP on port 502. It starts automatically on boot via systemd.
 
-**First-time setup** (from a fresh Pi Zero W):
+**First-time setup** (from the Pi 5 at 192.168.0.172):
 
 ```bash
-# Copy setup scripts to the Pi
-scp -r pi-zero-setup/ pi@raiv-plc.local:~/
+# Copy setup scripts to the Pi Zero W
+scp -r pi-zero-setup/ andrew@raiv-plc.local:~/
 
 # SSH in and run
-ssh pi@raiv-plc.local
+ssh andrew@raiv-plc.local
 chmod +x ~/pi-zero-setup/*.sh
 ~/pi-zero-setup/run-all.sh
+```
+
+Override the SSH target with an environment variable if needed:
+```bash
+RAIV_PLC_SSH=andrew@192.168.0.173 bash pi-zero-setup/run-all.sh
 ```
 
 This installs packages, clones the repo, creates a venv, installs the systemd service, and starts the simulator. See [`plc-simulator/README.md`](plc-simulator/README.md) for the full register map and manual operation.

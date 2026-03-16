@@ -46,7 +46,7 @@
       "api": "rdk:component:sensor",
       "model": "viam-staubli-apera-poc:monitor:robot-arm-sensor",
       "attributes": {
-        "host": "192.168.1.10",
+        "host": "raiv-cs9.local",
         "port": 502,
         "protocol": "modbus"
       },

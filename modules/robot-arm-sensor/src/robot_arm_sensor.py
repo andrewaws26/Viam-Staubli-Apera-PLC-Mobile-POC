@@ -61,7 +61,7 @@ class RobotArmSensor(Sensor):
         fields = config.attributes.fields
         sensor = cls(
             config.name,
-            host=fields["host"].string_value or "192.168.1.10",
+            host=fields["host"].string_value or "raiv-cs9.local",
             port=int(fields["port"].number_value or 502),
             protocol=fields["protocol"].string_value or "modbus",
         )

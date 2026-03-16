@@ -170,6 +170,15 @@ class PLCModbusServer:
         result = self._store.getValues(3, address, 1)
         return result[0]
 
+    def write_coil(self, address: int, value: bool) -> None:
+        """Write a single coil (discrete output)."""
+        self._store.setValues(1, address, [value])
+
+    def read_coil(self, address: int) -> bool:
+        """Read a single coil value."""
+        result = self._store.getValues(1, address, 1)
+        return bool(result[0])
+
     def write_sensor_data(
         self,
         accel: Dict[str, float],

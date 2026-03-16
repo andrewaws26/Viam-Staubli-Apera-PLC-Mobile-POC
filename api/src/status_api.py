@@ -40,8 +40,14 @@ _plc_port = 502
 _client: ModbusTcpClient = None
 
 
+def _uint16(value: int) -> int:
+    """Ensure register value is unsigned 16-bit."""
+    return value & 0xFFFF
+
+
 def _int16_to_float(value: int, scale: float = 100.0) -> float:
     """Convert unsigned Modbus register to signed float."""
+    value = _uint16(value)
     if value > 32767:
         value -= 65536
     return round(value / scale, 2)
@@ -61,13 +67,13 @@ def _read_plc() -> Dict[str, Any]:
         ecat_result = _client.read_holding_registers(0, 25)
         if ecat_result.isError():
             return {"connected": False, "system_state": "read_error"}
-        ecat = ecat_result.registers
+        ecat = [_uint16(v) for v in ecat_result.registers]
 
         # Read sensor data registers (100-113)
         sensor_result = _client.read_holding_registers(100, 14)
         if sensor_result.isError():
             return {"connected": False, "system_state": "read_error"}
-        sensor = sensor_result.registers
+        sensor = [_uint16(v) for v in sensor_result.registers]
 
         state_code = sensor[12]
         fault_code = sensor[13]
@@ -76,28 +82,36 @@ def _read_plc() -> Dict[str, Any]:
             "connected": True,
             "fault": state_code == 2,
 
-            # E-Cat command signals
-            "servo_power_on": bool(ecat[0]),
-            "servo_disable": bool(ecat[1]),
-            "plate_cycle_active": bool(ecat[2]),
-            "abort_stow": bool(ecat[3]),
-            "speed_signal": bool(ecat[4]),
-            "gripper_lock": bool(ecat[5]),
-            "clear_position": bool(ecat[6]),
-            "belt_forward": bool(ecat[7]),
-            "belt_reverse": bool(ecat[8]),
+            # E-Cat command signals (registers 0-8)
+            "servo_power_on": ecat[0],
+            "servo_disable": ecat[1],
+            "plate_cycle": ecat[2],
+            "abort_stow": ecat[3],
+            "speed": ecat[4],
+            "gripper_lock": ecat[5],
+            "clear_position": ecat[6],
+            "belt_forward": ecat[7],
+            "belt_reverse": ecat[8],
 
-            # E-Cat status lamps
-            "servo_power_lamp": bool(ecat[9]),
-            "plate_cycle_lamp": bool(ecat[11]),
-            "abort_stow_lamp": bool(ecat[12]),
+            # E-Cat status lamps (registers 9-17)
+            "lamp_servo_power": ecat[9],
+            "lamp_servo_disable": ecat[10],
+            "lamp_plate_cycle": ecat[11],
+            "lamp_abort_stow": ecat[12],
+            "lamp_speed": ecat[13],
+            "lamp_gripper_lock": ecat[14],
+            "lamp_clear_position": ecat[15],
+            "lamp_belt_forward": ecat[16],
+            "lamp_belt_reverse": ecat[17],
 
-            # System state
-            "emag_status": bool(ecat[18]),
-            "emag_malfunction": bool(ecat[21]),
-            "poe_system": bool(ecat[22]),
-            "estop_enable": bool(ecat[23]),
-            "estop_off": bool(ecat[24]),
+            # E-Cat system state (registers 18-24)
+            "emag_status": ecat[18],
+            "emag_on": ecat[19],
+            "emag_part_detect": ecat[20],
+            "emag_malfunction": ecat[21],
+            "poe_status": ecat[22],
+            "estop_enable": ecat[23],
+            "estop_off": ecat[24],
 
             # Sensor data
             "vibration_x": _int16_to_float(sensor[0]),

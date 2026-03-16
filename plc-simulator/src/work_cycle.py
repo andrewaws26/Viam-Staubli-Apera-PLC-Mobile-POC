@@ -86,6 +86,17 @@ class WorkCycle:
     def fault_code(self) -> int:
         return self._fault_code
 
+    def trigger_start(self) -> None:
+        """Called by the push button GPIO handler to start a work cycle."""
+        if self._state == STATE_IDLE:
+            self._state = STATE_RUNNING
+            logger.info("Work cycle started (triggered by push button)")
+        elif self._state == STATE_FAULT and self._fault_code == FAULT_NONE:
+            self._state = STATE_RUNNING
+            logger.info("Work cycle resumed from fault (triggered by push button)")
+        else:
+            logger.debug("Push button pressed but state is %d — ignoring", self._state)
+
     def trigger_estop(self) -> None:
         """Called by the E-stop GPIO handler."""
         self._state = STATE_ESTOPPED

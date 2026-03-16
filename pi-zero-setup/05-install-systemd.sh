@@ -2,7 +2,7 @@
 # Step 7: Install and enable the systemd service so the PLC simulator starts on boot
 set -euo pipefail
 
-PI="andrew@192.168.1.74"
+PI="${RAIV_PLC_SSH:-andrew@raiv-plc.local}"
 
 echo "=== Step 7: Installing systemd service for PLC Simulator ==="
 ssh "$PI" 'bash -s' << 'EOF'

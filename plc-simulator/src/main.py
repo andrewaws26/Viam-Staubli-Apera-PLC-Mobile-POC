@@ -27,6 +27,7 @@ from .gpio_config import cleanup_gpio, has_gpio, load_config, setup_gpio
 from .modbus_server import (
     PIN_ESTOP_ENABLE,
     PIN_ESTOP_OFF,
+    PIN_PLATE_CYCLE,
     PLCModbusServer,
     STATE_ESTOPPED,
     STATE_IDLE,
@@ -46,6 +47,54 @@ def setup_logging(config):
     )
 
 
+def setup_button_callback(config, work_cycle: WorkCycle, modbus: PLCModbusServer):
+    """Register GPIO interrupt for the Fuji AR22F0L push button.
+
+    The button is normally open with an internal pull-up on GPIO 17.
+    Pressing the button pulls GPIO 17 LOW; releasing lets it float HIGH.
+    50ms debounce is applied to reject contact bounce.
+    """
+    if not has_gpio():
+        return
+
+    import RPi.GPIO as GPIO
+
+    button_pin = config["gpio"].get("button_pin")
+    if button_pin is None:
+        return
+
+    btn_logger = logging.getLogger("plc-simulator.button")
+
+    def button_handler(channel):
+        state = GPIO.input(button_pin)
+        if state == GPIO.LOW:
+            # Button pressed — active LOW
+            btn_logger.info("BUTTON PRESSED  — GPIO %d LOW  — setting register %d=1, coil 0=True",
+                            button_pin, PIN_PLATE_CYCLE)
+            modbus.write_register(PIN_PLATE_CYCLE, 1)
+            modbus.write_coil(0, True)
+            work_cycle.trigger_start()
+        else:
+            # Button released — pulled HIGH by internal pull-up
+            btn_logger.info("BUTTON RELEASED — GPIO %d HIGH — setting register %d=0, coil 0=False",
+                            button_pin, PIN_PLATE_CYCLE)
+            modbus.write_register(PIN_PLATE_CYCLE, 0)
+            modbus.write_coil(0, False)
+
+    try:
+        GPIO.add_event_detect(
+            button_pin, GPIO.BOTH,
+            callback=button_handler,
+            bouncetime=50,  # 50ms debounce
+        )
+        btn_logger.info("Push button interrupt registered on GPIO %d (50ms debounce)", button_pin)
+    except RuntimeError as e:
+        btn_logger.warning(
+            "Could not register button edge detection on GPIO %d (%s) — "
+            "push button will not work, but simulator continues", button_pin, e
+        )
+
+
 def setup_estop_callback(config, work_cycle: WorkCycle, modbus: PLCModbusServer):
     """Register GPIO interrupt for the E-stop button."""
     if not has_gpio():
@@ -53,7 +102,9 @@ def setup_estop_callback(config, work_cycle: WorkCycle, modbus: PLCModbusServer)
 
     import RPi.GPIO as GPIO
 
-    estop_pin = config["gpio"]["estop_pin"]
+    estop_pin = config["gpio"].get("estop_pin")
+    if estop_pin is None:
+        return
 
     def estop_handler(channel):
         if GPIO.input(estop_pin):
@@ -75,6 +126,38 @@ def setup_estop_callback(config, work_cycle: WorkCycle, modbus: PLCModbusServer)
             "Could not register E-stop edge detection on GPIO %d (%s) — "
             "E-stop button will not work, but simulator continues", estop_pin, e
         )
+
+
+async def ecat_gpio_reader(config, modbus: PLCModbusServer):
+    """Read E-Cat GPIO pins and update corresponding Modbus registers.
+
+    For registers 0-24, any pin that is physically wired to a GPIO input
+    is read here. If a wire is disconnected, the pull-down ensures the
+    register reads 0. Unwired registers keep their simulated values.
+    """
+    if not has_gpio():
+        return
+
+    import RPi.GPIO as GPIO
+
+    ecat_pins = config["gpio"].get("ecat_gpio_pins", {})
+    button_pin = config["gpio"].get("button_pin")
+
+    if not ecat_pins:
+        return
+
+    gpio_logger = logging.getLogger("plc-simulator.ecat-gpio")
+    gpio_logger.info("E-Cat GPIO reader started for %d pin(s)", len(ecat_pins))
+
+    while True:
+        for reg_str, pin in ecat_pins.items():
+            reg = int(reg_str)
+            # Button pin (register 2) is handled by the interrupt callback
+            if pin == button_pin:
+                continue
+            value = GPIO.input(pin)
+            modbus.write_register(reg, 1 if value else 0)
+        await asyncio.sleep(0.05)  # 50ms polling for GPIO inputs
 
 
 async def led_updater(config, work_cycle: WorkCycle):
@@ -125,7 +208,8 @@ async def main_async(config_path: Path):
         fault_monitor=fault_monitor,
     )
 
-    # Register E-stop interrupt
+    # Register push button and E-stop interrupts
+    setup_button_callback(config, work_cycle, modbus)
     setup_estop_callback(config, work_cycle, modbus)
 
     # Start Modbus server
@@ -135,10 +219,11 @@ async def main_async(config_path: Path):
     # Set E-stop enable register (system is ready)
     modbus.write_register(PIN_ESTOP_ENABLE, 1)
 
-    # Start work cycle and LED updater as concurrent tasks
+    # Start work cycle, LED updater, and E-Cat GPIO reader as concurrent tasks
     tasks = [
         asyncio.create_task(work_cycle.run()),
         asyncio.create_task(led_updater(config, work_cycle)),
+        asyncio.create_task(ecat_gpio_reader(config, modbus)),
     ]
 
     # Handle graceful shutdown

@@ -2,7 +2,7 @@
 # Step 2 & 3: Clone repo, create venv, install requirements
 set -euo pipefail
 
-PI="andrew@192.168.1.74"
+PI="${RAIV_PLC_SSH:-andrew@raiv-plc.local}"
 
 echo "=== Step 2: Cloning repo into home directory ==="
 ssh "$PI" 'bash -s' << 'EOF'
