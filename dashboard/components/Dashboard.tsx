@@ -5,7 +5,7 @@
 // See docs/architecture.md section 6 for the full architectural enforcement.
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { SENSOR_CONFIGS, ComponentName } from "../lib/sensors";
+import { SENSOR_CONFIGS, ECAT_SIGNAL_DEFS, ComponentName } from "../lib/sensors";
 import { ComponentState, FaultEvent, SensorReadings } from "../lib/types";
 import StatusCard from "./StatusCard";
 import AlertBanner from "./AlertBanner";
@@ -81,6 +81,7 @@ export default function Dashboard() {
   const [flashKey, setFlashKey] = useState(0); // bumping triggers flash animation
 
   const prevFaultIds = useRef<Set<string>>(new Set());
+  const prevEcatSignals = useRef<Record<string, number>>({});
   const playAlarm = useRef(buildAlarmPlayer());
 
   // -------------------------------------------------------------------------
@@ -173,6 +174,47 @@ export default function Dashboard() {
     if (newFaultIds.length > 0) {
       playAlarm.current();
       setFlashKey((k) => k + 1); // triggers CSS flash animation via key change
+    }
+
+    // -----------------------------------------------------------------
+    // E-Cat signal change detection — log faults and recoveries
+    // -----------------------------------------------------------------
+    const plcState = newStates.find((c) => c.id === "plc");
+    if (plcState?.readings && plcState.readings.connected === true) {
+      const prev = prevEcatSignals.current;
+      const ecatEvents: FaultEvent[] = [];
+
+      for (const { key, label, pin } of ECAT_SIGNAL_DEFS) {
+        const curVal = Number(plcState.readings[key] ?? 0);
+        const prevVal = prev[key];
+        if (prevVal !== undefined && prevVal !== curVal) {
+          if (curVal === 0 && prevVal === 1) {
+            // Signal dropped from 1 → 0
+            ecatEvents.push({
+              id: `ecat-${key}-${Date.now()}`,
+              componentId: "plc",
+              componentLabel: "E-Cat Signal",
+              message: `E-Cat Signal Lost — ${label} (Pin ${pin})`,
+              timestamp: new Date(),
+            });
+          } else if (curVal === 1 && prevVal === 0) {
+            // Signal restored from 0 → 1
+            ecatEvents.push({
+              id: `ecat-${key}-${Date.now()}`,
+              componentId: "plc",
+              componentLabel: "E-Cat Signal",
+              message: `E-Cat Signal Restored — ${label} (Pin ${pin})`,
+              timestamp: new Date(),
+            });
+          }
+        }
+        prev[key] = curVal;
+      }
+      prevEcatSignals.current = prev;
+
+      if (ecatEvents.length > 0) {
+        newFaultEvents.push(...ecatEvents);
+      }
     }
 
     prevFaultIds.current = currentFaultIds;

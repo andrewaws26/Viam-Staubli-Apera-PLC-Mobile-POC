@@ -1,4 +1,4 @@
-import { ComponentName, VIAM_COMPONENT_NAMES } from "./sensors";
+import { ComponentName, VIAM_COMPONENT_NAMES, ECAT_SIGNAL_DEFS } from "./sensors";
 import { SensorReadings } from "./types";
 
 // Each fault lasts FAULT_DURATION_MS, then clears automatically.
@@ -56,15 +56,14 @@ export function getMockReadings(componentName: ComponentName): SensorReadings {
         connected: !isFaulted,
         process_running: !isFaulted,
       };
-    case VIAM_COMPONENT_NAMES.plc:
+    case VIAM_COMPONENT_NAMES.plc: {
       // Mock output matches plc_sensor.py get_readings(): already-decoded named keys
-      return {
+      const readings: SensorReadings = {
         connected: !isFaulted,
         fault: isFaulted,
         system_state: isFaulted ? "fault" : "running",
         last_fault: isFaulted ? "vibration" : "none",
-        servo_power_on: true,
-        plate_cycle_active: !isFaulted,
+        button_state: "released",
         vibration_x: isFaulted ? 12.5 : +(Math.random() * 0.2 - 0.1).toFixed(2),
         vibration_y: isFaulted ? 8.3 : +(Math.random() * 0.2 - 0.1).toFixed(2),
         vibration_z: 9.81 + +(Math.random() * 0.2 - 0.1).toFixed(2),
@@ -75,6 +74,21 @@ export function getMockReadings(componentName: ComponentName): SensorReadings {
         servo2_position: Math.random() > 0.5 ? 90 : 0,
         cycle_count: 47 + Math.floor(Math.random() * 10),
       };
+
+      // Add E-Cat signal mock values
+      for (const { key } of ECAT_SIGNAL_DEFS) {
+        // Most signals ON in normal operation; some OFF when faulted
+        if (isFaulted && (key === "servo_power_on" || key === "lamp_servo_power")) {
+          readings[key] = 0;
+        } else if (key === "estop_off" || key === "emag_malfunction") {
+          readings[key] = 0; // Normally OFF
+        } else {
+          readings[key] = 1;
+        }
+      }
+
+      return readings;
+    }
     default:
       return {};
   }
