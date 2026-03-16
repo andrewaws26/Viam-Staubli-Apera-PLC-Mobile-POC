@@ -91,29 +91,6 @@ def _int16_to_float(value: int, scale: float = 100.0) -> float:
     return round(value / scale, 2)
 
 
-def _zero_readings() -> Dict[str, Any]:
-    """Return all-zero readings for when the connection fails."""
-    readings: Dict[str, Any] = {
-        "connected": False,
-        "fault": True,
-        "button_state": "released",
-    }
-    # All E-Cat signals as 0
-    for name in _ECAT_SIGNAL_NAMES:
-        readings[name] = 0
-    # All sensor data as 0
-    for key in [
-        "vibration_x", "vibration_y", "vibration_z",
-        "gyro_x", "gyro_y", "gyro_z",
-        "temperature_f", "humidity_pct", "pressure_simulated",
-        "servo1_position", "servo2_position", "cycle_count",
-    ]:
-        readings[key] = 0
-    readings["system_state"] = "disconnected"
-    readings["last_fault"] = "connection_failed"
-    return readings
-
-
 class PlcSensor(Sensor):
     """Reads PLC state from the RAIV truck via Modbus TCP.
 
@@ -157,26 +134,97 @@ class PlcSensor(Sensor):
             raise ValueError("'host' attribute is required (PLC IP address)")
         return []
 
+    def _disconnect(self) -> None:
+        """Close and discard the Modbus client so the next poll reconnects."""
+        if self.client is not None:
+            try:
+                self.client.close()
+            except Exception:
+                pass
+            self.client = None
+
     def _ensure_connected(self) -> bool:
         """Connect to the PLC if not already connected. Returns True on success."""
         if self.client is not None and self.client.connected:
             return True
 
+        # Discard any dead socket before creating a fresh one
+        self._disconnect()
+
         try:
             self.client = ModbusTcpClient(
-                self.host, port=self.port, timeout=_CONNECT_TIMEOUT,
+                self.host,
+                port=self.port,
+                timeout=_CONNECT_TIMEOUT,
+                retries=0,       # no internal retries — let viam-server poll handle it
+                reconnect_delay=0,
             )
             connected = self.client.connect()
             if connected:
                 LOGGER.info("Connected to PLC at %s:%d", self.host, self.port)
             else:
                 LOGGER.warning("Failed to connect to PLC at %s:%d", self.host, self.port)
-                self.client = None
+                self._disconnect()
             return connected
         except Exception as e:
             LOGGER.error("Connection error to PLC at %s:%d: %s", self.host, self.port, e)
-            self.client = None
+            self._disconnect()
             return False
+
+    @staticmethod
+    def _disconnected_readings(reason: str) -> Mapping[str, SensorReading]:
+        """Return a full readings dict with connected=False and all values zeroed."""
+        return {
+            "connected": False,
+            "fault": True,
+
+            # E-Cat cable command signals (Pins 1-9)
+            "servo_power_on": False,
+            "servo_disable": False,
+            "plate_cycle_active": False,
+            "abort_stow": False,
+            "speed_signal": False,
+            "gripper_lock": False,
+            "clear_position": False,
+            "belt_forward": False,
+            "belt_reverse": False,
+
+            # E-Cat cable status lamps (Pins 10-18)
+            "servo_power_lamp": False,
+            "servo_disable_lamp": False,
+            "plate_cycle_lamp": False,
+            "abort_stow_lamp": False,
+            "speed_lamp": False,
+            "gripper_lock_lamp": False,
+            "clear_position_lamp": False,
+            "belt_forward_lamp": False,
+            "belt_reverse_lamp": False,
+
+            # E-Cat cable system state (Pins 19-25)
+            "emag_status": False,
+            "mag_on": False,
+            "mag_part_detect": False,
+            "emag_malfunction": False,
+            "poe_system": False,
+            "estop_enable": False,
+            "estop_off": False,
+
+            # Sensor data — all zeroed
+            "vibration_x": 0.0,
+            "vibration_y": 0.0,
+            "vibration_z": 0.0,
+            "gyro_x": 0.0,
+            "gyro_y": 0.0,
+            "gyro_z": 0.0,
+            "temperature_f": 0.0,
+            "humidity_pct": 0.0,
+            "pressure_simulated": 0,
+            "servo1_position": 0,
+            "servo2_position": 0,
+            "cycle_count": 0,
+            "system_state": "disconnected",
+            "last_fault": reason,
+        }
 
     async def get_readings(
         self,
@@ -186,20 +234,21 @@ class PlcSensor(Sensor):
         """Return current PLC state as structured sensor readings.
 
         Reads all Modbus registers and returns human-readable keys matching
-        the 25-pin E-Cat cable labels plus sensor data.
+        the 25-pin E-Cat cable labels plus sensor data.  On any failure the
+        client is closed so the next poll cycle creates a fresh connection.
         """
         connected = self._ensure_connected()
 
         if not connected:
-            return _zero_readings()
+            return self._disconnected_readings("connection_failed")
 
         try:
             # Read E-Cat cable registers (0-24)
             ecat_result = self.client.read_holding_registers(0, 25)
             if ecat_result.isError():
                 LOGGER.warning("Error reading E-Cat registers: %s", ecat_result)
-                self.client = None
-                return _zero_readings()
+                self._disconnect()
+                return self._disconnected_readings("ecat_read_error")
 
             # Ensure unsigned interpretation
             ecat = [_uint16(v) for v in ecat_result.registers]
@@ -208,8 +257,8 @@ class PlcSensor(Sensor):
             sensor_result = self.client.read_holding_registers(100, 14)
             if sensor_result.isError():
                 LOGGER.warning("Error reading sensor registers: %s", sensor_result)
-                self.client = None
-                return _zero_readings()
+                self._disconnect()
+                return self._disconnected_readings("sensor_read_error")
 
             # Ensure unsigned interpretation
             sensor = [_uint16(v) for v in sensor_result.registers]
@@ -263,8 +312,8 @@ class PlcSensor(Sensor):
 
         except Exception as e:
             LOGGER.error("Error reading PLC registers: %s", e)
-            self.client = None  # Force reconnect on next call
-            return _zero_readings()
+            self._disconnect()
+            return self._disconnected_readings(str(e))
 
     async def close(self):
         LOGGER.info("%s is closing.", self.name)
