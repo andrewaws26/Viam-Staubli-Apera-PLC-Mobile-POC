@@ -86,6 +86,10 @@ class WorkCycle:
     def fault_code(self) -> int:
         return self._fault_code
 
+    def set_cycle_count(self, count: int) -> None:
+        """Allow external code (e.g. main.py demo tracker) to set the cycle count."""
+        self._cycle_count = count
+
     def trigger_start(self) -> None:
         """Called by the push button GPIO handler to start a work cycle."""
         if self._state == STATE_IDLE:

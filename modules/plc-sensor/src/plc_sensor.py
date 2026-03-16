@@ -11,6 +11,7 @@ Register map (see plc-simulator/README.md for full documentation):
   Registers 9-17:   Status lamps (feedback from PLC)
   Registers 18-24:  System state (E-Mag, POE, E-stop)
   Registers 100-113: Sensor data (accel, gyro, temp, humidity, servos, state)
+  Registers 114-117: Analytics (servo press count, estop count, uptime, estop duration)
   Coil 0:           Push button state (True = pressed)
 """
 
@@ -196,6 +197,10 @@ class PlcSensor(Sensor):
             "cycle_count": 0,
             "system_state": "disconnected",
             "last_fault": reason,
+            "servo_power_press_count": 0,
+            "estop_activation_count": 0,
+            "current_uptime_seconds": 0,
+            "last_estop_duration_seconds": 0,
         })
         return readings
 
@@ -226,8 +231,8 @@ class PlcSensor(Sensor):
             # Ensure unsigned interpretation
             ecat = [_uint16(v) for v in ecat_result.registers]
 
-            # Read sensor data registers (100-113)
-            sensor_result = self.client.read_holding_registers(address=100, count=14)
+            # Read sensor data registers (100-117)
+            sensor_result = self.client.read_holding_registers(address=100, count=18)
             if sensor_result.isError():
                 LOGGER.warning("Error reading sensor registers: %s", sensor_result)
                 self._disconnect()
@@ -279,6 +284,11 @@ class PlcSensor(Sensor):
                 "cycle_count": sensor[11],
                 "system_state": _STATE_NAMES.get(system_state_code, f"unknown({system_state_code})"),
                 "last_fault": _FAULT_NAMES.get(fault_code, f"unknown({fault_code})"),
+                # Analytics registers 114-117
+                "servo_power_press_count": sensor[14],
+                "estop_activation_count": sensor[15],
+                "current_uptime_seconds": sensor[16],
+                "last_estop_duration_seconds": sensor[17],
             })
 
             return readings

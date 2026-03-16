@@ -98,6 +98,10 @@ export const PLC_DETAIL_FIELDS: {
   { key: "servo2_position", label: "Servo 2 Pos", unit: "°" },
   { key: "last_fault", label: "Last Fault" },
   { key: "button_state", label: "Button" },
+  { key: "servo_power_press_count", label: "Servo Presses" },
+  { key: "estop_activation_count", label: "E-Stop Count" },
+  { key: "current_uptime_seconds", label: "Uptime", unit: "s" },
+  { key: "last_estop_duration_seconds", label: "Last E-Stop Duration", unit: "s" },
 ];
 
 // ---------------------------------------------------------------------------

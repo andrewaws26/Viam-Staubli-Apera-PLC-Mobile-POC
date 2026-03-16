@@ -3,11 +3,12 @@
 PLC Simulator — main entry point.
 
 Runs on the Pi Zero W. Starts:
-  1. Modbus TCP server on port 502 (exposes all registers to remote clients)
+  1. Modbus TCP server on port 5020 (exposes all registers to remote clients)
   2. Sensor polling loops (MPU6050, DHT22, potentiometer)
   3. Work cycle state machine (automated grinder + clamp sequence)
   4. E-stop GPIO interrupt handler
   5. LED status indicators
+  6. Button analytics tracker (registers 114-117)
 
 Usage:
   python -m src.main                    # uses default config.yaml
@@ -19,7 +20,9 @@ import asyncio
 import logging
 import signal
 import sys
+import time
 from pathlib import Path
+from typing import Optional
 
 from .actuators import ServoController
 from .fault_monitor import FaultMonitor
@@ -30,7 +33,11 @@ from .modbus_server import (
     PIN_PLATE_CYCLE,
     PIN_SERVO_POWER_ON,
     PLCModbusServer,
+    REG_ESTOP_COUNT,
+    REG_ESTOP_DURATION,
+    REG_SERVO_PRESS_COUNT,
     REG_SYSTEM_STATE,
+    REG_UPTIME,
     SENSOR_BASE,
     STATE_ESTOPPED,
     STATE_IDLE,
@@ -39,6 +46,22 @@ from .modbus_server import (
 )
 from .sensors import DHT22Sensor, MPU6050, PotentiometerReader
 from .work_cycle import WorkCycle
+
+
+# ---------------------------------------------------------------------------
+# Analytics — tracks button events, uptime, and demo cycle counts
+# ---------------------------------------------------------------------------
+class _Analytics:
+    """Mutable state bag for button/e-stop analytics."""
+
+    def __init__(self):
+        self.servo_press_count: int = 0
+        self.estop_count: int = 0
+        self.demo_cycle_count: int = 0
+        self.servo_on_time: Optional[float] = None   # monotonic time of last servo power ON
+        self.estop_start_time: Optional[float] = None # monotonic time of last E-stop activation
+        self.last_estop_duration: int = 0             # seconds
+        self.was_running: bool = False                # True if system ran before last E-stop
 
 
 def setup_logging(config):
@@ -50,7 +73,9 @@ def setup_logging(config):
     )
 
 
-def setup_button_callback(config, work_cycle: WorkCycle, modbus: PLCModbusServer):
+def setup_button_callback(
+    config, work_cycle: WorkCycle, modbus: PLCModbusServer, analytics: _Analytics,
+):
     """Register GPIO interrupt for the Fuji AR22F0L push button.
 
     The button is normally open with an internal pull-up on GPIO 17.
@@ -73,15 +98,27 @@ def setup_button_callback(config, work_cycle: WorkCycle, modbus: PLCModbusServer
             if modbus.read_register(PIN_ESTOP_OFF) == 1:
                 btn_logger.info("Servo Power rejected — E-stop active")
                 return
-            # Latch servo_power_on (register 0) so the monitor sees a persistent change
+
+            # Track analytics
+            analytics.servo_press_count += 1
+            modbus.write_register(
+                SENSOR_BASE + REG_SERVO_PRESS_COUNT,
+                min(analytics.servo_press_count, 65535),
+            )
+            analytics.servo_on_time = time.monotonic()
+            analytics.was_running = True
+
+            # Latch servo_power_on and start work cycle
             btn_logger.info(
-                "BUTTON PRESSED  — GPIO %d LOW  — latching register %d=1, "
-                "setting register %d=1, coil 0=True",
-                button_pin, PIN_SERVO_POWER_ON, PIN_PLATE_CYCLE,
+                "BUTTON PRESSED  — GPIO %d LOW  — servo_press_count=%d, "
+                "latching register %d=1, setting register %d=1, coil 0=True",
+                button_pin, analytics.servo_press_count,
+                PIN_SERVO_POWER_ON, PIN_PLATE_CYCLE,
             )
             modbus.write_register(PIN_SERVO_POWER_ON, 1)
             modbus.write_register(PIN_PLATE_CYCLE, 1)
             modbus.write_coil(0, True)
+            modbus.write_register(SENSOR_BASE + REG_SYSTEM_STATE, STATE_RUNNING)
             work_cycle.trigger_start()
         else:
             # Button released — pulled HIGH by internal pull-up
@@ -101,7 +138,9 @@ def setup_button_callback(config, work_cycle: WorkCycle, modbus: PLCModbusServer
         )
 
 
-def setup_estop_callback(config, work_cycle: WorkCycle, modbus: PLCModbusServer):
+def setup_estop_callback(
+    config, work_cycle: WorkCycle, modbus: PLCModbusServer, analytics: _Analytics,
+):
     """Register GPIO interrupt for the E-stop button.
 
     Wiring: JZMTE HB38 E-stop with Normally Closed (NC) contact.
@@ -122,9 +161,20 @@ def setup_estop_callback(config, work_cycle: WorkCycle, modbus: PLCModbusServer)
     def estop_handler(pin, level):
         if level == 1:
             # GPIO HIGH — E-stop pressed or wire disconnected (fail-safe)
+            analytics.estop_count += 1
+            analytics.estop_start_time = time.monotonic()
+            analytics.servo_on_time = None  # reset uptime
+
+            modbus.write_register(
+                SENSOR_BASE + REG_ESTOP_COUNT,
+                min(analytics.estop_count, 65535),
+            )
+            modbus.write_register(SENSOR_BASE + REG_UPTIME, 0)
+
             estop_logger.warning(
-                "E-STOP ACTIVATED — GPIO %d HIGH — killing servo power, system halted",
-                estop_pin,
+                "E-STOP ACTIVATED — GPIO %d HIGH — estop_count=%d, "
+                "killing servo power, system halted",
+                estop_pin, analytics.estop_count,
             )
             modbus.write_register(PIN_SERVO_POWER_ON, 0)
             modbus.write_register(PIN_ESTOP_ENABLE, 0)
@@ -133,13 +183,30 @@ def setup_estop_callback(config, work_cycle: WorkCycle, modbus: PLCModbusServer)
             work_cycle.trigger_estop()
         else:
             # GPIO LOW — E-stop released (twisted to reset), NC contact closed
+            # Calculate E-stop duration
+            if analytics.estop_start_time is not None:
+                duration = int(time.monotonic() - analytics.estop_start_time)
+                analytics.last_estop_duration = duration
+                modbus.write_register(
+                    SENSOR_BASE + REG_ESTOP_DURATION,
+                    min(duration, 65535),
+                )
+                analytics.estop_start_time = None
+
+            # Increment demo cycle count if system was running before E-stop
+            if analytics.was_running:
+                analytics.demo_cycle_count += 1
+                work_cycle.set_cycle_count(analytics.demo_cycle_count)
+                analytics.was_running = False
+
             estop_logger.info(
-                "E-STOP RELEASED — GPIO %d LOW — system ready "
-                "(servo power must be re-enabled manually)",
-                estop_pin,
+                "E-STOP RELEASED — GPIO %d LOW — system idle, awaiting servo power "
+                "(demo_cycle=%d, estop_duration=%ds)",
+                estop_pin, analytics.demo_cycle_count, analytics.last_estop_duration,
             )
             modbus.write_register(PIN_ESTOP_ENABLE, 1)
             modbus.write_register(PIN_ESTOP_OFF, 0)
+            modbus.write_register(SENSOR_BASE + REG_SYSTEM_STATE, STATE_IDLE)
             work_cycle.release_estop()
             # Do NOT re-enable servo power — operator must press Servo Power button
 
@@ -148,6 +215,15 @@ def setup_estop_callback(config, work_cycle: WorkCycle, modbus: PLCModbusServer)
             "Could not register E-stop edge detection on GPIO %d — "
             "E-stop button will not work, but simulator continues", estop_pin
         )
+
+
+async def analytics_updater(modbus: PLCModbusServer, analytics: _Analytics):
+    """Periodically update the uptime register (116) every second."""
+    while True:
+        if analytics.servo_on_time is not None:
+            uptime = int(time.monotonic() - analytics.servo_on_time)
+            modbus.write_register(SENSOR_BASE + REG_UPTIME, min(uptime, 65535))
+        await asyncio.sleep(1)
 
 
 async def ecat_gpio_reader(config, modbus: PLCModbusServer):
@@ -230,9 +306,11 @@ async def main_async(config_path: Path):
         fault_monitor=fault_monitor,
     )
 
+    analytics = _Analytics()
+
     # Register push button and E-stop interrupts
-    setup_button_callback(config, work_cycle, modbus)
-    setup_estop_callback(config, work_cycle, modbus)
+    setup_button_callback(config, work_cycle, modbus, analytics)
+    setup_estop_callback(config, work_cycle, modbus, analytics)
 
     # Start Modbus server
     modbus.start()
@@ -251,20 +329,27 @@ async def main_async(config_path: Path):
             modbus.write_register(PIN_ESTOP_ENABLE, 0)
             modbus.write_register(PIN_ESTOP_OFF, 1)
             modbus.write_register(SENSOR_BASE + REG_SYSTEM_STATE, STATE_ESTOPPED)
+            analytics.estop_count += 1
+            analytics.estop_start_time = time.monotonic()
+            modbus.write_register(
+                SENSOR_BASE + REG_ESTOP_COUNT,
+                analytics.estop_count,
+            )
             work_cycle.trigger_estop()
         else:
-            logger.info("E-stop not active at startup (GPIO %d LOW) — system ready", estop_pin)
+            logger.info("E-stop not active at startup (GPIO %d LOW) — system idle", estop_pin)
             modbus.write_register(PIN_ESTOP_ENABLE, 1)
             modbus.write_register(PIN_ESTOP_OFF, 0)
     else:
         # No E-stop pin configured or no GPIO — default to safe state
         modbus.write_register(PIN_ESTOP_ENABLE, 1)
 
-    # Start work cycle, LED updater, and E-Cat GPIO reader as concurrent tasks
+    # Start work cycle, LED updater, E-Cat GPIO reader, and analytics as concurrent tasks
     tasks = [
         asyncio.create_task(work_cycle.run()),
         asyncio.create_task(led_updater(config, work_cycle)),
         asyncio.create_task(ecat_gpio_reader(config, modbus)),
+        asyncio.create_task(analytics_updater(modbus, analytics)),
     ]
 
     # Handle graceful shutdown

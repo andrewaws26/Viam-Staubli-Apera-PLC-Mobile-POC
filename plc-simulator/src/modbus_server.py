@@ -8,7 +8,7 @@ Register Layout — mirrors the real RAIV truck's 25-pin E-Cat cable:
     9-17  (Pins 10-18): Status lamp registers (read-only feedback)
     18-24 (Pins 19-25): System state registers
 
-  Holding Registers 100-113: Sensor data
+  Holding Registers 100-117: Sensor data
     100: Accel X (int16, scaled: value = m/s^2 * 100)
     101: Accel Y
     102: Accel Z
@@ -20,9 +20,13 @@ Register Layout — mirrors the real RAIV truck's 25-pin E-Cat cable:
     108: Potentiometer / simulated pressure (0-1023)
     109: Servo 1 position (0-180)
     110: Servo 2 position (0-180)
-    111: Cycle count
+    111: Cycle count (demo cycles: power-on → e-stop → reset)
     112: System state (0=idle, 1=running, 2=fault, 3=e-stopped)
     113: Last fault code (0=none, 1=vibration, 2=temp, 3=pressure, 4=clamp_fail)
+    114: Servo Power press count (total since startup)
+    115: E-stop activation count (total since startup)
+    116: Current uptime in seconds (since last Servo Power ON, 0 when off)
+    117: Last E-stop duration in seconds
 """
 
 import logging
@@ -84,6 +88,10 @@ REG_SERVO2_POS = 10
 REG_CYCLE_COUNT = 11
 REG_SYSTEM_STATE = 12
 REG_FAULT_CODE = 13
+REG_SERVO_PRESS_COUNT = 14     # register 114
+REG_ESTOP_COUNT = 15           # register 115
+REG_UPTIME = 16                # register 116
+REG_ESTOP_DURATION = 17        # register 117
 
 # System states
 STATE_IDLE = 0
@@ -98,10 +106,9 @@ FAULT_TEMPERATURE = 2
 FAULT_PRESSURE = 3
 FAULT_CLAMP_FAIL = 4
 
-# Total register space: 0-24 for E-Cat + gap + 100-113 for sensors = 114 registers
-# Registers 0-24 (E-Cat pins) + 100-113 (sensors) = address range 0..113
-# Allocate 115 to cover full range including address 113
-_REGISTER_COUNT = 115
+# Total register space: 0-24 for E-Cat + gap + 100-117 for sensors = address range 0..117
+# Allocate 118 to cover full range including address 117
+_REGISTER_COUNT = 118
 
 
 def _float_to_int16(value: float, scale: float = 100.0) -> int:

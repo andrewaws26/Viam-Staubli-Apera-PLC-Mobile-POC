@@ -11,6 +11,13 @@ export default function PlcDetailPanel({ readings }: Props) {
   }
 
   const stateStr = String(readings.system_state ?? "unknown");
+  const servoPowerOn = readings.servo_power_on === 1;
+  const stateDisplay =
+    stateStr === "idle" && !servoPowerOn
+      ? "idle — awaiting servo power"
+      : stateStr === "e-stopped"
+      ? "E-STOP ACTIVE"
+      : stateStr.toUpperCase();
   const stateColor =
     stateStr === "running"
       ? "text-green-400"
@@ -53,7 +60,7 @@ export default function PlcDetailPanel({ readings }: Props) {
                     .filter(Boolean)
                     .join(" ")}
                 >
-                  {String(val)}
+                  {isState ? stateDisplay : String(val)}
                   {unit && (
                     <span className="text-gray-600 font-normal ml-0.5">
                       {unit}
