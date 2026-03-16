@@ -23,7 +23,7 @@ from pathlib import Path
 
 from .actuators import ServoController
 from .fault_monitor import FaultMonitor
-from .gpio_config import cleanup_gpio, has_gpio, load_config, setup_gpio
+from .gpio_config import add_edge_detect, cleanup_gpio, has_gpio, load_config, read_pin, setup_gpio
 from .modbus_server import (
     PIN_ESTOP_ENABLE,
     PIN_ESTOP_OFF,
@@ -57,17 +57,14 @@ def setup_button_callback(config, work_cycle: WorkCycle, modbus: PLCModbusServer
     if not has_gpio():
         return
 
-    import RPi.GPIO as GPIO
-
     button_pin = config["gpio"].get("button_pin")
     if button_pin is None:
         return
 
     btn_logger = logging.getLogger("plc-simulator.button")
 
-    def button_handler(channel):
-        state = GPIO.input(button_pin)
-        if state == GPIO.LOW:
+    def button_handler(pin, level):
+        if level == 0:
             # Button pressed — active LOW
             btn_logger.info("BUTTON PRESSED  — GPIO %d LOW  — setting register %d=1, coil 0=True",
                             button_pin, PIN_PLATE_CYCLE)
@@ -81,17 +78,10 @@ def setup_button_callback(config, work_cycle: WorkCycle, modbus: PLCModbusServer
             modbus.write_register(PIN_PLATE_CYCLE, 0)
             modbus.write_coil(0, False)
 
-    try:
-        GPIO.add_event_detect(
-            button_pin, GPIO.BOTH,
-            callback=button_handler,
-            bouncetime=50,  # 50ms debounce
-        )
-        btn_logger.info("Push button interrupt registered on GPIO %d (50ms debounce)", button_pin)
-    except RuntimeError as e:
+    if not add_edge_detect(button_pin, button_handler, edge="both", pull="up", bouncetime_ms=50):
         btn_logger.warning(
-            "Could not register button edge detection on GPIO %d (%s) — "
-            "push button will not work, but simulator continues", button_pin, e
+            "Could not register button edge detection on GPIO %d — "
+            "push button will not work, but simulator continues", button_pin
         )
 
 
@@ -100,14 +90,12 @@ def setup_estop_callback(config, work_cycle: WorkCycle, modbus: PLCModbusServer)
     if not has_gpio():
         return
 
-    import RPi.GPIO as GPIO
-
     estop_pin = config["gpio"].get("estop_pin")
     if estop_pin is None:
         return
 
-    def estop_handler(channel):
-        if GPIO.input(estop_pin):
+    def estop_handler(pin, level):
+        if level == 1:
             # Button pressed — E-stop engaged
             work_cycle.trigger_estop()
             modbus.write_register(PIN_ESTOP_ENABLE, 0)
@@ -118,13 +106,10 @@ def setup_estop_callback(config, work_cycle: WorkCycle, modbus: PLCModbusServer)
             modbus.write_register(PIN_ESTOP_ENABLE, 1)
             modbus.write_register(PIN_ESTOP_OFF, 0)
 
-    try:
-        GPIO.add_event_detect(estop_pin, GPIO.BOTH, callback=estop_handler, bouncetime=200)
-        logging.getLogger(__name__).info("E-stop interrupt registered on GPIO %d", estop_pin)
-    except RuntimeError as e:
+    if not add_edge_detect(estop_pin, estop_handler, edge="both", pull="down", bouncetime_ms=200):
         logging.getLogger(__name__).warning(
-            "Could not register E-stop edge detection on GPIO %d (%s) — "
-            "E-stop button will not work, but simulator continues", estop_pin, e
+            "Could not register E-stop edge detection on GPIO %d — "
+            "E-stop button will not work, but simulator continues", estop_pin
         )
 
 
