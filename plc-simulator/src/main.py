@@ -28,6 +28,7 @@ from .modbus_server import (
     PIN_ESTOP_ENABLE,
     PIN_ESTOP_OFF,
     PIN_PLATE_CYCLE,
+    PIN_SERVO_POWER_ON,
     PLCModbusServer,
     STATE_ESTOPPED,
     STATE_IDLE,
@@ -66,15 +67,25 @@ def setup_button_callback(config, work_cycle: WorkCycle, modbus: PLCModbusServer
     def button_handler(pin, level):
         if level == 0:
             # Button pressed — active LOW
-            btn_logger.info("BUTTON PRESSED  — GPIO %d LOW  — setting register %d=1, coil 0=True",
-                            button_pin, PIN_PLATE_CYCLE)
+            # Latch servo_power_on (register 0) so the monitor sees a persistent change
+            servo_was_on = modbus.read_register(PIN_SERVO_POWER_ON)
+            btn_logger.info(
+                "BUTTON PRESSED  — GPIO %d LOW  — latching register %d=1, "
+                "setting register %d=1, coil 0=True",
+                button_pin, PIN_SERVO_POWER_ON, PIN_PLATE_CYCLE,
+            )
+            modbus.write_register(PIN_SERVO_POWER_ON, 1)
             modbus.write_register(PIN_PLATE_CYCLE, 1)
             modbus.write_coil(0, True)
             work_cycle.trigger_start()
         else:
             # Button released — pulled HIGH by internal pull-up
-            btn_logger.info("BUTTON RELEASED — GPIO %d HIGH — setting register %d=0, coil 0=False",
-                            button_pin, PIN_PLATE_CYCLE)
+            # plate_cycle and coil 0 clear on release; servo_power_on stays latched
+            btn_logger.info(
+                "BUTTON RELEASED — GPIO %d HIGH — setting register %d=0, coil 0=False "
+                "(servo_power_on latch remains)",
+                button_pin, PIN_PLATE_CYCLE,
+            )
             modbus.write_register(PIN_PLATE_CYCLE, 0)
             modbus.write_coil(0, False)
 
