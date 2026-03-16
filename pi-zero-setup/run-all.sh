@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 echo "=========================================="
 echo "  Pi Zero W PLC Simulator Setup"
-echo "  Target: andrew@192.168.1.74"
+echo "  Target: ${RAIV_PLC_SSH:-andrew@raiv-plc.local}"
 echo "=========================================="
 echo ""
 

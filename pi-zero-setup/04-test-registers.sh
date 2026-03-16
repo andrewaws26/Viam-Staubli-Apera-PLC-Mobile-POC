@@ -2,7 +2,7 @@
 # Step 6: Test that registers 100-113 are readable with a pymodbus client script
 set -euo pipefail
 
-PI="andrew@192.168.1.74"
+PI="${RAIV_PLC_SSH:-andrew@raiv-plc.local}"
 
 echo "=== Step 6: Testing Modbus registers 100-113 ==="
 

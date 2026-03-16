@@ -2,7 +2,7 @@
 # Step 4 & 5: Change Modbus port to 5020, run main.py, confirm server is listening
 set -euo pipefail
 
-PI="andrew@192.168.1.74"
+PI="${RAIV_PLC_SSH:-andrew@raiv-plc.local}"
 
 echo "=== Step 4: Configuring Modbus port to 5020 (avoids root requirement) ==="
 ssh "$PI" 'bash -s' << 'EOF'
