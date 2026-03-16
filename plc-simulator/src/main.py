@@ -177,6 +177,8 @@ def setup_estop_callback(
                 estop_pin, analytics.estop_count,
             )
             modbus.write_register(PIN_SERVO_POWER_ON, 0)
+            modbus.write_register(PIN_PLATE_CYCLE, 0)
+            modbus.write_coil(0, False)
             modbus.write_register(PIN_ESTOP_ENABLE, 0)
             modbus.write_register(PIN_ESTOP_OFF, 1)
             modbus.write_register(SENSOR_BASE + REG_SYSTEM_STATE, STATE_ESTOPPED)

@@ -112,11 +112,12 @@ export default function Dashboard() {
           : await viamFetch!(cfg.componentName);
 
         const healthy = cfg.isHealthy(readings);
-        status = healthy ? "healthy" : "fault";
+        const estop = cfg.isEstop?.(readings) ?? false;
+        status = estop ? "estop" : healthy ? "healthy" : "fault";
 
         if (!healthy) {
           faultMessage = cfg.getFaultMessage(readings);
-          currentFaultIds.add(cfg.id);
+          if (!estop) currentFaultIds.add(cfg.id);
 
           // Only record a new history entry when this fault is newly detected
           if (!prevFaultIds.current.has(cfg.id)) {

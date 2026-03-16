@@ -18,6 +18,8 @@ export interface SensorConfig {
   componentName: ComponentName;
   // Returns true when the component is in a healthy state
   isHealthy: (readings: SensorReadings) => boolean;
+  // Returns true when the component is in E-stop state
+  isEstop?: (readings: SensorReadings) => boolean;
   // Returns a human-readable fault description
   getFaultMessage: (readings: SensorReadings) => string;
 }
@@ -53,6 +55,7 @@ export const SENSOR_CONFIGS: SensorConfig[] = [
     // Healthy when Modbus connection is live, no fault, and not e-stopped
     isHealthy: (r) =>
       r.connected === true && r.fault === false && r.system_state !== "e-stopped",
+    isEstop: (r) => r.system_state === "e-stopped",
     getFaultMessage: (r) => {
       if (r.connected !== true) return "No Modbus TCP connection";
       if (r.system_state === "e-stopped") return "E-STOP ACTIVE";
@@ -67,6 +70,7 @@ export const SENSOR_CONFIGS: SensorConfig[] = [
     componentName: VIAM_COMPONENT_NAMES.plc,
     isHealthy: (r) =>
       r.connected === true && r.fault === false && r.system_state !== "e-stopped",
+    isEstop: (r) => r.system_state === "e-stopped",
     getFaultMessage: (r) =>
       r.system_state === "e-stopped"
         ? "E-STOP — system halted"
