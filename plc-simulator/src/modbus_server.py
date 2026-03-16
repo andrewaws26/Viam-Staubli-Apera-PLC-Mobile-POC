@@ -107,8 +107,8 @@ FAULT_PRESSURE = 3
 FAULT_CLAMP_FAIL = 4
 
 # Total register space: 0-24 for E-Cat + gap + 100-117 for sensors = address range 0..117
-# Allocate 118 to cover full range including address 117
-_REGISTER_COUNT = 118
+# pymodbus 3.x needs count+1 to make the last address readable
+_REGISTER_COUNT = 119
 
 
 def _float_to_int16(value: float, scale: float = 100.0) -> int:
