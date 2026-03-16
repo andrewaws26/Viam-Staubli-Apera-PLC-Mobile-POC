@@ -4,7 +4,7 @@
 # Modbus server settings
 modbus:
   host: "0.0.0.0"
-  port: 502
+  port: 5020
 
 # GPIO pin assignments (BCM numbering)
 gpio:
