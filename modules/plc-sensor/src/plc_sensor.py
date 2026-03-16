@@ -244,7 +244,7 @@ class PlcSensor(Sensor):
 
         try:
             # Read E-Cat cable registers (0-24)
-            ecat_result = self.client.read_holding_registers(0, 25)
+            ecat_result = self.client.read_holding_registers(address=0, count=25)
             if ecat_result.isError():
                 LOGGER.warning("Error reading E-Cat registers: %s", ecat_result)
                 self._disconnect()
@@ -254,7 +254,7 @@ class PlcSensor(Sensor):
             ecat = [_uint16(v) for v in ecat_result.registers]
 
             # Read sensor data registers (100-113)
-            sensor_result = self.client.read_holding_registers(100, 14)
+            sensor_result = self.client.read_holding_registers(address=100, count=14)
             if sensor_result.isError():
                 LOGGER.warning("Error reading sensor registers: %s", sensor_result)
                 self._disconnect()
@@ -266,7 +266,7 @@ class PlcSensor(Sensor):
             # Read button state from coil 0
             button_pressed = False
             try:
-                coil_result = self.client.read_coils(0, 1)
+                coil_result = self.client.read_coils(address=0, count=1)
                 if not coil_result.isError():
                     button_pressed = bool(coil_result.bits[0])
             except Exception:
