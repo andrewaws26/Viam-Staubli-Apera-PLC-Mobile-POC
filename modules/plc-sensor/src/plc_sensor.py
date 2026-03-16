@@ -156,8 +156,6 @@ class PlcSensor(Sensor):
                 self.host,
                 port=self.port,
                 timeout=_CONNECT_TIMEOUT,
-                retries=0,       # no internal retries — let viam-server poll handle it
-                reconnect_delay=0,
             )
             connected = self.client.connect()
             if connected:
@@ -174,42 +172,16 @@ class PlcSensor(Sensor):
     @staticmethod
     def _disconnected_readings(reason: str) -> Mapping[str, SensorReading]:
         """Return a full readings dict with connected=False and all values zeroed."""
-        return {
+        readings: Dict[str, Any] = {
             "connected": False,
             "fault": True,
-
-            # E-Cat cable command signals (Pins 1-9)
-            "servo_power_on": False,
-            "servo_disable": False,
-            "plate_cycle_active": False,
-            "abort_stow": False,
-            "speed_signal": False,
-            "gripper_lock": False,
-            "clear_position": False,
-            "belt_forward": False,
-            "belt_reverse": False,
-
-            # E-Cat cable status lamps (Pins 10-18)
-            "servo_power_lamp": False,
-            "servo_disable_lamp": False,
-            "plate_cycle_lamp": False,
-            "abort_stow_lamp": False,
-            "speed_lamp": False,
-            "gripper_lock_lamp": False,
-            "clear_position_lamp": False,
-            "belt_forward_lamp": False,
-            "belt_reverse_lamp": False,
-
-            # E-Cat cable system state (Pins 19-25)
-            "emag_status": False,
-            "mag_on": False,
-            "mag_part_detect": False,
-            "emag_malfunction": False,
-            "poe_system": False,
-            "estop_enable": False,
-            "estop_off": False,
-
-            # Sensor data — all zeroed
+            "button_state": "released",
+        }
+        # E-Cat signals — all zeroed, using the same keys as _ECAT_SIGNAL_NAMES
+        for name in _ECAT_SIGNAL_NAMES:
+            readings[name] = 0
+        # Sensor data — all zeroed
+        readings.update({
             "vibration_x": 0.0,
             "vibration_y": 0.0,
             "vibration_z": 0.0,
@@ -224,7 +196,8 @@ class PlcSensor(Sensor):
             "cycle_count": 0,
             "system_state": "disconnected",
             "last_fault": reason,
-        }
+        })
+        return readings
 
     async def get_readings(
         self,
