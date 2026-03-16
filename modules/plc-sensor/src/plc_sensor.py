@@ -11,6 +11,7 @@ Register map (see plc-simulator/README.md for full documentation):
   Registers 9-17:   Status lamps (feedback from PLC)
   Registers 18-24:  System state (E-Mag, POE, E-stop)
   Registers 100-113: Sensor data (accel, gyro, temp, humidity, servos, state)
+  Coil 0:           Push button state (True = pressed)
 """
 
 import asyncio
@@ -35,6 +36,47 @@ LOGGER = getLogger(__name__)
 _STATE_NAMES = {0: "idle", 1: "running", 2: "fault", 3: "e-stopped"}
 _FAULT_NAMES = {0: "none", 1: "vibration", 2: "temperature", 3: "pressure", 4: "clamp_fail"}
 
+# E-Cat signal names for registers 0-24 (25-pin cable pinout)
+_ECAT_SIGNAL_NAMES = [
+    "servo_power_on",       # Register 0  — Pin 1
+    "servo_disable",        # Register 1  — Pin 2
+    "plate_cycle",          # Register 2  — Pin 3 (Start / Plate Cycle)
+    "abort_stow",           # Register 3  — Pin 4
+    "speed",                # Register 4  — Pin 5
+    "gripper_lock",         # Register 5  — Pin 6
+    "clear_position",       # Register 6  — Pin 7
+    "belt_forward",         # Register 7  — Pin 8
+    "belt_reverse",         # Register 8  — Pin 9
+    "lamp_servo_power",     # Register 9  — Pin 10
+    "lamp_servo_disable",   # Register 10 — Pin 11
+    "lamp_plate_cycle",     # Register 11 — Pin 12
+    "lamp_abort_stow",      # Register 12 — Pin 13
+    "lamp_speed",           # Register 13 — Pin 14
+    "lamp_gripper_lock",    # Register 14 — Pin 15
+    "lamp_clear_position",  # Register 15 — Pin 16
+    "lamp_belt_forward",    # Register 16 — Pin 17
+    "lamp_belt_reverse",    # Register 17 — Pin 18
+    "emag_status",          # Register 18 — Pin 19
+    "emag_on",              # Register 19 — Pin 20
+    "emag_part_detect",     # Register 20 — Pin 21
+    "emag_malfunction",     # Register 21 — Pin 22
+    "poe_status",           # Register 22 — Pin 23
+    "estop_enable",         # Register 23 — Pin 24
+    "estop_off",            # Register 24 — Pin 25
+]
+
+# Connection timeout in seconds
+_CONNECT_TIMEOUT = 2
+
+
+def _uint16(value: int) -> int:
+    """Ensure a register value is treated as unsigned 16-bit integer.
+
+    Some pymodbus versions may return signed int16 values. This ensures
+    all values are in the 0-65535 range.
+    """
+    return value & 0xFFFF
+
 
 def _int16_to_float(value: int, scale: float = 100.0) -> float:
     """Convert an unsigned Modbus register value back to a signed float.
@@ -43,9 +85,33 @@ def _int16_to_float(value: int, scale: float = 100.0) -> float:
       positive: stored directly (e.g., 981 = 9.81)
       negative: stored as 65536 + value (e.g., 65531 = -0.05)
     """
+    value = _uint16(value)
     if value > 32767:
         value -= 65536
     return round(value / scale, 2)
+
+
+def _zero_readings() -> Dict[str, Any]:
+    """Return all-zero readings for when the connection fails."""
+    readings: Dict[str, Any] = {
+        "connected": False,
+        "fault": True,
+        "button_state": "released",
+    }
+    # All E-Cat signals as 0
+    for name in _ECAT_SIGNAL_NAMES:
+        readings[name] = 0
+    # All sensor data as 0
+    for key in [
+        "vibration_x", "vibration_y", "vibration_z",
+        "gyro_x", "gyro_y", "gyro_z",
+        "temperature_f", "humidity_pct", "pressure_simulated",
+        "servo1_position", "servo2_position", "cycle_count",
+    ]:
+        readings[key] = 0
+    readings["system_state"] = "disconnected"
+    readings["last_fault"] = "connection_failed"
+    return readings
 
 
 class PlcSensor(Sensor):
@@ -74,7 +140,7 @@ class PlcSensor(Sensor):
     ) -> Self:
         sensor = cls(
             config.name,
-            host=config.attributes.fields["host"].string_value or "192.168.1.100",
+            host=config.attributes.fields["host"].string_value or "raiv-plc.local",
             port=int(config.attributes.fields["port"].number_value or 502),
         )
         LOGGER.info(
@@ -97,15 +163,19 @@ class PlcSensor(Sensor):
             return True
 
         try:
-            self.client = ModbusTcpClient(self.host, port=self.port, timeout=3)
+            self.client = ModbusTcpClient(
+                self.host, port=self.port, timeout=_CONNECT_TIMEOUT,
+            )
             connected = self.client.connect()
             if connected:
                 LOGGER.info("Connected to PLC at %s:%d", self.host, self.port)
             else:
                 LOGGER.warning("Failed to connect to PLC at %s:%d", self.host, self.port)
+                self.client = None
             return connected
         except Exception as e:
             LOGGER.error("Connection error to PLC at %s:%d: %s", self.host, self.port, e)
+            self.client = None
             return False
 
     async def get_readings(
@@ -121,71 +191,58 @@ class PlcSensor(Sensor):
         connected = self._ensure_connected()
 
         if not connected:
-            return {
-                "connected": False,
-                "fault": True,
-                "system_state": "disconnected",
-                "last_fault": "connection_failed",
-            }
+            return _zero_readings()
 
         try:
             # Read E-Cat cable registers (0-24)
             ecat_result = self.client.read_holding_registers(0, 25)
             if ecat_result.isError():
                 LOGGER.warning("Error reading E-Cat registers: %s", ecat_result)
-                return {"connected": False, "fault": True, "system_state": "read_error"}
+                self.client = None
+                return _zero_readings()
 
-            ecat = ecat_result.registers
+            # Ensure unsigned interpretation
+            ecat = [_uint16(v) for v in ecat_result.registers]
 
             # Read sensor data registers (100-113)
             sensor_result = self.client.read_holding_registers(100, 14)
             if sensor_result.isError():
                 LOGGER.warning("Error reading sensor registers: %s", sensor_result)
-                return {"connected": False, "fault": True, "system_state": "read_error"}
+                self.client = None
+                return _zero_readings()
 
-            sensor = sensor_result.registers
+            # Ensure unsigned interpretation
+            sensor = [_uint16(v) for v in sensor_result.registers]
 
-            # Build the readings dict with human-readable keys
+            # Read button state from coil 0
+            button_pressed = False
+            try:
+                coil_result = self.client.read_coils(0, 1)
+                if not coil_result.isError():
+                    button_pressed = bool(coil_result.bits[0])
+            except Exception:
+                pass  # Coil read failure is non-fatal
+
+            # Decode system state and fault code
             system_state_code = sensor[12]
             fault_code = sensor[13]
 
-            return {
+            # Build the readings dict with human-readable keys
+            readings: Dict[str, Any] = {
                 # Connection status
                 "connected": True,
                 "fault": system_state_code == 2,  # STATE_FAULT
 
-                # E-Cat cable command signals (Pins 1-9)
-                "servo_power_on": bool(ecat[0]),
-                "servo_disable": bool(ecat[1]),
-                "plate_cycle_active": bool(ecat[2]),
-                "abort_stow": bool(ecat[3]),
-                "speed_signal": bool(ecat[4]),
-                "gripper_lock": bool(ecat[5]),
-                "clear_position": bool(ecat[6]),
-                "belt_forward": bool(ecat[7]),
-                "belt_reverse": bool(ecat[8]),
+                # Push button state
+                "button_state": "pressed" if button_pressed else "released",
+            }
 
-                # E-Cat cable status lamps (Pins 10-18)
-                "servo_power_lamp": bool(ecat[9]),
-                "servo_disable_lamp": bool(ecat[10]),
-                "plate_cycle_lamp": bool(ecat[11]),
-                "abort_stow_lamp": bool(ecat[12]),
-                "speed_lamp": bool(ecat[13]),
-                "gripper_lock_lamp": bool(ecat[14]),
-                "clear_position_lamp": bool(ecat[15]),
-                "belt_forward_lamp": bool(ecat[16]),
-                "belt_reverse_lamp": bool(ecat[17]),
+            # E-Cat cable signals (registers 0-24) with named keys
+            for i, name in enumerate(_ECAT_SIGNAL_NAMES):
+                readings[name] = ecat[i]
 
-                # E-Cat cable system state (Pins 19-25)
-                "emag_status": bool(ecat[18]),
-                "mag_on": bool(ecat[19]),
-                "mag_part_detect": bool(ecat[20]),
-                "emag_malfunction": bool(ecat[21]),
-                "poe_system": bool(ecat[22]),
-                "estop_enable": bool(ecat[23]),
-                "estop_off": bool(ecat[24]),
-
-                # Sensor data
+            # Sensor data (registers 100-113)
+            readings.update({
                 "vibration_x": _int16_to_float(sensor[0]),
                 "vibration_y": _int16_to_float(sensor[1]),
                 "vibration_z": _int16_to_float(sensor[2]),
@@ -200,17 +257,14 @@ class PlcSensor(Sensor):
                 "cycle_count": sensor[11],
                 "system_state": _STATE_NAMES.get(system_state_code, f"unknown({system_state_code})"),
                 "last_fault": _FAULT_NAMES.get(fault_code, f"unknown({fault_code})"),
-            }
+            })
+
+            return readings
 
         except Exception as e:
             LOGGER.error("Error reading PLC registers: %s", e)
             self.client = None  # Force reconnect on next call
-            return {
-                "connected": False,
-                "fault": True,
-                "system_state": "error",
-                "last_fault": str(e),
-            }
+            return _zero_readings()
 
     async def close(self):
         LOGGER.info("%s is closing.", self.name)
