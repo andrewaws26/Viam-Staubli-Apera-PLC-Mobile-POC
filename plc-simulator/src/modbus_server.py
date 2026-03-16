@@ -30,15 +30,10 @@ import threading
 from typing import Any, Dict, Optional
 
 from pymodbus.datastore import (
+    ModbusDeviceContext,
     ModbusSequentialDataBlock,
     ModbusServerContext,
 )
-
-# pymodbus 3.x renamed ModbusSlaveContext to ModbusDeviceContext
-try:
-    from pymodbus.datastore import ModbusSlaveContext
-except ImportError:
-    from pymodbus.datastore import ModbusDeviceContext as ModbusSlaveContext
 from pymodbus.server import StartTcpServer
 
 logger = logging.getLogger(__name__)
@@ -137,20 +132,14 @@ class PLCModbusServer:
         self._port = config["modbus"]["port"]
 
         # Create a data block large enough for all registers (0 through 113)
-        # pymodbus uses 1-based addressing internally, so we allocate _REGISTER_COUNT + 1
         initial_values = [0] * _REGISTER_COUNT
-        self._store = ModbusSlaveContext(
+        self._store = ModbusDeviceContext(
             hr=ModbusSequentialDataBlock(0, initial_values),
             ir=ModbusSequentialDataBlock(0, [0] * _REGISTER_COUNT),
             di=ModbusSequentialDataBlock(0, [0] * 32),
             co=ModbusSequentialDataBlock(0, [0] * 32),
-            zero_mode=True,
         )
-        # pymodbus 3.x uses 'devices' instead of 'slaves'
-        try:
-            self._context = ModbusServerContext(devices=self._store, single=True)
-        except TypeError:
-            self._context = ModbusServerContext(slaves=self._store, single=True)
+        self._context = ModbusServerContext(devices=self._store, single=True)
         self._server_thread: Optional[threading.Thread] = None
         self._server = None
 
