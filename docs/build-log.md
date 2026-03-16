@@ -255,3 +255,95 @@ Three of four dashboard cards are green:
 - **Robot Arm:** Pending — hardware not available
 
 The PLC detail panel shows live sensor data updating every 2 seconds. The full digital twin pipeline is working: physical sensors on the Pi Zero W → Modbus TCP → Pi 5 plc-sensor module → Viam Cloud → Vercel dashboard.
+
+---
+
+## March 16, 2026 — Shop Network Migration, Push Button Integration, E-Cat Signal Dashboard
+
+### Starting Point
+
+Three of four dashboard cards were green. The system was running on a home network (192.168.1.x). The PLC simulator was deployed to the Pi Zero W but had no physical push button wired. The dashboard showed PLC sensor data but not the individual E-Cat cable signals. Some data values displayed incorrectly (negative humidity, -1 system state, negative cycle count) due to signed int16 interpretation issues in the Modbus data pipeline.
+
+### Shop Network Deployment
+
+The system was moved from the home network to the shop network (192.168.0.x). The Pi 5 is now at 192.168.0.172 and the Pi Zero W at 192.168.0.173. All hardcoded IP addresses in the pi-zero-setup scripts were replaced with configurable hostname defaults (`raiv-plc.local` via mDNS) with environment variable overrides (`RAIV_PLC_SSH`). The robot-arm-sensor default host was changed from a hardcoded IP to `raiv-cs9.local`. The viam-server.json config already used `raiv-plc.local` for the PLC simulator.
+
+### Push Button Wiring and Integration
+
+A Fuji AR22F0L E3 industrial push button — the same model used on the RAIV trucks — was wired to the Pi Zero W via a Keyestudio T-cobbler breakout board on a breadboard:
+
+- Contact block terminal 3 → GPIO 17 (via T-cobbler)
+- Contact block terminal 4 → GND (via T-cobbler)
+- Contact type: Normally Open (NO)
+- Behavior: Pressing the button closes the circuit, pulling GPIO 17 LOW
+
+The PLC simulator was updated to handle this button:
+
+1. **GPIO 17 reconfigured**: Previously used for E-stop (with pull-down), now used for the push button with an internal pull-up resistor enabled. The E-stop was moved to GPIO 27.
+2. **50ms debounce**: Edge detection callback registered with `bouncetime=50` to reject contact bounce from the industrial switch.
+3. **Register 2 (Plate Cycle)**: Set to 1 when button is pressed (GPIO LOW), 0 when released (GPIO HIGH).
+4. **Coil 0 (button_state)**: Set to True when pressed, False when released.
+5. **Work cycle trigger**: Pressing the button calls `work_cycle.trigger_start()`, which transitions the state machine from IDLE to RUNNING.
+6. **Timestamped logging**: Every press and release is logged with the GPIO state, register values, and coil state.
+
+### E-Cat GPIO Simulation
+
+The PLC simulator now supports physical GPIO inputs for E-Cat registers 0-24. A configuration map in `config.yaml` (`ecat_gpio_pins`) maps register numbers to GPIO BCM pins. Currently only register 2 (Plate Cycle) is wired to GPIO 17. The GPIO reader runs at 50ms polling intervals. For any pin that is physically wired, if the wire is disconnected, the pull-down resistor ensures the corresponding register reads 0. Registers without physical GPIO pins retain their simulated values.
+
+### PLC Sensor Module — E-Cat Signal Names and Robust Decoding
+
+The plc-sensor module was updated with consistent E-Cat signal naming matching the 25-pin cable pinout:
+
+- Registers 0-8: `servo_power_on`, `servo_disable`, `plate_cycle`, `abort_stow`, `speed`, `gripper_lock`, `clear_position`, `belt_forward`, `belt_reverse`
+- Registers 9-17: `lamp_servo_power` through `lamp_belt_reverse`
+- Registers 18-24: `emag_status`, `emag_on`, `emag_part_detect`, `emag_malfunction`, `poe_status`, `estop_enable`, `estop_off`
+
+A `_uint16()` function was added to ensure all Modbus register values are treated as unsigned 16-bit integers regardless of the pymodbus version. This fixes the signed int16 interpretation bugs that caused negative values for humidity, cycle count, and system state.
+
+The module now reads Modbus coil 0 for button state and returns it as `"pressed"` or `"released"` instead of True/False.
+
+Connection failure handling was improved: 2-second timeout, returns all register values as 0 with `connected: false` and `fault: true` on failure. Automatic reconnection on the next poll cycle.
+
+### Dashboard — E-Cat Signal Status Grid
+
+The PlcDetailPanel was split into two sections:
+
+1. **PLC Sensor Data — Live**: The existing panel showing temperature, humidity, vibration, pressure, servo positions, cycle count, system state, button state, and last fault.
+2. **E-Cat Signal Status**: A new 25-signal grid showing each pin of the E-Cat cable with a green dot (value = 1) or red dot (value = 0), labeled with the signal name and pin number.
+
+### Dashboard — E-Cat Signal Fault/Recovery Logging
+
+The dashboard now tracks the previous state of all 25 E-Cat signals between poll cycles. When any signal drops from 1 to 0, a fault event is logged: `"E-Cat Signal Lost — Servo Power ON (Pin 1)"`. When a signal returns from 0 to 1, a recovery event is logged: `"E-Cat Signal Restored — Servo Power ON (Pin 1)"`. Recovery events are displayed in green in the fault history panel to distinguish them from fault events (red).
+
+### Data Decoding Bug Fixes
+
+The signed int16 decoding issues were traced through the full pipeline:
+
+1. **Root cause**: Some pymodbus versions return holding register values as signed int16 (-32768 to 32767) instead of unsigned (0 to 65535). This caused cycle count 0 to appear as -5, system state 0 as -1, and humidity 450 as negative.
+2. **Fix — plc_sensor.py**: Added `_uint16()` function that masks all register values with `& 0xFFFF` to guarantee unsigned interpretation before any decoding.
+3. **Fix — status_api.py**: Same `_uint16()` function applied to all register reads.
+4. **Verification**: The `_int16_to_float()` function correctly handles the signed→unsigned→float conversion for scaled values (vibration, temperature, humidity). Raw integer values (cycle count, system state, servo positions) are now guaranteed to be non-negative.
+
+### Code Cleanup
+
+- All pi-zero-setup scripts: Replaced hardcoded `andrew@192.168.1.74` with `${RAIV_PLC_SSH:-andrew@raiv-plc.local}` environment variable with hostname default.
+- `config/viam-server.json`: Robot arm host changed from `192.168.1.10` to `raiv-cs9.local`.
+- `modules/robot-arm-sensor/src/robot_arm_sensor.py`: Default host changed from `192.168.1.10` to `raiv-cs9.local`.
+- Status API: E-Cat signal names updated to match the plc-sensor module naming convention.
+- Mock data: Updated to include all 25 E-Cat signals for demo mode.
+
+### Current State
+
+Three of four dashboard cards are green:
+- **Vision System:** OK — pinging 8.8.8.8:53
+- **PLC / Controller:** OK — live Modbus data from Pi Zero W at 192.168.0.173
+- **Wire / Connection:** OK — derived from PLC connected state
+- **Robot Arm:** Pending — hardware not available
+
+The dashboard now shows:
+- PLC sensor data panel with temperature, humidity, vibration, pressure, servos, cycle count, system state, button state
+- E-Cat signal status grid with 25 green/red indicators
+- Fault history with E-Cat signal loss/recovery events color-coded
+- Industrial push button state ("pressed" / "released")
+
+Full pipeline: Fuji AR22F0L button → GPIO 17 → Pi Zero W PLC simulator → Modbus TCP → Pi 5 plc-sensor module → Viam Cloud → Vercel dashboard.
