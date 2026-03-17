@@ -22,7 +22,7 @@
       "api": "rdk:component:sensor",
       "model": "viam-staubli-apera-poc:monitor:plc-sensor",
       "attributes": {
-        "host": "raiv-plc.local",
+        "host": "192.168.0.10",
         "port": 502
       },
       "depends_on": [],

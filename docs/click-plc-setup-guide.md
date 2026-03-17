@@ -521,109 +521,82 @@ subnet (`192.168.0.x`), verify no firewall on Pi blocking outbound 502.
 
 ## Phase 4 — Wire the Buttons
 
-### 4.1 What to buy
+### 4.1 Hardware on the bench (confirmed working)
 
-#### Servo power button (momentary NO pushbutton)
+| Component | Model | Purpose |
+|-----------|-------|---------|
+| Power supply | **Rhino PSR-24-480** | 24 VDC supply powering PLC, buttons, and output lamps |
+| Breakout board | **ZipLink ZL-RTB20-1** | Ribbon cable breakout — clean terminal access to all PLC I/O |
+| Servo power button | **Fuji AR22F0L** | 22 mm momentary NO pushbutton, illuminated (24 V LED lamp) |
+| E-stop button | Illuminated NC mushroom head, twist-release | Emergency stop with built-in 24 V lamp |
 
-Any standard **22 mm momentary normally-open pushbutton** works. Options:
+### 4.2 Input wiring (via ZipLink breakout board)
 
-| Source | Part | Notes |
-|--------|------|-------|
-| AutomationDirect | PBMT-x-1 series (e.g. PBMT-B-1 blue, PBMT-G-1 green) | ~$6, fits standard 22mm cutout |
-| Amazon | "22mm momentary pushbutton NO 24V" | $5–10 for a pack |
-| Local hardware | Any doorbell-style button with screw terminals | Free if you have one |
+The ZipLink ZL-RTB20-1 breakout board connects to the PLC via a ribbon cable, giving you
+screw terminals for every PLC I/O point. The terminal labels on the ZipLink mirror the PLC
+labels (X1, X2, C1, Y1, Y2, etc.).
 
-For bench testing, you do not even need a button — see §4.4.
+**Common wiring (do this first):**
 
-#### E-stop (NC mushroom head)
+| From | To | Purpose |
+|------|----|---------|
+| Rhino 0V (−) | ZipLink **C1** | Input common for X1–X4 |
+| Rhino +24V (+) | ZipLink **V1** | Output power supply for Y1–Y6 |
+| Rhino 0V (−) | ZipLink **CO** | Output common |
 
-| Source | Part | Notes |
-|--------|------|-------|
-| AutomationDirect | GE-AT2T-B | 40mm yellow head, twist-release, 1 NC contact, ~$16 |
-| AutomationDirect | GE-601E | Smaller, key-release, ~$20 |
-| Amazon | "40mm mushroom head emergency stop NC twist release" | $8–15 |
+**Servo power button (Fuji AR22F0L → X1):**
 
-**Buy NC (Normally Closed), twist-to-release.** This is the safe-fail wiring: the circuit
-is closed (X2 sees 24 V) during normal operation; pressing the button opens the circuit
-(X2 loses power) — a wiring fault (broken wire) also de-energizes the input, which is the
-safe state.
-
-### 4.2 How the C0-10DD2E-D DC inputs work
-
-The inputs are **sink/source** configurable. We use **sink wiring** (most common for NPN/PNP
-sensors and simple pushbuttons in a 24 V system):
-
-- Apply **+24 V to the input terminal** through the button.
-- The **C (Common) terminal** connects to **24 V−**.
-- When the button is closed: 24 V appears at the X terminal → input reads ON (1).
-- When the button is open: X terminal floats/pulls low → input reads OFF (0).
-
-**The Click PLC has internal current-limiting on its inputs.** You do not need external
-pull-up or pull-down resistors.
-
-### 4.3 ASCII wiring diagrams
-
-#### Servo Power (X1) — Momentary NO pushbutton
-
-```
-  24 VDC Supply
-  ┌──────────────────────┐
-  │ +                  − │
-  └──┬───────────────────┤
-     │                   │
-     │   ┌────────────┐  │
-     │   │ NO BUTTON  │  │
-     └───┤ (servo pwr)│  │
-         └─────┬──────┘  │
-               │         │
-          [X1 terminal]  │
-          [on PLC]       │
-                         │
-                    [C1 terminal]
-                    [on PLC]─────┘
-```
+| Button terminal | Connects to | Purpose |
+|-----------------|-------------|---------|
+| Terminal 3 (NO common) | Rhino **+24V** | Power source for input circuit |
+| Terminal 4 (NO contact) | ZipLink **X1** | Signal to PLC input X1 |
+| Terminal 23 (lamp +) | ZipLink **Y1** | Lamp powered by PLC output Y1 |
+| Terminal 24 (lamp −) | ZipLink **CO** | Lamp return to output common |
 
 When button is pressed: circuit closes → X1 = ON.
 When button is released: circuit opens → X1 = OFF.
+Lamp lights when Y1 is ON (servo power active).
 
-#### E-Stop (X2) — NC mushroom head
+**E-stop button → X2:**
+
+| Button terminal | Connects to | Purpose |
+|-----------------|-------------|---------|
+| Terminal 1 (NC common) | Rhino **+24V** | Power source for input circuit |
+| Terminal 2 (NC contact) | ZipLink **X2** | Signal to PLC input X2 |
+| Lamp terminal X1 (+) | ZipLink **Y2** | Lamp powered by PLC output Y2 |
+| Lamp terminal X2 (−) | ZipLink **CO** | Lamp return to output common |
+
+Normal (e-stop out): NC contact is CLOSED → X2 = ON.
+E-stop pressed: NC contact OPENS → X2 = OFF.
+Lamp lights when Y2 is ON (system okay, no fault).
+
+### 4.3 ASCII wiring diagram
 
 ```
-  24 VDC Supply
-  ┌──────────────────────┐
-  │ +                  − │
-  └──┬───────────────────┤
-     │                   │
-     │  ┌─────────────┐  │
-     │  │ NC E-STOP   │  │
-     └──┤ (mushroom)  │  │
-        └──────┬──────┘  │
-               │         │
-          [X2 terminal]  │
-          [on PLC]       │
-                         │
-                    [C1 terminal]
-                    [on PLC]─────┘
+  Rhino PSR-24-480                    ZipLink ZL-RTB20-1 (ribbon cable to PLC)
+  ┌──────────────┐                    ┌──────────────────────────────────────┐
+  │ +24V         ├──┬────────────────►│ V1 (output power)                   │
+  │              │  │                 │                                      │
+  │              │  ├──[Fuji NO]────►│ X1 (servo power input)              │
+  │              │  │   btn t3→t4     │                                      │
+  │              │  ├──[E-Stop NC]──►│ X2 (e-stop input)                   │
+  │              │  │   btn t1→t2     │                                      │
+  │              │  │                 │ Y1 ──► Fuji lamp t23                │
+  │              │  │                 │ Y2 ──► E-stop lamp                  │
+  │              │  │                 │                                      │
+  │  0V          ├──┼────────────────►│ C1 (input common)                   │
+  │              │  └────────────────►│ CO (output common) ◄── lamp returns │
+  └──────────────┘                    └──────────────────────────────────────┘
 ```
 
-Normal (e-stop out): circuit is CLOSED → X2 = ON.
-E-stop pressed: circuit OPENS → X2 = OFF.
+### 4.4 Output wiring summary
 
-> Both buttons share the same **C1** common terminal (for X1–X4). If your unit has a separate
-> C2 for X5–X8, ignore C2 for now.
+| PLC Output | ZipLink terminal | Drives | Behavior |
+|------------|-----------------|--------|----------|
+| **Y1** | Y1 | Fuji servo button lamp (t23/t24) | ON when servo power is active |
+| **Y2** | Y2 | E-stop button lamp | ON when system is okay (no fault, e-stop released) |
 
-### 4.4 Bench-testing without real buttons (jumper wire method)
-
-Before you buy or wire any buttons, you can simulate inputs with a short wire:
-
-- **Simulate button press (X1 or X2 ON):** Plug a jumper wire into the **+** power terminal
-  and touch the other end to the X1 (or X2) terminal. X1/X2 LEDs light up on the PLC front
-  panel when active.
-- **Simulate NC e-stop "normal":** Run a permanent jumper from the `+` supply to X2.
-  To simulate "e-stop pressed," pull the jumper out.
-
-You can complete Phases 2, 3, and 5 entirely with jumper wires. Buy real buttons when you
-are ready for Phase 7.
+The outputs are **sourcing DC** — Y1/Y2 supply +24 V from V1 through the lamp to CO (0 V).
 
 ### 4.5 Verify inputs in the programming software
 
@@ -631,8 +604,9 @@ In Click Programming Software, while connected to the PLC:
 
 1. Go to **Address Picker** or **Data View** (View → Data View).
 2. Navigate to **X (Discrete Inputs)**.
-3. Touch your jumper to X1 — the row for X1 should flip from `0` to `1` live.
-4. Do the same for X2. You should see the PLC's X2 LED illuminate and Data View update.
+3. Press the servo power button — X1 should flip from `0` to `1` and back when released.
+4. X2 should already show `1` (NC contact closed). Slam the e-stop — X2 drops to `0`.
+   Twist-release the e-stop — X2 returns to `1`.
 
 This confirms wiring is correct before you touch any ladder logic.
 
@@ -662,7 +636,7 @@ simulator uses. The `plc-sensor` module needs zero changes.
 > dashboard. They were provided by the Pi Zero W's physical sensors; the Click PLC is a pure
 > control device.
 
-### 5.2 Internal memory used by the ladder logic
+### 5.2 Internal memory and outputs used by the ladder logic
 
 | Click address | Type | Purpose |
 |---------------|------|---------|
@@ -670,7 +644,8 @@ simulator uses. The `plc-sensor` module needs zero changes.
 | C100 | Internal relay (coil) | X1 one-shot (rising edge pulse) — self-clearing |
 | DS115 | Data Short register | Servo power press counter |
 | DS116 | Data Short register | E-stop activation counter |
-| Y1 | Output coil | Servo power output (drives physical indicator or relay) |
+| Y1 | Physical output | Servo power state — also drives Fuji button lamp |
+| Y2 | Physical output | System-OK indicator — drives e-stop button lamp |
 
 ### 5.3 Creating the program in Click Programming Software
 
@@ -837,7 +812,28 @@ Instructions:
 
 ---
 
-**RUNG 9 — Write servo_power_on to DS1**
+**RUNG 9 — Y2 System-OK Lamp**
+
+Drives the e-stop button lamp: ON when e-stop is released AND no fault is latched.
+
+```
+──[X2]──[/C1]─────────────────────────────( Y2 )──
+  (X2 normal)  (no fault)                 (e-stop lamp ON)
+```
+
+Instructions:
+- Contact: `X2` (Normally Open — e-stop released, NC contact closed)
+- Contact: `C1` (Normally Closed — no fault latched)
+- Output: standard coil at address `Y2`
+
+> Y2 is a regular coil, not SET/RST — it is re-evaluated every scan. When either X2 drops
+> (e-stop pressed) or C1 latches (fault), Y2 turns OFF and the e-stop lamp goes dark.
+> Y1 does not need its own rung — it is already driven by Rungs 2/3/5 (SET/RST Y1) and
+> the Fuji button lamp is wired directly to the Y1 output terminal.
+
+---
+
+**RUNG 10 — Write servo_power_on to DS1**
 
 ```
 ──[Y1]────────────────────┤ MOV 1 → DS1 ├──
@@ -846,99 +842,95 @@ Instructions:
 
 In Click, use two rungs with a **MOV** function block:
 
-Rung 9a:
+Rung 10a:
 - Contact: `Y1` (Normally Open)
 - Function Block: **MOV** → Source: constant `1` → Destination: `DS1`
 
-Rung 9b:
+Rung 10b:
 - Contact: `Y1` (Normally Closed)
 - Function Block: **MOV** → Source: constant `0` → Destination: `DS1`
 
 ---
 
-**RUNG 10 — Write servo_disable to DS2 (inverse of DS1)**
+**RUNG 11 — Write servo_disable to DS2 (inverse of DS1)**
 
-Rung 10a:
+Rung 11a:
 - Contact: `Y1` (Normally Open)
 - **MOV** `0` → `DS2`
 
-Rung 10b:
+Rung 11b:
 - Contact: `Y1` (Normally Closed)
 - **MOV** `1` → `DS2`
 
 ---
 
-**RUNG 11 — Write lamp_servo_power to DS10 (mirrors DS1)**
+**RUNG 12 — Write lamp_servo_power to DS10 (mirrors DS1)**
 
-Rung 11a:
+Rung 12a:
 - Contact: `Y1` (NO) → **MOV** `1` → `DS10`
 
-Rung 11b:
+Rung 12b:
 - Contact: `Y1` (NC) → **MOV** `0` → `DS10`
 
 ---
 
-**RUNG 12 — Write estop_enable to DS24**
+**RUNG 13 — Write estop_enable to DS24**
 
 ```
 ──[/X2]───────────────────┤ MOV 1 → DS24 ├──
 ──[X2]────────────────────┤ MOV 0 → DS24 ├──
 ```
 
-Rung 12a:
+Rung 13a:
 - Contact: `X2` (Normally Closed = e-stop pressed) → **MOV** `1` → `DS24`
 
-Rung 12b:
+Rung 13b:
 - Contact: `X2` (Normally Open = e-stop normal) → **MOV** `0` → `DS24`
 
 ---
 
-**RUNG 13 — Write estop_off to DS25 (inverse of DS24)**
+**RUNG 14 — Write estop_off to DS25 (inverse of DS24)**
 
-Rung 13a:
+Rung 14a:
 - Contact: `X2` (NO = normal) → **MOV** `1` → `DS25`
 
-Rung 13b:
+Rung 14b:
 - Contact: `X2` (NC = e-stop active) → **MOV** `0` → `DS25`
 
 ---
 
-**RUNG 14 — Write system_state to DS113**
+**RUNG 15 — Write system_state to DS113**
 
 Four mutually-exclusive conditions map to the four state codes (0=idle, 1=running,
 2=fault, 3=e-stopped). Write state 3 (e-stopped) while X2 is OFF and fault is active:
 
-Rung 14a — E-STOPPED (X2 off = e-stop active):
+Rung 15a — E-STOPPED (X2 off = e-stop active):
 - Contact: `X2` (NC) → **MOV** `3` → `DS113`
 
-Rung 14b — FAULT (C1 on, but X2 is back):
+Rung 15b — FAULT (C1 on, but X2 is back):
 - Contact: `C1` (NO), Contact: `X2` (NO) → **MOV** `2` → `DS113`
 
-Rung 14c — RUNNING (Y1 on, no fault):
+Rung 15c — RUNNING (Y1 on, no fault):
 - Contact: `Y1` (NO), Contact: `C1` (NC) → **MOV** `1` → `DS113`
 
-Rung 14d — IDLE (Y1 off, no fault):
+Rung 15d — IDLE (Y1 off, no fault):
 - Contact: `Y1` (NC), Contact: `C1` (NC) → **MOV** `0` → `DS113`
 
 > Click PLCs scan rungs top to bottom in a single sweep (~1 ms). If multiple rungs write
 > to the same register, the **last rung to execute wins**. Order the rungs from lowest
 > priority (idle) to highest (e-stopped) so the most urgent state wins.
 >
-> Practical order for Rung 14: **14d (idle) → 14c (running) → 14b (fault) → 14a (e-stopped)**.
+> Practical order for Rung 15: **15d (idle) → 15c (running) → 15b (fault) → 15a (e-stopped)**.
 
 ---
 
-**RUNG 15 — Write last_fault to DS114**
+**RUNG 16 — Write last_fault to DS114**
 
-Rung 15a — No fault:
+Rung 16a — No fault:
 - Contact: `C1` (NC) → **MOV** `0` → `DS114`
 
-Rung 15b — E-stop fault (use code 4 to match plc-sensor's `clamp_fail` slot, or 3 for
-"pressure" — actually we define a new meaning: 4 = "estop_triggered"):
+Rung 16b — E-stop fault (code 4 = `"estop_triggered"` in plc-sensor):
 - Contact: `C1` (NO) → **MOV** `4` → `DS114`
-
-> The `plc-sensor` will display `"clamp_fail"` for code 4. To rename this in the dashboard,
-> see Phase 6 — it is a one-line dict change in `plc_sensor.py`.
 
 ---
 
@@ -964,50 +956,20 @@ Rung 15b — E-stop fault (use code 4 to match plc-sensor's `clamp_fail` slot, o
 
 ## Phase 6 — Update the plc-sensor Module
 
-### 6.1 No Python code changes required
+### 6.1 Changes already made in this commit
 
-The ladder logic is designed to write to the same Modbus register addresses as the
-Pi Zero W simulator. The `plc-sensor` module (`modules/plc-sensor/src/plc_sensor.py`)
-reads addresses 0–24 and 100–117 — these map exactly to DS1–DS25 and DS101–DS118 on the
-Click PLC.
+The ladder logic writes to the same Modbus register addresses as the Pi Zero W simulator,
+so only minimal changes were needed:
 
-**The only change is a config update.**
+| File | Change | Why |
+|------|--------|-----|
+| `config/viam-server.json` | `host` changed from `"raiv-plc.local"` to `"192.168.0.10"` | Point at real PLC instead of Pi Zero W simulator |
+| `modules/plc-sensor/src/plc_sensor.py` | `_FAULT_NAMES[4]` renamed from `"clamp_fail"` to `"estop_triggered"` | Fault code 4 now means e-stop, not clamp failure |
+| `modules/plc-sensor/src/plc_sensor.py` | Default host fallback changed from `"raiv-plc.local"` to `"192.168.0.10"` | Match new primary target |
+| `modules/plc-sensor/src/plc_sensor.py` | Docstring updated to reference Click PLC C0-10DD2E-D | Accuracy |
+| `scripts/test_plc_modbus.py` | Default `--host` changed to `192.168.0.10`; removed `slave=` parameter | Match real PLC; pymodbus 3.12+ API compatibility |
 
-### 6.2 Update viam-server.json
-
-In `config/viam-server.json`, find the `plc-monitor` component and change the `host`:
-
-```json
-{
-  "name": "plc-monitor",
-  "api": "rdk:component:sensor",
-  "model": "viam-staubli-apera-poc:monitor:plc-sensor",
-  "attributes": {
-    "host": "192.168.0.10",
-    "port": 502
-  }
-}
-```
-
-Replace `"raiv-plc.local"` (the Pi Zero W's hostname) with `"192.168.0.10"` (the Click
-PLC's static IP). Alternatively, add a DNS alias for `192.168.0.10` in `/etc/hosts` on the
-Pi 5 so you can keep the hostname and swap the IP there.
-
-### 6.3 Optional: rename "clamp_fail" to "estop" in the fault lookup
-
-In `plc_sensor.py` line 38, the `_FAULT_NAMES` dict is:
-
-```python
-_FAULT_NAMES = {0: "none", 1: "vibration", 2: "temperature", 3: "pressure", 4: "clamp_fail"}
-```
-
-Since code 4 now means "e-stop triggered" (from Rung 15b), you can update it:
-
-```python
-_FAULT_NAMES = {0: "none", 1: "vibration", 2: "temperature", 3: "pressure", 4: "estop_triggered"}
-```
-
-This is cosmetic — the dashboard will display `"estop_triggered"` instead of `"clamp_fail"`.
+No changes to the register read logic, data conversion, or Viam component interface.
 
 ### 6.4 Deploy the config to the Pi 5
 
@@ -1096,20 +1058,20 @@ Step 6: Verify Viam dashboard
 
 | DS Register | Modbus pymodbus addr | `plc-sensor` key | Populated by real PLC? |
 |-------------|---------------------|-----------------|----------------------|
-| DS1 | 0 | `servo_power_on` | ✅ Rung 9 |
-| DS2 | 1 | `servo_disable` | ✅ Rung 10 |
+| DS1 | 0 | `servo_power_on` | ✅ Rung 10 |
+| DS2 | 1 | `servo_disable` | ✅ Rung 11 |
 | DS3–DS9 | 2–8 | `plate_cycle` … `belt_reverse` | ❌ Reads 0 |
-| DS10 | 9 | `lamp_servo_power` | ✅ Rung 11 |
+| DS10 | 9 | `lamp_servo_power` | ✅ Rung 12 |
 | DS11–DS18 | 10–17 | lamp registers | ❌ Reads 0 |
 | DS19–DS23 | 18–22 | emag, poe registers | ❌ Reads 0 |
-| DS24 | 23 | `estop_enable` | ✅ Rung 12 |
-| DS25 | 24 | `estop_off` | ✅ Rung 13 |
+| DS24 | 23 | `estop_enable` | ✅ Rung 13 |
+| DS25 | 24 | `estop_off` | ✅ Rung 14 |
 | DS101–DS109 | 100–108 | accel, gyro, temp, humidity, pressure | ❌ Reads 0 |
 | DS110 | 109 | `servo1_position` | ❌ Reads 0 |
 | DS111 | 110 | `servo2_position` | ❌ Reads 0 |
 | DS112 | 111 | `cycle_count` | ❌ Reads 0 |
-| DS113 | 112 | `system_state` | ✅ Rung 14 |
-| DS114 | 113 | `last_fault` | ✅ Rung 15 |
+| DS113 | 112 | `system_state` | ✅ Rung 15 |
+| DS114 | 113 | `last_fault` | ✅ Rung 16 |
 | DS115 | 114 | `servo_power_press_count` | ✅ Rung 7 |
 | DS116 | 115 | `estop_activation_count` | ✅ Rung 6 |
 | DS117 | 116 | `current_uptime_seconds` | ❌ Reads 0 |
@@ -1122,16 +1084,19 @@ errors or disconnect states.
 
 ## Appendix B — Network Reference
 
-| Device | IP | Hostname |
-|--------|----|---------|
-| Raspberry Pi 5 | 192.168.0.172 | raiv-pi5.local |
-| Click PLC (new) | 192.168.0.10 | — (use IP directly) |
-| Pi Zero W (simulator, to retire) | 192.168.0.173 | raiv-plc.local |
+| Device | IP | Connection | Notes |
+|--------|----|-----------|-------|
+| Raspberry Pi 5 | 192.168.0.176 | WiFi | Runs viam-server with plc-sensor module |
+| Click PLC C0-10DD2E-D | 192.168.0.10 | Ethernet (via Netgear switch) | Modbus TCP on port 502 |
+| Pi Zero W (simulator) | 192.168.0.173 | Ethernet | Development tool — retired for production |
 
-After the real PLC is working, you can stop the simulator service on the Pi Zero W:
+## Appendix C — Bill of Materials
 
-```bash
-# On Pi Zero W
-sudo systemctl stop plc-simulator
-sudo systemctl disable plc-simulator
-```
+| Item | Model | Qty | Purpose |
+|------|-------|-----|---------|
+| PLC | Click C0-10DD2E-D | 1 | Ethernet Basic, 8 DC inputs, 6 DC outputs |
+| Power supply | Rhino PSR-24-480 | 1 | 24 VDC for PLC, buttons, and lamps |
+| Breakout board | ZipLink ZL-RTB20-1 | 1 | Ribbon cable terminal breakout for PLC I/O |
+| Servo power button | Fuji AR22F0L | 1 | 22 mm momentary NO, illuminated 24 V LED |
+| E-stop button | Illuminated NC mushroom | 1 | Twist-release, NC contact, 24 V lamp |
+| Ethernet switch | Netgear (existing) | 1 | Connects PLC and Pi on same subnet |
