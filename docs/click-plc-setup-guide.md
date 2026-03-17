@@ -647,7 +647,83 @@ simulator uses. The `plc-sensor` module needs zero changes.
 | Y1 | Physical output | Servo power state — also drives Fuji button lamp |
 | Y2 | Physical output | System-OK indicator — drives e-stop button lamp |
 
-### 5.3 Creating the program in Click Programming Software
+### 5.3 All 26 rungs — quick-entry reference
+
+This table is everything you need to enter the full program without reading the verbose
+descriptions below. Work top to bottom; each row = one rung.
+
+**Contact abbreviations:** NO = Normally Open, NC = Normally Closed, RE = Rising Edge (Transition)
+**Output abbreviations:** OUT = standard coil, SET = latching set, RST = latching reset, INC = increment function block, MOV = move/copy function block
+
+| # | Label | Col A | Col B | Col C | Col AF |
+|---|-------|-------|-------|-------|--------|
+| 1 | X1 one-shot | RE X001 | — | — | OUT C100 |
+| 2 | Toggle servo ON | NO C100 | NC Y001 | NC C001 | SET Y001 |
+| 3 | Toggle servo OFF | NO C100 | NO Y001 | NC C001 | RST Y001 |
+| 4 | Latch fault | NC X002 | — | — | SET C001 |
+| 5 | E-stop kills servo | NO C001 | — | — | RST Y001 |
+| 6 | E-stop counter | RE C001 | — | — | INC DS116 |
+| 7 | Servo press counter | NO C100 | — | — | INC DS115 |
+| 8 | Fault reset | NO C100 | NO X002 | NO C001 | RST C001 |
+| 9 | System-OK lamp | NO X002 | NC C001 | — | OUT Y002 |
+| 10a | servo_power_on = 1 | NO Y001 | — | — | MOV 1 → DS1 |
+| 10b | servo_power_on = 0 | NC Y001 | — | — | MOV 0 → DS1 |
+| 11a | servo_disable = 0 | NO Y001 | — | — | MOV 0 → DS2 |
+| 11b | servo_disable = 1 | NC Y001 | — | — | MOV 1 → DS2 |
+| 12a | lamp_servo_power = 1 | NO Y001 | — | — | MOV 1 → DS10 |
+| 12b | lamp_servo_power = 0 | NC Y001 | — | — | MOV 0 → DS10 |
+| 13a | estop_enable = 1 | NC X002 | — | — | MOV 1 → DS24 |
+| 13b | estop_enable = 0 | NO X002 | — | — | MOV 0 → DS24 |
+| 14a | estop_off = 1 | NO X002 | — | — | MOV 1 → DS25 |
+| 14b | estop_off = 0 | NC X002 | — | — | MOV 0 → DS25 |
+| 15d | state: IDLE | NC Y001 | NC C001 | — | MOV 0 → DS113 |
+| 15c | state: RUNNING | NO Y001 | NC C001 | — | MOV 1 → DS113 |
+| 15b | state: FAULT | NO C001 | NO X002 | — | MOV 2 → DS113 |
+| 15a | state: E-STOPPED | NC X002 | — | — | MOV 3 → DS113 |
+| 16a | last_fault = 0 | NC C001 | — | — | MOV 0 → DS114 |
+| 16b | last_fault = 4 | NO C001 | — | — | MOV 4 → DS114 |
+
+> **Rung 15 order matters.** The Click PLC runs rungs top to bottom; the last write wins. Enter
+> 15d first (lowest priority) through 15a last (highest priority) so E-STOPPED always beats IDLE.
+
+---
+
+### 5.3a Faster entry tips — copy/paste similar rungs
+
+Most time is spent on rungs 10–16, which all follow the same pattern: one contact → one MOV.
+Use copy/paste to avoid re-configuring the MOV dialog from scratch every time.
+
+**Duplicate-and-edit workflow:**
+
+1. Finish rung 10a (NO Y001 → MOV 1 → DS1).
+2. Right-click rung 10a → **Copy Rung**.
+3. Right-click below it → **Paste Rung** (or **Insert Rung After**).
+4. Double-click the contact to flip it NC (for 10b), or change the MOV source/destination.
+
+**Groups of rungs you can copy from each other:**
+
+| Source | Copy to | Only change |
+|--------|---------|-------------|
+| Rung 10a | 11a, 12a | Destination register (DS2, DS10) and source value |
+| Rung 10b | 11b, 12b | Destination register and source value |
+| Rung 13a | 14b | Source value (0→0 is same; just flip contact NO↔NC) |
+| Rung 13b | 14a | Source value and contact type |
+| Rung 15d | 15c, 15b, 15a | Contacts and source value |
+
+**Keyboard shortcuts in Click Programming Software:**
+
+| Action | Shortcut |
+|--------|----------|
+| Add new rung below | `Ctrl+Enter` |
+| Add contact | `C` (with rung selected) |
+| Add coil | `O` |
+| Copy rung | `Ctrl+C` (right-click works too) |
+| Paste rung | `Ctrl+V` |
+| Undo | `Ctrl+Z` |
+
+---
+
+### 5.4 Creating the program in Click Programming Software
 
 #### Open a new project
 
@@ -667,7 +743,10 @@ simulator uses. The `plc-sensor` module needs zero changes.
 - **Rising Edge contact:** When adding a contact, in the Type dropdown select
   **Rising Edge (Transition)** instead of Normally Open. This is critical for edge detection.
 
-#### Rung-by-rung guide
+#### Rung-by-rung guide (verbose reference)
+
+Use this section if the quick-entry table above doesn't have enough context, or for
+troubleshooting. Each rung below includes the ladder diagram and intent.
 
 ---
 
@@ -934,14 +1013,14 @@ Rung 16b — E-stop fault (code 4 = `"estop_triggered"` in plc-sensor):
 
 ---
 
-### 5.4 Download the program to the PLC
+### 5.5 Download the program to the PLC
 
 1. Go to **Communication → Write to PLC**.
 2. The dialog asks whether to put the PLC in STOP mode first — choose **Yes**.
 3. After the download completes, it asks whether to restart in RUN mode — choose **Yes**.
 4. Verify the RUN LED is on.
 
-### 5.5 Verify the logic in the programming software (online mode)
+### 5.6 Verify the logic in the programming software (online mode)
 
 1. Go to **Communication → Monitor** or click the monitor button (eyeglasses icon).
 2. You see the ladder rungs with live green highlighting on active contacts.
