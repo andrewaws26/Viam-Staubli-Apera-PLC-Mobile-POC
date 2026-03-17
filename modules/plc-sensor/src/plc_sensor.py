@@ -2,11 +2,10 @@
 PLC Modbus Sensor Module for Viam.
 
 Reads the RAIV truck's PLC state via Modbus TCP and returns structured
-sensor readings for remote monitoring. In the POC, the "PLC" is a Pi Zero W
-running the plc-simulator with the same Modbus register map as the real
-Click PLC on the truck.
+sensor readings for remote monitoring. Connects to a Click PLC C0-10DD2E-D
+at 192.168.0.10 (or the Pi Zero W simulator during development).
 
-Register map (see plc-simulator/README.md for full documentation):
+Register map (see docs/click-plc-setup-guide.md for full documentation):
   Registers 0-8:    Command signals (Servo Power, Plate Cycle, etc.)
   Registers 9-17:   Status lamps (feedback from PLC)
   Registers 18-24:  System state (E-Mag, POE, E-stop)
@@ -35,7 +34,7 @@ LOGGER = getLogger(__name__)
 
 # State and fault code lookups (must match plc-simulator/src/modbus_server.py)
 _STATE_NAMES = {0: "idle", 1: "running", 2: "fault", 3: "e-stopped"}
-_FAULT_NAMES = {0: "none", 1: "vibration", 2: "temperature", 3: "pressure", 4: "clamp_fail"}
+_FAULT_NAMES = {0: "none", 1: "vibration", 2: "temperature", 3: "pressure", 4: "estop_triggered"}
 
 # E-Cat signal names for registers 0-24 (25-pin cable pinout)
 _ECAT_SIGNAL_NAMES = [
@@ -118,7 +117,7 @@ class PlcSensor(Sensor):
     ) -> Self:
         sensor = cls(
             config.name,
-            host=config.attributes.fields["host"].string_value or "raiv-plc.local",
+            host=config.attributes.fields["host"].string_value or "192.168.0.10",
             port=int(config.attributes.fields["port"].number_value or 502),
         )
         LOGGER.info(

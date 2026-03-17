@@ -6,12 +6,11 @@ Run this from the Pi 5 to verify the real PLC is reachable and its registers
 match the layout expected by the plc-sensor Viam module.
 
 Usage:
-    python3 scripts/test_plc_modbus.py --host 192.168.0.10
-    python3 scripts/test_plc_modbus.py --host 192.168.0.10 --watch
-    python3 scripts/test_plc_modbus.py --host 192.168.0.10 --port 502 --unit 1
+    python3 scripts/test_plc_modbus.py
+    python3 scripts/test_plc_modbus.py --watch
+    python3 scripts/test_plc_modbus.py --host 192.168.0.10 --port 502
 
-Install dependency if needed:
-    pip3 install pymodbus
+Requires: pip3 install pymodbus>=3.5
 """
 
 import argparse
@@ -66,19 +65,19 @@ def _int16(v: int) -> int:
     return v - 65536 if v > 32767 else v
 
 
-def read_snapshot(client: ModbusTcpClient, unit: int) -> dict:
+def read_snapshot(client: ModbusTcpClient) -> dict:
     """Read all registers and return a dict of named values."""
     result = {}
 
     # E-Cat block: DS1-DS25 → addresses 0-24
-    r = client.read_holding_registers(address=0, count=25, slave=unit)
+    r = client.read_holding_registers(address=0, count=25)
     if r.isError():
         raise RuntimeError(f"Failed to read E-Cat registers (0-24): {r}")
     for i, name in enumerate(_ECAT_NAMES):
         result[name] = _uint16(r.registers[i])
 
     # Sensor/state block: DS101-DS118 → addresses 100-117
-    r = client.read_holding_registers(address=100, count=18, slave=unit)
+    r = client.read_holding_registers(address=100, count=18)
     if r.isError():
         raise RuntimeError(f"Failed to read sensor registers (100-117): {r}")
     regs = [_uint16(v) for v in r.registers]
@@ -140,22 +139,21 @@ def print_snapshot(snap: dict, highlight_nonzero: bool = True) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Click PLC Modbus TCP connectivity test")
-    parser.add_argument("--host", required=True, help="PLC IP address (e.g. 192.168.0.10)")
+    parser.add_argument("--host", default="192.168.0.10", help="PLC IP address (default 192.168.0.10)")
     parser.add_argument("--port", type=int, default=502, help="Modbus TCP port (default 502)")
-    parser.add_argument("--unit", type=int, default=1, help="Modbus unit/slave ID (default 1)")
     parser.add_argument(
         "--watch", action="store_true",
         help="Poll every second and print changes (Ctrl+C to stop)"
     )
     args = parser.parse_args()
 
-    print(f"Connecting to {args.host}:{args.port} (unit_id={args.unit})...")
+    print(f"Connecting to {args.host}:{args.port}...")
     client = ModbusTcpClient(args.host, port=args.port, timeout=3)
     if not client.connect():
         print(f"ERROR: Could not connect to {args.host}:{args.port}")
-        print("  • Is the PLC powered on?")
-        print("  • Is the PLC IP set correctly? (check with Click Programming Software)")
-        print("  • Is the Pi on the same subnet? (ping the PLC first)")
+        print("  - Is the PLC powered on (PWR and RUN LEDs green)?")
+        print("  - Is the PLC IP set to 192.168.0.10? (check with Click Programming Software)")
+        print("  - Is the Pi on the same subnet? (try: ping 192.168.0.10)")
         sys.exit(1)
 
     print("Connected OK")
@@ -165,14 +163,14 @@ def main() -> None:
             print("Watching for changes — press Ctrl+C to stop\n")
             prev = None
             while True:
-                snap = read_snapshot(client, args.unit)
+                snap = read_snapshot(client)
                 if snap != prev:
                     print(f"\n{'='*50}  {time.strftime('%H:%M:%S')}")
                     print_snapshot(snap)
                     prev = snap
                 time.sleep(1.0)
         else:
-            snap = read_snapshot(client, args.unit)
+            snap = read_snapshot(client)
             print_snapshot(snap)
             print("\nAll reads successful. PLC Modbus TCP is working.")
     except RuntimeError as e:
