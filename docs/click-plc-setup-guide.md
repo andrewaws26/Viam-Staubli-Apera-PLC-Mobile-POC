@@ -653,7 +653,7 @@ This table is everything you need to enter the full program without reading the 
 descriptions below. Work top to bottom; each row = one rung.
 
 **Contact abbreviations:** NO = Normally Open, NC = Normally Closed, RE = Rising Edge (Transition)
-**Output abbreviations:** OUT = standard coil, SET = latching set, RST = latching reset, INC = increment function block, MOV = move/copy function block
+**Output abbreviations:** OUT = standard coil, SET = latching set, RST = latching reset, MOV = move/copy function block, Math = Math function block (Formula + Result fields)
 
 | # | Label | Col A | Col B | Col C | Col AF |
 |---|-------|-------|-------|-------|--------|
@@ -662,8 +662,8 @@ descriptions below. Work top to bottom; each row = one rung.
 | 3 | Toggle servo OFF | NO C100 | NO Y001 | NC C001 | RST Y001 |
 | 4 | Latch fault | NC X002 | — | — | SET C001 |
 | 5 | E-stop kills servo | NO C001 | — | — | RST Y001 |
-| 6 | E-stop counter | RE C001 | — | — | INC DS116 |
-| 7 | Servo press counter | NO C100 | — | — | INC DS115 |
+| 6 | E-stop counter | RE C001 | — | — | Math: Formula=`DS116+1`, Result=`DS116` |
+| 7 | Servo press counter | NO C100 | — | — | Math: Formula=`DS115+1`, Result=`DS115` |
 | 8 | Fault reset | NO C100 | NO X002 | NO C001 | RST C001 |
 | 9 | System-OK lamp | NO X002 | NC C001 | — | OUT Y002 |
 | 10a | servo_power_on = 1 | NO Y001 | — | — | MOV 1 → DS1 |
@@ -845,11 +845,10 @@ Count each e-stop event (rising edge of fault flag going ON).
 
 Instructions:
 - Contact: `C1`, Type = **Rising Edge**
-- Function Block: **Math** → placed in column AF → inside the dialog, find the **Operation** (or **Function**) dropdown which defaults to `ADD` → change it to **INC** → set **Destination** to `DS116` → OK
-
-> The Math dialog opens showing ADD by default. INC is in the same operation dropdown — scroll
-> down past ADD/SUB/MUL/DIV to find INC (Increment). If the dropdown is missing, look for a
-> separate **INC** entry directly in the Instruction List under Advanced → Math.
+- Function Block: **Math** → placed in column AF → the dialog has a **Formula** field and a **Result** field, each with a `...` button:
+  - **Formula** `...` → type `DS116+1` → OK
+  - **Result** `...` → type `DS116` → OK
+  - Leave **Type** as Decimal, leave **One Shot** unchecked
 
 > This maps to `estop_activation_count` (Modbus address 115, `sensor[15]` in plc_sensor.py).
 
@@ -866,7 +865,10 @@ Count each rising edge of C100 (i.e., each servo button press).
 
 Instructions:
 - Contact: `C100` (Normally Open)
-- Function Block: **Math** → placed in column AF → Operation dropdown → select **INC** → Destination: `DS115` → OK
+- Function Block: **Math** → placed in column AF:
+  - **Formula** `...` → type `DS115+1` → OK
+  - **Result** `...` → type `DS115` → OK
+  - Leave **Type** as Decimal, leave **One Shot** unchecked
 
 > Maps to `servo_power_press_count` (Modbus address 114, `sensor[14]` in plc_sensor.py).
 
