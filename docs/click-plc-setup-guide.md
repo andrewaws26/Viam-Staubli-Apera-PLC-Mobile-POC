@@ -27,56 +27,369 @@ feeding the same `plc-sensor` module and Viam dashboard already running against 
 
 ## Phase 1 — Power It Up
 
-### 1.1 What power supply to buy
+### 1.1 Understanding the power requirement
 
-The C0-10DD2E-D runs on **24 VDC** and draws **120 mA** at the CPU; add ~50 mA per lit
-indicator lamp. Budget **at least 500 mA** total for comfortable headroom with two buttons.
+The C0-10DD2E-D needs **24 VDC (direct current), regulated**. Two words to understand:
 
-| Option | When to use | Cost |
-|--------|-------------|------|
-| **Lab bench supply set to 24.0 V** | Best for initial bring-up — adjustable, has current display | Free if you already have one |
-| **AutomationDirect PSP24-024S** (24 V / 1 A, DIN rail) | Clean permanent installation | ~$18 |
-| **Any regulated 24 VDC wall adapter ≥ 500 mA** | Quick bench test without DIN rail | $10–15 on Amazon |
+- **24 VDC** — not 24 VAC (alternating current like your wall outlet). If you use AC, the
+  PLC will not work and may be damaged. You need DC.
+- **Regulated** — the voltage stays at 24 V regardless of how much current the load draws.
+  A cheap unregulated "wall wart" transformer can spike well above 24 V under light load.
+  A *regulated* supply (or a bench supply with feedback control) clamps the output at exactly
+  24.0 V. That is what you need.
 
-You do **not** need the AutomationDirect C0-00AC/C0-01AC AC power adapters — those are
-optional accessories for mounting; the PLC takes DC directly.
+Current draw: the PLC CPU draws **120 mA**. Each illuminated indicator lamp adds ~20–50 mA.
+For bench testing with two buttons and no lamps, **250–500 mA** is plenty. For a permanent
+installation with pilot lights, use **1 A**.
 
-### 1.2 Power terminals on the C0-10DD2E-D
+### 1.2 What to buy (or use)
 
-Open the physical unit and locate the terminal strip on the **top edge** of the main module.
-The leftmost terminals are always the power block. They are silk-screened:
+#### Option A — Lab bench supply (best for bring-up)
+
+If you have a bench supply (e.g., a Korad KA3005P, RD6006, or any similar adjustable supply),
+use it. Advantages:
+
+- You set the exact voltage (dial it to 24.0 V)
+- The current display shows you exactly what the PLC is drawing — useful for verifying it is
+  alive and detecting wiring shorts before they damage anything
+- You can set a **current limit** (set it to 0.5 A for the first power-on — if something is
+  wired wrong, the supply will fold back instead of letting smoke out)
+
+**How to set up a bench supply for the first time:**
+
+1. With the supply OFF and nothing connected, turn the voltage knob until the voltage display
+   reads **24.0 V**. (Some supplies show the set-point even when off; others only show it when
+   the output is enabled — either way, dial to 24.0.)
+2. Set the current limit knob to **0.3–0.5 A** (300–500 mA). This is your safety net.
+3. Do not turn the output on yet — wire it first (§1.4), then power on.
+
+#### Option B — 24 VDC wall adapter (quick bench test)
+
+Any **switching power adapter** rated 24 VDC / 500 mA or higher works. Examples on Amazon:
+search "24V DC power supply adapter 1A" — look for one with a barrel jack or bare wire leads
+and a label that says "switching" or "regulated." Do not use a 24 V transformer-style brick
+(these are unregulated and usually labeled "24 VAC").
+
+You can verify a wall adapter with your multimeter: set the meter to DC Volts, measure the
+output — it should read 24 V ±5% (22.8–25.2 V) with no load.
+
+#### Option C — AutomationDirect PSP24-024S (~$18)
+
+A DIN-rail-mount 24 V / 1 A regulated switching supply. Use this when you build a real panel.
+Not necessary for bench testing.
+
+### 1.3 Tools and wire you need for this phase
+
+| Item | Spec | Why |
+|------|------|-----|
+| Small flathead screwdriver | 2.5 mm or 3 mm blade (sometimes called a "terminal screwdriver") | Click PLC terminal screws are slotted flathead |
+| Wire | 22–24 AWG stranded or solid | At 120 mA, even 28 AWG is fine electrically, but 22 AWG is easier to handle in screw terminals |
+| Wire stripper | For 22–24 AWG | — |
+| Multimeter | DC Volts range | Verify polarity before powering on |
+
+**How much to strip:** 6–7 mm (about ¼ inch). Too little and the wire won't make contact.
+Too much and the bare conductor extends past the terminal and could touch an adjacent terminal.
+
+**Screwdriver fit matters:** If the screwdriver blade is too wide it will bridge two terminals;
+too narrow and it will cam out and strip the screw. A 2.5 mm terminal screwdriver is the
+right tool. Most electronics starter kits include one.
+
+### 1.4 Identifying the power terminals
+
+The C0-10DD2E-D has a single terminal strip that runs across the **top face** of the unit.
+On the physical hardware, each terminal is labeled with a small white silk-screen legend on
+the green terminal block. The power terminals are at the **left end** of the strip.
 
 ```
-  ┌──────┬──────┬──────┬──────┬────────────── ...
-  │  +   │  -   │  C1  │  X1  │  X2  ...
-  └──────┴──────┴──────┴──────┴────────────── ...
-    24V+   24V-   Input
-                  Common
+  LEFT SIDE of terminal strip (power end)
+  ──────────────────────────────────────────────────────────── ...
+  │  +   │  -   │  C1  │  X1  │  X2  │  X3  │  X4  │  X5  │  ...
+  ──────────────────────────────────────────────────────────── ...
+   24V+   24V-   Input   Input terminals (X1–X8)
+                Common  (one per input point)
 ```
 
-> Confirm against the label printed on the unit itself — the exact position of `+` and `-`
-> may be immediately left of the input commons on your specific firmware revision. The
-> terminal labels **+** and **−** are always present; do not rely solely on this diagram.
+- **`+`** — 24 VDC positive. This is where your red wire goes.
+- **`−`** — 24 VDC negative / common / ground reference. Red wire goes here.
+- **`C1`** — the input common for X1–X4 (and possibly X5–X8 as well, depending on revision).
+  Do not connect anything here yet — that is Phase 4.
 
-| Terminal | Wire | Connect to |
-|----------|------|-----------|
-| `+` | Red | 24 VDC positive from supply |
-| `−` | Black | 24 VDC negative (common/GND) from supply |
+> Always physically verify the labels on your specific unit before connecting anything.
+> The above matches standard Click C0-series layout; if the labels on your unit show something
+> different, trust the unit's labels over this guide. The terminal numbers are also printed on
+> a label under the terminal cover.
 
-Torque the terminal screws to ~0.5 N·m (4.4 in·lb) — finger-tight plus a quarter turn.
+**Locating the terminal cover:** Some C0 units ship with a clear plastic snap-on guard over
+the terminal strip. Pinch and lift the guard to access the screw terminals. You do not need
+to remove it permanently — just fold it back while wiring.
 
-### 1.3 What you should see at power-on
+### 1.5 Wiring the power supply to the PLC (step by step)
 
-1. **PWR LED** (green) illuminates immediately.
-2. **RUN LED** (green) illuminates within ~3 seconds — the PLC enters RUN mode with whatever
-   program is in memory (empty program is fine; it runs with all outputs off).
-3. **ERR LED** stays off. If it flashes, the internal battery is low — not a blocker for bench
-   testing but note it.
-4. The front-panel Ethernet port LED blinks when a cable is plugged in.
+Do this with the power supply **off and unplugged**.
 
-If the RUN LED does not come on within 5 seconds, check polarity on the `+`/`−` terminals
-with a multimeter. Reverse polarity will not damage most Click units (there is a protection
-diode) but the PLC will not start.
+1. **Cut two wires**, each about 15–20 cm (6–8 inches): one red, one black.
+2. **Strip 6–7 mm** from one end of each wire.
+3. **Verify your supply output with the multimeter** (if using a wall adapter with barrel jack):
+   - Set meter to DC Volts
+   - Probe the barrel jack: center pin = positive (+), outer ring = negative (−)
+   - Confirm ≈24 V and correct polarity before continuing
+4. **Loosen the `+` terminal screw** on the PLC (counterclockwise, 2–3 turns — the screw
+   does not need to come all the way out, just loosen enough that the wire slides in).
+5. **Insert the red wire** into the `+` terminal opening. Push it in straight until the
+   stripped portion is fully inside the terminal body.
+6. **Tighten the screw** firmly — finger-tight plus about a quarter turn. The wire should
+   not pull out when you tug it. Do not overtighten (you can crack the terminal block).
+7. Repeat steps 4–6 for the black wire in the **`−`** terminal.
+8. Connect the other ends to your supply: red → supply positive, black → supply negative.
+   - Bench supply: connect to the binding posts (red = +, black = −)
+   - Wall adapter: if it has bare wire leads, use the same color convention; if it has a
+     barrel jack, use a barrel-jack-to-screw-terminal adapter, or clip leads
+
+```
+  Power Supply                     PLC Terminal Strip
+  ┌──────────────┐                 ┌─────┬─────┬─────┬─────
+  │  + (red)     ├────red wire─────┤  +  │     │     │
+  │  - (black)   ├───black wire────┤  -  │ C1  │ X1  │ ...
+  └──────────────┘                 └─────┴─────┴─────┴─────
+```
+
+9. **Before turning on power**, do a final polarity check with the multimeter:
+   - Set to DC Volts
+   - Probe the `+` terminal on the PLC (red probe) and the `−` terminal (black probe)
+   - You should read close to 0 V with the supply off (just parasitic voltage)
+   - If you read a significant negative voltage, the wires are swapped — fix it now
+
+### 1.6 Applying power for the first time
+
+1. If using a bench supply: enable the output. Watch the current display — it should read
+   roughly 0.1–0.15 A (100–150 mA) within a second of the RUN LED coming on.
+2. If using a wall adapter: plug it in.
+
+### 1.7 What you should see — LED reference
+
+The LED indicators are on the **front face** of the PLC, typically a column of 4–5 LEDs
+on the left side of the face plate. Here is what each means:
+
+| LED | Color | Normal state | What it means if abnormal |
+|-----|-------|-------------|--------------------------|
+| **PWR** | Green | ON immediately | If off: check voltage at `+`/`−` terminals with multimeter; check wire connections |
+| **RUN** | Green | ON within 3 s | If off after 5 s: PLC is in STOP mode (need programming software to put it in RUN) |
+| **ERR** | Red | OFF | Blinking slowly = low battery (non-critical for bench testing); solid = program error |
+| **COM** or **NET** | Yellow/Green | Blinks when Ethernet traffic present | No blink with cable plugged in = cable issue or no network activity |
+
+The RUN LED coming on with an empty program is normal — the PLC runs an empty program
+continuously with all outputs off and all inputs being scanned.
+
+**If PWR is on but RUN is not on after 10 seconds:**
+- The PLC may be in STOP mode from a previous session. This is not a wiring problem —
+  you will put it back in RUN from the programming software in Phase 2.
+- It may also indicate a program error from leftover code. Again, not a wiring problem.
+
+**If PWR does not come on at all:**
+1. Measure voltage at the `+`/`−` PLC terminals with the multimeter (not at the supply —
+   at the PLC itself). You should read +24 V.
+2. If 0 V at the PLC: wire is broken or disconnected — re-check your terminal connections.
+3. If −24 V at the PLC: wires are swapped — the `+` terminal has your black wire. Fix it.
+4. If +24 V at the PLC but PWR is still off: try a power-cycle (disconnect, wait 5 seconds,
+   reconnect). If still off, the PLC may need service.
+
+**Current draw at startup (bench supply):**
+- 0.0–0.05 A: supply not reaching PLC (check wiring)
+- 0.1–0.2 A: normal operating range
+- 0.5+ A: possible short circuit — turn supply off, check wiring
+
+---
+
+## Phase 2 — Connect to the Programming Software
+
+### 2.1 Understanding what the programming software does
+
+The Click Programming Software (free, Windows-only) is how you:
+- Write and download ladder logic programs to the PLC
+- Set the PLC's IP address and other system parameters
+- Monitor live register values and coil states while the PLC runs
+- Force inputs/outputs on or off for testing
+
+It communicates with the PLC over Ethernet using a proprietary AutomationDirect protocol
+on port 502 — the same port as Modbus TCP. The PLC handles both protocols simultaneously.
+
+### 2.2 Download and install
+
+1. On your Windows PC, open a browser and go to **www.automationdirect.com**.
+2. Click the **Support** tab at the top → **Downloads**.
+3. In the Downloads page, under **Software**, look for **Click PLC Programming Software**
+   or use the search box and type **C0-PGMSW**.
+4. Click the download link — you will get a `.exe` or `.zip` installer. No account required.
+5. Run the installer:
+   - Click **Next** through the welcome screens
+   - Accept the license agreement
+   - Leave the install directory at the default (`C:\Program Files (x86)\AutomationDirect\Click PLC`)
+   - Click **Install**
+   - If Windows asks "Do you want to allow this app to make changes?" — click **Yes**
+   - The installer may also install a **Microsoft Visual C++ Redistributable** — let it
+6. When the installer finishes, do **not** check "Launch now" — close it. You have a
+   network step to do first (§2.3) or the software will time out immediately trying to
+   connect to an IP your PC can't reach yet.
+
+### 2.3 Configure your Windows PC's network adapter
+
+**Why this step is necessary:** Your Pi 5 is on `192.168.0.x`. The Click PLC ships from
+the factory with IP `192.168.0.1`. Those are on the same subnet — good. But your Windows
+PC's Ethernet adapter may be set to a different subnet (or set to DHCP, getting an address
+from your router like `192.168.1.x`), which cannot reach `192.168.0.1` directly.
+
+You need to temporarily assign your Windows PC's Ethernet adapter a **static IP in the
+`192.168.0.x` range** so it can talk to the PLC.
+
+> **Which adapter?** You want the adapter connected to the Netgear switch (the one with a
+> cable going to the switch). If your PC has both Ethernet and Wi-Fi, ignore Wi-Fi for this
+> step — you are configuring the wired Ethernet adapter only.
+
+#### On Windows 10:
+
+1. Press **Windows + R**, type `ncpa.cpl`, press Enter. This opens **Network Connections**
+   directly (faster than going through Control Panel).
+2. You will see icons for each network adapter. Find your wired Ethernet adapter — it is
+   usually labeled "Ethernet" or "Local Area Connection". It should show a cable icon (not
+   wireless waves). If it says "Network cable unplugged", the physical cable is not connected
+   — plug your Ethernet cable into the PC and the switch first.
+3. Right-click the Ethernet adapter icon → **Properties**.
+4. In the list, find and double-click **"Internet Protocol Version 4 (TCP/IPv4)"**.
+5. The dialog currently shows either "Obtain an IP address automatically (DHCP)" or a
+   static address. Either way, select **"Use the following IP address"** and fill in:
+
+   ```
+   IP address:    192.168.0.50
+   Subnet mask:   255.255.255.0
+   Default gateway:  (leave completely blank)
+   ```
+
+   Leave DNS servers blank as well.
+
+6. Click **OK** → **OK** → close the Properties window.
+
+#### On Windows 11:
+
+1. Press **Windows + I** to open Settings.
+2. Go to **Network & internet** → **Ethernet** (click on the Ethernet entry, not just the toggle).
+3. Scroll down and click **Edit** next to "IP assignment".
+4. In the dropdown, change "Automatic (DHCP)" to **Manual**.
+5. Toggle **IPv4** to On and fill in:
+
+   ```
+   IP address:   192.168.0.50
+   Subnet mask:  255.255.255.0   (or enter prefix length 24)
+   Gateway:      (leave blank)
+   ```
+
+6. Click **Save**.
+
+#### Verify the PC can reach the PLC (ping test)
+
+Before opening the programming software, verify the network path is working:
+
+1. Press **Windows + R**, type `cmd`, press Enter — this opens the Command Prompt.
+2. Type: `ping 192.168.0.1` and press Enter.
+3. You should see replies like:
+
+   ```
+   Reply from 192.168.0.1: bytes=32 time<1ms TTL=64
+   Reply from 192.168.0.1: bytes=32 time<1ms TTL=64
+   ```
+
+4. If you see **"Request timed out"** or **"Destination host unreachable"**:
+   - Check that the Ethernet cable is plugged into both the PC and the switch
+   - Check that the PLC is powered on (PWR LED green)
+   - Check that the PLC's Ethernet port has a link LED (small LED next to the RJ45 jack on
+     the PLC front panel — should glow or blink)
+   - Re-verify your PC adapter IP is set to `192.168.0.50` (not something else)
+   - Try plugging the PC directly into the PLC with a single patch cable, bypassing the switch
+
+5. Press `Ctrl+C` to stop pinging once you see replies.
+
+### 2.4 Launch Click Programming Software and connect
+
+1. Open Click Programming Software from the Start menu.
+2. You will see the main window: a menu bar at the top, a toolbar with icons, a blank
+   ladder editor in the center, and a status bar at the bottom. The status bar currently
+   shows **"Offline"** in the lower-right corner.
+3. Go to the menu: **Communication → Setup**.
+4. A dialog opens. Set the following:
+   - **Communication method:** Ethernet (select from the dropdown — not Serial)
+   - **IP Address:** `192.168.0.1`
+   - **Port:** `502`
+   - **Timeout:** leave at default (3–5 seconds is fine)
+5. Click **OK** to close the Setup dialog.
+6. Go to: **Communication → Connect** (or click the green **Connect** button in the toolbar
+   if there is one — it looks like a plug icon).
+7. The software attempts to connect. Within 2–3 seconds you should see:
+   - Status bar changes from **"Offline"** to **"Online"** (usually shown in green text)
+   - A dialog may appear saying "Connection established" or the toolbar changes to show
+     online-mode buttons (like Read from PLC, Write to PLC, Monitor mode)
+8. If you get a timeout or "Cannot connect" error — see §2.6 troubleshooting below.
+
+### 2.5 Read from PLC — confirm two-way communication
+
+With the status bar showing "Online":
+
+1. Go to **Communication → Read from PLC** (or look for a **Read** button in the toolbar —
+   it may look like a down-arrow with a PLC chip icon).
+2. A dialog may ask: "Overwrite the current program with the PLC program?" — click **Yes**.
+3. The software downloads the current program from the PLC into the editor. If the PLC is
+   brand new or freshly cleared, you will see a completely empty ladder diagram (possibly
+   just one rung labeled "End").
+4. No error dialog = success. You are confirmed online and two-way communication is working.
+
+**What you are looking at in the editor:**
+
+```
+  ┌─────────────────────────────────────────────────────────┐
+  │ Rung 1: ──────────────────────────────────────────[END] │
+  └─────────────────────────────────────────────────────────┘
+```
+
+An empty program is just an END instruction. This is normal. The PLC runs this empty program
+and does nothing — no outputs energized, no registers written. That is the correct state
+before you add ladder logic in Phase 5.
+
+### 2.6 Troubleshooting connection failures
+
+| What you see | Most likely cause | Fix |
+|---|---|---|
+| Ping times out | PC not on same subnet as PLC | Re-check PC adapter IP is `192.168.0.50 / 255.255.255.0` |
+| Ping times out | No link between PC and PLC | Check cable, check switch, check PLC Ethernet port LED |
+| Ping works but software times out | Windows Firewall blocking the programming software | Open **Windows Defender Firewall → Allow an app through firewall** → find Click PLC software → check both Private and Public boxes |
+| Ping works but software times out | PLC IP was previously changed from `192.168.0.1` | Try pinging other addresses in the subnet (`ping 192.168.0.10`); or hold the PLC's reset button while powering on to restore factory defaults (check the Click manual for your model's reset procedure) |
+| "Read from PLC" downloads but ERR LED on | Old program has an error | In Phase 5 you will overwrite the program; ignore for now |
+| Software connects but immediately drops | PC power management turning off the Ethernet adapter | In Windows Device Manager → Network Adapters → right-click Ethernet → Properties → Power Management → uncheck "Allow the computer to turn off this device to save power" |
+
+### 2.7 Understanding online vs. offline mode in the software
+
+Click Programming Software has two modes — you will use both:
+
+- **Offline mode:** You write and edit the ladder logic program on your PC. The PLC is not
+  involved. Think of it as writing code in a text editor before compiling.
+- **Online mode:** You are connected to the PLC. You can see live values on the ladder
+  (contacts show green when active), monitor data registers, force outputs, and
+  download/upload programs.
+
+To return to offline mode at any time: **Communication → Disconnect**.
+
+> You do **not** need to be in online mode to write the ladder logic program in Phase 5.
+> Write the program offline first, then connect and download it.
+
+### 2.8 Revert your Windows PC's IP address after Phase 3
+
+Once you have set the PLC's static IP to `192.168.0.10` (Phase 3) and power-cycled the
+PLC, you can restore your PC's Ethernet adapter back to DHCP (or whatever it was before):
+
+1. Re-open the adapter's IPv4 Properties (same path as §2.3).
+2. Select **"Obtain an IP address automatically"**.
+3. Click OK.
+
+If your router hands out addresses in the `192.168.0.x` range, your PC will get a DHCP
+address on that subnet and can continue to reach both the PLC at `192.168.0.10` and the
+Pi at `192.168.0.172` without any manual IP configuration.
 
 ---
 
