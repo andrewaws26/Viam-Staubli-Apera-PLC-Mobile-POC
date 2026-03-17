@@ -845,7 +845,11 @@ Count each e-stop event (rising edge of fault flag going ON).
 
 Instructions:
 - Contact: `C1`, Type = **Rising Edge**
-- Function Block: **INC** (Increment) → Destination: `DS116`
+- Function Block: **Math** → placed in column AF → inside the dialog, find the **Operation** (or **Function**) dropdown which defaults to `ADD` → change it to **INC** → set **Destination** to `DS116` → OK
+
+> The Math dialog opens showing ADD by default. INC is in the same operation dropdown — scroll
+> down past ADD/SUB/MUL/DIV to find INC (Increment). If the dropdown is missing, look for a
+> separate **INC** entry directly in the Instruction List under Advanced → Math.
 
 > This maps to `estop_activation_count` (Modbus address 115, `sensor[15]` in plc_sensor.py).
 
@@ -862,7 +866,7 @@ Count each rising edge of C100 (i.e., each servo button press).
 
 Instructions:
 - Contact: `C100` (Normally Open)
-- Function Block: **INC** → Destination: `DS115`
+- Function Block: **Math** → placed in column AF → Operation dropdown → select **INC** → Destination: `DS115` → OK
 
 > Maps to `servo_power_press_count` (Modbus address 114, `sensor[14]` in plc_sensor.py).
 
