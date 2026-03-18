@@ -146,7 +146,12 @@ A **fragment** is a reusable config template that can be applied to multiple mac
 - Additional tags: `["truck-01"]`, `["truck-02"]`, etc.
 - Any truck-specific attributes
 
-**This means:** To change the capture frequency fleet-wide, update the fragment once. All 36 trucks pick up the change on their next cloud sync (typically within minutes when online).
+**Fragment versioning options:**
+- **Latest** (default): Trucks always pull the newest fragment version automatically
+- **Pinned**: Lock trucks to a specific fragment version (useful during testing)
+- **Tagged**: Use semantic tags like `stable` or `beta` to control rollout
+
+**This means:** To change the capture frequency fleet-wide, update the fragment once. All 36 trucks on "Latest" pick up the change on their next cloud sync (typically within minutes when online). Use "Pinned" or "Tagged" versioning to roll out changes to a subset of trucks first.
 
 ### 3.2 Machine Naming and Tagging Convention
 

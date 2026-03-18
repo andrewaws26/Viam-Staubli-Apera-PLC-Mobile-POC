@@ -391,7 +391,7 @@ Sensor reading captured → Written to local .capture file
                           → Retained in cloud (until retention policy or manual deletion)
 ```
 
-Viam's auto-deletion threshold: if the filesystem containing `capture_dir` reaches **90% disk usage**, viam-server deletes the oldest un-synced capture files to prevent disk exhaustion. For a 32 GB SD card at current data rates (~39 MB/day), this threshold would take 700+ offline days to reach.
+Viam's auto-deletion threshold: if the filesystem reaches **90% disk usage** AND the capture directory accounts for at least 50% of that usage, viam-server deletes every Nth captured file (default every 5th) to free space. For a 32 GB SD card at current data rates (~39 MB/day), this threshold would take 700+ offline days to reach.
 
 ### Data Volume Summary
 

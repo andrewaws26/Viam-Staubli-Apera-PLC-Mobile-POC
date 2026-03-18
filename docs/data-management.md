@@ -112,14 +112,14 @@ RAIV trucks operate on remote railroad job sites for 5–10+ hours with no inter
 
 When viam-server syncs captured data to the cloud:
 
-1. It scans the capture directory for files that haven't been synced yet
-2. Files are uploaded via HTTPS to Viam Cloud
+1. It scans the capture directory for files not modified in the last 10 seconds (prevents syncing files still being written)
+2. Files are uploaded via encrypted gRPC to Viam Cloud
 3. Successfully synced files are deleted from local disk
-4. If upload fails mid-file, that file is retried on the next sync cycle
-5. On repeated failures, viam-server uses **exponential backoff**, increasing the retry interval up to a maximum of approximately 1 hour between attempts
+4. If upload fails mid-file, that file is retried from the **beginning of the file** on the next sync cycle
+5. On repeated failures, viam-server uses **exponential backoff**, increasing the retry interval up to a maximum of **1 hour**, then retries every hour
 6. When connectivity returns, the backoff resets and sync resumes at the normal 6-second interval
 
-**Deduplication:** Each capture file has a unique identifier. If the same file is uploaded twice (e.g., due to a network interruption after upload but before the delete confirmation), Viam Cloud deduplicates it. You will not see duplicate readings in the cloud.
+**Deduplication:** Sync continues where it left off without duplicating data. If interruption happens mid-file, that file restarts from the beginning, but already-synced files are not re-uploaded.
 
 ### Why capture_dir Must Be Persistent Storage
 
@@ -131,7 +131,13 @@ The current config uses `/home/pi/.viam/capture`, which is on the SD card's ext4
 
 ### Disk Usage and Auto-Deletion
 
-Viam monitors disk usage on the capture directory's filesystem. **When disk usage reaches 90%, viam-server automatically deletes the oldest captured files** to free space, even if they haven't been synced to the cloud. This prevents the Pi from running out of disk space and becoming unresponsive.
+Viam monitors disk usage and automatically deletes captured files when **all three** of these conditions are true:
+
+1. Data capture is enabled on the data manager service
+2. Local disk usage is **>= 90%**
+3. The Viam capture directory is **at least 50%** of total disk usage
+
+When triggered, it deletes every Nth captured file (controlled by `delete_every_nth_when_disk_full`, default `5`). If disk usage is >= 90% but the capture directory is less than 50% of usage, viam-server logs a warning but does **not** delete files (the disk pressure is from something else).
 
 **Mitigations:**
 - A 32 GB SD card provides ~28 GB usable space. At 39 MB/day, you'd need 700+ offline days to hit 90%.
