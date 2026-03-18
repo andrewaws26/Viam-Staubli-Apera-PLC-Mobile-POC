@@ -358,3 +358,55 @@ The PLC sensor module is deployed and working against a real Click PLC C0-10DD2E
 The robot arm sensor module code is complete for both protocol options. To activate it: confirm which protocol the CS9 exposes and provide either the Modbus register addresses or confirm that a VAL3 socket server is running.
 
 The wire/connection indicator derives its state from the PLC sensor and is now active — it shows green when the PLC is connected and turns red when the connection drops.
+
+---
+
+## 10. Data Management Architecture
+
+Last updated: March 18, 2026. See `docs/data-management.md` for the full operational guide and `docs/fleet-deployment-plan.md` for the rollout plan.
+
+### Offline-First Design Rationale
+
+RAIV trucks operate on remote railroad job sites for 5–10+ hours with no internet connectivity. The entire data pipeline is designed around this constraint:
+
+- **Capture is local-first.** Sensor readings are written to persistent local disk regardless of network state. The capture process has zero dependency on cloud connectivity.
+- **Sync is opportunistic.** When the truck has internet (typically at the shop), viam-server automatically uploads buffered data to Viam Cloud. No manual intervention required.
+- **Power loss is expected.** Trucks on remote sites may lose power unexpectedly. The capture directory is on the SD card's ext4 filesystem (journaled), not `/tmp`. Data captured before power loss survives the reboot.
+
+### Why capture_dir Must Be Persistent Storage
+
+The `capture_dir` setting in `viam-server.json` controls where sensor readings are buffered on disk before syncing to the cloud. This MUST be a persistent path that survives reboots and power loss.
+
+- **Current setting:** `/home/pi/.viam/capture` (persistent, on SD card ext4 filesystem)
+- **Previously:** `/tmp/viam-data` (WRONG — `/tmp` is volatile, cleared on reboot)
+
+If `capture_dir` points to `/tmp` and the truck loses power in the field, all buffered data that hasn't synced is permanently lost. This was identified and fixed during the March 2026 data management audit.
+
+### Data Retention and Lifecycle
+
+```
+Sensor reading captured → Written to local .capture file
+                          → Synced to Viam Cloud (when online)
+                          → Deleted from local disk (after confirmed sync)
+                          → Retained in cloud (until retention policy or manual deletion)
+```
+
+Viam's auto-deletion threshold: if the filesystem containing `capture_dir` reaches **90% disk usage**, viam-server deletes the oldest un-synced capture files to prevent disk exhaustion. For a 32 GB SD card at current data rates (~39 MB/day), this threshold would take 700+ offline days to reach.
+
+### Data Volume Summary
+
+At current capture rates (PLC at 1 Hz, arm and vision at 0.2 Hz) during 10-hour workdays:
+
+| Scope | Daily | Monthly (22 days) |
+|---|---|---|
+| Per truck | ~39 MB | ~858 MB |
+| 36-truck fleet | ~1.4 GB | ~30.9 GB |
+
+Estimated Viam Cloud cost at fleet scale with 90-day retention: **~$51/month**. See `docs/data-management.md` section 3 for the full cost breakdown.
+
+### Future Considerations
+
+- **ML model training on captured data.** The 46 PLC fields captured at 1 Hz provide a rich time-series dataset for training predictive maintenance models. Vibration patterns, temperature trends, and E-stop frequency can predict component wear before failure.
+- **Predictive maintenance analytics.** The `servo_power_press_count`, `estop_activation_count`, and `current_uptime_seconds` fields enable usage-based maintenance scheduling per truck.
+- **Image capture.** The Pi camera component (`pi-camera`) is configured but not currently captured by the data management service. Adding image capture would significantly increase data volume and may warrant moving `capture_dir` to a USB SSD.
+- **Edge ML inference.** Viam supports deploying ML models to the edge device. A future phase could run anomaly detection directly on the Pi, alerting on abnormal vibration patterns without cloud round-trips.
