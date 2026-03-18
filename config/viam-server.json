@@ -105,7 +105,7 @@
       "name": "data-manager",
       "type": "data_manager",
       "attributes": {
-        "capture_dir": "/tmp/viam-data",
+        "capture_dir": "/home/pi/.viam/capture",
         "sync_interval_mins": 0.1,
         "tags": ["robot-cell-monitor", "raiv-digital-twin"]
       }
