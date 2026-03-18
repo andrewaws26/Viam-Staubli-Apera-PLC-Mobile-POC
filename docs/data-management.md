@@ -422,3 +422,107 @@ It should show `active (running)`. The machine should reappear as "Live" in the 
 ```
 
 *Print this card, laminate it, and mount it near the Pi in each truck cab.*
+
+---
+
+## 9. ML Pipeline Data Requirements
+
+This section documents what data is needed, how much, and the practical roadmap for using Viam's ML pipeline to build predictive maintenance and fault prediction models from the captured sensor data.
+
+### Available Feature Sets
+
+The sensor data already being captured maps to two ML model types:
+
+**Anomaly Detection Features (unsupervised — no labeling required):**
+
+| Field | Why It Matters |
+|---|---|
+| `vibration_x`, `vibration_y`, `vibration_z` | Bearing wear, loose bolts, misalignment |
+| `temperature_f` | Overheating components, ambient drift |
+| `servo1_position`, `servo2_position` | Mechanical drift over time |
+| `cycle_count` | Usage-based wear correlation |
+| `current_uptime_seconds` | Fatigue patterns within a shift |
+| `humidity_pct` | Environmental correlation with faults |
+
+**Fault Prediction Features (supervised — requires labeled fault events):**
+
+| Field | Why It Matters |
+|---|---|
+| All 25 E-Cat signals | Signal degradation patterns before failure |
+| `system_state` | State transitions that precede faults |
+| `fault` / `last_fault` | Labeled examples of what went wrong |
+| `estop_activation_count` | Operator behavior correlating with issues |
+| `button_state` | Operational patterns before faults |
+| `servo_power_press_count` | Usage intensity leading to failures |
+
+### Data Volume Requirements
+
+| Model Type | Minimum Data | Recommended | Rationale |
+|---|---|---|---|
+| Anomaly detection (unsupervised) | 2–4 weeks of normal operation per truck | 8+ weeks | Needs to see full range of "normal" — different loads, temperatures, shift patterns |
+| Fault classification (supervised) | 50–100 labeled fault events across the fleet | 200+ | Each fault type needs enough examples to learn the preceding pattern |
+| Vibration pattern recognition | 4–6 weeks continuous | 12+ weeks | Mechanical degradation is slow — needs long baseline to distinguish trend from noise |
+
+### Critical Bottleneck: Labeled Fault Data
+
+Anomaly detection can start with just "normal" data — it learns what normal looks like and flags anything that deviates. This is the **quick win** and should be the first ML model deployed.
+
+Fault *classification* (predicting *which specific fault* will occur) requires labeled examples. Since faults are rare (which is operationally good but makes training harder), accumulating enough labeled examples takes time. Key requirements:
+
+- Each distinct fault type must occur at least 15–20 times in the labeled dataset
+- The data window before each fault (5–30 minutes prior) must be preserved with the fault label
+- Across 36 trucks, labeled examples accumulate 36x faster than a single truck
+- **Labeling process:** When a fault occurs, tag it in Viam Cloud with the fault type. This can be manual initially, then automated via Viam Triggers that write tags on fault events.
+
+### Collection Rate at Fleet Scale
+
+| Metric | Per Truck (10-hr shift) | Fleet (36 trucks) |
+|---|---|---|
+| Sensor readings / day | 50,400 | 1.8M |
+| Data volume / day | ~39 MB | ~1.4 GB |
+| Data volume / 8 weeks | ~2.2 GB | ~78 GB |
+
+78 GB of time-series data across 36 trucks after 8 weeks is a substantial dataset for training anomaly detection. This is well within Viam's ML pipeline capacity.
+
+### Practical ML Roadmap
+
+**Weeks 1–8 (data collection — already in progress):**
+- No code changes needed. Data is already being captured at the right frequency and with the right fields.
+- Establish "normal" baselines per truck as data accumulates.
+- When faults occur, tag them in Viam Cloud (manually or via a future Viam Trigger).
+
+**Week 8 (first model — anomaly detection):**
+- Use Viam's ML tools to train an anomaly detection model on vibration + temperature patterns.
+- This is unsupervised — no labeling required. It learns from the 8 weeks of "normal" data.
+- Deploy the model to each Pi via Viam's edge ML deployment.
+- Model runs locally on the Pi — anomaly scores computed without cloud round-trip.
+
+**Ongoing (fault labeling):**
+- Every time a fault occurs, label it in Viam Cloud with the fault type and a 30-minute data window prior.
+- This builds the labeled dataset for supervised fault classification.
+- Across 36 trucks, this accumulates at fleet scale.
+
+**Week 16+ (second model — fault classification):**
+- With enough labeled fault events (50+), train a supervised fault classification model.
+- Deploy via Viam to each Pi for edge inference.
+- Model predicts "this signal pattern preceded a fault last time" → trigger preemptive alert.
+
+### What Viam Manages vs. What We Own
+
+| ML Pipeline Step | Owner |
+|---|---|
+| Data capture → cloud sync | Viam (already working) |
+| Data storage + retention | Viam Cloud |
+| Model training infrastructure | Viam ML pipeline |
+| Model versioning | Viam Registry |
+| Model deployment to Pi (OTA) | Viam |
+| Edge inference runtime | Viam |
+| **Defining which features to train on** | **Us** |
+| **Labeling fault events** | **Us** |
+| **Setting alert thresholds on model outputs** | **Us** |
+
+### Cost Implications
+
+ML training uses the data already being captured and stored in Viam Cloud. No additional data capture costs. Viam's ML pipeline pricing is usage-based — consult Viam for current pricing on training jobs and edge inference licensing.
+
+The main cost driver is cloud storage retention. For ML, longer retention = better models. Consider extending the recommended 90-day retention to 180 days if ML is a priority. At 36 trucks, 180-day retention would plateau at ~186 GB ≈ $93/month storage (vs $46.50/month at 90 days).

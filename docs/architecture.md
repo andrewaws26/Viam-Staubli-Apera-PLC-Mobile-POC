@@ -404,9 +404,97 @@ At current capture rates (PLC at 1 Hz, arm and vision at 0.2 Hz) during 10-hour 
 
 Estimated Viam Cloud cost at fleet scale with 90-day retention: **~$51/month**. See `docs/data-management.md` section 3 for the full cost breakdown.
 
-### Future Considerations
+### Future: Viam Abstraction Roadmap
 
-- **ML model training on captured data.** The 46 PLC fields captured at 1 Hz provide a rich time-series dataset for training predictive maintenance models. Vibration patterns, temperature trends, and E-stop frequency can predict component wear before failure.
-- **Predictive maintenance analytics.** The `servo_power_press_count`, `estop_activation_count`, and `current_uptime_seconds` fields enable usage-based maintenance scheduling per truck.
+The long-term strategy is to minimize custom-owned code by shifting infrastructure responsibilities to Viam's managed services. The only code we maintain should be the three thin sensor modules — the protocol translation layer between industrial hardware and the Viam sensor interface. Everything else should be Viam-managed.
+
+#### Step 1: Publish Modules to the Viam Registry
+
+**Current state:** Modules are `"type": "local"` — deployed as files on the Pi via SCP.
+
+**Target state:** Modules published to the Viam Registry as versioned packages.
+
+**What Viam then owns:**
+- OTA deployment and updates across all 36 trucks
+- Module version management and rollback
+- No more SSH-ing into Pis to update module code
+
+#### Step 2: Use Viam Fragments for All Configuration
+
+**Current state:** `viam-server.json` template config in this repo, manually applied per truck.
+
+**Target state:** A single Viam Fragment applied to all machines, with per-truck overrides for PLC IP and truck-specific tags.
+
+**What Viam then owns:**
+- Config distribution fleet-wide
+- Config versioning (latest / pinned / tagged)
+- Config rollback
+
+#### Step 3: Use Viam Triggers Instead of Dashboard-Side Alerting
+
+**Current state:** The dashboard handles fault detection client-side (JavaScript polling + klaxon).
+
+**Target state:** Viam Triggers — cloud-side rules that fire on conditions like `system_state == "fault"` or `estop_off == 0`. Triggers send webhooks to email/Slack.
+
+**What Viam then owns:**
+- Alerting pipeline execution
+- Delivery to email/Slack/webhook endpoints
+- Alert rule management (no custom code)
+
+#### Step 4: Use Viam's ML Pipeline for Predictive Maintenance
+
+**Current state:** Data captured and stored in Viam Cloud. No ML models.
+
+**Target state:** Anomaly detection and fault prediction models trained on captured data via Viam's ML tools, deployed back to each Pi for edge inference.
+
+**What Viam then owns:**
+- Model training infrastructure
+- Model versioning in the Viam Registry
+- OTA model deployment to edge devices
+- Edge inference runtime on the Pi
+
+See `docs/data-management.md` section 9 for detailed ML data requirements.
+
+#### Abstraction Summary
+
+| Concern | Today (we own it) | After abstraction (Viam owns it) |
+|---|---|---|
+| Module deployment | SCP files to each Pi | Viam Registry + OTA |
+| Config management | Edit JSON per truck | Fragments with overrides |
+| Alerting | Dashboard JS code | Viam Triggers |
+| Data storage | SD card + manual checks | Viam Cloud + retention policies |
+| ML training | Not started | Viam ML pipeline |
+| Model deployment | Not started | Viam edge ML |
+| Fleet health monitoring | SSH into each Pi | Viam app fleet view |
+
+**The resulting ownership boundary:** We own three thin Python sensor modules that translate industrial protocols (Modbus TCP, TCP socket, ICMP/TCP probe) into Viam sensor readings. Everything else — deployment, configuration, data management, alerting, ML, and fleet operations — is Viam-managed.
+
+### Future: ML Data Collection Requirements
+
+The 46 PLC fields captured at 1 Hz provide a rich time-series dataset for ML. The two highest-value models and their data requirements:
+
+**Model 1 — Anomaly Detection (unsupervised, no labeling required):**
+- Key features: `vibration_x/y/z`, `temperature_f`, `servo1_position`, `servo2_position`, `cycle_count`, `current_uptime_seconds`
+- Learns "normal" operating signatures per truck, flags deviations before they become faults
+- Minimum data: 2–4 weeks of normal operation per truck; recommended 8+ weeks to capture full range of operating conditions (load, temperature, shift patterns)
+
+**Model 2 — Fault Prediction (supervised, requires labeled fault events):**
+- Key features: All 25 E-Cat signals, `system_state` transitions, `fault`/`last_fault`, `estop_activation_count`, `button_state`
+- Learns signal patterns that precede faults
+- Minimum data: 50–100 labeled fault events across the fleet; recommended 200+ for reliable classification
+- Critical bottleneck: faults are rare, so accumulating labeled examples takes time across the fleet
+
+**Practical timeline at current collection rates:**
+
+| Milestone | Timeline | What It Enables |
+|---|---|---|
+| 8 weeks of fleet data | Week 8 | Train anomaly detection model (unsupervised — no labeling needed) |
+| 50+ labeled fault events | Ongoing | Train basic fault classification model |
+| 16+ weeks of fleet data | Week 16+ | Refined anomaly detection + fault classification with edge deployment |
+
+See `docs/data-management.md` section 9 for the full ML data requirements breakdown.
+
+### Future: Additional Data Sources
+
 - **Image capture.** The Pi camera component (`pi-camera`) is configured but not currently captured by the data management service. Adding image capture would significantly increase data volume and may warrant moving `capture_dir` to a USB SSD.
-- **Edge ML inference.** Viam supports deploying ML models to the edge device. A future phase could run anomaly detection directly on the Pi, alerting on abnormal vibration patterns without cloud round-trips.
+- **Predictive maintenance analytics.** The `servo_power_press_count`, `estop_activation_count`, and `current_uptime_seconds` fields enable usage-based maintenance scheduling per truck — no ML required, just threshold-based rules via Viam Triggers.
