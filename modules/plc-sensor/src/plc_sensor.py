@@ -34,7 +34,7 @@ LOGGER = getLogger(__name__)
 
 # State and fault code lookups (must match plc-simulator/src/modbus_server.py)
 _STATE_NAMES = {0: "idle", 1: "running", 2: "fault", 3: "e-stopped"}
-_FAULT_NAMES = {0: "none", 1: "vibration", 2: "temperature", 3: "pressure", 4: "estop_triggered"}
+_FAULT_NAMES = {0: "none", 1: "vibration", 2: "temperature", 3: "pressure", 4: "clamp_fail"}
 
 # E-Cat signal names for registers 0-24 (25-pin cable pinout)
 _ECAT_SIGNAL_NAMES = [
