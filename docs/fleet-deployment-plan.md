@@ -248,6 +248,130 @@ A **fragment** is a reusable config template that can be applied to multiple mac
 
 ---
 
+## Phase 4: Viam-Managed Abstraction
+
+**Goal:** Shift from custom/local infrastructure to Viam-managed services, minimizing code we own and maintain.
+
+### 4.1 Publish Modules to Viam Registry
+
+**Current state:** Modules deployed as local files via SCP (`"type": "local"` in config).
+
+**Steps:**
+1. Package each module (plc-sensor, robot-arm-sensor, vision-health-sensor) as a Viam module with a `meta.json` manifest
+2. Upload to the Viam Registry under the organization namespace
+3. Update the Viam Fragment to reference registry modules instead of local paths
+4. Test: Deploy a fresh Pi that pulls modules from the registry on first boot (no SCP)
+5. Verify OTA: Push a minor module update, confirm trucks pick it up automatically
+
+**Success criteria:**
+- [ ] All three modules published and versioned in Viam Registry
+- [ ] Fragment references registry modules (not local paths)
+- [ ] New truck can be provisioned with: flash SD → install viam-server → point at cloud → done
+- [ ] Module update deployed to fleet without SSH
+
+### 4.2 Convert Config to Viam Fragment
+
+**Current state:** `viam-server.json` template in this repo, manually applied.
+
+**Steps:**
+1. Create a Fragment in the Viam app containing the full config (modules, components, data management)
+2. Apply the fragment to all 36 truck machines
+3. Set per-truck overrides: PLC `host` IP and truck-specific tags
+4. Test config change propagation: update capture frequency in fragment, verify all trucks pick it up
+
+**Success criteria:**
+- [ ] Single fragment manages all 36 trucks
+- [ ] Per-truck overrides working for PLC IP and tags
+- [ ] Config change in fragment propagates within minutes of truck connecting
+
+### 4.3 Migrate Alerting to Viam Triggers
+
+**Current state:** Dashboard handles fault detection client-side (JS polling + klaxon).
+
+**Steps:**
+1. Configure Viam Triggers for critical conditions:
+   - `system_state == "fault"` → webhook to email/Slack
+   - `estop_off == 0` (E-stop engaged) → webhook to email/Slack
+   - Machine offline >24 hours when expected at shop → email ops team
+2. Test: Simulate a fault, verify trigger fires and notification arrives
+3. Dashboard alerting remains as a secondary visual indicator; Viam Triggers become the primary notification path
+
+**Success criteria:**
+- [ ] Fault triggers configured and tested
+- [ ] Email/Slack notifications arrive within 60 seconds of fault
+- [ ] No custom alerting code required beyond the dashboard's visual indicators
+
+---
+
+## Phase 5: ML Pipeline Deployment
+
+**Goal:** Use Viam's ML pipeline to train and deploy predictive maintenance models from captured sensor data.
+
+**Prerequisites:** 8+ weeks of fleet data collected (Phase 3 must be operational).
+
+### 5.1 Train Anomaly Detection Model (Week 8+)
+
+**Model type:** Unsupervised — learns "normal" operating patterns, flags deviations.
+
+**Key features:** `vibration_x/y/z`, `temperature_f`, `servo1_position`, `servo2_position`, `cycle_count`, `current_uptime_seconds`
+
+**Steps:**
+1. Export 8 weeks of fleet data from Viam Cloud
+2. Train anomaly detection model using Viam's ML tools
+3. Validate: run model against known fault periods, confirm it flags them
+4. Deploy model to each Pi via Viam's edge ML deployment
+5. Configure local alert on anomaly score exceeding threshold
+
+**Success criteria:**
+- [ ] Model trained on 8+ weeks of fleet data
+- [ ] Model detects known fault patterns in historical data
+- [ ] Model deployed to edge (Pi) via Viam OTA
+- [ ] Anomaly alerts fire locally without cloud round-trip
+
+### 5.2 Build Fault Labeling Pipeline (Ongoing)
+
+**Purpose:** Accumulate labeled fault events for supervised fault classification.
+
+**Steps:**
+1. Configure Viam Trigger to auto-tag fault events with fault type and timestamp
+2. Preserve 30-minute data window before each fault as part of the labeled dataset
+3. Track labeled event count per fault type in Viam Cloud
+4. Target: 50+ labeled events before training classifier, 200+ for production quality
+
+**Success criteria:**
+- [ ] Fault events auto-tagged on occurrence
+- [ ] Pre-fault data windows preserved
+- [ ] Fault label count tracked and visible
+
+### 5.3 Train Fault Classification Model (Week 16+)
+
+**Model type:** Supervised — predicts which specific fault will occur based on preceding signal patterns.
+
+**Key features:** All 25 E-Cat signals, `system_state` transitions, `fault`/`last_fault`, `estop_activation_count`, `button_state`
+
+**Steps:**
+1. Verify 50+ labeled fault events available
+2. Train classification model using Viam's ML tools
+3. Validate against holdout set of labeled faults
+4. Deploy to edge via Viam OTA
+5. Configure preemptive alerts: "signal pattern matches pre-fault signature"
+
+**Success criteria:**
+- [ ] Model trained on 50+ labeled fault events
+- [ ] Preemptive alerts trigger before fault occurs (validated on historical data)
+- [ ] Model deployed to fleet via Viam OTA
+
+### 5.4 ML Cost Considerations
+
+| Item | Impact |
+|---|---|
+| Data storage for ML | Consider extending retention from 90 days to 180 days (~$93/month vs ~$51/month at fleet scale) |
+| Training jobs | Viam ML pipeline, usage-based pricing |
+| Edge inference | Runs on existing Pi hardware, no additional compute cost |
+| Model updates | Deployed via Viam Registry/OTA, no per-deployment cost |
+
+---
+
 ## Appendix: Risk Register
 
 | Risk | Likelihood | Impact | Mitigation |
@@ -259,3 +383,6 @@ A **fragment** is a reusable config template that can be applied to multiple mac
 | Cellular coverage at remote sites | High | Can't do real-time monitoring in field | Design is offline-first; cellular is nice-to-have, not required |
 | Pi overheats in truck cab | Medium | viam-server crashes, data gap | Use Pi 5 with active cooling; mount in ventilated enclosure |
 | Viam Cloud outage | Low | Can't view data, but capture continues locally | Data buffers locally; syncs when cloud returns |
+| Insufficient fault events for ML | Medium | Can't train fault classification model | Fleet scale (36 trucks) accelerates collection; start with unsupervised anomaly detection which needs no labels |
+| ML model false positives | Medium | Alert fatigue, operators ignore warnings | Tune thresholds conservatively; start with logging-only mode before enabling alerts |
+| Data retention too short for ML | Low | Training data deleted before model is trained | Extend retention to 180 days if ML is a priority |
