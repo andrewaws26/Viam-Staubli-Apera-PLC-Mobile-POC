@@ -99,6 +99,24 @@ export function getMockReadings(componentName: ComponentName): SensorReadings {
         cycle_count: 47 + Math.floor(Math.random() * 10),
       };
 
+      // TPS mock values
+      readings["tps_power_loop"] = servoOn;
+      readings["camera_signal"] = servoOn;
+      readings["encoder_enabled"] = servoOn;
+      readings["floating_zero"] = false;
+      readings["encoder_reset"] = false;
+      readings["eject_tps_1"] = false;
+      readings["eject_left_tps_2"] = false;
+      readings["eject_right_tps_2"] = false;
+      readings["air_eagle_1_feedback"] = false;
+      readings["air_eagle_2_feedback"] = false;
+      readings["air_eagle_3_enable"] = false;
+      readings["plate_drop_count"] = servoOn ? Math.floor(Math.random() * 500) : 0;
+      readings["plates_per_minute"] = servoOn ? +(8 + Math.random() * 4).toFixed(1) : 0;
+      readings["adjustable_tie_spacing"] = 0;
+      readings["encoder_ignore"] = 0;
+      readings["detector_offset_bits"] = 0;
+
       // Simulate encoder: when servo is active, encoder advances (~2 ft/s track speed)
       if (servoOn) {
         state.encoderCount += Math.floor(800 + Math.random() * 200); // ~1000 counts/poll

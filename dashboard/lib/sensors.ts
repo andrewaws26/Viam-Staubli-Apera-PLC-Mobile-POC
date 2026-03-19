@@ -129,6 +129,53 @@ export const ENCODER_DETAIL_FIELDS: {
 ];
 
 // ---------------------------------------------------------------------------
+// TPS Machine Status fields
+// ---------------------------------------------------------------------------
+export const TPS_STATUS_FIELDS: {
+  key: string;
+  label: string;
+  type?: "bool" | "number" | "string";
+}[] = [
+  { key: "tps_power_loop", label: "TPS Power Loop", type: "bool" },
+  { key: "camera_signal", label: "Camera Signal", type: "bool" },
+  { key: "encoder_enabled", label: "Encoder", type: "bool" },
+  { key: "floating_zero", label: "Floating Zero", type: "bool" },
+  { key: "encoder_reset", label: "Encoder Reset", type: "bool" },
+];
+
+// ---------------------------------------------------------------------------
+// TPS Eject System fields
+// ---------------------------------------------------------------------------
+export const TPS_EJECT_FIELDS: {
+  key: string;
+  label: string;
+  type?: "bool" | "number";
+}[] = [
+  { key: "eject_tps_1", label: "Eject TPS-1", type: "bool" },
+  { key: "eject_left_tps_2", label: "Eject Left TPS-2", type: "bool" },
+  { key: "eject_right_tps_2", label: "Eject Right TPS-2", type: "bool" },
+  { key: "air_eagle_1_feedback", label: "Air Eagle 1", type: "bool" },
+  { key: "air_eagle_2_feedback", label: "Air Eagle 2", type: "bool" },
+  { key: "air_eagle_3_enable", label: "Air Eagle 3 Drop", type: "bool" },
+];
+
+// ---------------------------------------------------------------------------
+// TPS Production Stats
+// ---------------------------------------------------------------------------
+export const TPS_PRODUCTION_FIELDS: {
+  key: string;
+  label: string;
+  unit?: string;
+  highlight?: boolean;
+}[] = [
+  { key: "plates_per_minute", label: "Plate Rate", unit: "/min", highlight: true },
+  { key: "plate_drop_count", label: "Total Plates Dropped" },
+  { key: "adjustable_tie_spacing", label: "Tie Spacing Setting" },
+  { key: "encoder_ignore", label: "Encoder Ignore" },
+  { key: "detector_offset_bits", label: "Detector Offset" },
+];
+
+// ---------------------------------------------------------------------------
 // E-Cat signal definitions for the 25-pin cable status grid.
 // Each entry maps a reading key to a display label and pin number.
 // ---------------------------------------------------------------------------

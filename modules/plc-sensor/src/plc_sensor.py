@@ -19,9 +19,10 @@ counters in holding registers.  This module reads those registers directly
 """
 
 import asyncio
+import collections
 import math
 import time
-from typing import Any, ClassVar, Dict, List, Mapping, Optional, Sequence
+from typing import Any, ClassVar, Deque, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from pymodbus.client import ModbusTcpClient
 from typing_extensions import Self
@@ -78,7 +79,10 @@ _CONNECT_TIMEOUT = 2
 _ENCODER_PPR = 1000          # Pulses per revolution (from SICK DBS60E-BDEC01000 datasheet)
 _ENCODER_QUADRATURE = 1      # Production HSC uses x1 count mode
 _ENCODER_COUNTS_PER_REV = _ENCODER_PPR * _ENCODER_QUADRATURE  # 1000
-_DEFAULT_WHEEL_DIAMETER_MM = 152.4  # 6 inches — override via config attribute
+_DEFAULT_WHEEL_DIAMETER_MM = 406.4  # 16 inches — DMF RW-1650 railgear guide wheel
+
+# Rolling window size for plates-per-minute calculation
+_PLATE_DROP_WINDOW_SECONDS = 60.0
 
 
 def _uint16(value: int) -> int:
@@ -135,6 +139,10 @@ class PlcSensor(Sensor):
         self._prev_encoder_count: Optional[int] = None
         self._prev_encoder_time: Optional[float] = None
         self._encoder_speed_mmps: float = 0.0  # mm per second
+        # TPS plate drop counter — tracks OFF→ON transitions on Y1 (Eject TPS_1)
+        self._prev_eject_tps1: Optional[bool] = None
+        self._plate_drop_count: int = 0
+        self._plate_drop_times: Deque[float] = collections.deque()  # rolling window timestamps
 
     @classmethod
     def new(
@@ -238,6 +246,35 @@ class PlcSensor(Sensor):
             "encoder_speed_mmps": 0.0,
             "encoder_speed_ftpm": 0.0,
             "encoder_revolutions": 0.0,
+            # TPS discrete inputs
+            "tps_power_loop": False,
+            "camera_signal": False,
+            "air_eagle_1_feedback": False,
+            "air_eagle_2_feedback": False,
+            "air_eagle_3_enable": False,
+            # TPS output coils
+            "eject_tps_1": False,
+            "eject_left_tps_2": False,
+            "eject_right_tps_2": False,
+            # TPS internal coils
+            "encoder_reset": False,
+            "floating_zero": False,
+            # TPS production registers
+            "encoder_ignore": 0,
+            "adjustable_tie_spacing": 0,
+            "ds3_value": 0,
+            "detector_offset_bits": 0,
+            "ds6_value": 0,
+            "ds7_value": 0,
+            "ds10_value": 0,
+            "ds11_value": 0,
+            "ds12_value": 0,
+            "ds13_value": 0,
+            "ds14_value": 0,
+            # TPS derived readings
+            "encoder_enabled": False,
+            "plate_drop_count": 0,
+            "plates_per_minute": 0.0,
         })
         return readings
 
@@ -317,6 +354,61 @@ class PlcSensor(Sensor):
             # Speed in feet per minute (common railroad unit)
             encoder_speed_ftpm = (self._encoder_speed_mmps / 304.8) * 60.0
 
+            # ── Read TPS discrete inputs (X1-X8) — FC02, address 0-7 ──
+            discrete_bits = [False] * 8
+            try:
+                di_result = self.client.read_discrete_inputs(address=0, count=8)
+                if not di_result.isError():
+                    discrete_bits = list(di_result.bits[:8])
+            except Exception as exc:
+                LOGGER.warning("Error reading discrete inputs: %s", exc)
+
+            tps_power_loop = bool(discrete_bits[3])       # X4
+            camera_signal = bool(discrete_bits[2])         # X3
+            air_eagle_1_feedback = bool(discrete_bits[4])  # X5
+            air_eagle_2_feedback = bool(discrete_bits[5])  # X6
+            air_eagle_3_enable = bool(discrete_bits[6])    # X7
+
+            # ── Read TPS output coils (Y1-Y3) — FC01, address 8192-8194 ──
+            output_coils = [False] * 3
+            try:
+                oc_result = self.client.read_coils(address=8192, count=3)
+                if not oc_result.isError():
+                    output_coils = list(oc_result.bits[:3])
+            except Exception as exc:
+                LOGGER.warning("Error reading output coils: %s", exc)
+
+            eject_tps_1 = bool(output_coils[0])       # Y1
+            eject_left_tps_2 = bool(output_coils[1])   # Y2
+            eject_right_tps_2 = bool(output_coils[2])  # Y3
+
+            # ── Read TPS internal coils (C1999, C2000) — FC01, address 1998-1999 ──
+            internal_coils = [False] * 2
+            try:
+                ic_result = self.client.read_coils(address=1998, count=2)
+                if not ic_result.isError():
+                    internal_coils = list(ic_result.bits[:2])
+            except Exception as exc:
+                LOGGER.warning("Error reading internal coils: %s", exc)
+
+            encoder_reset_coil = bool(internal_coils[0])  # C1999
+            floating_zero = bool(internal_coils[1])        # C2000
+
+            # ── TPS plate drop counter — detect OFF→ON on Y1 (Eject TPS_1) ──
+            if self._prev_eject_tps1 is not None and not self._prev_eject_tps1 and eject_tps_1:
+                self._plate_drop_count += 1
+                self._plate_drop_times.append(now_ts)
+            self._prev_eject_tps1 = eject_tps_1
+
+            # Expire old entries outside the rolling window
+            cutoff = now_ts - _PLATE_DROP_WINDOW_SECONDS
+            while self._plate_drop_times and self._plate_drop_times[0] < cutoff:
+                self._plate_drop_times.popleft()
+            plates_per_minute = float(len(self._plate_drop_times))
+
+            # Encoder enabled: True when C1999 (Encoder Reset) is OFF and encoder is counting
+            encoder_enabled = not encoder_reset_coil and encoder_count != 0
+
             # ── Read state directly from PLC ladder-logic registers ──
             # DS1 (reg 0):   servo_power_on (1=on, 0=off)
             # DS113 (reg 112): system_state (0=idle, 1=running, 2=fault, 3=e-stopped)
@@ -378,6 +470,35 @@ class PlcSensor(Sensor):
                 "encoder_speed_mmps": round(self._encoder_speed_mmps, 1),
                 "encoder_speed_ftpm": round(encoder_speed_ftpm, 1),
                 "encoder_revolutions": round(encoder_revolutions, 2),
+                # TPS discrete inputs
+                "tps_power_loop": tps_power_loop,
+                "camera_signal": camera_signal,
+                "air_eagle_1_feedback": air_eagle_1_feedback,
+                "air_eagle_2_feedback": air_eagle_2_feedback,
+                "air_eagle_3_enable": air_eagle_3_enable,
+                # TPS output coils
+                "eject_tps_1": eject_tps_1,
+                "eject_left_tps_2": eject_left_tps_2,
+                "eject_right_tps_2": eject_right_tps_2,
+                # TPS internal coils
+                "encoder_reset": encoder_reset_coil,
+                "floating_zero": floating_zero,
+                # TPS production registers (from DS holding registers)
+                "encoder_ignore": ecat[0],              # DS1
+                "adjustable_tie_spacing": ecat[1],      # DS2
+                "ds3_value": ecat[2],                    # DS3
+                "detector_offset_bits": ecat[4],        # DS5
+                "ds6_value": ecat[5],                    # DS6
+                "ds7_value": ecat[6],                    # DS7
+                "ds10_value": ecat[9],                   # DS10
+                "ds11_value": ecat[10],                  # DS11
+                "ds12_value": ecat[11],                  # DS12
+                "ds13_value": ecat[12],                  # DS13
+                "ds14_value": ecat[13],                  # DS14
+                # TPS derived readings
+                "encoder_enabled": encoder_enabled,
+                "plate_drop_count": self._plate_drop_count,
+                "plates_per_minute": round(plates_per_minute, 1),
             })
 
             return readings
