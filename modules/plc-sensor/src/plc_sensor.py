@@ -2,16 +2,18 @@
 PLC Modbus Sensor Module for Viam.
 
 Reads the RAIV truck's PLC state via Modbus TCP and returns structured
-sensor readings for remote monitoring. Connects to a Click PLC C0-10DD2E-D
-at 192.168.0.10 (or the Pi Zero W simulator during development).
+sensor readings for remote monitoring.  Connects to a Click PLC
+C0-10DD2E-D at 192.168.0.10.
 
 Register map (see docs/click-plc-setup-guide.md for full documentation):
   Registers 0-8:    Command signals (Servo Power, Plate Cycle, etc.)
   Registers 9-17:   Status lamps (feedback from PLC)
   Registers 18-24:  System state (E-Mag, POE, E-stop)
-  Registers 100-113: Sensor data (accel, gyro, temp, humidity, servos, state)
-  Registers 114-117: Analytics (servo press count, estop count, uptime, estop duration)
-  Coil 0:           Push button state (True = pressed)
+  Registers 100-117: Optional sensor/analytics data (may be zero on Click PLC)
+
+System state is derived from E-Cat signal registers (0, 1, 24), NOT from
+register 112, because the Click PLC's ladder logic drives the 25-pin
+cable signals directly.
 """
 
 import asyncio
@@ -32,8 +34,8 @@ from viam.utils import SensorReading
 
 LOGGER = getLogger(__name__)
 
-# State and fault code lookups (must match plc-simulator/src/modbus_server.py)
-_STATE_NAMES = {0: "idle", 1: "running", 2: "fault", 3: "e-stopped"}
+# Fault code lookups — code 4 can originate from either the PLC ladder
+# logic (e-stop triggered) or the old simulator (clamp_fail).
 _FAULT_NAMES = {0: "none", 1: "vibration", 2: "temperature", 3: "pressure", 4: "estop_triggered"}
 
 # E-Cat signal names for registers 0-24 (25-pin cable pinout)
@@ -81,7 +83,7 @@ def _uint16(value: int) -> int:
 def _int16_to_float(value: int, scale: float = 100.0) -> float:
     """Convert an unsigned Modbus register value back to a signed float.
 
-    The plc-simulator encodes signed floats as unsigned int16:
+    Signed values are encoded as unsigned int16:
       positive: stored directly (e.g., 981 = 9.81)
       negative: stored as 65536 + value (e.g., 65531 = -0.05)
     """
@@ -220,49 +222,37 @@ class PlcSensor(Sensor):
             return self._disconnected_readings("connection_failed")
 
         try:
-            # Read E-Cat cable registers (0-24)
+            # Read E-Cat cable registers (0-24) — the authoritative signal source.
+            # The Click PLC's ladder logic drives these directly from physical I/O.
             ecat_result = self.client.read_holding_registers(address=0, count=25)
             if ecat_result.isError():
                 LOGGER.warning("Error reading E-Cat registers: %s", ecat_result)
                 self._disconnect()
                 return self._disconnected_readings("ecat_read_error")
 
-            # Ensure unsigned interpretation
             ecat = [_uint16(v) for v in ecat_result.registers]
 
-            # Read sensor data registers (100-117)
-            sensor_result = self.client.read_holding_registers(address=100, count=18)
-            if sensor_result.isError():
-                LOGGER.warning("Error reading sensor registers: %s", sensor_result)
-                self._disconnect()
-                return self._disconnected_readings("sensor_read_error")
-
-            # Ensure unsigned interpretation
-            sensor = [_uint16(v) for v in sensor_result.registers]
-
-            # Read button state from coil 0
-            button_pressed = False
+            # Read sensor/analytics registers (100-117) — optional.
+            # These are populated by the Pi Zero W simulator but are typically
+            # zero on the real Click PLC.  A read failure here is non-fatal.
+            sensor = [0] * 18
             try:
-                coil_result = self.client.read_coils(address=0, count=1)
-                if not coil_result.isError():
-                    button_pressed = bool(coil_result.bits[0])
+                sensor_result = self.client.read_holding_registers(address=100, count=18)
+                if not sensor_result.isError():
+                    sensor = [_uint16(v) for v in sensor_result.registers]
             except Exception:
-                pass  # Coil read failure is non-fatal
+                pass  # Click PLC may not have these registers
 
-            # Decode system state from E-Cat signals (works with both Click PLC
-            # and Pi Zero W simulator).  The Click PLC only writes E-Cat cable
-            # registers 0-24; it does NOT populate register 112.  So we derive
-            # state from the authoritative signal pins rather than register 112.
+            # Derive system state from E-Cat signals — the Click PLC does NOT
+            # write register 112; its ladder logic drives the 25-pin cable pins.
             servo_power_on = ecat[0]   # Register 0, Pin 1
             servo_disable  = ecat[1]   # Register 1, Pin 2
             estop_off      = ecat[24]  # Register 24, Pin 25 (1 = e-stop active)
-
-            system_state_code = sensor[12]  # Register 112 (simulator only)
-            fault_code = sensor[13]         # Register 113
+            fault_code = sensor[13]    # Register 113 (0 on real PLC)
 
             if estop_off == 1:
                 derived_state = "e-stopped"
-            elif system_state_code == 2:
+            elif fault_code != 0:
                 derived_state = "fault"
             elif servo_power_on == 1 and servo_disable == 0:
                 derived_state = "running"
@@ -271,21 +261,22 @@ class PlcSensor(Sensor):
 
             is_fault = derived_state == "fault"
 
+            # Derive button state from servo_power_on signal (the blue button
+            # latches this register ON via the PLC ladder logic).
+            button_active = servo_power_on == 1
+
             # Build the readings dict with human-readable keys
             readings: Dict[str, Any] = {
-                # Connection status
                 "connected": True,
                 "fault": is_fault,
-
-                # Push button state
-                "button_state": "pressed" if button_pressed else "released",
+                "button_state": "pressed" if button_active else "released",
             }
 
             # E-Cat cable signals (registers 0-24) with named keys
             for i, name in enumerate(_ECAT_SIGNAL_NAMES):
                 readings[name] = ecat[i]
 
-            # Sensor data (registers 100-113)
+            # Sensor data (registers 100-117) — zeros on real Click PLC
             readings.update({
                 "vibration_x": _int16_to_float(sensor[0]),
                 "vibration_y": _int16_to_float(sensor[1]),
@@ -301,7 +292,6 @@ class PlcSensor(Sensor):
                 "cycle_count": sensor[11],
                 "system_state": derived_state,
                 "last_fault": _FAULT_NAMES.get(fault_code, f"unknown({fault_code})"),
-                # Analytics registers 114-117
                 "servo_power_press_count": sensor[14],
                 "estop_activation_count": sensor[15],
                 "current_uptime_seconds": sensor[16],

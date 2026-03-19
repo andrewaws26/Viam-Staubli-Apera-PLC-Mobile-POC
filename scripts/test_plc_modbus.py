@@ -76,11 +76,33 @@ def read_snapshot(client: ModbusTcpClient) -> dict:
     for i, name in enumerate(_ECAT_NAMES):
         result[name] = _uint16(r.registers[i])
 
-    # Sensor/state block: DS101-DS118 → addresses 100-117
-    r = client.read_holding_registers(address=100, count=18)
-    if r.isError():
-        raise RuntimeError(f"Failed to read sensor registers (100-117): {r}")
-    regs = [_uint16(v) for v in r.registers]
+    # Derive system state from E-Cat signals (not register 112)
+    servo_power_on = result["servo_power_on"]
+    servo_disable = result["servo_disable"]
+    estop_off = result["estop_off"]
+
+    if estop_off == 1:
+        derived_state = "e-stopped"
+    elif servo_power_on == 1 and servo_disable == 0:
+        derived_state = "running"
+    else:
+        derived_state = "idle"
+
+    result["system_state_derived"] = derived_state
+
+    # Sensor/state block: DS101-DS118 → addresses 100-117 (may be zero on real PLC)
+    regs = [0] * 18
+    try:
+        r = client.read_holding_registers(address=100, count=18)
+        if not r.isError():
+            regs = [_uint16(v) for v in r.registers]
+    except Exception:
+        pass  # Click PLC may not have these registers
+
+    fault_code = regs[13]
+    # Override derived state if fault code is set
+    if fault_code != 0 and derived_state not in ("e-stopped",):
+        derived_state = "fault"
 
     result.update({
         "vibration_x":              _int16(regs[0]) / 100.0,   # DS101
@@ -95,8 +117,9 @@ def read_snapshot(client: ModbusTcpClient) -> dict:
         "servo1_position":          regs[9],                    # DS110
         "servo2_position":          regs[10],                   # DS111
         "cycle_count":              regs[11],                   # DS112
-        "system_state":             _STATE_NAMES.get(regs[12], f"unknown({regs[12]})"),  # DS113
-        "last_fault":               _FAULT_NAMES.get(regs[13], f"unknown({regs[13]})"),  # DS114
+        "system_state":             derived_state,
+        "system_state_reg112":      _STATE_NAMES.get(regs[12], f"unknown({regs[12]})"),
+        "last_fault":               _FAULT_NAMES.get(fault_code, f"unknown({fault_code})"),
         "servo_power_press_count":  regs[14],                   # DS115
         "estop_activation_count":   regs[15],                   # DS116
         "current_uptime_seconds":   regs[16],                   # DS117
@@ -115,11 +138,12 @@ def print_snapshot(snap: dict, highlight_nonzero: bool = True) -> None:
         flag = " ◀" if highlight_nonzero and val != 0 else ""
         print(f"    {name:<28} = {val}{flag}")
 
-    # State / sensor block
-    print("\n  ── State registers (DS113+ / Modbus addr 112+) ──")
+    # Derived state + register state
+    print("\n  ── Derived state (from E-Cat signals) ──")
     for key in [
-        "system_state", "last_fault", "servo_power_press_count",
-        "estop_activation_count", "current_uptime_seconds", "last_estop_duration_seconds",
+        "system_state", "system_state_reg112", "last_fault",
+        "servo_power_press_count", "estop_activation_count",
+        "current_uptime_seconds", "last_estop_duration_seconds",
     ]:
         val = snap[key]
         is_notable = val not in (0, "idle", "none", "released")
