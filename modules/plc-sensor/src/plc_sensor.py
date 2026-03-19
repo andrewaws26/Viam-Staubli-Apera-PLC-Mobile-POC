@@ -6,14 +6,14 @@ sensor readings for remote monitoring.  Connects to a Click PLC
 C0-10DD2E-D at 192.168.0.10.
 
 Register map (see docs/click-plc-setup-guide.md for full documentation):
-  Registers 0-8:    Command signals (Servo Power, Plate Cycle, etc.)
-  Registers 9-17:   Status lamps (feedback from PLC)
-  Registers 18-24:  System state (E-Mag, POE, E-stop)
-  Registers 100-117: Optional sensor/analytics data (may be zero on Click PLC)
+  Registers 0-24:   E-Cat cable signals (25-pin cable pinout)
+  Registers 100-117: Optional sensor/analytics data (zero on Click PLC)
+  Coil 0:           Push button state (True = pressed)
 
-System state is derived from E-Cat signal registers (0, 1, 24), NOT from
-register 112, because the Click PLC's ladder logic drives the 25-pin
-cable signals directly.
+The Click PLC sets coil 0 when the blue button is pressed but does NOT
+update holding registers 0-1 (servo_power_on / servo_disable).  This
+module maintains a software latch: button press latches servo power ON,
+e-stop clears it back to idle.
 """
 
 import asyncio
@@ -110,6 +110,10 @@ class PlcSensor(Sensor):
         self.host = host
         self.port = port
         self.client: Optional[ModbusTcpClient] = None
+        # Software latch: blue button press latches ON, e-stop clears to OFF.
+        # The Click PLC sets coil 0 on button press but does not update the
+        # servo_power_on / servo_disable holding registers.
+        self._servo_latched: bool = False
 
     @classmethod
     def new(
@@ -222,8 +226,7 @@ class PlcSensor(Sensor):
             return self._disconnected_readings("connection_failed")
 
         try:
-            # Read E-Cat cable registers (0-24) — the authoritative signal source.
-            # The Click PLC's ladder logic drives these directly from physical I/O.
+            # Read E-Cat cable registers (0-24)
             ecat_result = self.client.read_holding_registers(address=0, count=25)
             if ecat_result.isError():
                 LOGGER.warning("Error reading E-Cat registers: %s", ecat_result)
@@ -232,49 +235,66 @@ class PlcSensor(Sensor):
 
             ecat = [_uint16(v) for v in ecat_result.registers]
 
-            # Read sensor/analytics registers (100-117) — optional.
-            # These are populated by the Pi Zero W simulator but are typically
-            # zero on the real Click PLC.  A read failure here is non-fatal.
+            # Read sensor/analytics registers (100-117) — optional, zero on Click PLC
             sensor = [0] * 18
             try:
                 sensor_result = self.client.read_holding_registers(address=100, count=18)
                 if not sensor_result.isError():
                     sensor = [_uint16(v) for v in sensor_result.registers]
             except Exception:
-                pass  # Click PLC may not have these registers
+                pass
 
-            # Derive system state from E-Cat signals — the Click PLC does NOT
-            # write register 112; its ladder logic drives the 25-pin cable pins.
-            servo_power_on = ecat[0]   # Register 0, Pin 1
-            servo_disable  = ecat[1]   # Register 1, Pin 2
-            estop_off      = ecat[24]  # Register 24, Pin 25 (1 = e-stop active)
-            fault_code = sensor[13]    # Register 113 (0 on real PLC)
+            # Read button state from coil 0 — the Click PLC sets this when
+            # the blue button is pressed.
+            button_pressed = False
+            try:
+                coil_result = self.client.read_coils(address=0, count=1)
+                if not coil_result.isError():
+                    button_pressed = bool(coil_result.bits[0])
+            except Exception:
+                pass
 
-            if estop_off == 1:
+            # E-stop state from register 24 (1 = e-stop active)
+            estop_active = ecat[24] == 1
+
+            # ── Servo power latch ──
+            # Button press latches ON.  E-stop clears to OFF.
+            # After e-stop is released the system returns to idle (latch stays
+            # cleared until the next button press).
+            if estop_active:
+                self._servo_latched = False
+            elif button_pressed:
+                self._servo_latched = True
+
+            # ── Derive system state ──
+            fault_code = sensor[13]
+            if estop_active:
                 derived_state = "e-stopped"
             elif fault_code != 0:
                 derived_state = "fault"
-            elif servo_power_on == 1 and servo_disable == 0:
+            elif self._servo_latched:
                 derived_state = "running"
             else:
                 derived_state = "idle"
 
-            is_fault = derived_state == "fault"
-
-            # Derive button state from servo_power_on signal (the blue button
-            # latches this register ON via the PLC ladder logic).
-            button_active = servo_power_on == 1
-
-            # Build the readings dict with human-readable keys
+            # ── Build readings ──
             readings: Dict[str, Any] = {
                 "connected": True,
-                "fault": is_fault,
-                "button_state": "pressed" if button_active else "released",
+                "fault": derived_state == "fault",
+                "button_state": "pressed" if button_pressed else "released",
             }
 
             # E-Cat cable signals (registers 0-24) with named keys
             for i, name in enumerate(_ECAT_SIGNAL_NAMES):
                 readings[name] = ecat[i]
+
+            # Override servo_power_on and servo_disable based on the software
+            # latch — the Click PLC does NOT update these holding registers.
+            readings["servo_power_on"] = 1 if self._servo_latched else 0
+            readings["servo_disable"] = 0 if self._servo_latched else 1
+            # Mirror to lamp registers so the dashboard E-Cat grid is consistent
+            readings["lamp_servo_power"] = readings["servo_power_on"]
+            readings["lamp_servo_disable"] = readings["servo_disable"]
 
             # Sensor data (registers 100-117) — zeros on real Click PLC
             readings.update({

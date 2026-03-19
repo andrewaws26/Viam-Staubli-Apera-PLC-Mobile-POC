@@ -5,9 +5,10 @@ Runs on the Pi 5 alongside viam-server. Reads PLC state from the Click
 PLC C0-10DD2E-D via Modbus TCP and exposes it as JSON for the Matrix
 Portal S3 display and the CYD touchscreen.
 
-System state is derived from E-Cat signal registers (0, 1, 24), NOT from
-register 112, because the Click PLC's ladder logic drives the 25-pin
-cable signals directly.
+The Click PLC sets coil 0 when the blue button is pressed but does NOT
+update holding registers 0-1 (servo_power_on / servo_disable).  This
+module maintains a software latch: button press latches servo power ON,
+e-stop clears it back to idle.
 
 Endpoints:
   GET /status — full system state as JSON
@@ -41,6 +42,7 @@ _FAULT_NAMES = {0: "none", 1: "vibration", 2: "temperature", 3: "pressure", 4: "
 _plc_host = "192.168.0.10"
 _plc_port = 502
 _client: ModbusTcpClient = None
+_servo_latched: bool = False  # software latch: button ON, e-stop clears
 
 
 def _uint16(value: int) -> int:
@@ -58,7 +60,7 @@ def _int16_to_float(value: int, scale: float = 100.0) -> float:
 
 def _read_plc() -> Dict[str, Any]:
     """Read all registers from the Click PLC and return structured dict."""
-    global _client
+    global _client, _servo_latched
 
     try:
         if _client is None or not _client.connected:
@@ -66,43 +68,60 @@ def _read_plc() -> Dict[str, Any]:
             if not _client.connect():
                 return {"connected": False, "system_state": "disconnected"}
 
-        # Read E-Cat cable registers (0-24) — the authoritative signal source
+        # Read E-Cat cable registers (0-24)
         ecat_result = _client.read_holding_registers(0, 25)
         if ecat_result.isError():
             return {"connected": False, "system_state": "read_error"}
         ecat = [_uint16(v) for v in ecat_result.registers]
 
-        # Read sensor data registers (100-117) — optional, may be zero on Click PLC
+        # Read sensor data registers (100-117) — optional, zero on Click PLC
         sensor = [0] * 18
         try:
             sensor_result = _client.read_holding_registers(100, 18)
             if not sensor_result.isError():
                 sensor = [_uint16(v) for v in sensor_result.registers]
         except Exception:
-            pass  # Click PLC may not have these registers
+            pass
 
-        # Derive system state from E-Cat signals (not register 112)
-        servo_power_on = ecat[0]
-        servo_disable = ecat[1]
-        estop_off = ecat[24]
+        # Read button state from coil 0
+        button_pressed = False
+        try:
+            coil_result = _client.read_coils(0, 1)
+            if not coil_result.isError():
+                button_pressed = bool(coil_result.bits[0])
+        except Exception:
+            pass
+
+        # Servo power latch: button press ON, e-stop clears
+        estop_active = ecat[24] == 1
+        if estop_active:
+            _servo_latched = False
+        elif button_pressed:
+            _servo_latched = True
+
+        # Derive system state
         fault_code = sensor[13]
-
-        if estop_off == 1:
+        if estop_active:
             system_state = "e-stopped"
         elif fault_code != 0:
             system_state = "fault"
-        elif servo_power_on == 1 and servo_disable == 0:
+        elif _servo_latched:
             system_state = "running"
         else:
             system_state = "idle"
 
+        # Override servo signals based on latch (PLC doesn't set these)
+        servo_power_val = 1 if _servo_latched else 0
+        servo_disable_val = 0 if _servo_latched else 1
+
         return {
             "connected": True,
             "fault": system_state == "fault",
+            "button_state": "pressed" if button_pressed else "released",
 
-            # E-Cat command signals (registers 0-8)
-            "servo_power_on": ecat[0],
-            "servo_disable": ecat[1],
+            # E-Cat command signals (registers 0-8) — with latch overrides
+            "servo_power_on": servo_power_val,
+            "servo_disable": servo_disable_val,
             "plate_cycle": ecat[2],
             "abort_stow": ecat[3],
             "speed": ecat[4],
@@ -111,9 +130,9 @@ def _read_plc() -> Dict[str, Any]:
             "belt_forward": ecat[7],
             "belt_reverse": ecat[8],
 
-            # E-Cat status lamps (registers 9-17)
-            "lamp_servo_power": ecat[9],
-            "lamp_servo_disable": ecat[10],
+            # E-Cat status lamps (registers 9-17) — with latch overrides
+            "lamp_servo_power": servo_power_val,
+            "lamp_servo_disable": servo_disable_val,
             "lamp_plate_cycle": ecat[11],
             "lamp_abort_stow": ecat[12],
             "lamp_speed": ecat[13],
