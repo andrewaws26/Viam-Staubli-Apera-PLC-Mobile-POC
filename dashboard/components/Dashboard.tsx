@@ -9,6 +9,7 @@ import { SENSOR_CONFIGS, ECAT_SIGNAL_DEFS, ComponentName } from "../lib/sensors"
 import { ComponentState, FaultEvent, SensorReadings } from "../lib/types";
 import StatusCard from "./StatusCard";
 import AlertBanner from "./AlertBanner";
+import ServoPowerBanner from "./ServoPowerBanner";
 import FaultHistory from "./FaultHistory";
 import PlcDetailPanel from "./PlcDetailPanel";
 import ConnectionDot from "./ConnectionDot";
@@ -81,10 +82,12 @@ export default function Dashboard() {
   const [flashKey, setFlashKey] = useState(0); // bumping triggers flash animation
 
   const [isEstop, setIsEstop] = useState(false);
+  const [isServoPowered, setIsServoPowered] = useState(false);
 
   const prevFaultIds = useRef<Set<string>>(new Set());
   const prevEcatSignals = useRef<Record<string, number>>({});
   const prevSystemState = useRef<string | null>(null);
+  const prevServoPower = useRef<number | null>(null);
   const playAlarm = useRef(buildAlarmPlayer());
 
   // -------------------------------------------------------------------------
@@ -244,6 +247,31 @@ export default function Dashboard() {
       }
       prevSystemState.current = curState;
       setIsEstop(curState === "e-stopped");
+
+      // Servo power state change detection — log dedicated history entries
+      const curServo = Number(plcState.readings.servo_power_on ?? 0);
+      const prevServo = prevServoPower.current;
+      if (prevServo !== null && prevServo !== curServo) {
+        if (curServo === 1) {
+          newFaultEvents.push({
+            id: `servo-energized-${Date.now()}`,
+            componentId: "plc",
+            componentLabel: "Servo Power",
+            message: "Servo Power Energized — drives enabled",
+            timestamp: new Date(),
+          });
+        } else {
+          newFaultEvents.push({
+            id: `servo-idle-${Date.now()}`,
+            componentId: "plc",
+            componentLabel: "Servo Power",
+            message: "Servo Power Off — drives idle",
+            timestamp: new Date(),
+          });
+        }
+      }
+      prevServoPower.current = curServo;
+      setIsServoPowered(curServo === 1);
     }
 
     prevFaultIds.current = currentFaultIds;
@@ -316,6 +344,11 @@ export default function Dashboard() {
         {(activeFaultLabels.length > 0 || isEstop) && (
           <AlertBanner faultNames={activeFaultLabels} isEstop={isEstop} />
         )}
+
+        {/* ---------------------------------------------------------------- */}
+        {/* Servo Power Banner — shown when PLC is connected                 */}
+        {/* ---------------------------------------------------------------- */}
+        {sdkConnected && <ServoPowerBanner isEnergized={isServoPowered} />}
 
         {/* ---------------------------------------------------------------- */}
         {/* Status Grid                                                      */}
