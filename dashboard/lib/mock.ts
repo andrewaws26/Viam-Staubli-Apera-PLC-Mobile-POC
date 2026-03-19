@@ -10,14 +10,24 @@ const FAULT_DURATION_MS = 5000;
 interface MockState {
   faultComponent: ComponentName | null;
   faultUntil: number;
+  servoActive: boolean;
 }
 
-const state: MockState = { faultComponent: null, faultUntil: 0 };
+const state: MockState = { faultComponent: null, faultUntil: 0, servoActive: false };
 
 // Allows the test-fault button to inject a specific component fault
 export function injectFault(componentName: ComponentName) {
   state.faultComponent = componentName;
   state.faultUntil = Date.now() + FAULT_DURATION_MS;
+  // Fault kills servo power (matches real hardware behavior)
+  state.servoActive = false;
+}
+
+// Toggle servo power (simulates pressing the blue Fuji AR22F0L push button)
+export function toggleServo() {
+  // Reject if PLC is currently faulted
+  if (state.faultComponent === VIAM_COMPONENT_NAMES.plc) return;
+  state.servoActive = !state.servoActive;
 }
 
 export function getMockReadings(componentName: ComponentName): SensorReadings {
@@ -57,13 +67,17 @@ export function getMockReadings(componentName: ComponentName): SensorReadings {
         process_running: !isFaulted,
       };
     case VIAM_COMPONENT_NAMES.plc: {
+      // Derive system state from servo toggle + fault state
+      const servoOn = state.servoActive && !isFaulted;
+      const systemState = isFaulted ? "fault" : servoOn ? "running" : "idle";
+
       // Mock output matches plc_sensor.py get_readings(): already-decoded named keys
       const readings: SensorReadings = {
         connected: !isFaulted,
         fault: isFaulted,
-        system_state: isFaulted ? "fault" : "running",
+        system_state: systemState,
         last_fault: isFaulted ? "vibration" : "none",
-        button_state: "released",
+        button_state: servoOn ? "pressed" : "released",
         vibration_x: isFaulted ? 12.5 : +(Math.random() * 0.2 - 0.1).toFixed(2),
         vibration_y: isFaulted ? 8.3 : +(Math.random() * 0.2 - 0.1).toFixed(2),
         vibration_z: 9.81 + +(Math.random() * 0.2 - 0.1).toFixed(2),
@@ -75,11 +89,16 @@ export function getMockReadings(componentName: ComponentName): SensorReadings {
         cycle_count: 47 + Math.floor(Math.random() * 10),
       };
 
-      // Add E-Cat signal mock values
+      // Add E-Cat signal mock values — derive from system state
       for (const { key } of ECAT_SIGNAL_DEFS) {
-        // Most signals ON in normal operation; some OFF when faulted
-        if (isFaulted && (key === "servo_power_on" || key === "lamp_servo_power")) {
-          readings[key] = 0;
+        if (key === "servo_power_on" || key === "lamp_servo_power") {
+          // ON only when servo is active
+          readings[key] = servoOn ? 1 : 0;
+        } else if (key === "servo_disable" || key === "lamp_servo_disable") {
+          // Servo disable is ASSERTED (1) when idle, DEASSERTED (0) when running
+          readings[key] = servoOn ? 0 : 1;
+        } else if (key === "plate_cycle" || key === "lamp_plate_cycle") {
+          readings[key] = servoOn ? 1 : 0;
         } else if (key === "estop_off" || key === "emag_malfunction") {
           readings[key] = 0; // Normally OFF
         } else {
