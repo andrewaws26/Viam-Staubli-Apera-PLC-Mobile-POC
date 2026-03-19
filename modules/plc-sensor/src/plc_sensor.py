@@ -8,9 +8,9 @@ C0-10DD2E-D at 192.168.0.10.
 Register map (see docs/click-plc-setup-guide.md for full documentation):
   Registers 0-24:   E-Cat cable signals (25-pin cable pinout)
   Registers 100-117: Optional sensor/analytics data (zero on Click PLC)
-  DD101 (Modbus 16584-16585): Encoder pulse count (32-bit signed, quadrature x4)
-    16584: low 16 bits of DD101
-    16585: high 16 bits of DD101
+  DD1 (Modbus 16384-16385): Encoder pulse count (32-bit signed, quadrature x1)
+    16384: low 16 bits of DD1
+    16385: high 16 bits of DD1
     Direction derived from count delta (positive = forward, negative = reverse)
 
 The Click PLC ladder logic manages servo power state, system state, and
@@ -76,8 +76,8 @@ _CONNECT_TIMEOUT = 2
 
 # Encoder constants
 _ENCODER_PPR = 1000          # Pulses per revolution (from SICK DBS60E-BDEC01000 datasheet)
-_ENCODER_QUADRATURE = 4      # Quadrature decoding multiplier (count all A/B edges)
-_ENCODER_COUNTS_PER_REV = _ENCODER_PPR * _ENCODER_QUADRATURE  # 4000
+_ENCODER_QUADRATURE = 1      # Production HSC uses x1 count mode
+_ENCODER_COUNTS_PER_REV = _ENCODER_PPR * _ENCODER_QUADRATURE  # 1000
 _DEFAULT_WHEEL_DIAMETER_MM = 152.4  # 6 inches — override via config attribute
 
 
@@ -276,11 +276,11 @@ class PlcSensor(Sensor):
             except Exception:
                 pass
 
-            # Read encoder count from DD101 (Modbus address 16584, 2 registers)
-            # DD101 is the HSC current count value — 32-bit signed quadrature counter
+            # Read encoder count from DD1 (Modbus address 16384, 2 registers)
+            # DD1 is the production HSC current count value — 32-bit signed quadrature x1
             enc_lo, enc_hi = 0, 0
             try:
-                enc_result = self.client.read_holding_registers(address=16584, count=2)
+                enc_result = self.client.read_holding_registers(address=16384, count=2)
                 if not enc_result.isError():
                     enc_lo = _uint16(enc_result.registers[0])
                     enc_hi = _uint16(enc_result.registers[1])
