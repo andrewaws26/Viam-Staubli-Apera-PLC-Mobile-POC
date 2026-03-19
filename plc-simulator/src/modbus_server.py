@@ -152,6 +152,8 @@ class PLCModbusServer:
 
         # Set initial system state
         self.write_register(SENSOR_BASE + REG_SYSTEM_STATE, STATE_IDLE)
+        # Servo disabled by default (awaiting servo power button press)
+        self.write_register(PIN_SERVO_DISABLE, 1)
         # POE system ON by default
         self.write_register(PIN_POE_SYSTEM, 1)
 

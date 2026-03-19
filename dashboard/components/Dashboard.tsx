@@ -9,7 +9,6 @@ import { SENSOR_CONFIGS, ECAT_SIGNAL_DEFS, ComponentName } from "../lib/sensors"
 import { ComponentState, FaultEvent, SensorReadings } from "../lib/types";
 import StatusCard from "./StatusCard";
 import AlertBanner from "./AlertBanner";
-
 import FaultHistory from "./FaultHistory";
 import PlcDetailPanel from "./PlcDetailPanel";
 import ConnectionDot from "./ConnectionDot";

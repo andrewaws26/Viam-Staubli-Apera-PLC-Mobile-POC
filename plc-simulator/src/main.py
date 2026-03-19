@@ -31,6 +31,7 @@ from .modbus_server import (
     PIN_ESTOP_ENABLE,
     PIN_ESTOP_OFF,
     PIN_PLATE_CYCLE,
+    PIN_SERVO_DISABLE,
     PIN_SERVO_POWER_ON,
     PLCModbusServer,
     REG_ESTOP_COUNT,
@@ -116,6 +117,7 @@ def setup_button_callback(
                 PIN_SERVO_POWER_ON, PIN_PLATE_CYCLE,
             )
             modbus.write_register(PIN_SERVO_POWER_ON, 1)
+            modbus.write_register(PIN_SERVO_DISABLE, 0)
             modbus.write_register(PIN_PLATE_CYCLE, 1)
             modbus.write_coil(0, True)
             modbus.write_register(SENSOR_BASE + REG_SYSTEM_STATE, STATE_RUNNING)
@@ -177,6 +179,7 @@ def setup_estop_callback(
                 estop_pin, analytics.estop_count,
             )
             modbus.write_register(PIN_SERVO_POWER_ON, 0)
+            modbus.write_register(PIN_SERVO_DISABLE, 1)
             modbus.write_register(PIN_PLATE_CYCLE, 0)
             modbus.write_coil(0, False)
             modbus.write_register(PIN_ESTOP_ENABLE, 0)
@@ -208,6 +211,7 @@ def setup_estop_callback(
             )
             modbus.write_register(PIN_ESTOP_ENABLE, 1)
             modbus.write_register(PIN_ESTOP_OFF, 0)
+            modbus.write_register(PIN_SERVO_DISABLE, 1)
             modbus.write_register(SENSOR_BASE + REG_SYSTEM_STATE, STATE_IDLE)
             work_cycle.release_estop()
             # Do NOT re-enable servo power — operator must press Servo Power button

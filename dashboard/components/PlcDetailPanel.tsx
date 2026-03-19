@@ -11,20 +11,17 @@ export default function PlcDetailPanel({ readings }: Props) {
   }
 
   const stateStr = String(readings.system_state ?? "unknown");
-  const servoPowerOn = readings.servo_power_on === 1;
   const stateDisplay =
     stateStr === "e-stopped"
       ? "E-STOP ACTIVE"
-      : stateStr === "idle" && servoPowerOn
+      : stateStr === "running"
       ? "SERVO ACTIVE"
-      : stateStr === "idle" && !servoPowerOn
+      : stateStr === "idle"
       ? "idle — awaiting servo power"
       : stateStr.toUpperCase();
   const stateColor =
     stateStr === "e-stopped"
       ? "text-red-500"
-      : stateStr === "idle" && servoPowerOn
-      ? "text-green-400"
       : stateStr === "running"
       ? "text-green-400"
       : stateStr === "fault"
