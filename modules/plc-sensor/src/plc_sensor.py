@@ -249,15 +249,33 @@ class PlcSensor(Sensor):
             except Exception:
                 pass  # Coil read failure is non-fatal
 
-            # Decode system state and fault code
-            system_state_code = sensor[12]
-            fault_code = sensor[13]
+            # Decode system state from E-Cat signals (works with both Click PLC
+            # and Pi Zero W simulator).  The Click PLC only writes E-Cat cable
+            # registers 0-24; it does NOT populate register 112.  So we derive
+            # state from the authoritative signal pins rather than register 112.
+            servo_power_on = ecat[0]   # Register 0, Pin 1
+            servo_disable  = ecat[1]   # Register 1, Pin 2
+            estop_off      = ecat[24]  # Register 24, Pin 25 (1 = e-stop active)
+
+            system_state_code = sensor[12]  # Register 112 (simulator only)
+            fault_code = sensor[13]         # Register 113
+
+            if estop_off == 1:
+                derived_state = "e-stopped"
+            elif system_state_code == 2:
+                derived_state = "fault"
+            elif servo_power_on == 1 and servo_disable == 0:
+                derived_state = "running"
+            else:
+                derived_state = "idle"
+
+            is_fault = derived_state == "fault"
 
             # Build the readings dict with human-readable keys
             readings: Dict[str, Any] = {
                 # Connection status
                 "connected": True,
-                "fault": system_state_code == 2,  # STATE_FAULT
+                "fault": is_fault,
 
                 # Push button state
                 "button_state": "pressed" if button_pressed else "released",
@@ -281,7 +299,7 @@ class PlcSensor(Sensor):
                 "servo1_position": sensor[9],
                 "servo2_position": sensor[10],
                 "cycle_count": sensor[11],
-                "system_state": _STATE_NAMES.get(system_state_code, f"unknown({system_state_code})"),
+                "system_state": derived_state,
                 "last_fault": _FAULT_NAMES.get(fault_code, f"unknown({fault_code})"),
                 # Analytics registers 114-117
                 "servo_power_press_count": sensor[14],

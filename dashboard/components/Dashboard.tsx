@@ -12,7 +12,7 @@ import AlertBanner from "./AlertBanner";
 import FaultHistory from "./FaultHistory";
 import PlcDetailPanel from "./PlcDetailPanel";
 import ConnectionDot from "./ConnectionDot";
-import { getMockReadings, injectFault } from "../lib/mock";
+import { getMockReadings, injectFault, toggleServo } from "../lib/mock";
 
 const POLL_INTERVAL_MS = 2000;
 const MAX_FAULT_HISTORY = 10;
@@ -371,6 +371,12 @@ export default function Dashboard() {
               <span className="text-xs font-bold uppercase tracking-widest text-yellow-600">
                 Demo Controls
               </span>
+              <button
+                onClick={() => toggleServo()}
+                className="px-4 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-600 active:bg-blue-800 text-white text-sm font-bold tracking-wide transition-colors"
+              >
+                Servo Power
+              </button>
               {mockFaultTargets.map(({ label, component }) => (
                 <button
                   key={component}
@@ -381,7 +387,7 @@ export default function Dashboard() {
                 </button>
               ))}
               <span className="text-xs text-yellow-700 ml-auto hidden sm:block">
-                Simulates a wire pull or component failure
+                Blue button toggles servo power; red buttons simulate faults
               </span>
             </div>
           )}
