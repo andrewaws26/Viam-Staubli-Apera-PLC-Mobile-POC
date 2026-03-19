@@ -319,7 +319,7 @@ These need answers from the hardware integration lead before committing to imple
 
 ## 9. Current Implementation State
 
-Last updated: March 16, 2026. This section maps every component in the architecture diagram above to its actual current state.
+Last updated: March 19, 2026. This section maps every component in the architecture diagram above to its actual current state.
 
 ### Component-by-component status
 
@@ -329,11 +329,17 @@ Last updated: March 16, 2026. This section maps every component in the architect
 
 **Robot Arm Sensor module.** Scaffold only. Code is complete with Viam registration, configuration handling, and placeholder readings for both Modbus TCP and VAL3 socket protocols. Not deployed to the Pi. Blocked on Staubli CS9 protocol confirmation from the hardware lead.
 
-**PLC / Modbus Sensor module.** Deployed and working against real hardware. Custom Python module at `modules/plc-sensor/` registered as Viam component `plc-monitor`. Connects via Modbus TCP to a **Click PLC C0-10DD2E-D** at `192.168.0.10:502`. The Click PLC runs ladder logic that reads two physical buttons (Fuji AR22F0L servo power button on X1, NC e-stop on X2), implements latching toggle and fault logic, drives two output lamps (Y1 for servo power, Y2 for system-OK), and writes state to DS registers that map to Modbus holding registers. The plc-sensor module reads 25 E-Cat cable registers (0-24) and 18 sensor/state registers (100-117). The PLC is powered by a Rhino PSR-24-480 24 VDC supply and connected to the Pi via a Netgear Ethernet switch. A ZipLink ZL-RTB20-1 breakout board provides clean terminal access to all PLC I/O. The Pi Zero W PLC simulator at `raiv-plc.local` is retained as a development tool but is no longer the primary integration target. The Pi 5 (192.168.0.176, WiFi) runs viam-server with the plc-sensor module connecting to the Click PLC over the local network.
+**PLC / Modbus Sensor module.** Deployed and working against real hardware. Custom Python module at `modules/plc-sensor/` registered as Viam component `plc-monitor`. Connects via Modbus TCP to a **Click PLC C0-10DD2E-D** at `192.168.0.10:502`. The Click PLC reads two physical buttons (Fuji AR22F0L servo power button on X1, NC e-stop on X2) and sets coil 0 on button press. The plc-sensor module reads 25 E-Cat cable registers (0-24), 18 sensor/state registers (100-117), and coil 0 (button state).
+
+The module implements a **software servo power latch**: pressing the blue button latches servo power ON, pressing e-stop clears it. The Click PLC does not update holding registers 0-1 (servo_power_on / servo_disable) — the latch is maintained entirely in software. The `estop_off` register (24) reads 1 during normal operation (e-stop NOT engaged) and 0 when e-stop IS active. Stale fault code 4 (`estop_triggered`) in register 113 is ignored when e-stop is not actually active.
+
+The module also maintains **software-side analytics counters** that persist between polls (reset on viam-server restart): `servo_power_press_count` (rising-edge count of button presses), `estop_activation_count` (rising-edge count of e-stop events), `current_uptime_seconds` (time since module start), and `last_estop_duration_seconds` (duration of most recent e-stop event). These replace PLC registers 114-117 which are always zero on the Click PLC.
+
+The deployed module files at `/opt/viam-modules/` are **symlinked** to the git repo at `/home/andrew/Viam-Staubli-Apera-PLC-Mobile-POC/modules/`, so `git pull` immediately updates the code viam-server runs. The PLC is powered by a Rhino PSR-24-480 24 VDC supply and connected to the Pi via a Netgear Ethernet switch. A ZipLink ZL-RTB20-1 breakout board provides clean terminal access to all PLC I/O. The Pi 5 (192.168.0.176, WiFi) runs viam-server with the plc-sensor module connecting to the Click PLC over the local network.
 
 **Wire / Connection monitoring.** Derived from PLC sensor readings. The dashboard Wire/Connection card shows green when the PLC sensor reports `connected: true` and `fault: false`. When the Pi Zero W loses power or network, the Modbus connection fails and the card turns red. Additionally, each of the 25 E-Cat cable signals is individually monitored. If any signal drops from 1 to 0, a specific fault event is logged (e.g., "E-Cat Signal Lost — Servo Power ON (Pin 1)"). Recovery is also logged when signals return to 1. For GPIO-wired signals, physically disconnecting a wire causes the pin's pull-down to register 0, which is immediately visible on the dashboard.
 
-**Viam Data Management Service.** Deployed and working. Configured in the Viam app with capture directory at `/tmp/viam-data`, sync interval of 6 seconds, tagged with "robot-cell-monitor". Historical readings are visible in the Viam app Data tab.
+**Viam Data Management Service.** Deployed and working. Configured in the Viam app with capture directory at `/tmp/viam-data`, sync interval of 6 seconds, tagged with "robot-cell-monitor". Both `plc-monitor` and `vision-health` sensors are captured. Readings are stored as binary protobuf files and synced to Viam Cloud. Historical readings are visible in the Viam app Data tab. Software analytics (servo press count, e-stop count, uptime, e-stop duration) are included in every captured reading.
 
 **Viam Triggers.** Not configured. Dashboard handles alerting client-side. Cloud-side triggers for email/Slack are a future item.
 
@@ -353,7 +359,7 @@ Last updated: March 16, 2026. This section maps every component in the architect
 
 ### What the pending modules need
 
-The PLC sensor module is deployed and working against a real Click PLC C0-10DD2E-D at 192.168.0.10. The ladder logic writes to the same DS register addresses the Pi Zero W simulator used, so the plc-sensor module required only a host IP change and a fault code rename (`clamp_fail` → `estop_triggered`). The Pi Zero W simulator remains available for development but is no longer the primary target.
+The PLC sensor module is deployed and working against a real Click PLC C0-10DD2E-D at 192.168.0.10. The module maintains a software servo power latch (button press ON, e-stop clears) and software analytics counters because the Click PLC does not update the relevant holding registers. Key bug fix (March 19, 2026): the `estop_off` register (24) was incorrectly interpreted — value 1 means e-stop is NOT engaged (normal), not that e-stop is active. The deployed module files are symlinked from `/opt/viam-modules/` to the git repo so `git pull` + `sudo systemctl restart viam-server` is the complete deployment workflow.
 
 The robot arm sensor module code is complete for both protocol options. To activate it: confirm which protocol the CS9 exposes and provide either the Modbus register addresses or confirm that a VAL3 socket server is running.
 

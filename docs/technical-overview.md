@@ -125,7 +125,7 @@ The vision-health-sensor module's `get_readings` runs two async checks concurren
 
 ### Working (hardware integrated)
 
-- PLC sensor: connected to real Click PLC C0-10DD2E-D at 192.168.0.10 with two physical buttons (Fuji AR22F0L servo power + NC e-stop) and two output lamps (Y1 servo power indicator, Y2 system-OK indicator). Ladder logic implements latching toggle, e-stop fault latch, and deliberate reset sequence. DS registers match simulator register map — plc-sensor module required only a host IP change.
+- PLC sensor: connected to real Click PLC C0-10DD2E-D at 192.168.0.10 with two physical buttons (Fuji AR22F0L servo power + NC e-stop) and two output lamps (Y1 servo power indicator, Y2 system-OK indicator). The Click PLC sets coil 0 on button press but does NOT update holding registers 0-1. The plc-sensor module maintains a software servo power latch (button press latches ON, e-stop clears) and software analytics counters (servo press count, e-stop count, uptime, e-stop duration). Key register insight: `estop_off` (register 24) = 1 means e-stop is NOT engaged (normal operation); = 0 means e-stop IS active. Stale fault code 4 in register 113 is filtered when e-stop is not active. Module files are symlinked from `/opt/viam-modules/` to the git repo for seamless deployment.
 
 ### Pending (hardware blocked)
 
