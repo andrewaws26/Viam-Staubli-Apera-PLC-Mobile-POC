@@ -5,7 +5,7 @@
 // See docs/architecture.md section 6 for the full architectural enforcement.
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { SENSOR_CONFIGS, ECAT_SIGNAL_DEFS, ComponentName } from "../lib/sensors";
+import { SENSOR_CONFIGS, ComponentName } from "../lib/sensors";
 import { ComponentState, FaultEvent, SensorReadings } from "../lib/types";
 import StatusCard from "./StatusCard";
 import AlertBanner from "./AlertBanner";
@@ -83,7 +83,6 @@ export default function Dashboard() {
   const [isEstop, setIsEstop] = useState(false);
 
   const prevFaultIds = useRef<Set<string>>(new Set());
-  const prevEcatSignals = useRef<Record<string, number>>({});
   const prevSystemState = useRef<string | null>(null);
   const prevServoPower = useRef<number | null>(null);
   const playAlarm = useRef(buildAlarmPlayer());
@@ -182,45 +181,10 @@ export default function Dashboard() {
     }
 
     // -----------------------------------------------------------------
-    // E-Cat signal change detection — log faults and recoveries
+    // State change detection for servo power and e-stop
     // -----------------------------------------------------------------
     const plcState = newStates.find((c) => c.id === "plc");
     if (plcState?.readings && plcState.readings.connected === true) {
-      const prev = prevEcatSignals.current;
-      const ecatEvents: FaultEvent[] = [];
-
-      for (const { key, label, pin } of ECAT_SIGNAL_DEFS) {
-        const curVal = Number(plcState.readings[key] ?? 0);
-        const prevVal = prev[key];
-        if (prevVal !== undefined && prevVal !== curVal) {
-          if (curVal === 0 && prevVal === 1) {
-            // Signal dropped from 1 → 0
-            ecatEvents.push({
-              id: `ecat-${key}-${Date.now()}`,
-              componentId: "plc",
-              componentLabel: "E-Cat Signal",
-              message: `E-Cat Signal Lost — ${label} (Pin ${pin})`,
-              timestamp: new Date(),
-            });
-          } else if (curVal === 1 && prevVal === 0) {
-            // Signal restored from 0 → 1
-            ecatEvents.push({
-              id: `ecat-${key}-${Date.now()}`,
-              componentId: "plc",
-              componentLabel: "E-Cat Signal",
-              message: `E-Cat Signal Restored — ${label} (Pin ${pin})`,
-              timestamp: new Date(),
-            });
-          }
-        }
-        prev[key] = curVal;
-      }
-      prevEcatSignals.current = prev;
-
-      if (ecatEvents.length > 0) {
-        newFaultEvents.push(...ecatEvents);
-      }
-
       // E-stop state change detection — log dedicated history entries
       const curState = String(plcState.readings.system_state ?? "");
       const prevState = prevSystemState.current;
@@ -299,8 +263,6 @@ export default function Dashboard() {
   // Mock-only: manual fault injection buttons for stakeholder demos
   // -------------------------------------------------------------------------
   const mockFaultTargets: { label: string; component: ComponentName }[] = [
-    { label: "Arm", component: "robot-arm-sensor" },
-    { label: "Vision", component: "vision-health" },
     { label: "PLC", component: "plc-monitor" },
   ];
 
@@ -322,10 +284,10 @@ export default function Dashboard() {
         <header className="border-b border-gray-800 px-5 py-4 flex items-center justify-between gap-4 shrink-0">
           <div>
             <h1 className="text-xl sm:text-2xl font-black tracking-widest uppercase text-gray-100 leading-none">
-              Robot Cell Monitor
+              TPS Monitor
             </h1>
             <p className="text-xs text-gray-600 mt-0.5 tracking-wide">
-              Machine state only — no personnel data
+              Tie Plate System — Live Production Data
             </p>
           </div>
           <ConnectionDot
