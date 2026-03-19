@@ -12,12 +12,10 @@ Register map (see docs/click-plc-setup-guide.md for full documentation):
     16584: low 16 bits of DD101
     16585: high 16 bits of DD101
     Direction derived from count delta (positive = forward, negative = reverse)
-  Coil 0:           Push button state (True = pressed)
 
-The Click PLC sets coil 0 when the blue button is pressed but does NOT
-update holding registers 0-1 (servo_power_on / servo_disable).  This
-module maintains a software latch: button press latches servo power ON,
-e-stop clears it back to idle.
+The Click PLC ladder logic manages servo power state, system state, and
+counters in holding registers.  This module reads those registers directly
+— no software latch or coil reads needed.
 """
 
 import asyncio
@@ -123,18 +121,7 @@ class PlcSensor(Sensor):
         self.host = host
         self.port = port
         self.client: Optional[ModbusTcpClient] = None
-        # Software latch: blue button press latches ON, e-stop clears to OFF.
-        # The Click PLC sets coil 0 on button press but does not update the
-        # servo_power_on / servo_disable holding registers.
-        self._servo_latched: bool = False
-        # Software-side analytics (PLC registers 114-117 are always zero)
-        self._servo_press_count: int = 0
-        self._estop_count: int = 0
         self._start_time: float = time.time()
-        self._estop_start: Optional[float] = None
-        self._last_estop_duration: float = 0.0
-        self._prev_button: bool = False
-        self._prev_estop: bool = False
         # Encoder: distance-per-count derived from wheel diameter
         self._wheel_diameter_mm = wheel_diameter_mm
         wheel_circumference_mm = math.pi * wheel_diameter_mm
@@ -215,7 +202,6 @@ class PlcSensor(Sensor):
         readings: Dict[str, Any] = {
             "connected": False,
             "fault": True,
-            "button_state": "released",
         }
         # E-Cat signals — all zeroed, using the same keys as _ECAT_SIGNAL_NAMES
         for name in _ECAT_SIGNAL_NAMES:
@@ -239,7 +225,6 @@ class PlcSensor(Sensor):
             "servo_power_press_count": 0,
             "estop_activation_count": 0,
             "current_uptime_seconds": 0,
-            "last_estop_duration_seconds": 0,
             # Encoder data
             "encoder_count": 0,
             "encoder_direction": "forward",
@@ -327,79 +312,30 @@ class PlcSensor(Sensor):
             # Speed in feet per minute (common railroad unit)
             encoder_speed_ftpm = (self._encoder_speed_mmps / 304.8) * 60.0
 
-            # Read button state from coil 0 — the Click PLC sets this when
-            # the blue button is pressed.
-            button_pressed = False
-            try:
-                coil_result = self.client.read_coils(address=0, count=1)
-                if not coil_result.isError():
-                    button_pressed = bool(coil_result.bits[0])
-            except Exception:
-                pass
+            # ── Read state directly from PLC ladder-logic registers ──
+            # DS1 (reg 0):   servo_power_on (1=on, 0=off)
+            # DS113 (reg 112): system_state (0=idle, 1=running, 2=fault, 3=e-stopped)
+            # DS114 (reg 113): last_fault code
+            # DS115 (reg 114): servo_power_press_count
+            # DS116 (reg 115): estop_activation_count
+            servo_on = ecat[0]  # DS1
+            estop_active = ecat[24] == 0  # DS25: estop_off=0 means active
 
-            # E-stop state from register 24: estop_off=1 means normal
-            # (e-stop NOT engaged).  estop_off=0 means e-stop IS active.
-            estop_active = ecat[24] == 0
-
-            # ── Servo power latch ──
-            # Button press latches ON.  E-stop clears to OFF.
-            # After e-stop is released the system returns to idle (latch stays
-            # cleared until the next button press).
-            if estop_active:
-                self._servo_latched = False
-            elif button_pressed:
-                self._servo_latched = True
-
-            # ── Software analytics — edge detection ──
-            # Count rising edges of button press and e-stop activation
-            if button_pressed and not self._prev_button:
-                self._servo_press_count += 1
-            self._prev_button = button_pressed
-
-            if estop_active and not self._prev_estop:
-                self._estop_count += 1
-                self._estop_start = time.time()
-            elif not estop_active and self._prev_estop:
-                if self._estop_start is not None:
-                    self._last_estop_duration = round(time.time() - self._estop_start, 1)
-                    self._estop_start = None
-            self._prev_estop = estop_active
-
-            # ── Derive system state ──
-            fault_code = sensor[13]
-            # Fault code 4 (estop_triggered) is redundant with the estop_off
-            # register and may persist after e-stop is released.  Only treat
-            # it as a real fault when e-stop is actually active.
-            real_fault = fault_code != 0 and not (fault_code == 4 and not estop_active)
-            if estop_active:
-                derived_state = "e-stopped"
-            elif real_fault:
-                derived_state = "fault"
-            elif self._servo_latched:
-                derived_state = "running"
-            else:
-                derived_state = "idle"
+            _STATE_MAP = {0: "idle", 1: "running", 2: "fault", 3: "e-stopped"}
+            derived_state = _STATE_MAP.get(sensor[12], "unknown")  # DS113 = reg 112
+            fault_code = sensor[13]  # DS114 = reg 113
 
             # ── Build readings ──
             readings: Dict[str, Any] = {
                 "connected": True,
                 "fault": derived_state == "fault",
-                "button_state": "pressed" if button_pressed else "released",
             }
 
             # E-Cat cable signals (registers 0-24) with named keys
             for i, name in enumerate(_ECAT_SIGNAL_NAMES):
                 readings[name] = ecat[i]
 
-            # Override servo_power_on and servo_disable based on the software
-            # latch — the Click PLC does NOT update these holding registers.
-            readings["servo_power_on"] = 1 if self._servo_latched else 0
-            readings["servo_disable"] = 0 if self._servo_latched else 1
-            # Mirror to lamp registers so the dashboard E-Cat grid is consistent
-            readings["lamp_servo_power"] = readings["servo_power_on"]
-            readings["lamp_servo_disable"] = readings["servo_disable"]
-
-            # Sensor data (registers 100-117) — zeros on real Click PLC
+            # Sensor data (registers 100-117)
             readings.update({
                 "vibration_x": _int16_to_float(sensor[0]),
                 "vibration_y": _int16_to_float(sensor[1]),
@@ -415,10 +351,9 @@ class PlcSensor(Sensor):
                 "cycle_count": sensor[11],
                 "system_state": derived_state,
                 "last_fault": _FAULT_NAMES.get(fault_code, f"unknown({fault_code})"),
-                "servo_power_press_count": self._servo_press_count,
-                "estop_activation_count": self._estop_count,
+                "servo_power_press_count": sensor[14],  # DS115
+                "estop_activation_count": sensor[15],    # DS116
                 "current_uptime_seconds": round(time.time() - self._start_time),
-                "last_estop_duration_seconds": self._last_estop_duration,
                 # Encoder data (SICK DBS60E-BDEC01000)
                 "encoder_count": encoder_count,
                 "encoder_direction": "forward" if encoder_direction == 0 else "reverse",
