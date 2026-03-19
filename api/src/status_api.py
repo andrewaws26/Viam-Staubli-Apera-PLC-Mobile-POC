@@ -93,7 +93,8 @@ def _read_plc() -> Dict[str, Any]:
             pass
 
         # Servo power latch: button press ON, e-stop clears
-        estop_active = ecat[24] == 1
+        # estop_off=1 means normal; estop_off=0 means e-stop IS active
+        estop_active = ecat[24] == 0
         if estop_active:
             _servo_latched = False
         elif button_pressed:

@@ -254,8 +254,9 @@ class PlcSensor(Sensor):
             except Exception:
                 pass
 
-            # E-stop state from register 24 (1 = e-stop active)
-            estop_active = ecat[24] == 1
+            # E-stop state from register 24: estop_off=1 means normal
+            # (e-stop NOT engaged).  estop_off=0 means e-stop IS active.
+            estop_active = ecat[24] == 0
 
             # ── Servo power latch ──
             # Button press latches ON.  E-stop clears to OFF.
