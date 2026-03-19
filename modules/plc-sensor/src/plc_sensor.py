@@ -122,6 +122,11 @@ class PlcSensor(Sensor):
         self.port = port
         self.client: Optional[ModbusTcpClient] = None
         self._start_time: float = time.time()
+        # Software counters — edge detection on PLC register values
+        self._servo_press_count: int = 0
+        self._estop_count: int = 0
+        self._prev_servo_on: Optional[int] = None   # DS1 previous value
+        self._prev_estop_active: Optional[bool] = None
         # Encoder: distance-per-count derived from wheel diameter
         self._wheel_diameter_mm = wheel_diameter_mm
         wheel_circumference_mm = math.pi * wheel_diameter_mm
@@ -325,6 +330,17 @@ class PlcSensor(Sensor):
             derived_state = _STATE_MAP.get(sensor[12], "unknown")  # DS113 = reg 112
             fault_code = sensor[13]  # DS114 = reg 113
 
+            # ── Software counters — detect rising edges on PLC register values ──
+            # Servo press: count transitions of DS1 from 0→1 (servo toggled on)
+            if self._prev_servo_on is not None and self._prev_servo_on == 0 and servo_on == 1:
+                self._servo_press_count += 1
+            self._prev_servo_on = servo_on
+
+            # E-stop: count transitions from not-active to active
+            if self._prev_estop_active is not None and not self._prev_estop_active and estop_active:
+                self._estop_count += 1
+            self._prev_estop_active = estop_active
+
             # ── Build readings ──
             readings: Dict[str, Any] = {
                 "connected": True,
@@ -351,8 +367,8 @@ class PlcSensor(Sensor):
                 "cycle_count": sensor[11],
                 "system_state": derived_state,
                 "last_fault": _FAULT_NAMES.get(fault_code, f"unknown({fault_code})"),
-                "servo_power_press_count": sensor[14],  # DS115
-                "estop_activation_count": sensor[15],    # DS116
+                "servo_power_press_count": self._servo_press_count,
+                "estop_activation_count": self._estop_count,
                 "current_uptime_seconds": round(time.time() - self._start_time),
                 # Encoder data (SICK DBS60E-BDEC01000)
                 "encoder_count": encoder_count,
