@@ -269,9 +269,13 @@ class PlcSensor(Sensor):
 
             # ── Derive system state ──
             fault_code = sensor[13]
+            # Fault code 4 (estop_triggered) is redundant with the estop_off
+            # register and may persist after e-stop is released.  Only treat
+            # it as a real fault when e-stop is actually active.
+            real_fault = fault_code != 0 and not (fault_code == 4 and not estop_active)
             if estop_active:
                 derived_state = "e-stopped"
-            elif fault_code != 0:
+            elif real_fault:
                 derived_state = "fault"
             elif self._servo_latched:
                 derived_state = "running"

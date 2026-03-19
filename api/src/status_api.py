@@ -102,9 +102,12 @@ def _read_plc() -> Dict[str, Any]:
 
         # Derive system state
         fault_code = sensor[13]
+        # Fault code 4 (estop_triggered) may persist after e-stop release;
+        # only treat it as a real fault when e-stop is actually active.
+        real_fault = fault_code != 0 and not (fault_code == 4 and not estop_active)
         if estop_active:
             system_state = "e-stopped"
-        elif fault_code != 0:
+        elif real_fault:
             system_state = "fault"
         elif _servo_latched:
             system_state = "running"
