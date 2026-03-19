@@ -9,7 +9,7 @@ import { SENSOR_CONFIGS, ECAT_SIGNAL_DEFS, ComponentName } from "../lib/sensors"
 import { ComponentState, FaultEvent, SensorReadings } from "../lib/types";
 import StatusCard from "./StatusCard";
 import AlertBanner from "./AlertBanner";
-import ServoPowerBanner from "./ServoPowerBanner";
+
 import FaultHistory from "./FaultHistory";
 import PlcDetailPanel from "./PlcDetailPanel";
 import ConnectionDot from "./ConnectionDot";
@@ -82,7 +82,6 @@ export default function Dashboard() {
   const [flashKey, setFlashKey] = useState(0); // bumping triggers flash animation
 
   const [isEstop, setIsEstop] = useState(false);
-  const [isServoPowered, setIsServoPowered] = useState(false);
 
   const prevFaultIds = useRef<Set<string>>(new Set());
   const prevEcatSignals = useRef<Record<string, number>>({});
@@ -271,7 +270,6 @@ export default function Dashboard() {
         }
       }
       prevServoPower.current = curServo;
-      setIsServoPowered(curServo === 1);
     }
 
     prevFaultIds.current = currentFaultIds;
@@ -344,11 +342,6 @@ export default function Dashboard() {
         {(activeFaultLabels.length > 0 || isEstop) && (
           <AlertBanner faultNames={activeFaultLabels} isEstop={isEstop} />
         )}
-
-        {/* ---------------------------------------------------------------- */}
-        {/* Servo Power Banner — shown when PLC is connected                 */}
-        {/* ---------------------------------------------------------------- */}
-        {sdkConnected && <ServoPowerBanner isEnergized={isServoPowered} />}
 
         {/* ---------------------------------------------------------------- */}
         {/* Status Grid                                                      */}
