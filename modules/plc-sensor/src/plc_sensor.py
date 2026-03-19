@@ -17,6 +17,7 @@ e-stop clears it back to idle.
 """
 
 import asyncio
+import time
 from typing import Any, ClassVar, Dict, List, Mapping, Optional, Sequence
 
 from pymodbus.client import ModbusTcpClient
@@ -114,6 +115,14 @@ class PlcSensor(Sensor):
         # The Click PLC sets coil 0 on button press but does not update the
         # servo_power_on / servo_disable holding registers.
         self._servo_latched: bool = False
+        # Software-side analytics (PLC registers 114-117 are always zero)
+        self._servo_press_count: int = 0
+        self._estop_count: int = 0
+        self._start_time: float = time.time()
+        self._estop_start: Optional[float] = None
+        self._last_estop_duration: float = 0.0
+        self._prev_button: bool = False
+        self._prev_estop: bool = False
 
     @classmethod
     def new(
@@ -267,6 +276,21 @@ class PlcSensor(Sensor):
             elif button_pressed:
                 self._servo_latched = True
 
+            # ── Software analytics — edge detection ──
+            # Count rising edges of button press and e-stop activation
+            if button_pressed and not self._prev_button:
+                self._servo_press_count += 1
+            self._prev_button = button_pressed
+
+            if estop_active and not self._prev_estop:
+                self._estop_count += 1
+                self._estop_start = time.time()
+            elif not estop_active and self._prev_estop:
+                if self._estop_start is not None:
+                    self._last_estop_duration = round(time.time() - self._estop_start, 1)
+                    self._estop_start = None
+            self._prev_estop = estop_active
+
             # ── Derive system state ──
             fault_code = sensor[13]
             # Fault code 4 (estop_triggered) is redundant with the estop_off
@@ -317,10 +341,10 @@ class PlcSensor(Sensor):
                 "cycle_count": sensor[11],
                 "system_state": derived_state,
                 "last_fault": _FAULT_NAMES.get(fault_code, f"unknown({fault_code})"),
-                "servo_power_press_count": sensor[14],
-                "estop_activation_count": sensor[15],
-                "current_uptime_seconds": sensor[16],
-                "last_estop_duration_seconds": sensor[17],
+                "servo_power_press_count": self._servo_press_count,
+                "estop_activation_count": self._estop_count,
+                "current_uptime_seconds": round(time.time() - self._start_time),
+                "last_estop_duration_seconds": self._last_estop_duration,
             })
 
             return readings
