@@ -8,6 +8,10 @@ C0-10DD2E-D at 192.168.0.10.
 Register map (see docs/click-plc-setup-guide.md for full documentation):
   Registers 0-24:   E-Cat cable signals (25-pin cable pinout)
   Registers 100-117: Optional sensor/analytics data (zero on Click PLC)
+  DD101 (Modbus 16584-16585): Encoder pulse count (32-bit signed, quadrature x4)
+    16584: low 16 bits of DD101
+    16585: high 16 bits of DD101
+    Direction derived from count delta (positive = forward, negative = reverse)
   Coil 0:           Push button state (True = pressed)
 
 The Click PLC sets coil 0 when the blue button is pressed but does NOT
@@ -17,6 +21,7 @@ e-stop clears it back to idle.
 """
 
 import asyncio
+import math
 import time
 from typing import Any, ClassVar, Dict, List, Mapping, Optional, Sequence
 
@@ -71,6 +76,12 @@ _ECAT_SIGNAL_NAMES = [
 # Connection timeout in seconds
 _CONNECT_TIMEOUT = 2
 
+# Encoder constants
+_ENCODER_PPR = 1000          # Pulses per revolution (from SICK DBS60E-BDEC01000 datasheet)
+_ENCODER_QUADRATURE = 4      # Quadrature decoding multiplier (count all A/B edges)
+_ENCODER_COUNTS_PER_REV = _ENCODER_PPR * _ENCODER_QUADRATURE  # 4000
+_DEFAULT_WHEEL_DIAMETER_MM = 152.4  # 6 inches — override via config attribute
+
 
 def _uint16(value: int) -> int:
     """Ensure a register value is treated as unsigned 16-bit integer.
@@ -106,7 +117,8 @@ class PlcSensor(Sensor):
         "plc-sensor",
     )
 
-    def __init__(self, name: str, *, host: str, port: int):
+    def __init__(self, name: str, *, host: str, port: int,
+                 wheel_diameter_mm: float = _DEFAULT_WHEEL_DIAMETER_MM):
         super().__init__(name)
         self.host = host
         self.port = port
@@ -123,6 +135,14 @@ class PlcSensor(Sensor):
         self._last_estop_duration: float = 0.0
         self._prev_button: bool = False
         self._prev_estop: bool = False
+        # Encoder: distance-per-count derived from wheel diameter
+        self._wheel_diameter_mm = wheel_diameter_mm
+        wheel_circumference_mm = math.pi * wheel_diameter_mm
+        self._mm_per_count = wheel_circumference_mm / _ENCODER_COUNTS_PER_REV
+        # Encoder: speed tracking (delta count / delta time)
+        self._prev_encoder_count: Optional[int] = None
+        self._prev_encoder_time: Optional[float] = None
+        self._encoder_speed_mmps: float = 0.0  # mm per second
 
     @classmethod
     def new(
@@ -130,14 +150,19 @@ class PlcSensor(Sensor):
         config: ComponentConfig,
         dependencies: Mapping[ResourceName, ResourceBase],
     ) -> Self:
+        fields = config.attributes.fields
+        wheel_dia = _DEFAULT_WHEEL_DIAMETER_MM
+        if "wheel_diameter_mm" in fields and fields["wheel_diameter_mm"].number_value:
+            wheel_dia = fields["wheel_diameter_mm"].number_value
         sensor = cls(
             config.name,
-            host=config.attributes.fields["host"].string_value or "192.168.0.10",
-            port=int(config.attributes.fields["port"].number_value or 502),
+            host=fields["host"].string_value or "192.168.0.10",
+            port=int(fields["port"].number_value or 502),
+            wheel_diameter_mm=wheel_dia,
         )
         LOGGER.info(
-            "PlcSensor configured: host=%s port=%d",
-            sensor.host, sensor.port,
+            "PlcSensor configured: host=%s port=%d wheel_diameter_mm=%.1f",
+            sensor.host, sensor.port, sensor._wheel_diameter_mm,
         )
         return sensor
 
@@ -215,6 +240,14 @@ class PlcSensor(Sensor):
             "estop_activation_count": 0,
             "current_uptime_seconds": 0,
             "last_estop_duration_seconds": 0,
+            # Encoder data
+            "encoder_count": 0,
+            "encoder_direction": "forward",
+            "encoder_distance_mm": 0.0,
+            "encoder_distance_ft": 0.0,
+            "encoder_speed_mmps": 0.0,
+            "encoder_speed_ftpm": 0.0,
+            "encoder_revolutions": 0.0,
         })
         return readings
 
@@ -252,6 +285,47 @@ class PlcSensor(Sensor):
                     sensor = [_uint16(v) for v in sensor_result.registers]
             except Exception:
                 pass
+
+            # Read encoder count from DD101 (Modbus address 16584, 2 registers)
+            # DD101 is the HSC current count value — 32-bit signed quadrature counter
+            enc_lo, enc_hi = 0, 0
+            try:
+                enc_result = self.client.read_holding_registers(address=16584, count=2)
+                if not enc_result.isError():
+                    enc_lo = _uint16(enc_result.registers[0])
+                    enc_hi = _uint16(enc_result.registers[1])
+            except Exception:
+                pass
+
+            # Combine into signed 32-bit count
+            encoder_count = (enc_hi << 16) | enc_lo
+            if encoder_count > 0x7FFFFFFF:
+                encoder_count -= 0x100000000
+
+            # Derive direction from count delta
+            encoder_direction = 0  # default forward
+            if self._prev_encoder_count is not None:
+                delta = encoder_count - self._prev_encoder_count
+                if delta < 0:
+                    encoder_direction = 1  # reverse
+
+            # Compute distance from encoder count
+            encoder_distance_mm = abs(encoder_count) * self._mm_per_count
+            encoder_distance_ft = encoder_distance_mm / 304.8
+            encoder_revolutions = abs(encoder_count) / _ENCODER_COUNTS_PER_REV
+
+            # Compute speed (mm/s) from delta count / delta time
+            now_ts = time.time()
+            if self._prev_encoder_count is not None and self._prev_encoder_time is not None:
+                dt = now_ts - self._prev_encoder_time
+                if dt > 0.01:  # avoid division by near-zero
+                    delta_counts = abs(encoder_count - self._prev_encoder_count)
+                    self._encoder_speed_mmps = (delta_counts * self._mm_per_count) / dt
+            self._prev_encoder_count = encoder_count
+            self._prev_encoder_time = now_ts
+
+            # Speed in feet per minute (common railroad unit)
+            encoder_speed_ftpm = (self._encoder_speed_mmps / 304.8) * 60.0
 
             # Read button state from coil 0 — the Click PLC sets this when
             # the blue button is pressed.
@@ -345,6 +419,14 @@ class PlcSensor(Sensor):
                 "estop_activation_count": self._estop_count,
                 "current_uptime_seconds": round(time.time() - self._start_time),
                 "last_estop_duration_seconds": self._last_estop_duration,
+                # Encoder data (SICK DBS60E-BDEC01000)
+                "encoder_count": encoder_count,
+                "encoder_direction": "forward" if encoder_direction == 0 else "reverse",
+                "encoder_distance_mm": round(encoder_distance_mm, 1),
+                "encoder_distance_ft": round(encoder_distance_ft, 2),
+                "encoder_speed_mmps": round(self._encoder_speed_mmps, 1),
+                "encoder_speed_ftpm": round(encoder_speed_ftpm, 1),
+                "encoder_revolutions": round(encoder_revolutions, 2),
             })
 
             return readings

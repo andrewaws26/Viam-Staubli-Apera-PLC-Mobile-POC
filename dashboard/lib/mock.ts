@@ -11,9 +11,17 @@ interface MockState {
   faultComponent: ComponentName | null;
   faultUntil: number;
   servoActive: boolean;
+  encoderCount: number;
+  encoderStartTime: number;
 }
 
-const state: MockState = { faultComponent: null, faultUntil: 0, servoActive: false };
+const state: MockState = {
+  faultComponent: null,
+  faultUntil: 0,
+  servoActive: false,
+  encoderCount: 0,
+  encoderStartTime: Date.now(),
+};
 
 // Allows the test-fault button to inject a specific component fault
 export function injectFault(componentName: ComponentName) {
@@ -90,6 +98,24 @@ export function getMockReadings(componentName: ComponentName): SensorReadings {
         servo2_position: Math.random() > 0.5 ? 90 : 0,
         cycle_count: 47 + Math.floor(Math.random() * 10),
       };
+
+      // Simulate encoder: when servo is active, encoder advances (~2 ft/s track speed)
+      if (servoOn) {
+        state.encoderCount += Math.floor(800 + Math.random() * 200); // ~1000 counts/poll
+      }
+      const wheelCircMm = Math.PI * 152.4; // 6-inch wheel
+      const mmPerCount = wheelCircMm / 4000;
+      const distMm = state.encoderCount * mmPerCount;
+      const distFt = distMm / 304.8;
+      const speedMmps = servoOn ? 500 + Math.random() * 100 : 0;
+      const speedFtpm = (speedMmps / 304.8) * 60;
+      readings["encoder_count"] = state.encoderCount;
+      readings["encoder_direction"] = "forward";
+      readings["encoder_distance_mm"] = +distMm.toFixed(1);
+      readings["encoder_distance_ft"] = +distFt.toFixed(2);
+      readings["encoder_speed_mmps"] = servoOn ? +speedMmps.toFixed(1) : 0;
+      readings["encoder_speed_ftpm"] = servoOn ? +speedFtpm.toFixed(1) : 0;
+      readings["encoder_revolutions"] = +(state.encoderCount / 4000).toFixed(2);
 
       // Add E-Cat signal mock values — derive from system state
       for (const { key } of ECAT_SIGNAL_DEFS) {

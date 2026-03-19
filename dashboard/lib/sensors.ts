@@ -109,6 +109,26 @@ export const PLC_DETAIL_FIELDS: {
 ];
 
 // ---------------------------------------------------------------------------
+// Encoder detail fields — displayed in a dedicated panel section.
+// The plc-sensor module computes distance/speed from raw encoder counts
+// using the configured wheel diameter.
+// ---------------------------------------------------------------------------
+export const ENCODER_DETAIL_FIELDS: {
+  key: string;
+  label: string;
+  unit?: string;
+  highlight?: boolean;
+}[] = [
+  { key: "encoder_distance_ft", label: "Distance Traveled", unit: "ft", highlight: true },
+  { key: "encoder_speed_ftpm", label: "Track Speed", unit: "ft/min", highlight: true },
+  { key: "encoder_direction", label: "Direction" },
+  { key: "encoder_count", label: "Raw Pulse Count" },
+  { key: "encoder_revolutions", label: "Wheel Revolutions" },
+  { key: "encoder_distance_mm", label: "Distance (metric)", unit: "mm" },
+  { key: "encoder_speed_mmps", label: "Speed (metric)", unit: "mm/s" },
+];
+
+// ---------------------------------------------------------------------------
 // E-Cat signal definitions for the 25-pin cable status grid.
 // Each entry maps a reading key to a display label and pin number.
 // ---------------------------------------------------------------------------

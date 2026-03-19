@@ -23,7 +23,8 @@
       "model": "viam-staubli-apera-poc:monitor:plc-sensor",
       "attributes": {
         "host": "192.168.0.10",
-        "port": 502
+        "port": 502,
+        "wheel_diameter_mm": 152.4
       },
       "depends_on": [],
       "service_configs": [

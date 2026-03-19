@@ -1,5 +1,5 @@
 import { SensorReadings } from "../lib/types";
-import { PLC_DETAIL_FIELDS, ECAT_SIGNAL_DEFS } from "../lib/sensors";
+import { PLC_DETAIL_FIELDS, ECAT_SIGNAL_DEFS, ENCODER_DETAIL_FIELDS } from "../lib/sensors";
 
 interface Props {
   readings: SensorReadings | null;
@@ -74,7 +74,50 @@ export default function PlcDetailPanel({ readings }: Props) {
         </div>
       </div>
 
-      {/* Section 2: E-Cat Signal Status */}
+      {/* Section 2: Encoder / Track Distance */}
+      <div className="border border-gray-800 rounded-2xl p-6">
+        <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-4">
+          Encoder — Track Distance
+        </h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-3">
+          {ENCODER_DETAIL_FIELDS.map(({ key, label, unit, highlight }) => {
+            const val = readings[key];
+            if (val === undefined) return null;
+            const isDirection = key === "encoder_direction";
+            const dirColor =
+              isDirection && val === "forward"
+                ? "text-green-400"
+                : isDirection && val === "reverse"
+                ? "text-yellow-400"
+                : "";
+            return (
+              <div key={key} className="flex flex-col">
+                <span className="text-xs text-gray-600 uppercase tracking-wide">
+                  {label}
+                </span>
+                <span
+                  className={[
+                    "font-mono font-bold",
+                    highlight ? "text-lg text-blue-400" : "text-sm text-gray-200",
+                    dirColor,
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                >
+                  {String(val)}
+                  {unit && (
+                    <span className="text-gray-600 font-normal ml-0.5 text-sm">
+                      {unit}
+                    </span>
+                  )}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Section 3: E-Cat Signal Status */}
       <div className="border border-gray-800 rounded-2xl p-6">
         <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-4">
           E-Cat Signal Status
