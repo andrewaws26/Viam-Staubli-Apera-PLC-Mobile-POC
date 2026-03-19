@@ -23,11 +23,13 @@ export function injectFault(componentName: ComponentName) {
   state.servoActive = false;
 }
 
-// Toggle servo power (simulates pressing the blue Fuji AR22F0L push button)
+// Latch servo power ON (simulates pressing the blue Fuji AR22F0L push button).
+// Power stays on until e-stop (fault injection) kills it — matches real hardware.
 export function toggleServo() {
   // Reject if PLC is currently faulted
   if (state.faultComponent === VIAM_COMPONENT_NAMES.plc) return;
-  state.servoActive = !state.servoActive;
+  // Latch ON — only e-stop / fault can turn it off
+  state.servoActive = true;
 }
 
 export function getMockReadings(componentName: ComponentName): SensorReadings {
