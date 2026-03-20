@@ -54,8 +54,7 @@ export const ENCODER_DETAIL_FIELDS: {
   { key: "encoder_direction", label: "Direction" },
   { key: "encoder_count", label: "Raw Pulse Count" },
   { key: "encoder_revolutions", label: "Wheel Revolutions" },
-  { key: "encoder_distance_mm", label: "Distance (metric)", unit: "mm" },
-  { key: "encoder_speed_mmps", label: "Speed (metric)", unit: "mm/s" },
+  { key: "shift_hours", label: "Shift Hours", unit: "hrs" },
 ];
 
 // ---------------------------------------------------------------------------

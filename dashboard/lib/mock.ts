@@ -57,12 +57,16 @@ export function getMockReadings(componentName: ComponentName): SensorReadings {
       const powerOn = state.tpsPowerOn && !isFaulted;
       const systemState = isFaulted ? "fault" : powerOn ? "running" : "idle";
 
+      const uptimeS = Math.floor((now - state.encoderStartTime) / 1000);
       const readings: SensorReadings = {
+        truck_id: "truck-dev",
+        session_id: "mock0001",
         connected: !isFaulted,
         fault: isFaulted,
         system_state: systemState,
         last_fault: isFaulted ? "connection_lost" : "none",
-        current_uptime_seconds: Math.floor((now - state.encoderStartTime) / 1000),
+        uptime_seconds: uptimeS,
+        shift_hours: +(uptimeS / 3600).toFixed(2),
         total_reads: 0,
         total_errors: 0,
       };
@@ -98,24 +102,19 @@ export function getMockReadings(componentName: ComponentName): SensorReadings {
       const speedFtpm = (speedMmps / 304.8) * 60;
       readings["encoder_count"] = state.encoderCount;
       readings["encoder_direction"] = "forward";
-      readings["encoder_distance_mm"] = +distMm.toFixed(1);
       readings["encoder_distance_ft"] = +distFt.toFixed(2);
-      readings["encoder_speed_mmps"] = powerOn ? +speedMmps.toFixed(1) : 0;
       readings["encoder_speed_ftpm"] = powerOn ? +speedFtpm.toFixed(1) : 0;
       readings["encoder_revolutions"] = +(state.encoderCount / 1000).toFixed(2);
+      readings["shift_hours"] = +(uptimeS / 3600).toFixed(2);
 
       // Plate drop spacing diagnostics (mock)
       readings["last_drop_spacing_ft"] = powerOn ? +(38 + Math.random() * 4).toFixed(2) : 0;
-      readings["last_drop_spacing_mm"] = powerOn ? +(11582 + Math.random() * 1200).toFixed(1) : 0;
       readings["last_drop_encoder_count"] = powerOn ? Math.floor(30000 + Math.random() * 5000) : 0;
       readings["avg_drop_spacing_ft"] = powerOn ? 39.5 : 0;
       readings["min_drop_spacing_ft"] = powerOn ? 37.2 : 0;
       readings["max_drop_spacing_ft"] = powerOn ? 42.1 : 0;
-      readings["drop_spacing_history_ft"] = powerOn
-        ? Array.from({ length: 12 }, () => +(37 + Math.random() * 6).toFixed(2))
-        : [];
+      readings["drop_count_in_window"] = powerOn ? 12 : 0;
       readings["distance_since_last_drop_ft"] = powerOn ? +(Math.random() * 42).toFixed(2) : 0;
-      readings["distance_since_last_drop_mm"] = powerOn ? +(Math.random() * 12800).toFixed(1) : 0;
 
       // DS Holding Registers (mock values)
       for (let i = 1; i <= 25; i++) {

@@ -17,9 +17,8 @@ export default function PlcDetailPanel({ readings }: Props) {
     return null;
   }
 
-  // Plate drop spacing history for the bar chart
-  const spacingHistory = (readings["drop_spacing_history_ft"] ?? []) as number[];
   const targetSpacing = readings["ds2"] as number | undefined;
+  const dropCount = (readings["drop_count_in_window"] ?? 0) as number;
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -202,49 +201,46 @@ export default function PlcDetailPanel({ readings }: Props) {
           );
         })()}
 
-        {/* Spacing bar chart — last 20 drops */}
-        {spacingHistory.length > 0 ? (
+        {/* Spacing summary stats */}
+        {dropCount > 0 ? (
           <div className="mt-3">
             <p className="text-[10px] sm:text-xs text-gray-600 uppercase tracking-wide mb-2">
-              Last {spacingHistory.length} drop spacings (ft)
+              Drop Spacing Summary — last {dropCount} drops
             </p>
-            <div className="flex items-end gap-1 h-24 sm:h-32">
-              {spacingHistory.map((spacing, i) => {
-                const maxSpacing = Math.max(...spacingHistory, 1);
-                const heightPct = (spacing / maxSpacing) * 100;
-                // Color: green if within 10% of target, yellow if 10-20%, red if >20%
-                let barColor = "bg-gray-500";
-                if (targetSpacing && targetSpacing > 0) {
-                  const deviation = Math.abs(spacing - targetSpacing) / targetSpacing;
-                  if (deviation <= 0.1) barColor = "bg-green-500";
-                  else if (deviation <= 0.2) barColor = "bg-yellow-500";
-                  else barColor = "bg-red-500";
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { label: "Last", key: "last_drop_spacing_ft" },
+                { label: "Avg", key: "avg_drop_spacing_ft" },
+                { label: "Min", key: "min_drop_spacing_ft" },
+                { label: "Max", key: "max_drop_spacing_ft" },
+              ].map(({ label, key }) => {
+                const val = readings[key] as number | undefined;
+                let color = "text-gray-200";
+                if (targetSpacing && targetSpacing > 0 && val !== undefined && val > 0) {
+                  const deviation = Math.abs(val - targetSpacing) / targetSpacing;
+                  if (deviation <= 0.1) color = "text-green-400";
+                  else if (deviation <= 0.2) color = "text-yellow-400";
+                  else color = "text-red-400";
                 }
                 return (
-                  <div
-                    key={i}
-                    className="flex-1 flex flex-col items-center gap-0.5"
-                  >
-                    <span className="text-[8px] sm:text-[10px] text-gray-600 font-mono">
-                      {spacing.toFixed(1)}
+                  <div key={key} className="flex flex-col min-w-0">
+                    <span className="text-[10px] sm:text-xs text-gray-600 uppercase tracking-wide">{label}</span>
+                    <span className={`font-mono font-bold text-sm ${color}`}>
+                      {val !== undefined ? val.toFixed(1) : "—"} ft
                     </span>
-                    <div
-                      className={`w-full rounded-t ${barColor} min-h-[2px]`}
-                      style={{ height: `${heightPct}%` }}
-                    />
                   </div>
                 );
               })}
             </div>
             {targetSpacing !== undefined && targetSpacing > 0 && (
-              <p className="text-[10px] text-gray-600 mt-1">
-                Target: <span className="text-amber-500 font-mono">{targetSpacing}</span> (from DS2 — Tie Spacing Setting)
+              <p className="text-[10px] text-gray-600 mt-2">
+                Target: <span className="text-amber-500 font-mono">{targetSpacing}</span> (DS2)
                 {" · "}
-                <span className="text-green-500">■</span> ±10%
+                <span className="text-green-400">■</span> ±10%
                 {" "}
-                <span className="text-yellow-500">■</span> ±20%
+                <span className="text-yellow-400">■</span> ±20%
                 {" "}
-                <span className="text-red-500">■</span> &gt;20% off
+                <span className="text-red-400">■</span> &gt;20% off
               </p>
             )}
           </div>

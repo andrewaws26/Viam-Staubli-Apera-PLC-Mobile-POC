@@ -26,6 +26,7 @@ import json
 import math
 import os
 import time
+import uuid
 from typing import Any, ClassVar, Deque, Dict, Mapping, Optional, Sequence
 
 from pymodbus.client import ModbusTcpClient
@@ -153,12 +154,15 @@ class PlcSensor(Sensor):
     def __init__(self, name: str, *, host: str, port: int,
                  wheel_diameter_mm: float = _DEFAULT_WHEEL_DIAMETER_MM,
                  offline_buffer_dir: Optional[str] = None,
-                 offline_buffer_max_mb: float = _DEFAULT_BUFFER_MAX_MB):
+                 offline_buffer_max_mb: float = _DEFAULT_BUFFER_MAX_MB,
+                 truck_id: str = "truck-00"):
         super().__init__(name)
         self.host = host
         self.port = port
         self.client: Optional[ModbusTcpClient] = None
         self._start_time: float = time.time()
+        self._session_id: str = uuid.uuid4().hex[:8]  # unique per power cycle
+        self._truck_id: str = truck_id
         # Offline buffer — persists readings to local disk across reboots
         self._offline_buffer: Optional[OfflineBuffer] = None
         if offline_buffer_dir:
@@ -202,6 +206,9 @@ class PlcSensor(Sensor):
         buf_max_mb = _DEFAULT_BUFFER_MAX_MB
         if "offline_buffer_max_mb" in fields and fields["offline_buffer_max_mb"].number_value:
             buf_max_mb = fields["offline_buffer_max_mb"].number_value
+        truck_id = "truck-00"
+        if "truck_id" in fields and fields["truck_id"].string_value:
+            truck_id = fields["truck_id"].string_value
         sensor = cls(
             config.name,
             host=fields["host"].string_value or "192.168.0.10",
@@ -209,6 +216,7 @@ class PlcSensor(Sensor):
             wheel_diameter_mm=wheel_dia,
             offline_buffer_dir=buf_dir,
             offline_buffer_max_mb=buf_max_mb,
+            truck_id=truck_id,
         )
         LOGGER.info(
             "PlcSensor configured: host=%s port=%d wheel_diameter_mm=%.1f buffer=%s",
@@ -302,28 +310,29 @@ class PlcSensor(Sensor):
                 self.host,
             )
 
-    @staticmethod
-    def _disconnected_readings(reason: str) -> Mapping[str, SensorReading]:
+    def _disconnected_readings(self, reason: str) -> Mapping[str, SensorReading]:
         """Return a full readings dict with connected=False and all values zeroed.
 
         Must match the same keys returned by get_readings() so the dashboard
         always receives a consistent schema.
         """
         readings: Dict[str, Any] = {
+            # Identity & session
+            "truck_id": self._truck_id,
+            "session_id": self._session_id,
             # System health
             "connected": False,
             "fault": True,
             "system_state": "disconnected",
             "last_fault": reason,
-            "current_uptime_seconds": 0,
-            "total_reads": 0,
-            "total_errors": 0,
+            "uptime_seconds": round(time.time() - self._start_time),
+            "shift_hours": round((time.time() - self._start_time) / 3600.0, 2),
+            "total_reads": self._total_reads,
+            "total_errors": self._total_errors,
             # Encoder & Track Distance
             "encoder_count": 0,
             "encoder_direction": "forward",
-            "encoder_distance_mm": 0.0,
             "encoder_distance_ft": 0.0,
-            "encoder_speed_mmps": 0.0,
             "encoder_speed_ftpm": 0.0,
             "encoder_revolutions": 0.0,
             # TPS Machine Status
@@ -344,14 +353,12 @@ class PlcSensor(Sensor):
             "plate_drop_count": 0,
             # Plate drop spacing diagnostics
             "last_drop_spacing_ft": 0.0,
-            "last_drop_spacing_mm": 0.0,
             "last_drop_encoder_count": 0,
             "avg_drop_spacing_ft": 0.0,
             "min_drop_spacing_ft": 0.0,
             "max_drop_spacing_ft": 0.0,
-            "drop_spacing_history_ft": [],
+            "drop_count_in_window": 0,
             "distance_since_last_drop_ft": 0.0,
-            "distance_since_last_drop_mm": 0.0,
             # Discrete inputs (raw)
             "x1": False,
             "x2": False,
@@ -513,21 +520,24 @@ class PlcSensor(Sensor):
             system_state = "running" if tps_power_loop else "idle"
 
             # ── Build readings — everything the PLC exposes ──
+            uptime_s = round(time.time() - self._start_time)
             readings: Dict[str, Any] = {
+                # Identity & session — critical for fleet queries
+                "truck_id": self._truck_id,
+                "session_id": self._session_id,
                 # System health
                 "connected": True,
                 "fault": False,
                 "system_state": system_state,
                 "last_fault": "none",
-                "current_uptime_seconds": round(time.time() - self._start_time),
+                "uptime_seconds": uptime_s,
+                "shift_hours": round(uptime_s / 3600.0, 2),
                 "total_reads": self._total_reads,
                 "total_errors": self._total_errors,
                 # Encoder & Track Distance (DD1 + derived)
                 "encoder_count": encoder_count,
                 "encoder_direction": "forward" if encoder_direction == 0 else "reverse",
-                "encoder_distance_mm": round(encoder_distance_mm, 1),
                 "encoder_distance_ft": round(encoder_distance_ft, 2),
-                "encoder_speed_mmps": round(self._encoder_speed_mmps, 1),
                 "encoder_speed_ftpm": round(encoder_speed_ftpm, 1),
                 "encoder_revolutions": round(encoder_revolutions, 2),
                 # TPS Machine Status (discrete inputs + internal coils)
@@ -546,17 +556,15 @@ class PlcSensor(Sensor):
                 # TPS Production (derived from coil transitions)
                 "plates_per_minute": round(plates_per_minute, 1),
                 "plate_drop_count": self._plate_drop_count,
-                # Plate drop spacing diagnostics — encoder-based
+                # Plate drop spacing diagnostics — summary stats (not full history)
                 "last_drop_spacing_ft": self._drop_spacings_ft[-1] if self._drop_spacings_ft else 0.0,
-                "last_drop_spacing_mm": self._drop_spacings_mm[-1] if self._drop_spacings_mm else 0.0,
                 "last_drop_encoder_count": self._drop_encoder_counts[-1] if self._drop_encoder_counts else 0,
                 "avg_drop_spacing_ft": round(sum(self._drop_spacings_ft) / len(self._drop_spacings_ft), 2) if self._drop_spacings_ft else 0.0,
                 "min_drop_spacing_ft": min(self._drop_spacings_ft) if self._drop_spacings_ft else 0.0,
                 "max_drop_spacing_ft": max(self._drop_spacings_ft) if self._drop_spacings_ft else 0.0,
-                "drop_spacing_history_ft": list(self._drop_spacings_ft),
+                "drop_count_in_window": len(self._drop_spacings_ft),
                 # Live sync tracking — distance accumulating since last plate drop
                 "distance_since_last_drop_ft": round(distance_since_last_drop_ft, 2),
-                "distance_since_last_drop_mm": round(distance_since_last_drop_mm, 1),
                 # DS Holding Registers — all 25 from Click PLC ladder logic
                 "ds1": ds[0],
                 "ds2": ds[1],

@@ -15,6 +15,7 @@
         "host": "169.168.10.21",
         "port": 502,
         "wheel_diameter_mm": 406.4,
+        "truck_id": "truck-dev",
         "offline_buffer_dir": "/home/andrew/.viam/offline-buffer",
         "offline_buffer_max_mb": 50
       },
