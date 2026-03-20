@@ -179,6 +179,31 @@ function runChecks(r: SensorReadings): DiagnosticCheck[] {
     }
   }
 
+  // ── Predictive Sync — is the next drop going to be late? ──
+  const distSinceLastDrop = typeof r.distance_since_last_drop_ft === "number" ? r.distance_since_last_drop_ft : 0;
+
+  if (tpsPower && targetSpacing > 0 && distSinceLastDrop > 0) {
+    const pctOfTarget = distSinceLastDrop / targetSpacing;
+
+    if (pctOfTarget > 1.2) {
+      // Already 20% past where the drop should have happened — it's late
+      checks.push({
+        id: "drop-overdue",
+        label: "Next Drop OVERDUE",
+        severity: "error",
+        message: `Traveled ${distSinceLastDrop.toFixed(1)} ft since last drop — ${((pctOfTarget - 1) * 100).toFixed(0)}% past target of ${targetSpacing} ft. Plate dropper missed or encoder lost sync.`,
+      });
+    } else if (pctOfTarget > 1.05) {
+      // 5% past target — drop should have fired by now
+      checks.push({
+        id: "drop-late",
+        label: "Next Drop Late",
+        severity: "warn",
+        message: `Traveled ${distSinceLastDrop.toFixed(1)} ft since last drop — past target of ${targetSpacing} ft. Drop should have fired. Possible sync lag.`,
+      });
+    }
+  }
+
   // ── Uptime / Error Rate ──
   const totalReads = typeof r.total_reads === "number" ? r.total_reads : 0;
   const totalErrors = typeof r.total_errors === "number" ? r.total_errors : 0;

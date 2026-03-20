@@ -114,6 +114,8 @@ export function getMockReadings(componentName: ComponentName): SensorReadings {
       readings["drop_spacing_history_ft"] = powerOn
         ? Array.from({ length: 12 }, () => +(37 + Math.random() * 6).toFixed(2))
         : [];
+      readings["distance_since_last_drop_ft"] = powerOn ? +(Math.random() * 42).toFixed(2) : 0;
+      readings["distance_since_last_drop_mm"] = powerOn ? +(Math.random() * 12800).toFixed(1) : 0;
 
       // DS Holding Registers (mock values)
       for (let i = 1; i <= 25; i++) {

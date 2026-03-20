@@ -152,6 +152,56 @@ export default function PlcDetailPanel({ readings }: Props) {
           })}
         </div>
 
+        {/* Live progress toward next drop */}
+        {targetSpacing !== undefined && targetSpacing > 0 && (() => {
+          const distSinceLast = (readings["distance_since_last_drop_ft"] ?? 0) as number;
+          const pct = Math.min((distSinceLast / targetSpacing) * 100, 150);
+          const isOverdue = pct > 105;
+          const isLate = pct > 120;
+          const barColor = isLate
+            ? "bg-red-500"
+            : isOverdue
+            ? "bg-yellow-500"
+            : "bg-blue-500";
+          return (
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] sm:text-xs text-gray-600 uppercase tracking-wide">
+                  Next Drop Progress
+                </span>
+                <span className={[
+                  "text-xs font-mono font-bold",
+                  isLate ? "text-red-400" : isOverdue ? "text-yellow-400" : "text-blue-400",
+                ].join(" ")}>
+                  {distSinceLast.toFixed(1)} / {targetSpacing} ft
+                  {isLate && " — OVERDUE"}
+                  {isOverdue && !isLate && " — LATE"}
+                </span>
+              </div>
+              <div className="w-full h-3 sm:h-4 bg-gray-800 rounded-full overflow-hidden relative">
+                {/* Target marker */}
+                <div
+                  className="absolute top-0 bottom-0 w-0.5 bg-amber-400 z-10"
+                  style={{ left: `${Math.min(100 / (pct > 100 ? pct / 100 : 1), 100)}%` }}
+                  title={`Target: ${targetSpacing} ft`}
+                />
+                {/* Progress fill */}
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${barColor}`}
+                  style={{ width: `${Math.min(pct, 100)}%` }}
+                />
+                {/* Overflow indicator if past 100% */}
+                {pct > 100 && (
+                  <div
+                    className="absolute top-0 bottom-0 right-0 bg-red-500/30 animate-pulse"
+                    style={{ width: `${Math.min(pct - 100, 50)}%` }}
+                  />
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Spacing bar chart — last 20 drops */}
         {spacingHistory.length > 0 ? (
           <div className="mt-3">

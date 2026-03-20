@@ -350,6 +350,8 @@ class PlcSensor(Sensor):
             "min_drop_spacing_ft": 0.0,
             "max_drop_spacing_ft": 0.0,
             "drop_spacing_history_ft": [],
+            "distance_since_last_drop_ft": 0.0,
+            "distance_since_last_drop_mm": 0.0,
             # Discrete inputs (raw)
             "x1": False,
             "x2": False,
@@ -487,6 +489,17 @@ class PlcSensor(Sensor):
                     )
             self._prev_eject_tps1 = eject_tps_1
 
+            # ── Distance since last drop — for predictive sync monitoring ──
+            # Compares current encoder position to last drop position.
+            # If this exceeds DS2 target without Y1 firing, the dropper is late.
+            if self._drop_encoder_counts:
+                counts_since_last_drop = abs(encoder_count - self._drop_encoder_counts[-1])
+                distance_since_last_drop_mm = counts_since_last_drop * self._mm_per_count
+                distance_since_last_drop_ft = distance_since_last_drop_mm / 304.8
+            else:
+                distance_since_last_drop_mm = 0.0
+                distance_since_last_drop_ft = 0.0
+
             # Expire old entries outside the rolling window
             cutoff = now_ts - _PLATE_DROP_WINDOW_SECONDS
             while self._plate_drop_times and self._plate_drop_times[0] < cutoff:
@@ -541,6 +554,9 @@ class PlcSensor(Sensor):
                 "min_drop_spacing_ft": min(self._drop_spacings_ft) if self._drop_spacings_ft else 0.0,
                 "max_drop_spacing_ft": max(self._drop_spacings_ft) if self._drop_spacings_ft else 0.0,
                 "drop_spacing_history_ft": list(self._drop_spacings_ft),
+                # Live sync tracking — distance accumulating since last plate drop
+                "distance_since_last_drop_ft": round(distance_since_last_drop_ft, 2),
+                "distance_since_last_drop_mm": round(distance_since_last_drop_mm, 1),
                 # DS Holding Registers — all 25 from Click PLC ladder logic
                 "ds1": ds[0],
                 "ds2": ds[1],
