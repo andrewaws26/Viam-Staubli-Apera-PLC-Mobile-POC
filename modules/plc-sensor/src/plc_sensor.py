@@ -412,6 +412,11 @@ class PlcSensor(Sensor):
             if encoder_count > 0x7FFFFFFF:
                 encoder_count -= 0x100000000
 
+            # Invert sign: the SICK DBS60E is mounted so that forward truck
+            # motion produces decreasing (negative) counts.  Negate so that
+            # positive count = forward travel, matching the dashboard display.
+            encoder_count = -encoder_count
+
             # Derive direction from count delta
             encoder_direction = 0  # default forward
             if self._prev_encoder_count is not None:
