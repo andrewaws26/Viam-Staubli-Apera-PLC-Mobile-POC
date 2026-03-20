@@ -7,7 +7,10 @@ LOG="/var/log/tps-watchdog.log"
 FIX_LOG="/var/log/claude-fixes.log"
 PROJECT_DIR="$HOME/Viam-Staubli-Apera-PLC-Mobile-POC"
 INCIDENTS_DIR="$PROJECT_DIR/scripts/incidents"
+FAIL_COUNT_FILE="/tmp/tps-watchdog-fail-count"
 MAX_READING_AGE=300  # seconds — alert if no reading in 5 min
+GRACE_PERIOD=180     # seconds — suppress alerts after viam-server restart
+REQUIRED_FAILURES=2  # consecutive check failures before alerting Claude
 PLC_HOST="169.168.10.21"
 PLC_PORT=502
 
@@ -19,6 +22,19 @@ log() { echo "[$(timestamp)] $1" >> "$LOG"; }
 if [ -f "$MAINTENANCE_FLAG" ]; then
     log "SKIP: Maintenance mode active (flag exists)"
     exit 0
+fi
+
+# --- Grace period: suppress alerts if viam-server recently restarted ---
+if systemctl is-active --quiet viam-server; then
+    VIAM_PID=$(systemctl show -p MainPID --value viam-server 2>/dev/null)
+    if [ -n "$VIAM_PID" ] && [ "$VIAM_PID" -gt 0 ] 2>/dev/null; then
+        UPTIME_SECS=$(ps -o etimes= -p "$VIAM_PID" 2>/dev/null | tr -d ' ')
+        if [ -n "$UPTIME_SECS" ] && [ "$UPTIME_SECS" -lt "$GRACE_PERIOD" ]; then
+            log "SKIP: viam-server recently restarted (uptime ${UPTIME_SECS}s < ${GRACE_PERIOD}s grace period)"
+            echo "0" > "$FAIL_COUNT_FILE"
+            exit 0
+        fi
+    fi
 fi
 
 ISSUES=""
@@ -48,13 +64,11 @@ else
 fi
 
 # --- Check 4: Is data flowing? (check capture dir for recent files) ---
-# The data_manager writes .prog files (active) and rotates them to .capture
-# (then syncs and deletes). So we check BOTH .prog and .capture files.
-# A .prog file stuck at <=100 bytes means the pipeline is stalled (header only).
+# Viam data_manager writes .prog files (in-progress) and rotates to .capture (completed).
+# After sync, .capture files are deleted. So .prog files are the primary indicator.
 CAPTURE_DIR="$HOME/.viam/capture"
 if [ -d "$CAPTURE_DIR" ]; then
-    # Check for any recently-modified capture or prog files
-    NEWEST=$(find "$CAPTURE_DIR" -type f \( -name "*.capture" -o -name "*.prog" \) -mmin -5 2>/dev/null | head -1)
+    NEWEST=$(find "$CAPTURE_DIR" -type f \( -name "*.prog" -o -name "*.capture" \) -mmin -5 2>/dev/null | head -1)
     if [ -n "$NEWEST" ]; then
         # Found recent files — but is the active .prog actually growing?
         ACTIVE_PROG=$(find "$CAPTURE_DIR" -type f -name "*.prog" 2>/dev/null | sort | tail -1)
@@ -71,8 +85,14 @@ if [ -d "$CAPTURE_DIR" ]; then
             log "OK: Recent capture data found"
         fi
     else
-        ISSUES="${ISSUES}No capture data in last 5 minutes. "
-        log "FAIL: No recent capture data"
+        # Secondary check: plate drop logs prove PLC reads are working
+        PLATE_DROPS=$(journalctl -u viam-server --since "5 min ago" --no-pager 2>/dev/null | grep -c "Plate drop\|📍" || echo 0)
+        if [ "$PLATE_DROPS" -gt 0 ]; then
+            log "OK: No recent capture files but $PLATE_DROPS plate drops in logs — system active"
+        else
+            ISSUES="${ISSUES}No capture data in last 5 minutes. "
+            log "FAIL: No recent capture data"
+        fi
     fi
 else
     ISSUES="${ISSUES}Capture directory $CAPTURE_DIR does not exist. "
@@ -100,9 +120,19 @@ else
     exit 1
 fi
 
-# --- If issues found, call Claude ---
+# --- If issues found, apply hysteresis then call Claude ---
 if [ -n "$ISSUES" ]; then
-    log "ISSUES DETECTED: $ISSUES"
+    # Hysteresis: require REQUIRED_FAILURES consecutive failures before alerting
+    PREV_FAILS=$(cat "$FAIL_COUNT_FILE" 2>/dev/null || echo 0)
+    PREV_FAILS=$((PREV_FAILS + 1))
+    echo "$PREV_FAILS" > "$FAIL_COUNT_FILE"
+
+    if [ "$PREV_FAILS" -lt "$REQUIRED_FAILURES" ]; then
+        log "ISSUES DETECTED (attempt $PREV_FAILS/$REQUIRED_FAILURES, waiting for confirmation): $ISSUES"
+        exit 0
+    fi
+
+    log "ISSUES CONFIRMED ($PREV_FAILS consecutive failures): $ISSUES"
     log "Calling Claude for auto-fix..."
 
     cd "$PROJECT_DIR" || exit 1
@@ -183,5 +213,7 @@ Diagnose the issues and attempt safe fixes. Be conservative — if unsure, just 
         log "Claude fix attempt exited with code $RESULT"
     fi
 else
+    # All checks passed — reset fail counter
+    echo "0" > "$FAIL_COUNT_FILE"
     log "ALL CHECKS PASSED"
 fi
