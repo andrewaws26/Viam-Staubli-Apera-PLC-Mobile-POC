@@ -8,9 +8,13 @@ FIX_LOG="/var/log/claude-fixes.log"
 PROJECT_DIR="$HOME/Viam-Staubli-Apera-PLC-Mobile-POC"
 INCIDENTS_DIR="$PROJECT_DIR/scripts/incidents"
 FAIL_COUNT_FILE="/tmp/tps-watchdog-fail-count"
+ISSUE_HASH_FILE="/tmp/tps-watchdog-issue-hash"
+REPEAT_COUNT_FILE="/tmp/tps-watchdog-repeat-count"
 MAX_READING_AGE=300  # seconds — alert if no reading in 5 min
 GRACE_PERIOD=180     # seconds — suppress alerts after viam-server restart
 REQUIRED_FAILURES=2  # consecutive check failures before alerting Claude
+SUPPRESS_AFTER=3     # consecutive identical alerts before suppressing
+SUPPRESS_INTERVAL=12 # only alert every Nth check when suppressed (12 × 5min = 1 hour)
 PLC_HOST="169.168.10.21"
 PLC_PORT=502
 
@@ -133,6 +137,31 @@ if [ -n "$ISSUES" ]; then
     fi
 
     log "ISSUES CONFIRMED ($PREV_FAILS consecutive failures): $ISSUES"
+
+    # --- Alert suppression: skip if same issue keeps repeating ---
+    ISSUE_HASH=$(echo "$ISSUES" | md5sum | cut -d' ' -f1)
+    PREV_HASH=$(cat "$ISSUE_HASH_FILE" 2>/dev/null || echo "")
+    REPEATS=$(cat "$REPEAT_COUNT_FILE" 2>/dev/null || echo 0)
+
+    if [ "$ISSUE_HASH" = "$PREV_HASH" ]; then
+        REPEATS=$((REPEATS + 1))
+    else
+        # New issue — reset suppression
+        REPEATS=1
+    fi
+    echo "$ISSUE_HASH" > "$ISSUE_HASH_FILE"
+    echo "$REPEATS" > "$REPEAT_COUNT_FILE"
+
+    if [ "$REPEATS" -gt "$SUPPRESS_AFTER" ]; then
+        # Only alert every SUPPRESS_INTERVAL checks (default: once per hour)
+        SINCE_LAST=$(( (REPEATS - SUPPRESS_AFTER - 1) % SUPPRESS_INTERVAL ))
+        if [ "$SINCE_LAST" -ne 0 ]; then
+            log "SUPPRESSED: Same issue repeated $REPEATS times (next alert in $(( SUPPRESS_INTERVAL - SINCE_LAST )) checks). Issue: $ISSUES"
+            exit 0
+        fi
+        log "HOURLY ALERT: Same issue repeated $REPEATS times, sending periodic check-in to Claude"
+    fi
+
     log "Calling Claude for auto-fix..."
 
     cd "$PROJECT_DIR" || exit 1
@@ -213,7 +242,9 @@ Diagnose the issues and attempt safe fixes. Be conservative — if unsure, just 
         log "Claude fix attempt exited with code $RESULT"
     fi
 else
-    # All checks passed — reset fail counter
+    # All checks passed — reset fail counter and suppression state
     echo "0" > "$FAIL_COUNT_FILE"
+    echo "" > "$ISSUE_HASH_FILE"
+    echo "0" > "$REPEAT_COUNT_FILE"
     log "ALL CHECKS PASSED"
 fi
