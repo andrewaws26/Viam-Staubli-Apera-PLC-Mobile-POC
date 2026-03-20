@@ -48,11 +48,28 @@ else
 fi
 
 # --- Check 4: Is data flowing? (check capture dir for recent files) ---
+# The data_manager writes .prog files (active) and rotates them to .capture
+# (then syncs and deletes). So we check BOTH .prog and .capture files.
+# A .prog file stuck at <=100 bytes means the pipeline is stalled (header only).
 CAPTURE_DIR="$HOME/.viam/capture"
 if [ -d "$CAPTURE_DIR" ]; then
-    NEWEST=$(find "$CAPTURE_DIR" -type f -name "*.capture" -mmin -5 2>/dev/null | head -1)
+    # Check for any recently-modified capture or prog files
+    NEWEST=$(find "$CAPTURE_DIR" -type f \( -name "*.capture" -o -name "*.prog" \) -mmin -5 2>/dev/null | head -1)
     if [ -n "$NEWEST" ]; then
-        log "OK: Recent capture data found"
+        # Found recent files — but is the active .prog actually growing?
+        ACTIVE_PROG=$(find "$CAPTURE_DIR" -type f -name "*.prog" 2>/dev/null | sort | tail -1)
+        if [ -n "$ACTIVE_PROG" ]; then
+            PROG_SIZE=$(stat -c%s "$ACTIVE_PROG" 2>/dev/null || echo 0)
+            PROG_AGE=$(( $(date +%s) - $(stat -c%Y "$ACTIVE_PROG" 2>/dev/null || echo $(date +%s)) ))
+            if [ "$PROG_SIZE" -le 100 ] && [ "$PROG_AGE" -gt 120 ]; then
+                ISSUES="${ISSUES}Capture pipeline stalled: .prog file is ${PROG_SIZE} bytes and ${PROG_AGE}s old. "
+                log "FAIL: Capture stall — .prog=${PROG_SIZE}B age=${PROG_AGE}s"
+            else
+                log "OK: Recent capture data found (.prog=${PROG_SIZE}B)"
+            fi
+        else
+            log "OK: Recent capture data found"
+        fi
     else
         ISSUES="${ISSUES}No capture data in last 5 minutes. "
         log "FAIL: No recent capture data"
