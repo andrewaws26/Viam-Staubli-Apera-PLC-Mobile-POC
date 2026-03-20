@@ -16,7 +16,7 @@ export default function PlcDetailPanel({ readings }: Props) {
     return null;
   }
 
-  const targetSpacing = 18; // 18 inches — average tie plate spacing
+  const targetSpacing = 19.5; // 19.5 inches — tie plate spacing
   const dropCount = (readings["drop_count_in_window"] ?? 0) as number;
 
   return (

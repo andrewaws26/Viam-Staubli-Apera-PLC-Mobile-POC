@@ -144,7 +144,7 @@ function runChecks(r: SensorReadings): DiagnosticCheck[] {
   // ── Plate Spacing Drift ──
   const lastSpacing = typeof r.last_drop_spacing_in === "number" ? r.last_drop_spacing_in : 0;
   const avgSpacing = typeof r.avg_drop_spacing_in === "number" ? r.avg_drop_spacing_in : 0;
-  const targetSpacing = 18; // 18 inches — average tie plate spacing
+  const targetSpacing = 19.5; // 19.5 inches — tie plate spacing
 
   if (targetSpacing > 0 && lastSpacing > 0) {
     const deviation = Math.abs(lastSpacing - targetSpacing) / targetSpacing;

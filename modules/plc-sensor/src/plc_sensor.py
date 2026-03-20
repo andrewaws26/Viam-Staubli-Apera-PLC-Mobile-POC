@@ -74,7 +74,7 @@ _PLATE_DROP_WINDOW_SECONDS = 60.0
 # real plate drop, causing false transitions.  Require a minimum travel
 # distance (in DS7 counts) since the last recorded drop before counting
 # a new one.  With 189 pulses/count ≈ 8 in/count, 1 count ≈ 8 inches —
-# well below the ~2 count real spacing (18 in) but safely above chatter.
+# well below the ~2 count real spacing (19.5 in) but safely above chatter.
 _MIN_DS7_COUNTS_BETWEEN_DROPS = 1
 
 # Plate drop spacing history — how many recent drops to keep for diagnostics
