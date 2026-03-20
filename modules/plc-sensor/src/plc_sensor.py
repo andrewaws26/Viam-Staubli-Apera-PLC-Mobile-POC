@@ -68,6 +68,13 @@ _DS8_PULSES_PER_COUNT = 40  # encoder pulses per DS8 increment (calibrated)
 # Rolling window size for plates-per-minute calculation
 _PLATE_DROP_WINDOW_SECONDS = 60.0
 
+# Plate drop debounce — Y1 (eject solenoid) can fire multiple pulses per
+# real plate drop, causing false transitions.  Require a minimum travel
+# distance (in DS8 counts) since the last recorded drop before counting
+# a new one.  With 40 pulses/count ≈ 2 in/count, 5 counts ≈ 10 inches —
+# well below the ~19 count real spacing but safely above chatter (0-2).
+_MIN_DS8_COUNTS_BETWEEN_DROPS = 5
+
 # Plate drop spacing history — how many recent drops to keep for diagnostics
 _MAX_DROP_HISTORY = 20
 
@@ -507,23 +514,37 @@ class PlcSensor(Sensor):
             floating_zero = bool(internal_coils[1])        # C2000
 
             # ── TPS plate drop counter — detect OFF→ON on Y1 (Eject TPS_1) ──
+            # Y1 can chatter (multiple pulses per real drop), so we debounce:
+            # only count a new drop if the truck has traveled at least
+            # _MIN_DS8_COUNTS_BETWEEN_DROPS since the last recorded drop.
             if self._prev_eject_tps1 is not None and not self._prev_eject_tps1 and eject_tps_1:
-                self._plate_drop_count += 1
-                self._plate_drop_times.append(now_ts)
-                # Record DS8 position at this drop for spacing analysis
-                self._drop_encoder_counts.append(travel_count)
-                if len(self._drop_encoder_counts) >= 2:
-                    delta_ds8 = abs(self._drop_encoder_counts[-1] - self._drop_encoder_counts[-2])
-                    spacing_mm = delta_ds8 * self._mm_per_ds8
-                    spacing_in = spacing_mm / 25.4
-                    spacing_ft = spacing_mm / 304.8
-                    self._drop_spacings_mm.append(round(spacing_mm, 1))
-                    self._drop_spacings_in.append(round(spacing_in, 1))
-                    self._drop_spacings_ft.append(round(spacing_ft, 2))
-                    LOGGER.info(
-                        "📍 Plate drop #%d — ds8=%d delta=%d spacing=%.1fin (%.1fmm)",
-                        self._plate_drop_count, travel_count, delta_ds8,
-                        spacing_in, spacing_mm,
+                ds8_since_last = (
+                    abs(travel_count - self._drop_encoder_counts[-1])
+                    if self._drop_encoder_counts
+                    else _MIN_DS8_COUNTS_BETWEEN_DROPS  # first drop always counts
+                )
+                if ds8_since_last >= _MIN_DS8_COUNTS_BETWEEN_DROPS:
+                    self._plate_drop_count += 1
+                    self._plate_drop_times.append(now_ts)
+                    # Record DS8 position at this drop for spacing analysis
+                    self._drop_encoder_counts.append(travel_count)
+                    if len(self._drop_encoder_counts) >= 2:
+                        delta_ds8 = abs(self._drop_encoder_counts[-1] - self._drop_encoder_counts[-2])
+                        spacing_mm = delta_ds8 * self._mm_per_ds8
+                        spacing_in = spacing_mm / 25.4
+                        spacing_ft = spacing_mm / 304.8
+                        self._drop_spacings_mm.append(round(spacing_mm, 1))
+                        self._drop_spacings_in.append(round(spacing_in, 1))
+                        self._drop_spacings_ft.append(round(spacing_ft, 2))
+                        LOGGER.info(
+                            "📍 Plate drop #%d — ds8=%d delta=%d spacing=%.1fin (%.1fmm)",
+                            self._plate_drop_count, travel_count, delta_ds8,
+                            spacing_in, spacing_mm,
+                        )
+                else:
+                    LOGGER.debug(
+                        "Y1 chatter suppressed — ds8=%d, delta=%d (need >=%d)",
+                        travel_count, ds8_since_last, _MIN_DS8_COUNTS_BETWEEN_DROPS,
                     )
             self._prev_eject_tps1 = eject_tps_1
 
