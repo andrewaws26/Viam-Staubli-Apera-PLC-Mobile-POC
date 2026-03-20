@@ -153,7 +153,7 @@ export default function PlcDetailPanel({ readings }: Props) {
 
         {/* Live progress toward next drop */}
         {targetSpacing !== undefined && targetSpacing > 0 && (() => {
-          const distSinceLast = (readings["distance_since_last_drop_ft"] ?? 0) as number;
+          const distSinceLast = (readings["distance_since_last_drop_in"] ?? 0) as number;
           const pct = Math.min((distSinceLast / targetSpacing) * 100, 150);
           const isOverdue = pct > 105;
           const isLate = pct > 120;
@@ -172,7 +172,7 @@ export default function PlcDetailPanel({ readings }: Props) {
                   "text-xs font-mono font-bold",
                   isLate ? "text-red-400" : isOverdue ? "text-yellow-400" : "text-blue-400",
                 ].join(" ")}>
-                  {distSinceLast.toFixed(1)} / {targetSpacing} ft
+                  {distSinceLast.toFixed(1)} / {targetSpacing} in
                   {isLate && " — OVERDUE"}
                   {isOverdue && !isLate && " — LATE"}
                 </span>
@@ -182,7 +182,7 @@ export default function PlcDetailPanel({ readings }: Props) {
                 <div
                   className="absolute top-0 bottom-0 w-0.5 bg-amber-400 z-10"
                   style={{ left: `${Math.min(100 / (pct > 100 ? pct / 100 : 1), 100)}%` }}
-                  title={`Target: ${targetSpacing} ft`}
+                  title={`Target: ${targetSpacing} in`}
                 />
                 {/* Progress fill */}
                 <div
@@ -209,10 +209,10 @@ export default function PlcDetailPanel({ readings }: Props) {
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { label: "Last", key: "last_drop_spacing_ft" },
-                { label: "Avg", key: "avg_drop_spacing_ft" },
-                { label: "Min", key: "min_drop_spacing_ft" },
-                { label: "Max", key: "max_drop_spacing_ft" },
+                { label: "Last", key: "last_drop_spacing_in" },
+                { label: "Avg", key: "avg_drop_spacing_in" },
+                { label: "Min", key: "min_drop_spacing_in" },
+                { label: "Max", key: "max_drop_spacing_in" },
               ].map(({ label, key }) => {
                 const val = readings[key] as number | undefined;
                 let color = "text-gray-200";
@@ -226,7 +226,7 @@ export default function PlcDetailPanel({ readings }: Props) {
                   <div key={key} className="flex flex-col min-w-0">
                     <span className="text-[10px] sm:text-xs text-gray-600 uppercase tracking-wide">{label}</span>
                     <span className={`font-mono font-bold text-sm ${color}`}>
-                      {val !== undefined ? val.toFixed(1) : "—"} ft
+                      {val !== undefined ? val.toFixed(1) : "—"} in
                     </span>
                   </div>
                 );

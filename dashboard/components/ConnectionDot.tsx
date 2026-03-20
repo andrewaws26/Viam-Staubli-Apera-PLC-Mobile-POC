@@ -1,21 +1,9 @@
 interface Props {
   connected: boolean;
   error: string | null;
-  isMock: boolean;
 }
 
-export default function ConnectionDot({ connected, error, isMock }: Props) {
-  if (isMock) {
-    return (
-      <div className="flex items-center gap-2" title="Running in mock mode — no hardware required">
-        <div className="w-2.5 h-2.5 rounded-full bg-yellow-400 animate-pulse" />
-        <span className="uppercase tracking-widest text-xs font-bold text-yellow-400">
-          Mock Mode
-        </span>
-      </div>
-    );
-  }
-
+export default function ConnectionDot({ connected, error }: Props) {
   return (
     <div
       className="flex flex-col items-end gap-0.5"

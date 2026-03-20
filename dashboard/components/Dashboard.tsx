@@ -5,7 +5,7 @@
 // See docs/architecture.md section 6 for the full architectural enforcement.
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { SENSOR_CONFIGS, ComponentName } from "../lib/sensors";
+import { SENSOR_CONFIGS } from "../lib/sensors";
 import { ComponentState, FaultEvent, SensorReadings } from "../lib/types";
 import StatusCard from "./StatusCard";
 import AlertBanner from "./AlertBanner";
@@ -13,11 +13,8 @@ import FaultHistory from "./FaultHistory";
 import PlcDetailPanel from "./PlcDetailPanel";
 import DiagnosticsPanel from "./DiagnosticsPanel";
 import ConnectionDot from "./ConnectionDot";
-import { getMockReadings, injectFault, toggleServo } from "../lib/mock";
-
 const POLL_INTERVAL_MS = 2000;
 const MAX_FAULT_HISTORY = 10;
-const IS_MOCK = process.env.NEXT_PUBLIC_MOCK_MODE === "true";
 
 // ---------------------------------------------------------------------------
 // Audio — industrial klaxon using Web Audio API.
@@ -91,9 +88,7 @@ export default function Dashboard() {
   const poll = useCallback(async () => {
     // In live mode, readings are fetched via /api/sensor-readings (server-side
     // proxy) so Viam credentials never reach the browser.
-    const { getSensorReadings, ComponentNotFoundError } = IS_MOCK
-      ? { getSensorReadings: null, ComponentNotFoundError: null }
-      : await import("../lib/viam");
+    const { getSensorReadings, ComponentNotFoundError } = await import("../lib/viam");
 
     const newStates: ComponentState[] = [];
     const currentFaultIds = new Set<string>();
@@ -105,9 +100,7 @@ export default function Dashboard() {
       let faultMessage: string | null = null;
 
       try {
-        readings = IS_MOCK
-          ? getMockReadings(cfg.componentName)
-          : await getSensorReadings!(cfg.componentName);
+        readings = await getSensorReadings(cfg.componentName);
 
         const healthy = cfg.isHealthy(readings);
         status = healthy ? "healthy" : "fault";
@@ -128,7 +121,7 @@ export default function Dashboard() {
           }
         }
 
-        if (!IS_MOCK) setSdkConnected(true);
+        setSdkConnected(true);
       } catch (err) {
         // ComponentNotFoundError means the API route connected fine but the
         // component doesn't exist on the machine — show as pending.
@@ -144,10 +137,8 @@ export default function Dashboard() {
           faultMessage = "Sensor read error";
           currentFaultIds.add(cfg.id);
 
-          if (!IS_MOCK) {
-            setSdkConnected(false);
-            setSdkError(err instanceof Error ? err.message : "Connection error");
-          }
+          setSdkConnected(false);
+          setSdkError(err instanceof Error ? err.message : "Connection error");
         }
       }
 
@@ -208,7 +199,6 @@ export default function Dashboard() {
       );
     }
 
-    if (IS_MOCK) setSdkConnected(true);
   }, []);
 
   useEffect(() => {
@@ -216,13 +206,6 @@ export default function Dashboard() {
     const id = setInterval(poll, POLL_INTERVAL_MS);
     return () => clearInterval(id);
   }, [poll]);
-
-  // -------------------------------------------------------------------------
-  // Mock-only: manual fault injection buttons for stakeholder demos
-  // -------------------------------------------------------------------------
-  const mockFaultTargets: { label: string; component: ComponentName }[] = [
-    { label: "PLC", component: "plc-monitor" },
-  ];
 
   return (
     <>
@@ -251,7 +234,6 @@ export default function Dashboard() {
           <ConnectionDot
             connected={sdkConnected}
             error={sdkError}
-            isMock={IS_MOCK}
           />
         </header>
 
@@ -295,35 +277,6 @@ export default function Dashboard() {
           })()}
 
           {/* -------------------------------------------------------------- */}
-          {/* Mock mode: manual fault injection for demos                    */}
-          {/* -------------------------------------------------------------- */}
-          {IS_MOCK && (
-            <div className="border border-yellow-900/60 bg-yellow-950/20 rounded-2xl px-5 py-4 flex flex-wrap items-center gap-3">
-              <span className="text-xs font-bold uppercase tracking-widest text-yellow-600">
-                Demo Controls
-              </span>
-              <button
-                onClick={() => toggleServo()}
-                className="px-4 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-600 active:bg-blue-800 text-white text-sm font-bold tracking-wide transition-colors"
-              >
-                Servo Power
-              </button>
-              {mockFaultTargets.map(({ label, component }) => (
-                <button
-                  key={component}
-                  onClick={() => injectFault(component)}
-                  className="px-4 py-1.5 rounded-lg bg-red-800 hover:bg-red-700 active:bg-red-900 text-white text-sm font-bold tracking-wide transition-colors"
-                >
-                  Fault: {label}
-                </button>
-              ))}
-              <span className="text-xs text-yellow-700 ml-auto hidden sm:block">
-                Blue button toggles servo power; red buttons simulate faults
-              </span>
-            </div>
-          )}
-
-          {/* -------------------------------------------------------------- */}
           {/* Fault History                                                  */}
           {/* -------------------------------------------------------------- */}
           <FaultHistory events={faultHistory} />
@@ -335,7 +288,7 @@ export default function Dashboard() {
         <footer className="border-t border-gray-800 px-3 sm:px-5 py-2 sm:py-3 text-[10px] sm:text-xs text-gray-700 flex items-center justify-between shrink-0">
           <span>Polling every {POLL_INTERVAL_MS / 1000}s</span>
           <span>
-            {IS_MOCK ? "Mock data" : "Live — Viam Cloud"} ·{" "}
+            Live — Viam Cloud ·{" "}
             {new Date().getFullYear()}
           </span>
         </footer>

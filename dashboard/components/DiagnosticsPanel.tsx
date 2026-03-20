@@ -142,8 +142,8 @@ function runChecks(r: SensorReadings): DiagnosticCheck[] {
   }
 
   // ── Plate Spacing Drift ──
-  const lastSpacing = typeof r.last_drop_spacing_ft === "number" ? r.last_drop_spacing_ft : 0;
-  const avgSpacing = typeof r.avg_drop_spacing_ft === "number" ? r.avg_drop_spacing_ft : 0;
+  const lastSpacing = typeof r.last_drop_spacing_in === "number" ? r.last_drop_spacing_in : 0;
+  const avgSpacing = typeof r.avg_drop_spacing_in === "number" ? r.avg_drop_spacing_in : 0;
   const targetSpacing = typeof r.ds2 === "number" ? r.ds2 : 0;
 
   if (targetSpacing > 0 && lastSpacing > 0) {
@@ -153,34 +153,34 @@ function runChecks(r: SensorReadings): DiagnosticCheck[] {
         id: "spacing-drift-severe",
         label: "Plate Spacing",
         severity: "error",
-        message: `Last drop spacing ${lastSpacing.toFixed(1)} ft is ${(deviation * 100).toFixed(0)}% off target (DS2=${targetSpacing}) — encoder may be out of sync with plate dropper.`,
+        message: `Last drop spacing ${lastSpacing.toFixed(1)} in is ${(deviation * 100).toFixed(0)}% off target (DS2=${targetSpacing}) — encoder may be out of sync with plate dropper.`,
       });
     } else if (deviation > 0.1) {
       checks.push({
         id: "spacing-drift-moderate",
         label: "Plate Spacing",
         severity: "warn",
-        message: `Last drop spacing ${lastSpacing.toFixed(1)} ft is ${(deviation * 100).toFixed(0)}% off target (DS2=${targetSpacing}) — monitor for worsening drift.`,
+        message: `Last drop spacing ${lastSpacing.toFixed(1)} in is ${(deviation * 100).toFixed(0)}% off target (DS2=${targetSpacing}) — monitor for worsening drift.`,
       });
     }
   }
 
   if (avgSpacing > 0 && targetSpacing > 0) {
-    const minSpacing = typeof r.min_drop_spacing_ft === "number" ? r.min_drop_spacing_ft : 0;
-    const maxSpacing = typeof r.max_drop_spacing_ft === "number" ? r.max_drop_spacing_ft : 0;
+    const minSpacing = typeof r.min_drop_spacing_in === "number" ? r.min_drop_spacing_in : 0;
+    const maxSpacing = typeof r.max_drop_spacing_in === "number" ? r.max_drop_spacing_in : 0;
     const range = maxSpacing - minSpacing;
     if (range > 0 && range / avgSpacing > 0.15) {
       checks.push({
         id: "spacing-inconsistent",
         label: "Spacing Consistency",
         severity: "warn",
-        message: `Plate spacing varies from ${minSpacing.toFixed(1)} to ${maxSpacing.toFixed(1)} ft (range ${range.toFixed(1)} ft) — inconsistent drops may indicate encoder slipping or mechanical issue.`,
+        message: `Plate spacing varies from ${minSpacing.toFixed(1)} to ${maxSpacing.toFixed(1)} in (range ${range.toFixed(1)} in) — inconsistent drops may indicate encoder slipping or mechanical issue.`,
       });
     }
   }
 
   // ── Predictive Sync — is the next drop going to be late? ──
-  const distSinceLastDrop = typeof r.distance_since_last_drop_ft === "number" ? r.distance_since_last_drop_ft : 0;
+  const distSinceLastDrop = typeof r.distance_since_last_drop_in === "number" ? r.distance_since_last_drop_in : 0;
 
   if (tpsPower && targetSpacing > 0 && distSinceLastDrop > 0) {
     const pctOfTarget = distSinceLastDrop / targetSpacing;
@@ -191,7 +191,7 @@ function runChecks(r: SensorReadings): DiagnosticCheck[] {
         id: "drop-overdue",
         label: "Next Drop OVERDUE",
         severity: "error",
-        message: `Traveled ${distSinceLastDrop.toFixed(1)} ft since last drop — ${((pctOfTarget - 1) * 100).toFixed(0)}% past target of ${targetSpacing} ft. Plate dropper missed or encoder lost sync.`,
+        message: `Traveled ${distSinceLastDrop.toFixed(1)} in since last drop — ${((pctOfTarget - 1) * 100).toFixed(0)}% past target of ${targetSpacing} in. Plate dropper missed or encoder lost sync.`,
       });
     } else if (pctOfTarget > 1.05) {
       // 5% past target — drop should have fired by now
@@ -199,7 +199,7 @@ function runChecks(r: SensorReadings): DiagnosticCheck[] {
         id: "drop-late",
         label: "Next Drop Late",
         severity: "warn",
-        message: `Traveled ${distSinceLastDrop.toFixed(1)} ft since last drop — past target of ${targetSpacing} ft. Drop should have fired. Possible sync lag.`,
+        message: `Traveled ${distSinceLastDrop.toFixed(1)} in since last drop — past target of ${targetSpacing} in. Drop should have fired. Possible sync lag.`,
       });
     }
   }
