@@ -4,6 +4,7 @@ import {
   TPS_STATUS_FIELDS,
   TPS_EJECT_FIELDS,
   TPS_PRODUCTION_FIELDS,
+  DROP_SPACING_FIELDS,
   PLC_REGISTER_FIELDS,
 } from "../lib/sensors";
 
@@ -15,6 +16,10 @@ export default function PlcDetailPanel({ readings }: Props) {
   if (!readings || readings.connected !== true) {
     return null;
   }
+
+  // Plate drop spacing history for the bar chart
+  const spacingHistory = (readings["drop_spacing_history_ft"] ?? []) as number[];
+  const targetSpacing = readings["ds2"] as number | undefined;
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -94,6 +99,108 @@ export default function PlcDetailPanel({ readings }: Props) {
             );
           })}
         </div>
+      </div>
+
+      {/* Section 2b: Plate Drop Spacing — sync diagnostics */}
+      <div className="border border-amber-900/40 bg-amber-950/10 rounded-2xl p-4 sm:p-6">
+        <h3 className="text-xs font-bold uppercase tracking-widest text-amber-500 mb-3 sm:mb-4">
+          Plate Drop Spacing — Sync Monitor
+        </h3>
+
+        {/* Key metrics */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-4 sm:gap-x-6 gap-y-3 mb-4">
+          {DROP_SPACING_FIELDS.map(({ key, label, unit, highlight }) => {
+            const val = readings[key];
+            if (val === undefined) return null;
+            const numVal = typeof val === "number" ? val : 0;
+            // Warn if spacing deviates more than 10% from target (DS2)
+            const isOff =
+              targetSpacing && targetSpacing > 0 && numVal > 0 &&
+              key.includes("spacing") &&
+              Math.abs(numVal - targetSpacing) / targetSpacing > 0.1;
+            return (
+              <div key={key} className="flex flex-col min-w-0">
+                <span className="text-[10px] sm:text-xs text-gray-600 uppercase tracking-wide truncate">
+                  {label}
+                </span>
+                <span
+                  className={[
+                    "font-mono font-bold truncate",
+                    isOff
+                      ? "text-base sm:text-lg text-red-400"
+                      : highlight
+                      ? "text-base sm:text-lg text-amber-400"
+                      : "text-sm text-gray-200",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                >
+                  {String(val)}
+                  {unit && (
+                    <span className="text-gray-600 font-normal ml-0.5 text-xs sm:text-sm">
+                      {unit}
+                    </span>
+                  )}
+                  {isOff && (
+                    <span className="text-red-500 font-normal ml-1 text-xs">
+                      ⚠ OFF TARGET
+                    </span>
+                  )}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Spacing bar chart — last 20 drops */}
+        {spacingHistory.length > 0 ? (
+          <div className="mt-3">
+            <p className="text-[10px] sm:text-xs text-gray-600 uppercase tracking-wide mb-2">
+              Last {spacingHistory.length} drop spacings (ft)
+            </p>
+            <div className="flex items-end gap-1 h-24 sm:h-32">
+              {spacingHistory.map((spacing, i) => {
+                const maxSpacing = Math.max(...spacingHistory, 1);
+                const heightPct = (spacing / maxSpacing) * 100;
+                // Color: green if within 10% of target, yellow if 10-20%, red if >20%
+                let barColor = "bg-gray-500";
+                if (targetSpacing && targetSpacing > 0) {
+                  const deviation = Math.abs(spacing - targetSpacing) / targetSpacing;
+                  if (deviation <= 0.1) barColor = "bg-green-500";
+                  else if (deviation <= 0.2) barColor = "bg-yellow-500";
+                  else barColor = "bg-red-500";
+                }
+                return (
+                  <div
+                    key={i}
+                    className="flex-1 flex flex-col items-center gap-0.5"
+                  >
+                    <span className="text-[8px] sm:text-[10px] text-gray-600 font-mono">
+                      {spacing.toFixed(1)}
+                    </span>
+                    <div
+                      className={`w-full rounded-t ${barColor} min-h-[2px]`}
+                      style={{ height: `${heightPct}%` }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+            {targetSpacing !== undefined && targetSpacing > 0 && (
+              <p className="text-[10px] text-gray-600 mt-1">
+                Target: <span className="text-amber-500 font-mono">{targetSpacing}</span> (from DS2 — Tie Spacing Setting)
+                {" · "}
+                <span className="text-green-500">■</span> ±10%
+                {" "}
+                <span className="text-yellow-500">■</span> ±20%
+                {" "}
+                <span className="text-red-500">■</span> &gt;20% off
+              </p>
+            )}
+          </div>
+        ) : (
+          <p className="text-gray-700 text-sm">No plate drops recorded yet this session.</p>
+        )}
       </div>
 
       {/* Section 3: TPS Machine Status */}

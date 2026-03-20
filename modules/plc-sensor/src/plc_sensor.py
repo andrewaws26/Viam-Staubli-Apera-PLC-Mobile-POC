@@ -59,6 +59,9 @@ _DEFAULT_WHEEL_DIAMETER_MM = 406.4  # 16 inches — DMF RW-1650 railgear guide w
 # Rolling window size for plates-per-minute calculation
 _PLATE_DROP_WINDOW_SECONDS = 60.0
 
+# Plate drop spacing history — how many recent drops to keep for diagnostics
+_MAX_DROP_HISTORY = 20
+
 # Offline buffer defaults
 _DEFAULT_BUFFER_MAX_MB = 50
 
@@ -172,6 +175,10 @@ class PlcSensor(Sensor):
         self._prev_eject_tps1: Optional[bool] = None
         self._plate_drop_count: int = 0
         self._plate_drop_times: Deque[float] = collections.deque()  # rolling window timestamps
+        # Plate drop spacing diagnostics — encoder count at each drop
+        self._drop_encoder_counts: Deque[int] = collections.deque(maxlen=_MAX_DROP_HISTORY)
+        self._drop_spacings_mm: Deque[float] = collections.deque(maxlen=_MAX_DROP_HISTORY)
+        self._drop_spacings_ft: Deque[float] = collections.deque(maxlen=_MAX_DROP_HISTORY)
         # Self-healing: exponential backoff on repeated connection failures
         self._consecutive_failures: int = 0
         self._next_retry_time: float = 0.0
@@ -335,6 +342,14 @@ class PlcSensor(Sensor):
             # TPS Production
             "plates_per_minute": 0.0,
             "plate_drop_count": 0,
+            # Plate drop spacing diagnostics
+            "last_drop_spacing_ft": 0.0,
+            "last_drop_spacing_mm": 0.0,
+            "last_drop_encoder_count": 0,
+            "avg_drop_spacing_ft": 0.0,
+            "min_drop_spacing_ft": 0.0,
+            "max_drop_spacing_ft": 0.0,
+            "drop_spacing_history_ft": [],
             # Discrete inputs (raw)
             "x1": False,
             "x2": False,
@@ -457,6 +472,19 @@ class PlcSensor(Sensor):
             if self._prev_eject_tps1 is not None and not self._prev_eject_tps1 and eject_tps_1:
                 self._plate_drop_count += 1
                 self._plate_drop_times.append(now_ts)
+                # Record encoder position at this drop for spacing analysis
+                self._drop_encoder_counts.append(encoder_count)
+                if len(self._drop_encoder_counts) >= 2:
+                    delta_counts = abs(self._drop_encoder_counts[-1] - self._drop_encoder_counts[-2])
+                    spacing_mm = delta_counts * self._mm_per_count
+                    spacing_ft = spacing_mm / 304.8
+                    self._drop_spacings_mm.append(round(spacing_mm, 1))
+                    self._drop_spacings_ft.append(round(spacing_ft, 2))
+                    LOGGER.info(
+                        "📍 Plate drop #%d — encoder=%d delta=%d spacing=%.1fmm (%.2fft)",
+                        self._plate_drop_count, encoder_count, delta_counts,
+                        spacing_mm, spacing_ft,
+                    )
             self._prev_eject_tps1 = eject_tps_1
 
             # Expire old entries outside the rolling window
@@ -505,6 +533,14 @@ class PlcSensor(Sensor):
                 # TPS Production (derived from coil transitions)
                 "plates_per_minute": round(plates_per_minute, 1),
                 "plate_drop_count": self._plate_drop_count,
+                # Plate drop spacing diagnostics — encoder-based
+                "last_drop_spacing_ft": self._drop_spacings_ft[-1] if self._drop_spacings_ft else 0.0,
+                "last_drop_spacing_mm": self._drop_spacings_mm[-1] if self._drop_spacings_mm else 0.0,
+                "last_drop_encoder_count": self._drop_encoder_counts[-1] if self._drop_encoder_counts else 0,
+                "avg_drop_spacing_ft": round(sum(self._drop_spacings_ft) / len(self._drop_spacings_ft), 2) if self._drop_spacings_ft else 0.0,
+                "min_drop_spacing_ft": min(self._drop_spacings_ft) if self._drop_spacings_ft else 0.0,
+                "max_drop_spacing_ft": max(self._drop_spacings_ft) if self._drop_spacings_ft else 0.0,
+                "drop_spacing_history_ft": list(self._drop_spacings_ft),
                 # DS Holding Registers — all 25 from Click PLC ladder logic
                 "ds1": ds[0],
                 "ds2": ds[1],

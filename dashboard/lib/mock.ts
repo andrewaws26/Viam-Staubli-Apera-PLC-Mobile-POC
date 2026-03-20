@@ -104,10 +104,22 @@ export function getMockReadings(componentName: ComponentName): SensorReadings {
       readings["encoder_speed_ftpm"] = powerOn ? +speedFtpm.toFixed(1) : 0;
       readings["encoder_revolutions"] = +(state.encoderCount / 1000).toFixed(2);
 
+      // Plate drop spacing diagnostics (mock)
+      readings["last_drop_spacing_ft"] = powerOn ? +(38 + Math.random() * 4).toFixed(2) : 0;
+      readings["last_drop_spacing_mm"] = powerOn ? +(11582 + Math.random() * 1200).toFixed(1) : 0;
+      readings["last_drop_encoder_count"] = powerOn ? Math.floor(30000 + Math.random() * 5000) : 0;
+      readings["avg_drop_spacing_ft"] = powerOn ? 39.5 : 0;
+      readings["min_drop_spacing_ft"] = powerOn ? 37.2 : 0;
+      readings["max_drop_spacing_ft"] = powerOn ? 42.1 : 0;
+      readings["drop_spacing_history_ft"] = powerOn
+        ? Array.from({ length: 12 }, () => +(37 + Math.random() * 6).toFixed(2))
+        : [];
+
       // DS Holding Registers (mock values)
       for (let i = 1; i <= 25; i++) {
         readings[`ds${i}`] = 0;
       }
+      readings["ds2"] = 39; // Tie spacing setting
 
       // Discrete inputs (raw)
       readings["x1"] = false;

@@ -101,8 +101,25 @@ export const TPS_PRODUCTION_FIELDS: {
   { key: "plates_per_minute", label: "Plate Rate", unit: "/min", highlight: true },
   { key: "plate_drop_count", label: "Total Plates Dropped" },
   { key: "ds2", label: "Tie Spacing Setting" },
-  { key: "ds1", label: "Encoder Ignore" },
-  { key: "ds5", label: "Detector Offset" },
+  { key: "ds1", label: "DS1" },
+  { key: "ds5", label: "DS5" },
+];
+
+// ---------------------------------------------------------------------------
+// Plate Drop Spacing — encoder-based diagnostics for sync issues
+// ---------------------------------------------------------------------------
+export const DROP_SPACING_FIELDS: {
+  key: string;
+  label: string;
+  unit?: string;
+  highlight?: boolean;
+  warn?: (v: number, target: number) => boolean;
+}[] = [
+  { key: "last_drop_spacing_ft", label: "Last Drop Spacing", unit: "ft", highlight: true },
+  { key: "avg_drop_spacing_ft", label: "Avg Spacing (last 20)", unit: "ft", highlight: true },
+  { key: "min_drop_spacing_ft", label: "Min Spacing", unit: "ft" },
+  { key: "max_drop_spacing_ft", label: "Max Spacing", unit: "ft" },
+  { key: "last_drop_encoder_count", label: "Last Drop Encoder" },
 ];
 
 // ---------------------------------------------------------------------------
