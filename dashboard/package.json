@@ -1,5 +1,5 @@
 {
-  "name": "robot-cell-monitor",
+  "name": "tps-monitor",
   "version": "0.1.0",
   "private": true,
   "scripts": {

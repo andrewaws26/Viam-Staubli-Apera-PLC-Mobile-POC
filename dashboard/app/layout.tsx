@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Robot Cell Monitor",
-  description: "Industrial robot cell remote monitoring — machine state only",
+  title: "TPS Monitor",
+  description: "Tie Plate System — live production monitoring",
 };
 
 export const viewport: Viewport = {

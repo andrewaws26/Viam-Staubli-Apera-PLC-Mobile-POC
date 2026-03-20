@@ -2,14 +2,14 @@
   "module_id": "viam-staubli-apera-poc:plc-sensor",
   "visibility": "private",
   "url": "",
-  "description": "PLC Modbus TCP sensor for industrial remote monitoring POC. Reads digital I/O states (connection, fault, button) from a PLC.",
+  "description": "TPS (Tie Plate System) PLC Modbus TCP sensor. Reads encoder, discrete inputs, output coils, internal coils, and DS registers from a Click PLC C0-10DD2E-D. Includes offline buffering and self-healing connection.",
   "models": [
     {
       "api": "rdk:component:sensor",
       "model": "viam-staubli-apera-poc:monitor:plc-sensor"
     }
   ],
-  "entrypoint": "src/plc_sensor.py",
+  "entrypoint": "run.sh",
   "build": {
     "build": "",
     "setup": "./setup.sh"

@@ -88,11 +88,11 @@ export default function Dashboard() {
   // Core poll — called on mount and every POLL_INTERVAL_MS
   // -------------------------------------------------------------------------
   const poll = useCallback(async () => {
-    // Lazily import the real Viam client only in non-mock mode.
-    // (The module is never bundled if NEXT_PUBLIC_MOCK_MODE=true at build time,
-    // but lazy import ensures no SSR issues regardless.)
-    const viamModule = IS_MOCK ? null : await import("../lib/viam");
-    const viamFetch = viamModule?.getSensorReadings ?? null;
+    // In live mode, readings are fetched via /api/sensor-readings (server-side
+    // proxy) so Viam credentials never reach the browser.
+    const { getSensorReadings, ComponentNotFoundError } = IS_MOCK
+      ? { getSensorReadings: null, ComponentNotFoundError: null }
+      : await import("../lib/viam");
 
     const newStates: ComponentState[] = [];
     const currentFaultIds = new Set<string>();
@@ -106,7 +106,7 @@ export default function Dashboard() {
       try {
         readings = IS_MOCK
           ? getMockReadings(cfg.componentName)
-          : await viamFetch!(cfg.componentName);
+          : await getSensorReadings!(cfg.componentName);
 
         const healthy = cfg.isHealthy(readings);
         status = healthy ? "healthy" : "fault";
@@ -129,17 +129,14 @@ export default function Dashboard() {
 
         if (!IS_MOCK) setSdkConnected(true);
       } catch (err) {
-        // Distinguish "component not configured yet" from real errors.
-        // ComponentNotFoundError means the SDK connected fine but the
+        // ComponentNotFoundError means the API route connected fine but the
         // component doesn't exist on the machine — show as pending.
         const isNotFound =
-          viamModule &&
-          err instanceof viamModule.ComponentNotFoundError;
+          ComponentNotFoundError && err instanceof ComponentNotFoundError;
 
         if (isNotFound) {
           status = "pending";
           faultMessage = "Not configured in Viam yet";
-          // Still mark SDK as connected — the machine link works fine
           setSdkConnected(true);
         } else {
           status = "error";

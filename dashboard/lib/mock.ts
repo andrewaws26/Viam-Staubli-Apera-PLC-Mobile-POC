@@ -67,8 +67,9 @@ export function getMockReadings(componentName: ComponentName): SensorReadings {
         system_state: systemState,
         last_fault: isFaulted ? "vibration" : "none",
         servo_power_press_count: 0,
-        estop_activation_count: 0,
         current_uptime_seconds: Math.floor((now - state.encoderStartTime) / 1000),
+        total_reads: 0,
+        total_errors: 0,
         servo_power_on: servoOn ? 1 : 0,
       };
 

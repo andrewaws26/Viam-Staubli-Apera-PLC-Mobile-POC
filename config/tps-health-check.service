@@ -1,0 +1,17 @@
+[Unit]
+Description=TPS Pi Health Check — fleet monitoring endpoint
+After=network-online.target viam-server.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+ExecStart=/usr/bin/python3 /home/pi/Viam-Staubli-Apera-PLC-Mobile-POC/scripts/health-check.py --plc-host 192.168.0.10
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=tps-health-check
+
+[Install]
+WantedBy=multi-user.target

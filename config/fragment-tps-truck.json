@@ -1,4 +1,20 @@
 {
+  "_comment": [
+    "Viam Fragment template for TPS truck fleet deployment.",
+    "",
+    "How to use:",
+    "  1. In app.viam.com → Fragments → Create Fragment",
+    "  2. Paste this JSON as the fragment config",
+    "  3. For each truck machine, go to Config → Fragments → Add Fragment",
+    "  4. Override the 'host' attribute with the truck's PLC IP address",
+    "",
+    "Per-truck overrides (set in machine config after adding fragment):",
+    "  - components.plc-monitor.attributes.host  → truck's PLC IP (required)",
+    "  - services.data-manager.attributes.tags   → add truck-specific tags",
+    "",
+    "The fragment provides the complete module + component + data manager",
+    "config so each truck only needs the fragment + its IP override."
+  ],
   "modules": [
     {
       "type": "local",
@@ -12,7 +28,7 @@
       "api": "rdk:component:sensor",
       "model": "viam-staubli-apera-poc:monitor:plc-sensor",
       "attributes": {
-        "host": "192.168.0.10",
+        "host": "OVERRIDE_WITH_TRUCK_PLC_IP",
         "port": 502,
         "wheel_diameter_mm": 406.4,
         "offline_buffer_dir": "/home/pi/.viam/offline-buffer",

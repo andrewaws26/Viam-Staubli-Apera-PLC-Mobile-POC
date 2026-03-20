@@ -1,180 +1,135 @@
-# Robot Cell Remote Monitoring POC
+# TPS Remote Monitoring System
 
-Remote monitoring proof of concept using [Viam Robotics](https://www.viam.com/) for an industrial robot cell. Demonstrates real-time fault detection and alerting across PLCs, vision systems, and robot controllers.
+Remote production monitoring for the Tie Plate System (TPS) using [Viam Robotics](https://www.viam.com/). A Raspberry Pi 5 connects to a Click PLC via Modbus TCP, captures encoder and I/O data at 1 Hz, and syncs to Viam Cloud. A Next.js dashboard on Vercel displays live production data from any browser.
 
-**One-sentence summary:** Unplug the Pi and watch the dashboard react.
+**Designed for fleet deployment** — plug a Pi into the PLC's Ethernet port, power it on, and it starts observing. Self-healing connections, offline buffering, and zero manual configuration per truck.
 
-## Current Status
+## What It Monitors
 
-This system is live. A Raspberry Pi 5 runs viam-server as a systemd service, connected to Viam Cloud at `staubli-pi-main.djgpitarpm.viam.cloud`. The vision-health-sensor module is deployed and returns real readings every 2 seconds. A Next.js dashboard is deployed to Vercel and accessible from any browser with an internet connection. The dashboard connects to Viam Cloud via the TypeScript SDK over WebRTC and displays live component health with audible alarms on fault detection.
+All data comes directly from the Click PLC C0-10DD2E-D ladder logic — no simulated or placeholder values:
 
-A Pi Zero W (`raiv-plc.local`, 192.168.0.173 on the shop network) runs the PLC simulator — a standalone Modbus TCP server that mirrors the real RAIV truck's Click PLC register map (25-pin E-Cat cable). It reads physical sensors (GY-521 accelerometer, DHT22 temperature/humidity) and drives servos through an automated work cycle with fault detection.
-
-A Fuji AR22F0L E3 industrial push button (same model used on the RAIV trucks) is wired to GPIO 17 via a Keyestudio T-cobbler breakout board. Pressing the button triggers the Plate Cycle (register 2) and starts the work cycle state machine. The button state is exposed as Modbus coil 0 and displayed on the dashboard as "pressed" or "released".
-
-The plc-sensor Viam module on the Pi 5 connects to the Pi Zero W via Modbus TCP and reads all registers (0-24 E-Cat signals + 100-113 sensor data), surfacing them on the dashboard as live data. The dashboard shows two data panels: PLC sensor readings and a 25-signal E-Cat status grid with green/red indicators.
-
-### Module Status
-
-| Module | Viam Component | Status | What It Does |
-|---|---|---|---|
-| `vision-health-sensor` | `vision-health` | **Working** | ICMP ping + TCP port probe against a target host. Currently targeting 8.8.8.8:53 (Google DNS) as a stand-in for the Apera vision server. Returns `connected` and `process_running` booleans. Deployed to `/opt/viam-modules/vision-health-sensor/`. Data capture configured, readings sync to Viam Cloud. |
-| `plc-sensor` | `plc-monitor` | **Working** | Reads PLC state via Modbus TCP from the Pi Zero W PLC simulator. Returns 25-pin E-Cat cable signals (registers 0-24), push button state (coil 0), vibration, temperature, humidity, pressure, servo positions, cycle count, system state, and fault codes. Unsigned int16 handling ensures correct decoding. Data capture at 1 Hz. |
-| `robot-arm-sensor` | `robot-arm-monitor` | Pending hardware | Returns placeholder values. Blocked on Staubli CS9 protocol confirmation (Modbus TCP vs VAL3 socket). Code structure and Viam registration are complete. |
-
-### Dashboard Status
-
-| Feature | State |
+| Signal Type | Details |
 |---|---|
-| Vision System indicator | Green OK, live readings from Viam Cloud |
-| PLC / Controller indicator | Green OK, live Modbus data from Pi Zero W |
-| Wire / Connection indicator | Green OK, derived from PLC readings |
-| Robot Arm indicator | Yellow "Pending" (hardware not available) |
-| PLC Sensor Data panel | Live — temperature, humidity, vibration, pressure, servos, cycle count, system state, button state |
-| E-Cat Signal Status grid | Live — 25 signals with green/red dot indicators |
-| E-Cat signal fault logging | Working — logs signal loss and recovery with pin number and signal name |
-| Fault detection + alarm | Working (audible klaxon, red flash, alert banner) |
-| Fault history log | Working (last 10 events, timestamped, color-coded) |
-| Mock mode for demos | Working (toggle via env var) |
-| Vercel deployment | Live, accessible from any browser |
+| **Encoder** (SICK DBS60E) | Pulse count, distance (ft/mm), speed (ft/min), direction, revolutions |
+| **Discrete Inputs** (X1-X8) | TPS power loop, camera signal, Air Eagle 1/2/3 feedback |
+| **Output Coils** (Y1-Y3) | Eject TPS-1, Eject Left TPS-2, Eject Right TPS-2 |
+| **Internal Coils** (C1999-C2000) | Encoder reset, floating zero |
+| **DS Registers** (DS1-DS14) | Encoder ignore, tie spacing, detector offset, and more |
+| **Derived** | Plates per minute (rolling 60s window), plate drop count, encoder enabled state |
 
-## What This System Does
+## What It Does NOT Collect
 
-Three custom Viam sensor modules monitor hardware state from a robot cell:
+No camera feeds, no operator identity, no shift data, no audio. Fixed schema — expanding data requires new code, not config changes.
 
-- **PLC Sensor** -- Reads the full Modbus register map from the PLC (25-pin E-Cat cable signals + sensor data + push button coil) via Modbus TCP. Includes unsigned int16 handling for robust data decoding.
-- **Robot Arm Sensor** -- Monitors a Staubli CS9 controller for connection state, operating mode, and fault codes.
-- **Vision Health Sensor** -- Checks network reachability (ICMP ping) and service availability (TCP port probe) of an Apera AI vision server.
+## Architecture
 
-Additionally:
-- **PLC Simulator** -- Runs on a Pi Zero W, simulating the Click PLC with real sensors and actuators. Exposes the same Modbus register map as the real truck. Reads a Fuji AR22F0L push button on GPIO 17 with 50ms debounce and internal pull-up.
-- **Status API** -- Flask HTTP server on the Pi 5, exposing PLC state as JSON for the LED matrix display and touchscreen.
-- **LED Matrix Display** -- CircuitPython code for the Matrix Portal S3, rendering 6 subsystem status blocks on a 64x32 RGB LED panel.
-
-Sensor readings flow through viam-server to Viam Cloud, where a browser-based dashboard displays live status and triggers alerts on faults.
-
-## What This System Does NOT Collect
-
-This system is scoped strictly to machine and component state. By design, it does **not** collect:
-
-- Camera feeds or images from the work area
-- Operator identity, badge scans, or login information
-- Cycle time, throughput, or production counts per operator or shift
-- Audio from the work area
-- Any data that could be used to track, identify, or evaluate personnel
-
-Each sensor module has a fixed return schema defined in its `get_readings()` method. Expanding the data collected requires writing new module code, reviewing it, building it, and deploying it. This is not a configuration change. See `docs/architecture.md` section 6 for the full privacy architecture.
+```
+Click PLC ──Modbus TCP──▶ Raspberry Pi 5 ──Viam Cloud──▶ Vercel Dashboard
+                           │
+                           ├─ plc-sensor module (1 Hz reads)
+                           ├─ offline buffer (JSONL, survives reboots)
+                           ├─ viam-server (data capture + cloud sync)
+                           └─ health-check (HTTP :8081)
+```
 
 ## Project Structure
 
 ```
 .
-├── api/                                  # Status API (Flask, runs on Pi 5)
-│   ├── src/status_api.py                 # HTTP endpoints: /status, /health
-│   ├── systemd/status-api.service        # systemd unit file
-│   └── requirements.txt
 ├── config/
-│   ├── viam-server.json                  # Full Viam agent config
-│   └── test-vision-only.json
-├── dashboard/                            # Next.js monitoring dashboard (deployed to Vercel)
-│   ├── app/                              # Next.js pages and layout
-│   ├── components/                       # React components (Dashboard, StatusCard, PlcDetailPanel)
-│   ├── lib/                              # Viam SDK wrapper, sensor configs, types
-│   ├── .env.local.example                # Template for credentials
-│   └── package.json
-├── display/                              # Matrix Portal S3 LED display (CircuitPython)
-│   ├── code.py                           # Main entry point
-│   ├── config.py                         # WiFi, API endpoint, thresholds
-│   └── status_renderer.py               # Status block rendering + scrolling text
-├── docs/
-│   ├── architecture.md                   # Full system architecture document
-│   ├── deploy-rpi5.md                    # Raspberry Pi 5 deployment guide
-│   ├── build-log.md                      # Chronological build narrative
-│   └── technical-overview.md             # Technical overview and design rationale
+│   ├── viam-server.json              # Single-truck Viam config
+│   ├── fragment-tps-truck.json       # Fleet fragment template
+│   └── tps-health-check.service      # systemd unit for health endpoint
+├── dashboard/                        # Next.js on Vercel
+│   ├── app/
+│   │   ├── api/sensor-readings/      # Server-side Viam API proxy
+│   │   ├── page.tsx                  # Main page
+│   │   └── layout.tsx
+│   ├── components/                   # Dashboard, StatusCard, PlcDetailPanel
+│   ├── lib/                          # Viam client, sensor configs, types
+│   └── .env.local.example            # Credential template
 ├── modules/
-│   ├── plc-sensor/                       # Modbus TCP reader — connects to PLC simulator
-│   ├── robot-arm-sensor/                 # Scaffold — pending protocol confirmation
-│   └── vision-health-sensor/             # Live — deployed on Pi 5
-├── pi-zero-setup/                        # Automated setup scripts for Pi Zero W
-│   ├── 01-install-packages.sh            # System packages and Python deps
-│   ├── 02-clone-and-setup.sh             # Clone repo and create venv
-│   ├── 03-configure-and-run.sh           # Configure and start simulator
-│   ├── 04-test-registers.sh              # Verify Modbus registers via pymodbus
-│   └── run-all.sh                        # Run all setup scripts in sequence
-├── plc-simulator/                        # Pi Zero W PLC simulator
-│   ├── src/                              # Modbus server, sensors, actuators, work cycle
-│   ├── tests/                            # Unit tests (fault detection, register map)
-│   ├── config.yaml                       # GPIO pins, thresholds, polling rates
-│   ├── systemd/plc-simulator.service     # systemd unit file for boot startup
-│   └── requirements.txt
-├── DEMO.md                               # How to run the demo
-├── requirements.txt                      # Top-level Python dependencies
-└── README.md
+│   └── plc-sensor/                   # Viam sensor module
+│       ├── src/plc_sensor.py         # Core module (Modbus reads + offline buffer)
+│       ├── run.sh                    # Entry point (venv + validation)
+│       ├── setup.sh                  # One-time setup
+│       ├── requirements.txt          # Pinned: viam-sdk==0.69.0, pymodbus==3.7.4
+│       └── meta.json
+├── scripts/
+│   ├── test_plc_modbus.py            # Manual PLC connectivity test
+│   └── health-check.py              # Fleet health endpoint
+├── docs/
+│   ├── architecture.md
+│   ├── deploy-rpi5.md
+│   ├── click-plc-setup-guide.md
+│   ├── encoder-setup-guide.md
+│   ├── fleet-deployment-plan.md
+│   └── data-management.md
+└── requirements.txt                  # Top-level pinned deps
 ```
-
-## Hardware
-
-- **Pi 5 (192.168.0.172):** Raspberry Pi 5 (Raspberry Pi OS Lite 64-bit, aarch64) running viam-server v0.116.0 as a systemd service. Also runs the Status API (Flask) and the plc-sensor Viam module.
-- **Pi Zero W (192.168.0.173):** Runs the PLC simulator — Modbus TCP server with GY-521, DHT22, servos, Fuji AR22F0L push button, LEDs. Accessible via `raiv-plc.local` mDNS.
-- **Fuji AR22F0L E3:** Industrial push button (same model as RAIV trucks). NO contact wired GPIO 17 → GND via Keyestudio T-cobbler breakout board. Internal pull-up, active LOW, 50ms debounce.
-- **Matrix Portal S3:** Adafruit Matrix Portal S3 driving a 64x32 RGB LED matrix for at-a-glance status.
-- **Pending:** Staubli CS9 robot controller, Dell server running Apera AI Vue
-- **Network:** Shop network (192.168.0.x). Both Pis on same WiFi. Pi 5 has outbound HTTPS to app.viam.com. SSH to Pi Zero W is done from Pi 5 (not directly from Mac).
 
 ## Quick Start
 
-### Run with mock data (no hardware needed)
+### Mock mode (no hardware)
 
 ```bash
 cd dashboard
 cp .env.local.example .env.local
 # .env.local already has NEXT_PUBLIC_MOCK_MODE=true
-npm install
-npm run dev
+npm install && npm run dev
 ```
 
-Open http://localhost:3000. Faults fire randomly every 15-20 seconds. Use the Demo Controls buttons to trigger faults manually.
+### Live mode (Pi + PLC)
 
-### Run with live Viam data
+1. **Deploy the Pi** — follow [docs/deploy-rpi5.md](docs/deploy-rpi5.md)
+2. **Set Vercel env vars** — in Vercel Project Settings → Environment Variables:
+   - `VIAM_MACHINE_ADDRESS` — your machine's cloud address
+   - `VIAM_API_KEY_ID` — API key ID from Viam app
+   - `VIAM_API_KEY` — API key value
+   - `NEXT_PUBLIC_MOCK_MODE` — set to `false`
+3. **Deploy** — push to main, Vercel builds automatically
 
-The dashboard is deployed to Vercel. Open the Vercel URL in any browser. No local setup needed.
-
-For local development against live data, see [DEMO.md](DEMO.md) for the full walkthrough, or [docs/deploy-rpi5.md](docs/deploy-rpi5.md) for the detailed deployment guide.
-
-### Run the PLC simulator (Pi Zero W)
-
-The PLC simulator runs on a Pi Zero W at `raiv-plc.local` (192.168.0.173), exposing Modbus TCP on port 502. It starts automatically on boot via systemd.
-
-**First-time setup** (from the Pi 5 at 192.168.0.172):
+### Health check
 
 ```bash
-# Copy setup scripts to the Pi Zero W
-scp -r pi-zero-setup/ andrew@raiv-plc.local:~/
-
-# SSH in and run
-ssh andrew@raiv-plc.local
-chmod +x ~/pi-zero-setup/*.sh
-~/pi-zero-setup/run-all.sh
+# From the Pi or any machine on the same network:
+curl http://<pi-ip>:8081/health
 ```
 
-Override the SSH target with an environment variable if needed:
+## Fleet Deployment
+
+For 30+ trucks, use the Viam Fragment workflow:
+
+1. Create a fragment in app.viam.com using `config/fragment-tps-truck.json`
+2. For each truck machine, add the fragment and override `host` with the truck's PLC IP
+3. Install the health check service: `sudo cp config/tps-health-check.service /etc/systemd/system/ && sudo systemctl enable --now tps-health-check`
+
+See [docs/fleet-deployment-plan.md](docs/fleet-deployment-plan.md) for the full rollout plan.
+
+## Key Features
+
+- **Plug and play** — Pi auto-connects to PLC on boot, self-heals on disconnect
+- **Offline buffering** — JSONL files on local disk, auto-pruned at 50 MB cap
+- **Self-healing** — exponential backoff (1s → 30s), auto-reconnect with diagnostic logs
+- **Secure dashboard** — Viam credentials stay server-side (Vercel serverless functions)
+- **Fleet-ready** — Viam Fragments for per-truck config, health endpoint on every Pi
+- **Zero data loss** — Viam data manager buffers locally when cloud is unreachable
+
+## Troubleshooting
+
 ```bash
-RAIV_PLC_SSH=andrew@192.168.0.173 bash pi-zero-setup/run-all.sh
+# View live module logs
+sudo journalctl -u viam-server -f | grep plc
+
+# Check for connection errors
+sudo journalctl -u viam-server --since "1 hour ago" | grep "🔴"
+
+# Check for self-heal events
+sudo journalctl -u viam-server | grep "self-healed"
+
+# Test PLC connectivity directly
+python3 scripts/test_plc_modbus.py --host 192.168.0.10 --watch
+
+# Full health report
+curl http://localhost:8081/health | python3 -m json.tool
 ```
-
-This installs packages, clones the repo, creates a venv, installs the systemd service, and starts the simulator. See [`plc-simulator/README.md`](plc-simulator/README.md) for the full register map and manual operation.
-
-## Architecture
-
-See [`docs/architecture.md`](docs/architecture.md) for the full system architecture, including data flow diagrams, phased build plan, privacy constraints, and the list of hardware assumptions requiring validation.
-
-## Documentation
-
-- [`docs/architecture.md`](docs/architecture.md) -- System architecture, privacy design, hardware assessment
-- [`docs/deploy-rpi5.md`](docs/deploy-rpi5.md) -- Step-by-step Pi deployment guide
-- [`docs/build-log.md`](docs/build-log.md) -- Narrative of what was built and why
-- [`docs/technical-overview.md`](docs/technical-overview.md) -- Technical overview and design rationale
-- [`plc-simulator/README.md`](plc-simulator/README.md) -- PLC simulator setup and register map
-- [`api/README.md`](api/README.md) -- Status API setup
-- [`display/README.md`](display/README.md) -- LED matrix display setup
-- [`DEMO.md`](DEMO.md) -- How to run the demo
