@@ -1,19 +1,20 @@
-# Deploying the Vision Health Sensor on Raspberry Pi 5
+# Deploying the TPS PLC Sensor on Raspberry Pi 5
 
-This guide walks through deploying the vision-health-sensor module on a Raspberry Pi 5 running Raspberry Pi OS, connecting it to Viam Cloud, and seeing live sensor readings in the Viam app.
+This guide walks through deploying the plc-sensor module on a Raspberry Pi 5 running Raspberry Pi OS. The module connects to a Click PLC over Modbus TCP, reads ~55 fields of TPS machine data, and syncs everything to Viam Cloud.
 
 **Time required:** ~20 minutes
 
-**What you'll prove:** The full data pipeline works end-to-end. A sensor on the Pi reads data, Viam syncs it to the cloud, and you see live readings in a browser.
+**What you'll prove:** The full data pipeline works end-to-end. The PLC sensor on the Pi reads live Modbus registers from the Click PLC, Viam syncs the data to the cloud, and you see real-time TPS machine status in a browser.
 
 ---
 
 ## Prerequisites
 
 - Raspberry Pi 5 running Raspberry Pi OS (64-bit, Bookworm)
-- Pi connected to the internet via Wi-Fi or Ethernet
+- Pi connected to the same subnet as the Click PLC (169.168.10.x)
 - SSH access to the Pi (or a keyboard/monitor attached)
 - A free Viam account at https://app.viam.com
+- Click PLC C0-10DD2E-D powered on and reachable at 169.168.10.21
 
 ---
 
@@ -48,7 +49,7 @@ viam-server --version
 ## Step 3: Clone the repo on the Pi
 
 ```bash
-cd /home/pi
+cd /home/andrew
 git clone https://github.com/andrewaws26/Viam-Staubli-Apera-PLC-Mobile-POC.git
 cd Viam-Staubli-Apera-PLC-Mobile-POC
 ```
@@ -68,8 +69,8 @@ Do **NOT** use the local JSON config file. Instead, configure the machine throug
 ```json
 {
   "type": "local",
-  "name": "vision-health-sensor-module",
-  "executable_path": "/home/pi/Viam-Staubli-Apera-PLC-Mobile-POC/modules/vision-health-sensor/run.sh"
+  "name": "plc-sensor-module",
+  "executable_path": "/home/andrew/Viam-Staubli-Apera-PLC-Mobile-POC/modules/plc-sensor/run.sh"
 }
 ```
 
@@ -79,12 +80,13 @@ In the `"components"` array, add:
 
 ```json
 {
-  "name": "vision-health-monitor",
+  "name": "plc-monitor",
   "api": "rdk:component:sensor",
-  "model": "viam-staubli-apera-poc:monitor:vision-health-sensor",
+  "model": "viam-staubli-apera-poc:monitor:plc-sensor",
   "attributes": {
-    "host": "8.8.8.8",
-    "port": 53
+    "host": "169.168.10.21",
+    "port": 502,
+    "wheel_diameter_mm": 406.4
   },
   "depends_on": [],
   "service_configs": [
@@ -104,10 +106,15 @@ In the `"components"` array, add:
 }
 ```
 
-**What this does:**
-- `host: 8.8.8.8` — Google's public DNS server (always responds to ping and TCP:53)
-- `port: 53` — DNS port (always listening)
-- `capture_frequency_hz: 0.2` — captures one reading every 5 seconds
+**Attributes reference:**
+
+| Attribute | Required | Default | Description |
+|---|---|---|---|
+| `host` | Yes | — | PLC IP address (169.168.10.21 for the Click PLC) |
+| `port` | No | 502 | Modbus TCP port |
+| `wheel_diameter_mm` | No | 406.4 | Wheel diameter in mm for encoder calculations |
+| `offline_buffer_dir` | No | — | Directory for buffering data when cloud sync is unavailable |
+| `offline_buffer_max_mb` | No | 50 | Max size in MB for the offline buffer |
 
 ### 4c. Add the data manager service
 
@@ -118,12 +125,14 @@ In the `"services"` array, add:
   "name": "data-manager",
   "type": "data_manager",
   "attributes": {
-    "capture_dir": "/tmp/viam-data",
+    "capture_dir": "/home/andrew/.viam/capture",
     "sync_interval_mins": 0.1,
     "tags": ["robot-cell-monitor"]
   }
 }
 ```
+
+> **Important:** Use `/home/andrew/.viam/capture` as the capture directory, not `/tmp`. Data in `/tmp` is lost on reboot.
 
 4. Click **Save** in the top-right corner
 
@@ -150,60 +159,68 @@ Alternatively, start it manually:
 viam-server -config /etc/viam.json
 ```
 
-Watch the logs. You should see:
-
-```
-info  vision-health-sensor-module  VisionHealthSensor configured: host=8.8.8.8 port=53
-```
+Watch the logs. You should see the plc-sensor module start and connect to the PLC at 169.168.10.21:502.
 
 If you see errors about the module not starting, check:
-- Is `run.sh` executable? (`chmod +x modules/vision-health-sensor/run.sh`)
+- Is `run.sh` executable? (`chmod +x /home/andrew/Viam-Staubli-Apera-PLC-Mobile-POC/modules/plc-sensor/run.sh`)
 - Is Python 3.11+ installed? (`python3 --version`)
-- Can the Pi reach the internet? (`ping 8.8.8.8`)
+- Is pymodbus installed in the module's venv?
 
 ---
 
 ## Step 6: Verify sensor readings in the Viam app
 
 1. In the Viam app, go to your machine's **Control** tab
-2. Find the **vision-health-monitor** sensor component
+2. Find the **plc-monitor** sensor component
 3. Click **Get Readings**
-4. You should see:
+4. You should see ~55 fields including:
 
 ```json
 {
   "connected": true,
-  "process_running": true
+  "encoder_count": 12345,
+  "encoder_distance_mm": 5028.3,
+  "tps_machine_running": true,
+  "tps_eject_active": false,
+  "production_good_count": 482,
+  "production_reject_count": 3,
+  "DS1": 100,
+  "DS2": 200,
+  ...
+  "DS25": 0
 }
 ```
 
-Both values should be `true` because `8.8.8.8` responds to both ICMP ping and TCP connections on port 53.
+The key indicator is `connected: true` — this confirms the Pi is communicating with the Click PLC over Modbus TCP. You should also see live encoder data, TPS machine status, eject system state, production counters, and DS1 through DS25 register values.
 
 ---
 
 ## Step 7: Test the fault scenario
 
-Now prove that the sensor detects a failure. In the Viam app **Config** tab (JSON mode), change the host to a non-existent IP:
+Prove that the sensor detects a PLC communication failure:
 
-```json
-"attributes": {
-  "host": "192.168.1.254",
-  "port": 12345
-}
-```
-
-Save the config. Wait a few seconds for viam-server to reconfigure. Then check **Control** > **Get Readings** again:
+1. **Disconnect the Ethernet cable** from the Click PLC
+2. Wait a few seconds for the next reading cycle
+3. Go to **Control** tab > **plc-monitor** > **Get Readings**
+4. You should see:
 
 ```json
 {
   "connected": false,
-  "process_running": false
+  "encoder_count": 0,
+  "encoder_distance_mm": 0,
+  "tps_machine_running": false,
+  "tps_eject_active": false,
+  "production_good_count": 0,
+  "production_reject_count": 0,
+  "DS1": 0,
+  ...
 }
 ```
 
-Both values flip to `false`. This is the "pull a wire" demo — change the target from reachable to unreachable and watch the dashboard react.
+When the PLC is unreachable, `connected` becomes `false` and all values drop to zero. This is the "pull a wire" demo — disconnect the PLC and watch the dashboard react in real time.
 
-Change it back to `8.8.8.8` / `53` when done testing.
+**Reconnect the Ethernet cable** when done testing. Within one or two reading cycles, `connected` should return to `true` and all values should resume.
 
 ---
 
@@ -212,20 +229,9 @@ Change it back to `8.8.8.8` / `53` when done testing.
 1. In the Viam app, go to the **Data** tab (top navigation)
 2. Filter by your machine name
 3. You should see timestamped sensor readings appearing every ~5 seconds
-4. Each row shows `connected` and `process_running` values
+4. Each row contains all ~55 fields from the PLC
 
-This confirms the full pipeline: Pi sensor -> viam-server -> Viam Cloud.
-
----
-
-## Test targets reference
-
-| Target | Host | Port | Expected result | Use case |
-|---|---|---|---|---|
-| Google DNS | `8.8.8.8` | `53` | connected=true, process_running=true | Verify pipeline works |
-| Non-existent IP | `192.168.1.254` | `12345` | connected=false, process_running=false | Verify fault detection |
-| Your router | `192.168.1.1` | `80` | connected=true, process_running=varies | Test local network |
-| Apera server (real) | TBD | TBD | Depends on hardware state | Production use |
+This confirms the full pipeline: Click PLC -> Modbus TCP -> plc-sensor -> viam-server -> Viam Cloud.
 
 ---
 
@@ -234,27 +240,33 @@ This confirms the full pipeline: Pi sensor -> viam-server -> Viam Cloud.
 **Module fails to start:**
 ```bash
 # Check if run.sh is executable
-ls -la /home/pi/Viam-Staubli-Apera-PLC-Mobile-POC/modules/vision-health-sensor/run.sh
+ls -la /home/andrew/Viam-Staubli-Apera-PLC-Mobile-POC/modules/plc-sensor/run.sh
 
 # Try running it manually
-/home/pi/Viam-Staubli-Apera-PLC-Mobile-POC/modules/vision-health-sensor/run.sh --help
+/home/andrew/Viam-Staubli-Apera-PLC-Mobile-POC/modules/plc-sensor/run.sh --help
 
-# Check if viam-sdk installs correctly
-cd /home/pi/Viam-Staubli-Apera-PLC-Mobile-POC/modules/vision-health-sensor
+# Check if pymodbus installs correctly in the venv
+cd /home/andrew/Viam-Staubli-Apera-PLC-Mobile-POC/modules/plc-sensor
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 ```
 
-**Readings show connected=false but Pi has internet:**
+**Readings show connected=false but PLC should be reachable:**
 ```bash
-# ICMP might be blocked. Test manually:
-ping -c 1 8.8.8.8
+# Verify the PLC is powered on and the Ethernet link light is active
 
-# If ping is blocked, the sensor still works — process_running will be true
-# (TCP probe is independent of ICMP)
+# Check that the Pi can reach the PLC subnet
+ping -c 3 169.168.10.21
+
+# If ping fails, check the Pi's IP address — it must be on the 169.168.10.x subnet
+ip addr show
+
+# Test Modbus TCP connectivity directly
+python3 -c "import socket; s = socket.socket(); s.settimeout(3); s.connect(('169.168.10.21', 502)); print('OK'); s.close()"
 ```
 
 **No data in the Data tab:**
-- Check that the `data_manager` service is configured
-- Check that `service_configs` with `capture_methods` is on the component
+- Check that the `data_manager` service is configured with `capture_dir: /home/andrew/.viam/capture`
+- Check that `service_configs` with `capture_methods` is present on the plc-monitor component
 - Check viam-server logs for sync errors
+- Verify the capture directory exists: `ls -la /home/andrew/.viam/capture`

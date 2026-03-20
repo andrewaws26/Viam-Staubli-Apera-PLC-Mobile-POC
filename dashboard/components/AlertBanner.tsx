@@ -10,29 +10,29 @@ export default function AlertBanner({ faultNames, isEstop = false }: Props) {
 
   const title = isEstop ? "E-STOP ACTIVATED" : "FAULT DETECTED";
   const subtitle = isEstop
-    ? "System halted — twist E-stop to reset, then press Servo Power"
+    ? "System halted — reset E-stop, then power on"
     : faultNames.join("  ·  ");
   const symbol = isEstop ? "🛑" : "⚠";
 
   return (
     <div
       role="alert"
-      className={`flex items-center gap-4 ${bgClass} px-6 py-5`}
+      className={`flex items-center gap-3 sm:gap-4 ${bgClass} px-4 sm:px-6 py-3 sm:py-5`}
       style={{ animation: "bannerIn 0.2s ease-out" }}
     >
       {/* Flashing warning symbol */}
       <span
-        className="text-4xl font-black text-white animate-pulse select-none"
+        className="text-2xl sm:text-4xl font-black text-white animate-pulse select-none shrink-0"
         aria-hidden="true"
       >
         {symbol}
       </span>
 
-      <div className="flex-1">
-        <p className="text-2xl font-black tracking-widest uppercase text-white leading-none">
+      <div className="flex-1 min-w-0">
+        <p className="text-lg sm:text-2xl font-black tracking-widest uppercase text-white leading-none">
           {title}
         </p>
-        <p className="text-red-200 text-base mt-1 font-semibold">
+        <p className="text-red-200 text-sm sm:text-base mt-0.5 sm:mt-1 font-semibold truncate">
           {subtitle}
         </p>
       </div>

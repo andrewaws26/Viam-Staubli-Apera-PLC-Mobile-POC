@@ -5,12 +5,12 @@ Reads the TPS (Tie Plate System) PLC state via Modbus TCP and returns
 structured sensor readings for remote monitoring.  Connects to a Click PLC
 C0-10DD2E-D.
 
-Register map — only real PLC ladder logic, no simulated values:
-  DS1-DS14 (addr 0-13):  TPS production config registers
+Register map — everything the Click PLC ladder logic exposes:
+  DS1-DS25 (addr 0-24):   TPS holding registers (config + status)
   DD1 (addr 16384-16385): Encoder pulse count (32-bit signed, quadrature x1)
-  X1-X8 (discrete):      TPS discrete inputs (power loop, camera, air eagles)
-  Y1-Y3 (coils 8192+):   TPS eject output coils
-  C1999-C2000 (coils):   Encoder reset, floating zero
+  X1-X8 (discrete):       TPS discrete inputs (power loop, camera, air eagles)
+  Y1-Y3 (coils 8192+):    TPS eject output coils
+  C1999-C2000 (coils):    Encoder reset, floating zero
 
 Offline buffering:
   When configured with offline_buffer_dir, readings are buffered to local
@@ -160,9 +160,6 @@ class PlcSensor(Sensor):
         self._offline_buffer: Optional[OfflineBuffer] = None
         if offline_buffer_dir:
             self._offline_buffer = OfflineBuffer(offline_buffer_dir, offline_buffer_max_mb)
-        # Software counters — edge detection on PLC register values
-        self._servo_press_count: int = 0
-        self._prev_servo_on: Optional[int] = None   # DS1 previous value
         # Encoder: distance-per-count derived from wheel diameter
         self._wheel_diameter_mm = wheel_diameter_mm
         wheel_circumference_mm = math.pi * wheel_diameter_mm
@@ -300,15 +297,21 @@ class PlcSensor(Sensor):
 
     @staticmethod
     def _disconnected_readings(reason: str) -> Mapping[str, SensorReading]:
-        """Return a full readings dict with connected=False and all values zeroed."""
-        return {
+        """Return a full readings dict with connected=False and all values zeroed.
+
+        Must match the same keys returned by get_readings() so the dashboard
+        always receives a consistent schema.
+        """
+        readings: Dict[str, Any] = {
+            # System health
             "connected": False,
             "fault": True,
             "system_state": "disconnected",
             "last_fault": reason,
-            "servo_power_press_count": 0,
             "current_uptime_seconds": 0,
-            # Encoder
+            "total_reads": 0,
+            "total_errors": 0,
+            # Encoder & Track Distance
             "encoder_count": 0,
             "encoder_direction": "forward",
             "encoder_distance_mm": 0.0,
@@ -316,36 +319,31 @@ class PlcSensor(Sensor):
             "encoder_speed_mmps": 0.0,
             "encoder_speed_ftpm": 0.0,
             "encoder_revolutions": 0.0,
-            # TPS discrete inputs
+            # TPS Machine Status
             "tps_power_loop": False,
             "camera_signal": False,
-            "air_eagle_1_feedback": False,
-            "air_eagle_2_feedback": False,
-            "air_eagle_3_enable": False,
-            # TPS output coils
+            "encoder_enabled": False,
+            "floating_zero": False,
+            "encoder_reset": False,
+            # TPS Eject System
             "eject_tps_1": False,
             "eject_left_tps_2": False,
             "eject_right_tps_2": False,
-            # TPS internal coils
-            "encoder_reset": False,
-            "floating_zero": False,
-            # TPS production registers
-            "encoder_ignore": 0,
-            "adjustable_tie_spacing": 0,
-            "ds3_value": 0,
-            "detector_offset_bits": 0,
-            "ds6_value": 0,
-            "ds7_value": 0,
-            "ds10_value": 0,
-            "ds11_value": 0,
-            "ds12_value": 0,
-            "ds13_value": 0,
-            "ds14_value": 0,
-            # TPS derived readings
-            "encoder_enabled": False,
-            "plate_drop_count": 0,
+            "air_eagle_1_feedback": False,
+            "air_eagle_2_feedback": False,
+            "air_eagle_3_enable": False,
+            # TPS Production
             "plates_per_minute": 0.0,
+            "plate_drop_count": 0,
+            # Discrete inputs (raw)
+            "x1": False,
+            "x2": False,
+            "x8": False,
         }
+        # DS Holding Registers — all 25 zeroed
+        for i in range(1, 26):
+            readings[f"ds{i}"] = 0
+        return readings
 
     async def get_readings(
         self,
@@ -365,8 +363,8 @@ class PlcSensor(Sensor):
             return self._disconnected_readings("connection_failed")
 
         try:
-            # ── Read DS holding registers (0-14) — TPS production config ──
-            ds_result = self.client.read_holding_registers(address=0, count=15)
+            # ── Read DS holding registers (0-24) — all 25 TPS registers ──
+            ds_result = self.client.read_holding_registers(address=0, count=25)
             if ds_result.isError():
                 LOGGER.warning("Error reading DS registers: %s", ds_result)
                 self._disconnect()
@@ -471,28 +469,19 @@ class PlcSensor(Sensor):
             encoder_enabled = not encoder_reset_coil and encoder_count != 0
 
             # ── Derive system state from real PLC signals ──
-            servo_on = ds[0]  # DS1: servo_power_on (also used as encoder_ignore)
-            # System state derived from discrete inputs and coil states
             system_state = "running" if tps_power_loop else "idle"
 
-            # ── Software counters — detect rising edges on PLC register values ──
-            # Servo press: count transitions of DS1 from 0→1 (servo toggled on)
-            if self._prev_servo_on is not None and self._prev_servo_on == 0 and servo_on == 1:
-                self._servo_press_count += 1
-            self._prev_servo_on = servo_on
-
-            # ── Build readings — only real PLC data ──
+            # ── Build readings — everything the PLC exposes ──
             readings: Dict[str, Any] = {
+                # System health
                 "connected": True,
                 "fault": False,
                 "system_state": system_state,
                 "last_fault": "none",
-                "servo_power_on": servo_on,
-                "servo_power_press_count": self._servo_press_count,
                 "current_uptime_seconds": round(time.time() - self._start_time),
                 "total_reads": self._total_reads,
                 "total_errors": self._total_errors,
-                # Encoder data (SICK DBS60E-BDEC01000)
+                # Encoder & Track Distance (DD1 + derived)
                 "encoder_count": encoder_count,
                 "encoder_direction": "forward" if encoder_direction == 0 else "reverse",
                 "encoder_distance_mm": round(encoder_distance_mm, 1),
@@ -500,35 +489,52 @@ class PlcSensor(Sensor):
                 "encoder_speed_mmps": round(self._encoder_speed_mmps, 1),
                 "encoder_speed_ftpm": round(encoder_speed_ftpm, 1),
                 "encoder_revolutions": round(encoder_revolutions, 2),
-                # TPS discrete inputs
+                # TPS Machine Status (discrete inputs + internal coils)
                 "tps_power_loop": tps_power_loop,
                 "camera_signal": camera_signal,
-                "air_eagle_1_feedback": air_eagle_1_feedback,
-                "air_eagle_2_feedback": air_eagle_2_feedback,
-                "air_eagle_3_enable": air_eagle_3_enable,
-                # TPS output coils
+                "encoder_enabled": encoder_enabled,
+                "floating_zero": floating_zero,
+                "encoder_reset": encoder_reset_coil,
+                # TPS Eject System (output coils + air eagle feedback)
                 "eject_tps_1": eject_tps_1,
                 "eject_left_tps_2": eject_left_tps_2,
                 "eject_right_tps_2": eject_right_tps_2,
-                # TPS internal coils
-                "encoder_reset": encoder_reset_coil,
-                "floating_zero": floating_zero,
-                # TPS production registers (from DS holding registers)
-                "encoder_ignore": ds[0],                 # DS1
-                "adjustable_tie_spacing": ds[1],         # DS2
-                "ds3_value": ds[2],                      # DS3
-                "detector_offset_bits": ds[4],           # DS5
-                "ds6_value": ds[5],                      # DS6
-                "ds7_value": ds[6],                      # DS7
-                "ds10_value": ds[9],                     # DS10
-                "ds11_value": ds[10],                    # DS11
-                "ds12_value": ds[11],                    # DS12
-                "ds13_value": ds[12],                    # DS13
-                "ds14_value": ds[13],                    # DS14
-                # TPS derived readings
-                "encoder_enabled": encoder_enabled,
-                "plate_drop_count": self._plate_drop_count,
+                "air_eagle_1_feedback": air_eagle_1_feedback,
+                "air_eagle_2_feedback": air_eagle_2_feedback,
+                "air_eagle_3_enable": air_eagle_3_enable,
+                # TPS Production (derived from coil transitions)
                 "plates_per_minute": round(plates_per_minute, 1),
+                "plate_drop_count": self._plate_drop_count,
+                # DS Holding Registers — all 25 from Click PLC ladder logic
+                "ds1": ds[0],
+                "ds2": ds[1],
+                "ds3": ds[2],
+                "ds4": ds[3],
+                "ds5": ds[4],
+                "ds6": ds[5],
+                "ds7": ds[6],
+                "ds8": ds[7],
+                "ds9": ds[8],
+                "ds10": ds[9],
+                "ds11": ds[10],
+                "ds12": ds[11],
+                "ds13": ds[12],
+                "ds14": ds[13],
+                "ds15": ds[14],
+                "ds16": ds[15],
+                "ds17": ds[16],
+                "ds18": ds[17],
+                "ds19": ds[18],
+                "ds20": ds[19],
+                "ds21": ds[20],
+                "ds22": ds[21],
+                "ds23": ds[22],
+                "ds24": ds[23],
+                "ds25": ds[24],
+                # Discrete inputs X1-X8 (raw, for completeness)
+                "x1": bool(discrete_bits[0]),
+                "x2": bool(discrete_bits[1]),
+                "x8": bool(discrete_bits[7]),
             }
 
             # Persist to local offline buffer (survives reboots + cloud outages)

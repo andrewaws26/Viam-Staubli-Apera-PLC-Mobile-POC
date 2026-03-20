@@ -100,7 +100,43 @@ export const TPS_PRODUCTION_FIELDS: {
 }[] = [
   { key: "plates_per_minute", label: "Plate Rate", unit: "/min", highlight: true },
   { key: "plate_drop_count", label: "Total Plates Dropped" },
-  { key: "adjustable_tie_spacing", label: "Tie Spacing Setting" },
-  { key: "encoder_ignore", label: "Encoder Ignore" },
-  { key: "detector_offset_bits", label: "Detector Offset" },
+  { key: "ds2", label: "Tie Spacing Setting" },
+  { key: "ds1", label: "Encoder Ignore" },
+  { key: "ds5", label: "Detector Offset" },
+];
+
+// ---------------------------------------------------------------------------
+// PLC DS Holding Registers (DS1-DS25)
+// All 25 registers from the Click PLC ladder logic — raw values for
+// complete visibility into what the PLC is doing.
+// ---------------------------------------------------------------------------
+export const PLC_REGISTER_FIELDS: {
+  key: string;
+  label: string;
+}[] = [
+  { key: "ds1", label: "DS1" },
+  { key: "ds2", label: "DS2" },
+  { key: "ds3", label: "DS3" },
+  { key: "ds4", label: "DS4" },
+  { key: "ds5", label: "DS5" },
+  { key: "ds6", label: "DS6" },
+  { key: "ds7", label: "DS7" },
+  { key: "ds8", label: "DS8" },
+  { key: "ds9", label: "DS9" },
+  { key: "ds10", label: "DS10" },
+  { key: "ds11", label: "DS11" },
+  { key: "ds12", label: "DS12" },
+  { key: "ds13", label: "DS13" },
+  { key: "ds14", label: "DS14" },
+  { key: "ds15", label: "DS15" },
+  { key: "ds16", label: "DS16" },
+  { key: "ds17", label: "DS17" },
+  { key: "ds18", label: "DS18" },
+  { key: "ds19", label: "DS19" },
+  { key: "ds20", label: "DS20" },
+  { key: "ds21", label: "DS21" },
+  { key: "ds22", label: "DS22" },
+  { key: "ds23", label: "DS23" },
+  { key: "ds24", label: "DS24" },
+  { key: "ds25", label: "DS25" },
 ];

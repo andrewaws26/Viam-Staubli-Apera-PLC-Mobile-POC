@@ -3,7 +3,7 @@
     {
       "type": "local",
       "name": "plc-sensor-module",
-      "executable_path": "/home/pi/Viam-Staubli-Apera-PLC-Mobile-POC/modules/plc-sensor/run.sh"
+      "executable_path": "/home/andrew/Viam-Staubli-Apera-PLC-Mobile-POC/modules/plc-sensor/run.sh"
     }
   ],
   "components": [
@@ -12,10 +12,10 @@
       "api": "rdk:component:sensor",
       "model": "viam-staubli-apera-poc:monitor:plc-sensor",
       "attributes": {
-        "host": "192.168.0.10",
+        "host": "169.168.10.21",
         "port": 502,
         "wheel_diameter_mm": 406.4,
-        "offline_buffer_dir": "/home/pi/.viam/offline-buffer",
+        "offline_buffer_dir": "/home/andrew/.viam/offline-buffer",
         "offline_buffer_max_mb": 50
       },
       "depends_on": [],
@@ -40,7 +40,7 @@
       "name": "data-manager",
       "type": "data_manager",
       "attributes": {
-        "capture_dir": "/home/pi/.viam/capture",
+        "capture_dir": "/home/andrew/.viam/capture",
         "sync_interval_mins": 0.1,
         "sync_disabled": false,
         "tags": ["tps-monitor"]

@@ -8,7 +8,7 @@ match the layout expected by the plc-sensor Viam module.
 Usage:
     python3 scripts/test_plc_modbus.py
     python3 scripts/test_plc_modbus.py --watch
-    python3 scripts/test_plc_modbus.py --host 192.168.0.10 --port 502
+    python3 scripts/test_plc_modbus.py --host 169.168.10.21 --port 502
 
 Requires: pip3 install pymodbus>=3.5
 """
@@ -23,147 +23,147 @@ except ImportError:
     print("ERROR: pymodbus not installed. Run: pip3 install pymodbus")
     sys.exit(1)
 
-# Register map — must match plc-sensor/src/plc_sensor.py and the Click PLC ladder logic
-_ECAT_NAMES = [
-    "servo_power_on",   # DS1  / addr 0
-    "servo_disable",    # DS2  / addr 1
-    "plate_cycle",      # DS3  / addr 2
-    "abort_stow",       # DS4  / addr 3
-    "speed",            # DS5  / addr 4
-    "gripper_lock",     # DS6  / addr 5
-    "clear_position",   # DS7  / addr 6
-    "belt_forward",     # DS8  / addr 7
-    "belt_reverse",     # DS9  / addr 8
-    "lamp_servo_power", # DS10 / addr 9
-    "lamp_servo_disable",
-    "lamp_plate_cycle",
-    "lamp_abort_stow",
-    "lamp_speed",
-    "lamp_gripper_lock",
-    "lamp_clear_position",
-    "lamp_belt_forward",
-    "lamp_belt_reverse",
-    "emag_status",      # DS19 / addr 18
-    "emag_on",
-    "emag_part_detect",
-    "emag_malfunction",
-    "poe_status",       # DS23 / addr 22
-    "estop_enable",     # DS24 / addr 23
-    "estop_off",        # DS25 / addr 24
+# ──────────────────────────────────────────────────────────────────────
+# Click PLC DS register map — TPS (Tie Plate System) ladder logic
+# DS1-DS25, Modbus holding register addresses 0-24
+# ──────────────────────────────────────────────────────────────────────
+_DS_REGISTER_NAMES = [
+    "ds1",                  # DS1  / addr 0
+    "ds2",                  # DS2  / addr 1
+    "ds3",                  # DS3  / addr 2
+    "ds4",                  # DS4  / addr 3
+    "ds5",                  # DS5  / addr 4
+    "ds6",                  # DS6  / addr 5
+    "ds7",                  # DS7  / addr 6
+    "ds8",                  # DS8  / addr 7
+    "ds9",                  # DS9  / addr 8
+    "ds10",                 # DS10 / addr 9
+    "ds11",                 # DS11 / addr 10
+    "ds12",                 # DS12 / addr 11
+    "ds13",                 # DS13 / addr 12
+    "ds14",                 # DS14 / addr 13
+    "ds15",                 # DS15 / addr 14
+    "ds16",                 # DS16 / addr 15
+    "ds17",                 # DS17 / addr 16
+    "ds18",                 # DS18 / addr 17
+    "ds19",                 # DS19 / addr 18
+    "ds20",                 # DS20 / addr 19
+    "ds21",                 # DS21 / addr 20
+    "ds22",                 # DS22 / addr 21
+    "ds23",                 # DS23 / addr 22
+    "ds24",                 # DS24 / addr 23
+    "ds25",                 # DS25 / addr 24
 ]
-
-_STATE_NAMES = {0: "idle", 1: "running", 2: "fault", 3: "e-stopped"}
-_FAULT_NAMES = {0: "none", 1: "vibration", 2: "temperature", 3: "pressure", 4: "estop_triggered"}
 
 
 def _uint16(v: int) -> int:
     return v & 0xFFFF
 
 
-def _int16(v: int) -> int:
-    v = _uint16(v)
-    return v - 65536 if v > 32767 else v
-
-
 def read_snapshot(client: ModbusTcpClient) -> dict:
-    """Read all registers and return a dict of named values."""
+    """Read all PLC registers and return a dict of named values."""
     result = {}
 
-    # E-Cat block: DS1-DS25 → addresses 0-24
+    # ── DS holding registers (DS1-DS25) — addresses 0-24 ──
     r = client.read_holding_registers(address=0, count=25)
     if r.isError():
-        raise RuntimeError(f"Failed to read E-Cat registers (0-24): {r}")
-    for i, name in enumerate(_ECAT_NAMES):
+        raise RuntimeError(f"Failed to read DS registers (0-24): {r}")
+    for i, name in enumerate(_DS_REGISTER_NAMES):
         result[name] = _uint16(r.registers[i])
 
-    # Derive system state from E-Cat signals (not register 112)
-    servo_power_on = result["servo_power_on"]
-    servo_disable = result["servo_disable"]
-    estop_off = result["estop_off"]
-
-    if estop_off == 1:
-        derived_state = "e-stopped"
-    elif servo_power_on == 1 and servo_disable == 0:
-        derived_state = "running"
-    else:
-        derived_state = "idle"
-
-    result["system_state_derived"] = derived_state
-
-    # Sensor/state block: DS101-DS118 → addresses 100-117 (may be zero on real PLC)
-    regs = [0] * 18
+    # ── DD1 Encoder — addresses 16384-16385 (32-bit signed) ──
+    enc_lo, enc_hi = 0, 0
     try:
-        r = client.read_holding_registers(address=100, count=18)
-        if not r.isError():
-            regs = [_uint16(v) for v in r.registers]
+        r2 = client.read_holding_registers(address=16384, count=2)
+        if not r2.isError():
+            enc_lo = _uint16(r2.registers[0])
+            enc_hi = _uint16(r2.registers[1])
     except Exception:
-        pass  # Click PLC may not have these registers
+        pass
+    encoder_count = (enc_hi << 16) | enc_lo
+    if encoder_count > 0x7FFFFFFF:
+        encoder_count -= 0x100000000
+    result["encoder_count"] = encoder_count
 
-    fault_code = regs[13]
-    # Override derived state if fault code is set
-    if fault_code != 0 and derived_state not in ("e-stopped",):
-        derived_state = "fault"
+    # ── Discrete inputs X1-X8 — FC02, addresses 0-7 ──
+    di_names = ["x1", "x2", "x3_camera_signal", "x4_tps_power_loop",
+                "x5_air_eagle_1", "x6_air_eagle_2", "x7_air_eagle_3", "x8"]
+    try:
+        r3 = client.read_discrete_inputs(address=0, count=8)
+        if not r3.isError():
+            for i, name in enumerate(di_names):
+                result[name] = bool(r3.bits[i])
+    except Exception as e:
+        print(f"  Warning: Could not read discrete inputs: {e}")
 
-    result.update({
-        "vibration_x":              _int16(regs[0]) / 100.0,   # DS101
-        "vibration_y":              _int16(regs[1]) / 100.0,   # DS102
-        "vibration_z":              _int16(regs[2]) / 100.0,   # DS103
-        "gyro_x":                   _int16(regs[3]) / 100.0,
-        "gyro_y":                   _int16(regs[4]) / 100.0,
-        "gyro_z":                   _int16(regs[5]) / 100.0,
-        "temperature_f":            _int16(regs[6]) / 10.0,    # DS107
-        "humidity_pct":             _int16(regs[7]) / 10.0,    # DS108
-        "pressure_simulated":       regs[8],                    # DS109
-        "servo1_position":          regs[9],                    # DS110
-        "servo2_position":          regs[10],                   # DS111
-        "cycle_count":              regs[11],                   # DS112
-        "system_state":             derived_state,
-        "system_state_reg112":      _STATE_NAMES.get(regs[12], f"unknown({regs[12]})"),
-        "last_fault":               _FAULT_NAMES.get(fault_code, f"unknown({fault_code})"),
-        "servo_power_press_count":  regs[14],                   # DS115
-        "estop_activation_count":   regs[15],                   # DS116
-        "current_uptime_seconds":   regs[16],                   # DS117
-        "last_estop_duration_seconds": regs[17],                # DS118
-    })
+    # ── Output coils Y1-Y3 — FC01, addresses 8192-8194 ──
+    coil_names = ["y1_eject_tps_1", "y2_eject_left_tps_2", "y3_eject_right_tps_2"]
+    try:
+        r4 = client.read_coils(address=8192, count=3)
+        if not r4.isError():
+            for i, name in enumerate(coil_names):
+                result[name] = bool(r4.bits[i])
+    except Exception as e:
+        print(f"  Warning: Could not read output coils: {e}")
+
+    # ── Internal coils C1999-C2000 — FC01, addresses 1998-1999 ──
+    try:
+        r5 = client.read_coils(address=1998, count=2)
+        if not r5.isError() and len(r5.bits) >= 2:
+            result["c1999_encoder_reset"] = bool(r5.bits[0])
+            result["c2000_floating_zero"] = bool(r5.bits[1])
+    except Exception as e:
+        print(f"  Warning: Could not read internal coils: {e}")
 
     return result
 
 
 def print_snapshot(snap: dict, highlight_nonzero: bool = True) -> None:
     """Print the register snapshot in a readable format."""
-    # E-Cat block
-    print("\n  ── E-Cat registers (DS1-DS25 / Modbus addr 0-24) ──")
-    for name in _ECAT_NAMES:
-        val = snap[name]
-        flag = " ◀" if highlight_nonzero and val != 0 else ""
-        print(f"    {name:<28} = {val}{flag}")
+    # DS registers
+    print("\n  ── DS Holding Registers (DS1-DS25 / Modbus addr 0-24) ──")
+    for name in _DS_REGISTER_NAMES:
+        if name in snap:
+            val = snap[name]
+            flag = " ◀" if highlight_nonzero and val != 0 else ""
+            print(f"    {name:<20s} = {val}{flag}")
 
-    # Derived state + register state
-    print("\n  ── Derived state (from E-Cat signals) ──")
-    for key in [
-        "system_state", "system_state_reg112", "last_fault",
-        "servo_power_press_count", "estop_activation_count",
-        "current_uptime_seconds", "last_estop_duration_seconds",
-    ]:
-        val = snap[key]
-        is_notable = val not in (0, "idle", "none", "released")
-        flag = " ◀" if highlight_nonzero and is_notable else ""
-        print(f"    {key:<36} = {val}{flag}")
+    # Encoder
+    if "encoder_count" in snap:
+        print(f"\n  ── DD1 Encoder (addr 16384-16385) ──")
+        print(f"    encoder_count        = {snap['encoder_count']}")
 
-    # Sensor block (usually all 0 on real PLC)
-    print("\n  ── Sensor registers (DS101-DS112, 0 on real PLC) ──")
-    for key in [
-        "vibration_x", "vibration_y", "vibration_z",
-        "gyro_x", "gyro_y", "gyro_z",
-        "temperature_f", "humidity_pct", "pressure_simulated",
-        "servo1_position", "servo2_position", "cycle_count",
-    ]:
-        print(f"    {key:<28} = {snap[key]}")
+    # Discrete inputs
+    di_keys = [k for k in snap if k.startswith("x")]
+    if di_keys:
+        print(f"\n  ── Discrete Inputs X1-X8 ──")
+        for k in sorted(di_keys):
+            val = snap[k]
+            flag = " ◀" if highlight_nonzero and val else ""
+            print(f"    {k:<24s} = {val}{flag}")
+
+    # Output coils
+    coil_keys = [k for k in snap if k.startswith("y")]
+    if coil_keys:
+        print(f"\n  ── Output Coils Y1-Y3 ──")
+        for k in sorted(coil_keys):
+            val = snap[k]
+            flag = " ◀" if highlight_nonzero and val else ""
+            print(f"    {k:<28s} = {val}{flag}")
+
+    # Internal coils
+    ic_keys = [k for k in snap if k.startswith("c")]
+    if ic_keys:
+        print(f"\n  ── Internal Coils C1999-C2000 ──")
+        for k in sorted(ic_keys):
+            val = snap[k]
+            flag = " ◀" if highlight_nonzero and val else ""
+            print(f"    {k:<28s} = {val}{flag}")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Click PLC Modbus TCP connectivity test")
-    parser.add_argument("--host", default="192.168.0.10", help="PLC IP address (default 192.168.0.10)")
+    parser = argparse.ArgumentParser(description="Click PLC Modbus TCP connectivity test — TPS")
+    parser.add_argument("--host", default="169.168.10.21", help="PLC IP address (default 169.168.10.21)")
     parser.add_argument("--port", type=int, default=502, help="Modbus TCP port (default 502)")
     parser.add_argument(
         "--watch", action="store_true",
@@ -176,8 +176,8 @@ def main() -> None:
     if not client.connect():
         print(f"ERROR: Could not connect to {args.host}:{args.port}")
         print("  - Is the PLC powered on (PWR and RUN LEDs green)?")
-        print("  - Is the PLC IP set to 192.168.0.10? (check with Click Programming Software)")
-        print("  - Is the Pi on the same subnet? (try: ping 192.168.0.10)")
+        print(f"  - Is the PLC IP set to {args.host}? (check with Click Programming Software)")
+        print(f"  - Is the Pi on the same subnet? (try: ping {args.host})")
         sys.exit(1)
 
     print("Connected OK")

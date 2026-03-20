@@ -19,7 +19,7 @@
     {
       "type": "local",
       "name": "plc-sensor-module",
-      "executable_path": "/home/pi/Viam-Staubli-Apera-PLC-Mobile-POC/modules/plc-sensor/run.sh"
+      "executable_path": "/opt/viam-modules/plc-sensor/run.sh"
     }
   ],
   "components": [

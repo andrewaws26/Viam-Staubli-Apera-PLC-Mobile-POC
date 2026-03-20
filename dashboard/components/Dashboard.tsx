@@ -174,22 +174,22 @@ export default function Dashboard() {
     }
 
     // -----------------------------------------------------------------
-    // State change detection for TPS power
+    // State change detection for TPS power loop
     // -----------------------------------------------------------------
     const plcState = newStates.find((c) => c.id === "plc");
     if (plcState?.readings && plcState.readings.connected === true) {
-      const curServo = Number(plcState.readings.servo_power_on ?? 0);
-      const prevServo = prevServoPower.current;
-      if (prevServo !== null && prevServo !== curServo) {
+      const curPower = plcState.readings.tps_power_loop === true ? 1 : 0;
+      const prevPower = prevServoPower.current;
+      if (prevPower !== null && prevPower !== curPower) {
         newFaultEvents.push({
           id: `power-change-${Date.now()}`,
           componentId: "plc",
           componentLabel: "TPS Power",
-          message: curServo === 1 ? "TPS Power ON" : "TPS Power OFF",
+          message: curPower === 1 ? "TPS Power ON" : "TPS Power OFF",
           timestamp: new Date(),
         });
       }
-      prevServoPower.current = curServo;
+      prevServoPower.current = curPower;
     }
 
     prevFaultIds.current = currentFaultIds;
@@ -238,12 +238,12 @@ export default function Dashboard() {
         {/* ---------------------------------------------------------------- */}
         {/* Header                                                           */}
         {/* ---------------------------------------------------------------- */}
-        <header className="border-b border-gray-800 px-5 py-4 flex items-center justify-between gap-4 shrink-0">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-black tracking-widest uppercase text-gray-100 leading-none">
+        <header className="border-b border-gray-800 px-3 sm:px-5 py-3 sm:py-4 flex items-center justify-between gap-3 sm:gap-4 shrink-0">
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-2xl font-black tracking-widest uppercase text-gray-100 leading-none">
               TPS Monitor
             </h1>
-            <p className="text-xs text-gray-600 mt-0.5 tracking-wide">
+            <p className="text-[10px] sm:text-xs text-gray-600 mt-0.5 tracking-wide truncate">
               Tie Plate System — Live Production Data
             </p>
           </div>
@@ -264,8 +264,8 @@ export default function Dashboard() {
         {/* ---------------------------------------------------------------- */}
         {/* Status Grid                                                      */}
         {/* ---------------------------------------------------------------- */}
-        <main className="flex-1 px-5 py-8 flex flex-col gap-6">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+        <main className="flex-1 px-3 sm:px-5 py-4 sm:py-8 flex flex-col gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
             {components.map((comp) => (
               <StatusCard key={comp.id} component={comp} />
             ))}
@@ -320,7 +320,7 @@ export default function Dashboard() {
         {/* ---------------------------------------------------------------- */}
         {/* Footer                                                           */}
         {/* ---------------------------------------------------------------- */}
-        <footer className="border-t border-gray-800 px-5 py-3 text-xs text-gray-700 flex items-center justify-between shrink-0">
+        <footer className="border-t border-gray-800 px-3 sm:px-5 py-2 sm:py-3 text-[10px] sm:text-xs text-gray-700 flex items-center justify-between shrink-0">
           <span>Polling every {POLL_INTERVAL_MS / 1000}s</span>
           <span>
             {IS_MOCK ? "Mock data" : "Live — Viam Cloud"} ·{" "}

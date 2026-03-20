@@ -13,17 +13,17 @@ This document outlines the phased plan for scaling IronSight from the current be
 ### 1.1 Offline Scenario Test
 
 **Test procedure:**
-1. Start viam-server on the Pi 5 with all three sensor modules running
+1. Start viam-server on the Pi 5 with the plc-sensor module running
 2. Confirm data is appearing in the Viam Cloud Data tab (baseline)
 3. Disconnect the Pi from the network (unplug Ethernet and/or disable WiFi)
 4. Leave the system running for 1+ hours while disconnected
-5. Monitor local disk: `watch -n 10 'du -sh /home/pi/.viam/capture/'` — confirm data accumulates
+5. Monitor local disk: `watch -n 10 'du -sh /home/andrew/.viam/capture/'` — confirm data accumulates
 6. Reconnect the Pi to the network
 7. Verify in Viam Cloud that all readings from the offline period appear with correct timestamps
 8. Confirm no gaps or duplicates in the time-series data
 
 **Success criteria:**
-- [ ] Data accumulates locally during offline period (~39 MB/hour at current rates)
+- [ ] Data accumulates locally during offline period
 - [ ] All data syncs to cloud within 5 minutes of reconnection
 - [ ] Timestamps in cloud match when data was actually captured (not when it synced)
 - [ ] No duplicate readings in cloud
@@ -34,9 +34,9 @@ Compare estimated vs actual:
 
 | Metric | Estimated | Actual (fill in) |
 |---|---|---|
-| PLC reading size (single) | ~1.0 KB | |
-| Daily data (10-hr, all sensors) | ~39 MB | |
-| Sync time for 1-hour backlog | ~15 seconds | |
+| PLC reading size (single, ~55 fields) | ~1.5 KB | |
+| Daily data (10-hr, plc-sensor at 1 Hz) | ~54 MB | |
+| Sync time for 1-hour backlog | ~20 seconds | |
 
 ### 1.3 Verify Cloud Data Usability
 
@@ -106,7 +106,7 @@ Before deploying on the real truck:
 
 | # | Question | Why It Matters |
 |---|---|---|
-| 1 | Click PLC IP address on the real truck | `plc-monitor` config needs the correct `host` |
+| 1 | Click PLC IP address on the real truck (bench default: 169.168.10.21) | `plc-monitor` config needs the correct `host` |
 | 2 | Click PLC register map — same as bench unit? | If register addresses differ, `plc_sensor.py` may need updates |
 | 3 | Network topology on the truck | Pi needs Ethernet access to PLC; need to understand switch/wiring |
 | 4 | 12V power source location for Pi | Need clean, switched 12V near the PLC |
@@ -117,7 +117,7 @@ Before deploying on the real truck:
 
 - [ ] Flash Pi 5 SD card with Raspberry Pi OS Lite (64-bit)
 - [ ] Install viam-server and configure it to connect to Viam Cloud
-- [ ] Deploy sensor modules from this repo
+- [ ] Deploy the plc-sensor module from this repo
 - [ ] Apply viam-server.json config (with truck-specific PLC IP)
 - [ ] Test locally: verify `plc-monitor` reads from the truck's PLC
 - [ ] Mount Pi in enclosure, secure in truck
@@ -137,8 +137,8 @@ Before deploying on the real truck:
 A **fragment** is a reusable config template that can be applied to multiple machines in Viam.
 
 **Create one fragment containing:**
-- All three module definitions (plc-sensor, robot-arm-sensor, vision-health-sensor)
-- All three component definitions with default attributes
+- The plc-sensor module definition
+- The plc-monitor component definition with default attributes
 - Data management service config (capture_dir, sync_interval, base tags)
 
 **On each truck's machine config, override:**
@@ -220,13 +220,13 @@ A **fragment** is a reusable config template that can be applied to multiple mac
 
 | Item | Monthly Cost |
 |---|---|
-| Viam Cloud upload (30.9 GB × $0.15/GB) | $4.64 |
-| Viam Cloud storage (with 90-day retention: ~93 GB × $0.50/GB) | $46.50 |
+| Viam Cloud upload (~54 MB/day × 36 trucks × 30 days ≈ 57 GB × $0.15/GB) | $8.55 |
+| Viam Cloud storage (with 90-day retention: ~170 GB × $0.50/GB) | $85.00 |
 | Cellular connectivity (if Option B, per truck) | $0–$50/truck |
-| **Total (WiFi-only sync)** | **~$51/month** |
-| **Total (with cellular on all trucks)** | **~$951–$1,851/month** |
+| **Total (WiFi-only sync)** | **~$94/month** |
+| **Total (with cellular on all trucks)** | **~$994–$1,894/month** |
 
-**Recommendation:** WiFi-only sync keeps operating costs under $60/month for the entire fleet. Add cellular selectively only to trucks where real-time monitoring has clear value.
+**Recommendation:** WiFi-only sync keeps operating costs under $100/month for the entire fleet. Add cellular selectively only to trucks where real-time monitoring has clear value.
 
 ### 3.6 Rollout Schedule
 
@@ -257,14 +257,14 @@ A **fragment** is a reusable config template that can be applied to multiple mac
 **Current state:** Modules deployed as local files via SCP (`"type": "local"` in config).
 
 **Steps:**
-1. Package each module (plc-sensor, robot-arm-sensor, vision-health-sensor) as a Viam module with a `meta.json` manifest
+1. Package the plc-sensor module as a Viam module with a `meta.json` manifest
 2. Upload to the Viam Registry under the organization namespace
-3. Update the Viam Fragment to reference registry modules instead of local paths
-4. Test: Deploy a fresh Pi that pulls modules from the registry on first boot (no SCP)
+3. Update the Viam Fragment to reference the registry module instead of the local path
+4. Test: Deploy a fresh Pi that pulls the module from the registry on first boot (no SCP)
 5. Verify OTA: Push a minor module update, confirm trucks pick it up automatically
 
 **Success criteria:**
-- [ ] All three modules published and versioned in Viam Registry
+- [ ] plc-sensor module published and versioned in Viam Registry
 - [ ] Fragment references registry modules (not local paths)
 - [ ] New truck can be provisioned with: flash SD → install viam-server → point at cloud → done
 - [ ] Module update deployed to fleet without SSH

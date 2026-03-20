@@ -4,31 +4,27 @@ Technical context and design rationale for the remote monitoring POC. Covers wha
 
 ## The Problem
 
-An industrial robot cell has four types of equipment: a Staubli robot arm, an Apera AI vision system, a PLC, and physical wiring connecting them through junction boxes. When something fails, the failure is detected by an operator standing at the cell. If the cell is in a remote facility or running an unattended shift, failures go undetected.
+Railroad trucks use a Tie Plate System (TPS) to position and secure tie plates during track maintenance. The TPS machine, its eject system, encoder-based track distance measurement, and production counters are all controlled by a Click PLC on each truck. When the truck is out on a remote stretch of track, there is no way to monitor machine status, production progress, or fault conditions without physically being on the truck.
 
-The business need is remote monitoring. Not remote control. Not analytics. Just the ability to see, from anywhere, whether each piece of equipment is up or down, and to get an alert when something breaks.
+The business need is remote monitoring. Not remote control. Not analytics. Just the ability to see, from anywhere, whether the TPS is running, what its production counts are, whether the eject system is functioning, and how far the truck has traveled — and to get an alert when something goes wrong.
 
-The technical challenge is that none of this equipment has native Viam support. Viam has no Staubli driver. Viam has no Apera integration. The PLC brand is not yet confirmed. And physical wire state cannot be directly sensed by software. Every integration requires custom work.
+The technical challenge is that the Click PLC has no native Viam support. A custom Modbus TCP integration is required to read the PLC's registers and coils, translate raw values into meaningful TPS status fields, and push them through the Viam data pipeline to a remote dashboard.
 
 ## What Was Built
 
-A working proof of concept that demonstrates the full data pipeline from hardware sensor to remote dashboard, deployed and accessible from the public internet. The system has three layers.
+A working proof of concept that demonstrates the full data pipeline from a Click PLC on a railroad truck to a remote mobile-responsive dashboard, deployed and accessible from the public internet. The system has three layers.
 
-On the factory floor, a Raspberry Pi 5 runs viam-server v0.116.0 as a systemd service. A custom Python sensor module (vision-health-sensor) performs ICMP ping and TCP port checks against a target host and reports results through viam-server to Viam Cloud. The Pi auto-starts on boot and auto-recovers from power loss with no manual intervention.
+On the truck, a Raspberry Pi 5 runs viam-server as a systemd service. A single custom Python sensor module (plc-sensor) reads a Click PLC C0-10DD2E-D via Modbus TCP at 169.168.10.21:502. Each reading returns approximately 55 fields covering encoder data and track distance, TPS machine status, eject system state, production counters, and all 25 DS registers (DS1–DS25). The Pi auto-starts on boot and auto-recovers from power loss with no manual intervention. Offline readings are buffered to JSONL files and synced when connectivity returns.
 
 In the cloud, Viam Cloud receives sensor readings via HTTPS, stores them in its data management service, and provides WebRTC signaling for remote SDK connections.
 
-On the client side, a Next.js dashboard is deployed to Vercel. It connects to the Pi's viam-server through Viam Cloud via the TypeScript SDK over WebRTC. It displays live component health with 2-second polling, audible alarms, and visual fault indicators.
-
-The power cycle test proved the system works end to end. Unplugging the Pi triggered fault alarms on the dashboard within seconds. Plugging it back in restored green status automatically. No SSH, no restarts, no intervention.
-
-Two additional sensor modules (PLC, robot arm) are scaffolded with complete Viam registration, configuration handling, and placeholder readings. They are architecturally identical to the working sensor and will activate when connected to real hardware.
+On the client side, a Next.js dashboard is deployed to Vercel. It calls a server-side API route (`/api/sensor-readings`) that proxies requests to Viam Cloud — Viam credentials never reach the browser. The dashboard displays a single TPS Controller status card with detail panels for Encoder/Track Distance, TPS Production, TPS Machine Status, TPS Eject System, and a collapsible PLC Raw Registers view (DS1–DS25). The design is mobile-responsive for use on phones and tablets in the field.
 
 ## Technical Decisions and Reasoning
 
 ### Custom modules over registry modules
 
-The Viam registry has a community Modbus module that could read PLC registers. Custom modules were written instead because the project has a privacy constraint. Each sensor must return a fixed schema (booleans and status strings only) defined in code. A generic Modbus module could be reconfigured to read arbitrary registers, including ones containing production data. Custom modules enforce the data boundary at the code level, not the configuration level. This is a deliberate architectural choice, not an oversight.
+The Viam registry has a community Modbus module that could read PLC registers. A custom module was written instead because the project has a privacy constraint. The plc-sensor module returns a fixed schema of approximately 55 fields defined in code. A generic Modbus module could be reconfigured to read arbitrary registers, potentially exposing sensitive TPS production data or operational metrics beyond the agreed monitoring scope. The custom module enforces the data boundary at the code level, not the configuration level. This is a deliberate architectural choice, not an oversight.
 
 ### Sensor API over Board API
 
@@ -40,7 +36,7 @@ The Viam module SDK is available in Python and Go. Python was chosen because rap
 
 ### WebRTC for dashboard connectivity
 
-The Viam TypeScript SDK connects to machines via WebRTC, negotiated through Viam Cloud. This means the dashboard running on a laptop in a different building (or city) can read sensor data from the Pi without any port forwarding or VPN. The Pi only needs outbound HTTPS to app.viam.com. This is the single most important architectural property for industrial deployments, where IT/OT network segmentation policies typically block all inbound connections to factory equipment.
+The Viam TypeScript SDK connects to machines via WebRTC, negotiated through Viam Cloud. This means the dashboard running on a phone or laptop anywhere can read sensor data from a Pi on a railroad truck without any port forwarding or VPN. The Pi only needs outbound HTTPS to app.viam.com. This is the single most important architectural property for monitoring trucks in the field, where cellular connectivity is the only option and no inbound connections are possible.
 
 ### Privacy by design, not by policy
 
@@ -54,34 +50,23 @@ First, availability. The dashboard's job is to tell you when something is wrong.
 
 Second, separation of concerns. The Pi's job is to run viam-server and sensor modules. Running a Node.js process alongside it wastes RAM and CPU that should be reserved for the data pipeline. It also adds a failure mode: if the Node process crashes, the dashboard goes down even though the sensors are fine.
 
-Third, network architecture. In a real factory deployment, the Pi would be on an OT network segment with no inbound connections allowed. A browser on a corporate laptop could not reach a web server on the Pi. But the Vercel-hosted dashboard connects to the Pi through Viam Cloud via WebRTC. The Pi only makes outbound HTTPS connections. The dashboard only makes outbound WebSocket connections. No firewall rules need to change on either side.
-
-## What Was Learned About Apera's Locked-Down OS
-
-The Apera AI vision system runs on a Dell server with a locked-down OS. This has implications for the integration architecture and represents a common pattern in industrial automation.
-
-The original architecture considered two approaches for vision system monitoring: a lightweight agent running on the vision server, or an external health check from the Pi. The locked-down OS makes the first approach impractical. Installing custom software on the vision server would require Apera's cooperation, would risk voiding support agreements, and would need to be re-applied after every Apera software update.
-
-The external health check approach (ICMP ping + TCP port probe from the Pi) works regardless of what OS the vision server runs. It requires zero changes to the vision system. The trade-off is reduced monitoring depth. We can tell if the server is reachable and if the vision process is listening on its port, but we cannot see internal state like detection confidence scores or GPU utilization. For a remote monitoring POC focused on "is it up or down," this is sufficient.
-
-This is a pattern that comes up frequently in industrial integration. The equipment you need to monitor is often locked down by the vendor. You cannot install agents on it. You cannot modify its software. You have to monitor it from the outside. Designing for this constraint from the start avoids a class of integration problems that would otherwise block deployment.
+Third, network architecture. In a real truck deployment, the Pi connects via cellular with no inbound connections possible. A browser on a phone or laptop cannot reach a web server on the Pi directly. But the Vercel-hosted dashboard connects to the Pi through Viam Cloud via WebRTC. The Pi only makes outbound HTTPS connections. The dashboard only makes outbound WebSocket connections. No special network configuration is needed on either side.
 
 ## What Viam Can and Cannot Do Natively
 
 ### Viam handles well
 
 - **Data pipeline orchestration.** viam-server manages module lifecycle, captures readings at configurable intervals, syncs to cloud. This is significant infrastructure that does not need to be built from scratch.
-- **Remote connectivity.** WebRTC-based connection through Viam Cloud means no VPN, no port forwarding, no firewall rules on the factory network beyond outbound HTTPS.
+- **Remote connectivity.** WebRTC-based connection through Viam Cloud means no VPN, no port forwarding, no special network configuration on the truck beyond outbound HTTPS over cellular.
 - **Module system.** The ability to write a Python class that implements the Sensor interface and have it automatically appear as a component in the Viam app with cloud data sync is the core value proposition. The module system turns custom integrations into first-class Viam citizens.
 - **Configuration management.** Machine configuration lives in the cloud and is pushed to the agent. Changing a sensor's target IP does not require SSH access to the Pi.
 - **Data capture and sync.** The data_manager service captures readings at configurable intervals and syncs them to Viam Cloud automatically. Historical data is available in the Viam app without any additional database or time-series infrastructure.
 
 ### Viam does not handle
 
-- **Staubli robot arm integration.** No native driver exists. The CS9 supports Modbus TCP and VAL3 sockets, but a custom module is required to speak either protocol.
-- **Apera AI vision system integration.** No native driver exists. The health check (ping + TCP probe) is a workaround. Richer monitoring would require knowledge of Apera's proprietary status API, which is only available to customers and partners.
-- **Physical wire state monitoring.** Viam cannot directly sense whether a wire is connected. This is handled by monitoring the endpoints and inferring wire state from communication faults.
-- **Custom alert UX.** Viam's built-in dashboard shows raw sensor readings but cannot do full-screen red flashes, audible alarms, or custom status cards. A custom dashboard is required for the demo experience.
+- **Click PLC Modbus TCP integration.** No native driver exists for the Click C0-10DD2E-D. The custom plc-sensor module reads coils, input registers, and DS registers via pymodbus and maps them into meaningful TPS status fields.
+- **TPS-specific data interpretation.** Raw register values need domain-specific translation — encoder counts to track distance, bit-packed status registers to individual TPS machine and eject states, production counter aggregation. This logic lives in the custom module.
+- **Custom alert UX.** Viam's built-in dashboard shows raw sensor readings but cannot do mobile-responsive status cards, detail panels, or collapsible register views. A custom dashboard is required for the field monitoring experience.
 
 ## How the Custom Sensor Module Pattern Works
 
@@ -95,46 +80,34 @@ The class implements three key methods:
 
 The module's `run.sh` entry point manages a Python virtual environment and launches the module process. viam-server communicates with it over gRPC on a Unix socket. If the module crashes, viam-server restarts it.
 
-The vision-health-sensor module's `get_readings` runs two async checks concurrently: an ICMP ping (using the system `ping` command) and a TCP connection attempt (using Python's `asyncio.open_connection`). Both have timeouts. The results are returned as `{"connected": bool, "process_running": bool}`.
+The plc-sensor module's `get_readings` connects to the Click PLC via Modbus TCP (using pymodbus), reads coils, input registers, and DS registers, and returns approximately 55 fields covering encoder data, track distance, TPS machine status, eject system state, production counters, and raw DS1–DS25 values.
 
 ## How the Pipeline Flows
 
-1. viam-server on the Pi calls `get_readings()` on the vision-health-sensor module.
-2. The module pings the target host and attempts a TCP connection to the target port.
-3. Results are returned to viam-server as a dictionary.
-4. viam-server makes the readings available via its gRPC API and the data_manager service captures them for cloud sync.
-5. The Vercel-hosted dashboard calls `createRobotClient()` from the Viam TypeScript SDK, which establishes a WebRTC connection through Viam Cloud to the Pi's viam-server.
-6. The dashboard calls `SensorClient.getReadings("vision-health")` every 2 seconds.
-7. Readings are compared against the health predicate in the sensor config. If `connected` is false or `process_running` is false, the component is marked as faulted.
-8. On fault detection (rising edge), the dashboard fires an audible alarm, flashes the screen red, shows an alert banner, and logs the event to fault history.
+1. viam-server on the Pi calls `get_readings()` on the plc-sensor module at 1 Hz.
+2. The module connects to the Click PLC at 169.168.10.21:502 via Modbus TCP and reads coils, input registers, and DS registers.
+3. Raw register values are translated into ~55 named fields (encoder counts, TPS status, eject state, production counters, DS1–DS25) and returned to viam-server as a dictionary.
+4. viam-server makes the readings available via its gRPC API. The data_manager service captures them to a persistent directory and syncs to Viam Cloud. If the Pi is offline, readings are buffered to JSONL files and synced when connectivity returns.
+5. The Vercel-hosted dashboard's browser calls `/api/sensor-readings`, a Next.js server-side API route.
+6. The API route uses Viam credentials from server-side environment variables (VIAM_MACHINE_ADDRESS, VIAM_API_KEY_ID, VIAM_API_KEY) to connect to Viam Cloud and fetch the latest sensor readings. Credentials never reach the browser.
+7. The dashboard renders the TPS Controller status card with detail panels for Encoder/Track Distance, TPS Production, TPS Machine Status, TPS Eject System, and collapsible PLC Raw Registers (DS1–DS25).
+8. On fault detection, the dashboard shows visual fault indicators on the affected panel.
 
 ## Honest Current State
 
 ### Working
 
-- Vision health sensor deployed on Pi 5, returning live readings from 8.8.8.8:53
-- Full WebRTC pipeline from Pi to Viam Cloud to Vercel-hosted dashboard
-- Dashboard deployed to Vercel, accessible from any browser
-- Dashboard shows live "OK" status for vision, "Pending" for unconfigured components
-- Fault detection with audio alarm, visual flash, and history log
-- Power cycle test passed: Pi recovers automatically, dashboard detects and reports the outage
+- PLC sensor module deployed on Pi 5, reading real Click PLC C0-10DD2E-D at 169.168.10.21:502 via Modbus TCP
+- All ~55 fields flowing to Viam Cloud at 1 Hz: encoder data, TPS machine status, eject system, production counters, DS1–DS25
+- Dashboard deployed on Vercel, mobile-responsive, single TPS Controller status card with detail panels
+- Server-side API route (`/api/sensor-readings`) proxies Viam credentials — nothing sensitive in the browser (env vars: VIAM_MACHINE_ADDRESS, VIAM_API_KEY_ID, VIAM_API_KEY; only NEXT_PUBLIC_MOCK_MODE uses the public prefix)
+- Offline JSONL buffering with Viam data manager using persistent capture directory — readings sync when connectivity returns
 - viam-server configured as systemd service with auto-start on boot
-- Data capture configured, readings syncing to Viam Cloud
-- SSH key authentication for passwordless Pi access and GitHub push
+- Module files symlinked from `/opt/viam-modules/` to the git repo for seamless deployment
 - Mock mode for demos without hardware
-
-### Working (hardware integrated)
-
-- PLC sensor: connected to real Click PLC C0-10DD2E-D at 192.168.0.10 with two physical buttons (Fuji AR22F0L servo power + NC e-stop) and two output lamps (Y1 servo power indicator, Y2 system-OK indicator). The Click PLC sets coil 0 on button press but does NOT update holding registers 0-1. The plc-sensor module maintains a software servo power latch (button press latches ON, e-stop clears) and software analytics counters (servo press count, e-stop count, uptime, e-stop duration). Key register insight: `estop_off` (register 24) = 1 means e-stop is NOT engaged (normal operation); = 0 means e-stop IS active. Stale fault code 4 in register 113 is filtered when e-stop is not active. Module files are symlinked from `/opt/viam-modules/` to the git repo for seamless deployment.
-
-### Pending (hardware blocked)
-
-- Robot arm sensor: needs protocol confirmation (Modbus TCP vs VAL3) from hardware lead
-- Vision sensor pointed at real Apera server: needs IP and port from shop floor
 
 ### Not yet started
 
-- GPIO robot car phase (mobile platform demo)
 - Viam Triggers for email/Slack alerting
 - Grafana for historical trend analysis
 
@@ -142,11 +115,11 @@ The vision-health-sensor module's `get_readings` runs two async checks concurren
 
 **Integration across heterogeneous systems.** The system connects a Raspberry Pi, a cloud platform, a CDN-hosted dashboard, and a browser application using four different protocols (gRPC for module communication, WebRTC for remote access, HTTPS for cloud sync, WebSocket for SDK signaling). Industrial monitoring requires bridging systems that were not designed to work together.
 
-**Working within constraints.** The privacy architecture is not an afterthought. It was designed into the system from the start and enforced at the code level. The Apera locked-down OS constraint was handled by designing around it rather than fighting it. Systems that touch the shop floor need to respect operational concerns, not just technically function.
+**Working within constraints.** The privacy architecture is not an afterthought. It was designed into the system from the start and enforced at the code level. The fixed-schema sensor module ensures only agreed-upon TPS monitoring data leaves the truck. Systems that touch operational equipment need to respect data boundaries, not just technically function.
 
 **Knowing what to build vs what to use.** The project uses Viam's module system, data pipeline, and cloud connectivity. It builds custom sensor modules, a custom dashboard, and custom error handling. It uses Vercel for hosting rather than building deployment infrastructure. Knowing where the platform ends and custom work begins keeps the project lean.
 
-**Unblocking on hardware dependencies.** The PLC and robot arm sensors are blocked on hardware details. Rather than waiting, the vision sensor was deployed as a working proof of concept using a universally available target (Google DNS). This proves the architecture works while the hardware questions are resolved.
+**End-to-end delivery.** The system is not a partial prototype. The PLC sensor reads real hardware, the data pipeline delivers to the cloud, and the dashboard is live on Vercel. Every layer of the stack is deployed and working.
 
 **Production thinking from day one.** The systemd service, the Vercel deployment, the power cycle test, and the data capture configuration are not afterthoughts. They are engineering decisions that ensure readiness for real-world deployment.
 

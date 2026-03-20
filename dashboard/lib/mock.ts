@@ -8,7 +8,7 @@ const FAULT_DURATION_MS = 5000;
 interface MockState {
   faultComponent: ComponentName | null;
   faultUntil: number;
-  servoActive: boolean;
+  tpsPowerOn: boolean;
   encoderCount: number;
   encoderStartTime: number;
 }
@@ -16,7 +16,7 @@ interface MockState {
 const state: MockState = {
   faultComponent: null,
   faultUntil: 0,
-  servoActive: false,
+  tpsPowerOn: false,
   encoderCount: 0,
   encoderStartTime: Date.now(),
 };
@@ -25,17 +25,14 @@ const state: MockState = {
 export function injectFault(componentName: ComponentName) {
   state.faultComponent = componentName;
   state.faultUntil = Date.now() + FAULT_DURATION_MS;
-  // Fault kills servo power (matches real hardware behavior)
-  state.servoActive = false;
+  state.tpsPowerOn = false;
 }
 
-// Latch servo power ON (simulates pressing the blue Fuji AR22F0L push button).
-// Power stays on until e-stop (fault injection) kills it — matches real hardware.
+// Toggle TPS power loop on (simulates power-up).
+// Power stays on until fault injection kills it.
 export function toggleServo() {
-  // Reject if PLC is currently faulted
   if (state.faultComponent === VIAM_COMPONENT_NAMES.plc) return;
-  // Latch ON — only e-stop / fault can turn it off
-  state.servoActive = true;
+  state.tpsPowerOn = true;
 }
 
 export function getMockReadings(componentName: ComponentName): SensorReadings {
@@ -57,57 +54,65 @@ export function getMockReadings(componentName: ComponentName): SensorReadings {
 
   switch (componentName) {
     case VIAM_COMPONENT_NAMES.plc: {
-      // Derive system state from servo toggle + fault state
-      const servoOn = state.servoActive && !isFaulted;
-      const systemState = isFaulted ? "fault" : servoOn ? "running" : "idle";
+      const powerOn = state.tpsPowerOn && !isFaulted;
+      const systemState = isFaulted ? "fault" : powerOn ? "running" : "idle";
 
       const readings: SensorReadings = {
         connected: !isFaulted,
         fault: isFaulted,
         system_state: systemState,
-        last_fault: isFaulted ? "vibration" : "none",
-        servo_power_press_count: 0,
+        last_fault: isFaulted ? "connection_lost" : "none",
         current_uptime_seconds: Math.floor((now - state.encoderStartTime) / 1000),
         total_reads: 0,
         total_errors: 0,
-        servo_power_on: servoOn ? 1 : 0,
       };
 
-      // TPS mock values
-      readings["tps_power_loop"] = servoOn;
-      readings["camera_signal"] = servoOn;
-      readings["encoder_enabled"] = servoOn;
+      // TPS Machine Status
+      readings["tps_power_loop"] = powerOn;
+      readings["camera_signal"] = powerOn;
+      readings["encoder_enabled"] = powerOn;
       readings["floating_zero"] = false;
       readings["encoder_reset"] = false;
+
+      // TPS Eject System
       readings["eject_tps_1"] = false;
       readings["eject_left_tps_2"] = false;
       readings["eject_right_tps_2"] = false;
       readings["air_eagle_1_feedback"] = false;
       readings["air_eagle_2_feedback"] = false;
       readings["air_eagle_3_enable"] = false;
-      readings["plate_drop_count"] = servoOn ? Math.floor(Math.random() * 500) : 0;
-      readings["plates_per_minute"] = servoOn ? +(8 + Math.random() * 4).toFixed(1) : 0;
-      readings["adjustable_tie_spacing"] = 0;
-      readings["encoder_ignore"] = 0;
-      readings["detector_offset_bits"] = 0;
 
-      // Simulate encoder: when servo is active, encoder advances (~2 ft/s track speed)
-      if (servoOn) {
-        state.encoderCount += Math.floor(800 + Math.random() * 200); // ~1000 counts/poll
+      // TPS Production
+      readings["plate_drop_count"] = powerOn ? Math.floor(Math.random() * 500) : 0;
+      readings["plates_per_minute"] = powerOn ? +(8 + Math.random() * 4).toFixed(1) : 0;
+
+      // Simulate encoder
+      if (powerOn) {
+        state.encoderCount += Math.floor(800 + Math.random() * 200);
       }
-      const wheelCircMm = Math.PI * 152.4; // 6-inch wheel
-      const mmPerCount = wheelCircMm / 4000;
+      const wheelCircMm = Math.PI * 406.4; // 16-inch wheel
+      const mmPerCount = wheelCircMm / 1000;
       const distMm = state.encoderCount * mmPerCount;
       const distFt = distMm / 304.8;
-      const speedMmps = servoOn ? 500 + Math.random() * 100 : 0;
+      const speedMmps = powerOn ? 500 + Math.random() * 100 : 0;
       const speedFtpm = (speedMmps / 304.8) * 60;
       readings["encoder_count"] = state.encoderCount;
       readings["encoder_direction"] = "forward";
       readings["encoder_distance_mm"] = +distMm.toFixed(1);
       readings["encoder_distance_ft"] = +distFt.toFixed(2);
-      readings["encoder_speed_mmps"] = servoOn ? +speedMmps.toFixed(1) : 0;
-      readings["encoder_speed_ftpm"] = servoOn ? +speedFtpm.toFixed(1) : 0;
-      readings["encoder_revolutions"] = +(state.encoderCount / 4000).toFixed(2);
+      readings["encoder_speed_mmps"] = powerOn ? +speedMmps.toFixed(1) : 0;
+      readings["encoder_speed_ftpm"] = powerOn ? +speedFtpm.toFixed(1) : 0;
+      readings["encoder_revolutions"] = +(state.encoderCount / 1000).toFixed(2);
+
+      // DS Holding Registers (mock values)
+      for (let i = 1; i <= 25; i++) {
+        readings[`ds${i}`] = 0;
+      }
+
+      // Discrete inputs (raw)
+      readings["x1"] = false;
+      readings["x2"] = false;
+      readings["x8"] = false;
 
       return readings;
     }

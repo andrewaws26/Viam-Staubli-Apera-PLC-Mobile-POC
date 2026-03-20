@@ -1,19 +1,16 @@
-# Robot Cell Monitor — Dashboard
+# TPS Monitor — Dashboard
 
-Next.js monitoring dashboard for the industrial robot cell POC. Displays live sensor readings from Viam Cloud with visual and audible fault alerts.
+Next.js monitoring dashboard for the TPS (Tube Processing System) POC. Displays live sensor readings from Viam Cloud with visual and audible fault alerts. Designed mobile-first for use on truck cabs.
 
-**One-sentence summary:** Pull a wire and watch this dashboard react.
+**One-sentence summary:** A mobile-responsive TPS status dashboard that polls a single PLC sensor and reacts to faults in real time.
 
 ## What it shows
 
-Four status indicators, each with a large colour-coded circle:
+One status indicator with a large colour-coded circle:
 
 | Indicator | Source | Healthy when |
 |---|---|---|
-| Robot Arm | `robot-arm-monitor` | `connected=true` and `fault=false` |
-| Vision System | `vision-health-monitor` | `connected=true` and `process_running=true` |
-| PLC / Controller | `plc-monitor` | `connected=true` and `fault=false` |
-| Wire / Connection | `plc-monitor` (derived) | PLC connected with no fault |
+| TPS Controller | `plc-monitor` | `connected=true` and `fault=false` |
 
 When a fault fires:
 - Indicator circle turns **red** and pulses
@@ -54,10 +51,12 @@ Once `viam-server` is running on the Raspberry Pi and connected to Viam Cloud:
 
 ```bash
 NEXT_PUBLIC_MOCK_MODE=false
-NEXT_PUBLIC_VIAM_MACHINE_ADDRESS=your-machine.xyz123.viam.cloud
-NEXT_PUBLIC_VIAM_API_KEY_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-NEXT_PUBLIC_VIAM_API_KEY=your-api-key-value
+VIAM_MACHINE_ADDRESS=your-machine.xyz123.viam.cloud
+VIAM_API_KEY_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+VIAM_API_KEY=your-api-key-value
 ```
+
+> **Note:** Viam credentials (`VIAM_MACHINE_ADDRESS`, `VIAM_API_KEY_ID`, `VIAM_API_KEY`) do **not** use the `NEXT_PUBLIC_` prefix. They are server-side only, accessed by the API route `/api/sensor-readings` which proxies requests to Viam. Only `NEXT_PUBLIC_MOCK_MODE` is exposed to the browser.
 
 3. Restart the dev server: `npm run dev`
 
@@ -68,29 +67,37 @@ npm run build
 npm start
 ```
 
-Or deploy to Vercel (zero config — connect the GitHub repo and set the env vars in the Vercel dashboard).
+Or deploy to Vercel (zero config — connect the GitHub repo and set the env vars in the Vercel dashboard). Because the Viam credentials are server-side only, they are never exposed to the browser — this is a security improvement over the previous `NEXT_PUBLIC_` approach.
+
+## Mobile-responsive design
+
+The dashboard is designed mobile-first for use on truck cabs. The layout adapts to small screens, with large touch-friendly status indicators and fault alerts that are visible at a glance.
 
 ## File structure
 
 ```
 dashboard/
 ├── app/
-│   ├── globals.css       # Flash + banner keyframe animations
-│   ├── layout.tsx        # HTML shell
-│   └── page.tsx          # Loads Dashboard client-side (ssr: false)
+│   ├── api/
+│   │   └── sensor-readings/
+│   │       └── route.ts    # Server-side Viam proxy (keeps credentials off the client)
+│   ├── globals.css          # Flash + banner keyframe animations
+│   ├── layout.tsx           # HTML shell
+│   └── page.tsx             # Loads Dashboard client-side (ssr: false)
 ├── components/
-│   ├── Dashboard.tsx     # Main logic: polling, fault detection, audio
-│   ├── StatusCard.tsx    # Individual component status display
-│   ├── AlertBanner.tsx   # Fault alert banner
-│   ├── FaultHistory.tsx  # Last 10 fault events
-│   └── ConnectionDot.tsx # SDK connection status indicator
+│   ├── Dashboard.tsx        # Main logic: polling, fault detection, audio
+│   ├── StatusCard.tsx       # Individual component status display
+│   ├── AlertBanner.tsx      # Fault alert banner
+│   ├── FaultHistory.tsx     # Last 10 fault events
+│   ├── ConnectionDot.tsx    # SDK connection status indicator
+│   └── PlcDetailPanel.tsx   # Encoder data, TPS status, eject system, production stats, collapsible raw registers
 ├── lib/
-│   ├── types.ts          # Shared TypeScript types
-│   ├── sensors.ts        # Sensor config + health/fault logic
-│   ├── mock.ts           # Mock data generator with fault injection
-│   └── viam.ts           # Viam SDK connection + getReadings wrapper
-├── .env.local.example    # Environment variable template
-├── next.config.mjs       # Webpack fallbacks for Viam SDK browser compat
+│   ├── types.ts             # Shared TypeScript types
+│   ├── sensors.ts           # Sensor config + health/fault logic
+│   ├── mock.ts              # Mock data generator with fault injection
+│   └── viam.ts              # Viam SDK connection + getReadings wrapper
+├── .env.local.example       # Environment variable template
+├── next.config.mjs          # Webpack fallbacks for Viam SDK browser compat
 └── README.md
 ```
 

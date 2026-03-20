@@ -1,261 +1,250 @@
-# Remote Monitoring POC — System Architecture
+# TPS Remote Monitoring — System Architecture
 
 ## Overview
 
-This document describes the architecture for a proof-of-concept remote monitoring system for an industrial robot cell using Viam Robotics. The goal is to demonstrate real-time hardware state monitoring from a remote location and trigger alerts when faults occur.
+This document describes the architecture for a remote monitoring system for RAIV railroad Tie Plate Systems (TPS) using Viam Robotics. The system provides real-time machine state monitoring, encoder-based track distance measurement, and production analytics (plate drop counting) from a fleet of 30+ trucks, each equipped with a Click PLC and Raspberry Pi 5.
 
-**One-sentence summary:** Unplug the Pi and watch the dashboard react.
+**One-sentence summary:** Monitor every TPS truck's PLC state, encoder distance, and plate drops from anywhere with a browser.
 
 ### Hardware in Scope
 
-- 6-axis industrial robot arm with Stäubli CS9 controller
-- Apera AI vision system running on a GPU-equipped server
-- One or more industrial controllers (PLC or similar)
-- Junction boxes with operator buttons
-- Physical wiring between components
+- Click PLC C0-10DD2E-D at 169.168.10.21:502 (Modbus TCP)
+- SICK DBS60E encoder (1000 PPR, connected via PLC's High-Speed Counter)
+- Raspberry Pi 5 running viam-server
+- ZipLink ZL-RTB20-1 breakout board for PLC I/O access
+- Rhino PSR-24-480 24 VDC power supply
 
 ---
 
 ## 1. Data Point Readability Assessment
 
-### Robot Arm (Stäubli CS9) — REQUIRES CUSTOM WORK
+### Click PLC C0-10DD2E-D — PRIMARY DATA SOURCE
 
 | Data Point | Confidence | Method | Notes |
 |---|---|---|---|
-| Robot power state (on/off) | High | Network ping or Modbus TCP status word | Simplest heartbeat |
-| Robot mode (auto/manual/teach) | Medium | Modbus TCP status registers or VAL3 socket server | Requires validation of register map |
-| E-stop state | Medium | Safety I/O or dedicated safety relay | Safety signals may be on separate circuit |
-| Fault/error codes | Medium | VAL3 socket server or Modbus TCP | Validate which faults are exposed |
-| Joint positions | High | Real-time interface | Available but overkill for POC |
+| DS Holding Registers (DS1-DS25) | High | Modbus TCP FC03, addr 0-24 | TPS config and status |
+| Encoder pulse count (DD1) | High | Modbus TCP FC03, addr 16384-16385 | 32-bit signed via HSC x1 quadrature |
+| Discrete inputs (X1-X8) | High | Modbus TCP FC02, addr 0-7 | Power loop, camera, air eagle feedback |
+| Output coils (Y1-Y3) | High | Modbus TCP FC01, addr 8192-8194 | TPS eject solenoids |
+| Internal coils (C1999-C2000) | High | Modbus TCP FC01, addr 1998-1999 | Encoder reset, floating zero |
 
-**Viam native support: None.** Viam has no built-in Stäubli driver. The CS9 supports multiple communication paths:
+**Viam integration:** Custom `plc-sensor` module (registered as `plc-monitor` in Viam) reads all of the above via Modbus TCP at 1 Hz. No third-party registry module needed — the custom module provides richer TPS-specific derived fields (encoder distance, speed, plates per minute) beyond raw register access.
 
-- **Modbus TCP** — The CS9 has a built-in Modbus TCP Server/Client. If enabled, robot state registers can be read directly using the existing `viam-modbus` registry module. This is the preferred path for the POC.
-- **VAL3 socket server** — A custom TCP socket server written in Stäubli's VAL3 language. The hardware integration lead can write a minimal one that broadcasts a heartbeat and fault status.
-- **uniVAL PLC** — Fieldbus protocol (EtherNet/IP or PROFINET depending on configuration) that exposes status words and command registers. Requires appropriate licensing.
-- **OPC-UA** — Optional server available on CS9 but may require a separate license. No existing Viam module for OPC-UA.
+### SICK DBS60E Encoder — VIA PLC HSC
 
-**Assumptions to validate:**
-- Is Modbus TCP enabled on the CS9? What registers expose robot mode, fault state, and power status?
-- If Modbus TCP is not available, is uniVAL PLC licensed and active?
-- Which fieldbus protocol is configured (EtherNet/IP vs PROFINET)?
+The encoder is not read directly by the Pi. It connects to the Click PLC's High-Speed Counter (HSC) input, and the PLC exposes the count as DD1 (Modbus address 16384-16385, 32-bit signed). The `plc-sensor` module derives:
 
-### Vision System (Apera AI) — REQUIRES CUSTOM WORK
-
-| Data Point | Confidence | Method | Notes |
-|---|---|---|---|
-| System heartbeat (running/not) | High | Network ping or TCP socket health check | Simplest approach |
-| Vision process state | Medium | Apera Vue API or log monitoring | Depends on what Apera exposes |
-| Last detection result (pass/fail) | Low–Medium | Socket interface or shared file | Integration-specific |
-| GPU/server health | High | Standard OS-level monitoring | Server runs standard OS |
-
-**Viam native support: None.** Apera Vue communicates with robot controllers via TCP sockets using a proprietary protocol. Apera's API documentation is not publicly available — it is provided to customers and partners via their support portal.
-
-For POC monitoring:
-- **Simplest path:** A lightweight agent on the vision server that checks if the Apera Vue process is running and reports status over a simple TCP/HTTP endpoint.
-- **Richer path:** If Apera exposes a status API, read vision pipeline state directly.
-
-**Assumptions to validate:**
-- What OS does the vision server run?
-- Does Apera Vue expose any HTTP/REST/socket API for system status beyond its robot communication channel?
-
-### PLC / Industrial Controller — BEST VIAM FIT
-
-| Data Point | Confidence | Method | Notes |
-|---|---|---|---|
-| Digital I/O states | High | Modbus TCP registers | Standard PLC capability |
-| Controller heartbeat | High | Modbus TCP or network ping | Reliable |
-| Operator button states | High | Mapped through PLC digital inputs | Junction box buttons wire to PLC |
-
-**Viam native support: Partial.** The `viam-soleng/viam-modbus` module exists in the Viam registry and maps PLC registers as a Viam board component with GPIO-style access. If the PLC supports Modbus TCP (most major PLC brands do), this is the fastest integration path.
-
-**Assumptions to validate:**
-- What PLC brand/model is in the cell?
-- Does it support Modbus TCP, or only EtherNet/IP / PROFINET?
+- **Track distance** (mm and ft) from pulse count and wheel circumference (406.4 mm / 16" DMF RW-1650 railgear guide wheel)
+- **Speed** (mm/s and ft/min) from delta count / delta time
+- **Revolutions** from count / PPR
+- **Direction** (forward/reverse) from count delta sign
 
 ### Wire / Connection State — INDIRECT MONITORING
 
-Physical wires cannot be directly monitored by Viam. Instead, detect the **consequence** of a pulled wire:
+Physical wires cannot be directly monitored by Viam. Instead, detect the **consequence** of a disconnection:
 
-- Wire connects PLC to robot → communication fault on PLC side → readable via PLC registers
-- Wire connects button box to PLC → digital input state change → readable via Modbus
-- Wire connects a network device → ping failure → readable via network check
+- PLC loses power or Ethernet → Modbus TCP connection fails → `connected: false` in sensor readings
+- Encoder cable disconnected → count stops changing → visible in dashboard
+- Discrete input wire pulled → input drops to false → immediately visible in readings
 
-This is the strongest POC demo point — monitor the endpoints and infer wire state from the fault.
+The dashboard shows connection status and turns red when the PLC becomes unreachable.
 
 ---
 
 ## 2. System Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    FACTORY FLOOR                             │
-│                                                             │
-│  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌───────┐ │
-│  │ Robot    │    │ Vision   │    │   PLC    │    │Button │ │
-│  │ Arm      │    │ Server   │    │          │    │ Box   │ │
-│  └────┬─────┘    └────┬─────┘    └────┬─────┘    └───┬───┘ │
-│       │               │               │              │     │
-│       │ Modbus TCP     │ TCP/HTTP      │ Modbus TCP   │     │
-│       │ or TCP Socket  │ health check  │              │(wired│
-│       │               │               │              │to PLC)│
-│  ┌────┴───────────────┴───────────────┴──────────────┴───┐  │
-│  │              VIAM AGENT (viam-server)                  │  │
-│  │         Runs on: dedicated Linux SBC or PC             │  │
-│  │                                                        │  │
-│  │  ┌─────────────┐ ┌──────────────┐ ┌────────────────┐  │  │
-│  │  │ Custom      │ │ Custom       │ │ Modbus TCP     │  │  │
-│  │  │ Robot Arm   │ │ Vision       │ │ Sensor Module  │  │  │
-│  │  │ Sensor      │ │ Health       │ │ (from registry)│  │  │
-│  │  │ Module      │ │ Sensor       │ │                │  │  │
-│  │  └──────┬──────┘ └──────┬───────┘ └───────┬────────┘  │  │
-│  │         │               │                 │           │  │
-│  │  ┌──────┴───────────────┴─────────────────┴────────┐  │  │
-│  │  │         Viam Data Management Service             │  │  │
-│  │  │   - Captures readings at configurable interval   │  │  │
-│  │  │   - Syncs to Viam Cloud                          │  │  │
-│  │  └──────────────────────┬──────────────────────────┘  │  │
-│  └─────────────────────────┼─────────────────────────────┘  │
-│                            │                                 │
-└────────────────────────────┼─────────────────────────────────┘
-                             │ HTTPS (outbound only)
-                             ▼
-┌────────────────────────────────────────────────────────────┐
-│                     VIAM CLOUD                              │
-│  ┌──────────────┐  ┌──────────────┐  ┌─────────────────┐  │
-│  │ Data Storage  │  │  Triggers    │  │   Viam API      │  │
-│  │ (time-series) │  │  (threshold  │  │   (gRPC/REST)   │  │
-│  │              │  │   alerts)    │  │                 │  │
-│  └──────┬───────┘  └──────┬───────┘  └────────┬────────┘  │
-└─────────┼─────────────────┼────────────────────┼───────────┘
-          │                 │                    │
-          ▼                 ▼                    ▼
-┌─────────────────────────────────────────────────────────────┐
-│                 REMOTE MONITORING LOCATION                    │
-│                                                             │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │              MONITORING DASHBOARD                     │   │
-│  │  ┌────────┐  ┌────────┐  ┌────────┐  ┌────────────┐ │   │
-│  │  │Robot   │  │Vision  │  │PLC I/O │  │Wire/Conn   │ │   │
-│  │  │ green  │  │ green  │  │ green  │  │ green      │ │   │
-│  │  │ ARM OK │  │ VIS OK │  │ PLC OK │  │ WIRES OK   │ │   │
-│  │  └────────┘  └────────┘  └────────┘  └────────────┘ │   │
-│  │                                                      │   │
-│  │  ALERTS: [none]                                      │   │
-│  └──────────────────────────────────────────────────────┘   │
-│                                                             │
-│  When a wire is pulled:                                     │
-│  ┌─────────┐                                                │
-│  │Wire/Conn│  <- turns RED, audible alert fires             │
-│  │  FAULT  │                                                │
-│  └─────────┘                                                │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                    RAIV TRUCK (per truck)                      │
+│                                                              │
+│  ┌────────────────┐    ┌──────────────────┐                  │
+│  │ SICK DBS60E    │    │ TPS Machine I/O  │                  │
+│  │ Encoder        │    │ (power loop,     │                  │
+│  │ (1000 PPR)     │    │  ejects, air     │                  │
+│  └───────┬────────┘    │  eagles, camera) │                  │
+│          │ HSC input    └────────┬─────────┘                  │
+│          │                      │ wired to X/Y/C              │
+│  ┌───────┴──────────────────────┴──────────┐                  │
+│  │  Click PLC C0-10DD2E-D (169.168.10.21)  │                  │
+│  │  Modbus TCP server on port 502          │                  │
+│  └──────────────────┬──────────────────────┘                  │
+│                     │ Modbus TCP (Ethernet)                    │
+│  ┌──────────────────┴──────────────────────────────────┐      │
+│  │           RASPBERRY PI 5 (viam-server)               │      │
+│  │                                                      │      │
+│  │  ┌──────────────────────────────────────────────┐    │      │
+│  │  │  plc-sensor module (registered: plc-monitor) │    │      │
+│  │  │  - Reads DS1-DS25, DD1, X1-X8, Y1-Y3,       │    │      │
+│  │  │    C1999-C2000 via Modbus TCP at 1 Hz        │    │      │
+│  │  │  - Derives: distance, speed, plates/min      │    │      │
+│  │  │  - Returns ~55 fields per reading            │    │      │
+│  │  └────────────────────┬─────────────────────────┘    │      │
+│  │                       │                              │      │
+│  │  ┌────────────────────┴─────────────────────────┐    │      │
+│  │  │       Viam Data Management Service            │    │      │
+│  │  │  capture_dir: /home/andrew/.viam/capture      │    │      │
+│  │  │  offline_buffer: /home/andrew/.viam/          │    │      │
+│  │  │                  offline-buffer/ (50 MB cap)  │    │      │
+│  │  │  sync_interval: 0.1 min                       │    │      │
+│  │  └────────────────────┬─────────────────────────┘    │      │
+│  └───────────────────────┼──────────────────────────────┘      │
+│                          │                                      │
+└──────────────────────────┼──────────────────────────────────────┘
+                           │ HTTPS (outbound only)
+                           ▼
+┌────────────────────────────────────────────────────────────────┐
+│                       VIAM CLOUD                                │
+│  ┌──────────────┐  ┌──────────────┐  ┌─────────────────┐      │
+│  │ Data Storage  │  │  Triggers    │  │   Viam API      │      │
+│  │ (time-series) │  │  (future)    │  │   (gRPC/REST)   │      │
+│  └──────┬───────┘  └──────────────┘  └────────┬────────┘      │
+└─────────┼─────────────────────────────────────┼────────────────┘
+          │                                     │
+          ▼                                     ▼
+┌────────────────────────────────────────────────────────────────┐
+│               REMOTE MONITORING (any browser)                   │
+│                                                                │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │           NEXT.JS DASHBOARD (Vercel)                      │  │
+│  │                                                          │  │
+│  │  ┌────────────────────────────────────────────────────┐  │  │
+│  │  │              TPS Controller                         │  │  │
+│  │  │  Status: CONNECTED / FAULT / DISCONNECTED          │  │  │
+│  │  │  Encoder: distance, speed, direction               │  │  │
+│  │  │  Ejects: Y1, Y2, Y3 status                        │  │  │
+│  │  │  Production: plates/min, plate count               │  │  │
+│  │  │  Inputs: power loop, camera, air eagles            │  │  │
+│  │  └────────────────────────────────────────────────────┘  │  │
+│  │                                                          │  │
+│  │  Server-side API route proxies Viam credentials          │  │
+│  │  (VIAM_MACHINE_ADDRESS, VIAM_API_KEY_ID, VIAM_API_KEY)  │  │
+│  │  Only NEXT_PUBLIC_MOCK_MODE is browser-side              │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                                                                │
+│  On fault/disconnect: card turns RED, audible klaxon fires     │
+└────────────────────────────────────────────────────────────────┘
 ```
 
 ### Key Architectural Decisions
 
-1. **Single Viam agent on the factory network** — one `viam-server` instance connects to all hardware. Runs on a dedicated Linux device (Raspberry Pi 4/5, Intel NUC, or similar).
+1. **One Pi + one PLC per truck** — each RAIV truck runs a single `viam-server` instance on a Raspberry Pi 5 that reads the Click PLC via Modbus TCP. Fleet target: 30+ trucks.
 
-2. **Outbound-only connectivity** — the Viam agent pushes data to Viam Cloud via HTTPS. No inbound ports need to be opened on the factory network. This is critical for IT/OT security approval.
+2. **Outbound-only connectivity** — the Viam agent pushes data to Viam Cloud via HTTPS. No inbound ports need to be opened on the truck's network. This is critical for field deployment where trucks operate on remote railroad job sites.
 
-3. **Each hardware source = one Viam sensor component** — clean separation. Each sensor module is responsible for one integration and returns a simple status struct.
+3. **Single sensor module** — the `plc-sensor` module (registered as `plc-monitor`) is the only Viam component. It returns ~55 fields per reading at 1 Hz, covering all PLC registers, encoder-derived values, and production analytics.
 
-4. **Dashboard reads from Viam Cloud API** — the remote monitoring location never touches the factory network directly.
+4. **Dashboard connects via WebRTC through Viam Cloud** — the Next.js dashboard on Vercel connects directly to viam-server on the Pi via WebRTC, negotiated through Viam Cloud. This provides low-latency live readings. The data_manager service separately syncs readings to cloud storage for historical access.
+
+5. **Offline-first data pipeline** — trucks operate 5-10+ hours without internet. Sensor readings are captured to persistent local storage (`/home/andrew/.viam/capture`) with a 50 MB offline JSONL buffer at `/home/andrew/.viam/offline-buffer/`. Sync is opportunistic when connectivity is available.
 
 ---
 
-## 3. Custom Modules Needed
+## 3. Sensor Module
 
-| Module | Type | Language | Complexity | Notes |
+| Module | Viam Name | Type | Language | Status |
 |---|---|---|---|---|
-| `robot-arm-sensor` | Sensor | Python | Medium | Protocol depends on controller config |
-| `vision-health-sensor` | Sensor | Python | Low | Health check against vision server |
-| `modbus-plc-sensor` | Sensor | — | Low | Likely use existing registry module |
+| `plc-sensor` | `plc-monitor` | Sensor | Python | Deployed, production |
 
 ### Module Details
 
-**`robot-arm-sensor`** (custom, must build)
+**`plc-sensor`** (custom, deployed at `modules/plc-sensor/`)
 - Implements Viam's `Sensor` interface
-- Returns: `{ "connected": true/false, "mode": "auto", "fault": false, "fault_code": 0 }`
-- Two possible implementations:
-  - **Option A (simpler):** Hardware lead writes a minimal VAL3 program on the CS9 that opens a TCP server and pushes a JSON status blob every second. The Viam module connects as a TCP client and parses it.
-  - **Option B (preferred if available):** Module reads Modbus TCP registers directly from the CS9's built-in Modbus server. No changes needed on the controller side.
+- Connects to Click PLC C0-10DD2E-D via Modbus TCP (pymodbus)
+- Returns ~55 fields per `get_readings()` call at 1 Hz:
 
-**`vision-health-sensor`** (custom, must build)
-- Implements Viam's `Sensor` interface
-- Returns: `{ "connected": true/false, "process_running": true/false }`
-- Simplest version: ICMP ping + TCP port check against the vision server
-- Richer version: reads vision software status API if one is available
+**System health fields:**
+- `connected` (bool), `fault` (bool), `system_state` ("running"/"idle"/"disconnected"), `last_fault` (string)
+- `current_uptime_seconds` (int), `total_reads` (int), `total_errors` (int)
 
-**PLC integration** (likely existing module)
-- If the PLC supports Modbus TCP, use the existing `viam-soleng/viam-modbus` registry module
-- Configure it to read specific coils/registers that map to:
-  - Operator button states (junction box inputs)
-  - Communication fault bits (wired connection health)
+**Encoder and track distance fields (derived from DD1):**
+- `encoder_count` (int, raw 32-bit signed), `encoder_direction` ("forward"/"reverse")
+- `encoder_distance_mm` (float), `encoder_distance_ft` (float)
+- `encoder_speed_mmps` (float), `encoder_speed_ftpm` (float), `encoder_revolutions` (float)
+
+**TPS machine status fields:**
+- `tps_power_loop` (X4), `camera_signal` (X3), `encoder_enabled` (derived), `floating_zero` (C2000), `encoder_reset` (C1999)
+
+**TPS eject system fields:**
+- `eject_tps_1` (Y1), `eject_left_tps_2` (Y2), `eject_right_tps_2` (Y3)
+- `air_eagle_1_feedback` (X5), `air_eagle_2_feedback` (X6), `air_eagle_3_enable` (X7)
+
+**TPS production fields (derived from Y1 transitions):**
+- `plates_per_minute` (float, rolling 60s window), `plate_drop_count` (int, cumulative)
+
+**DS holding registers:** `ds1` through `ds25` (all 25 from Modbus addr 0-24)
+
+**Discrete inputs (raw):** `x1`, `x2`, `x8`
+
+**Self-healing:** Exponential backoff on connection failures (1s to 30s), automatic reconnection when PLC comes back online, full diagnostic logging with troubleshooting hints on first failure.
+
+**Offline buffering:** When configured with `offline_buffer_dir`, readings are appended to date-stamped JSONL files that persist across reboots. Oldest files pruned when buffer exceeds `offline_buffer_max_mb` (default 50 MB).
 
 ---
 
 ## 4. Dashboard Tech Stack
 
-### Recommended: Next.js + Viam TypeScript SDK
+### Next.js + Viam TypeScript SDK (deployed)
 
 | Layer | Choice | Rationale |
 |---|---|---|
-| Framework | Next.js (React) | Fast to build, easy deployment, good for real-time UIs |
-| Viam integration | `@viamrobotics/sdk` (TypeScript) | Official SDK, direct API access to sensor readings |
-| Real-time updates | Polling at 1–2s interval via Viam SDK | Simple, reliable, sufficient for POC |
-| Alerting (visual) | CSS animations + browser audio API | Red flash + audible tone on fault |
-| Alerting (push) | Viam Triggers → webhook → email/Slack | For unattended monitoring |
-| Hosting | Vercel or local machine | Vercel for zero-ops, local for air-gapped demo |
+| Framework | Next.js (React) | Mobile-responsive, server-side API routes for credential security |
+| Viam integration | `@viamrobotics/sdk` (TypeScript) | Official SDK, direct API access to sensor readings via WebRTC |
+| Real-time updates | Polling at 2s interval via Viam SDK | Simple, reliable, sufficient for production |
+| Alerting (visual) | CSS animations + browser audio API | Red flash + audible klaxon on fault |
+| Alerting (push) | Viam Triggers → webhook → email/Slack | Future item |
+| Hosting | Vercel | Dashboard available even when Pi is offline |
+
+### Credential Security
+
+The dashboard uses a **server-side API route** to proxy Viam credentials. Environment variables are set in Vercel WITHOUT the `NEXT_PUBLIC_` prefix so they are never exposed to the browser:
+
+- `VIAM_MACHINE_ADDRESS` — the machine's cloud address
+- `VIAM_API_KEY_ID` — API key identifier
+- `VIAM_API_KEY` — API key secret
+
+Only `NEXT_PUBLIC_MOCK_MODE` is browser-side (enables demo mode without hardware).
+
+### Single Status Card
+
+The dashboard shows a single **TPS Controller** card with all sensor data organized into sections: system health, encoder/track distance, machine status, eject system, and production metrics.
 
 ### Alternatives Considered
 
-- **Grafana:** Good for time-series but harder to customize the "pull a wire, see it react" experience. Better suited for Phase 2 historical analysis.
-- **Viam's built-in dashboard:** Too limited for custom alert UX.
+- **Grafana:** Good for time-series but harder to customize the mobile-responsive single-card UX. Better suited for historical analysis.
+- **Viam's built-in dashboard:** Too limited for custom alert UX and mobile responsiveness.
 
 ---
 
-## 5. Phased Build Plan
+## 5. Deployment Status and Roadmap
 
-### Phase 1 — Minimum Viable Demo
+### Completed — Single Truck Prototype
 
-**Goal:** Pull one wire, watch one indicator turn red on a screen in a remote location.
+All core components are deployed and working on the bench prototype:
 
-**Scope:**
-1. Deploy `viam-server` on a Linux device on the factory network
-2. Build **one** custom sensor module — the PLC Modbus integration (lowest risk, most likely to work on first attempt)
-3. Wire one junction box button through the PLC so pressing it or disconnecting it changes a Modbus register
-4. Build a single-page dashboard with 1–2 status indicators
-5. Demo: disconnect the junction box wire → dashboard shows red within 2 seconds
+1. **viam-server** on Raspberry Pi 5 — auto-starts, auto-recovers from power loss
+2. **plc-sensor module** — reads all TPS PLC registers at 1 Hz with self-healing reconnection
+3. **Offline-first data pipeline** — persistent capture directory, JSONL offline buffer, opportunistic cloud sync
+4. **Next.js dashboard on Vercel** — mobile-responsive, single TPS Controller card, fault alerting with klaxon
+5. **Encoder integration** — track distance, speed, direction derived from SICK DBS60E via PLC HSC
+6. **Production analytics** — plates per minute and plate drop count derived from Y1 eject coil transitions
 
-**What this proves:** The full data pipeline works end-to-end. Viam can read hardware state, sync it to cloud, and a remote dashboard can display it with low latency.
+### Next — Fleet Rollout
 
-**Deliverables:**
-- Viam configuration file for the agent
-- PLC Modbus sensor module (or registry module configuration)
-- Dashboard web app (single page)
-- 30-second demo video
-
-### Phase 2 — Full Hardware Coverage
-
-**Goal:** All four hardware sources monitored, alerts fire automatically.
+**Goal:** Deploy to 30+ RAIV railroad trucks, each with identical Pi 5 + Click PLC configuration.
 
 **Scope:**
-1. Add `robot-arm-sensor` module (hardware lead builds VAL3 or Modbus side, software lead builds Viam module)
-2. Add `vision-health-sensor` module
-3. Add multiple PLC data points (operator buttons, communication fault bits)
-4. Dashboard shows all four sources with individual status
-5. Configure Viam Triggers for email/Slack alerting on any fault
-6. Add fault history (last 10 events) to dashboard
+1. Publish `plc-sensor` module to Viam Registry for OTA deployment
+2. Create Viam Fragment for fleet-wide configuration with per-truck PLC IP overrides
+3. Configure Viam Triggers for server-side alerting (email/Slack on fault conditions)
+4. Scale dashboard to multi-truck fleet view
+5. Establish field deployment procedures (SD card imaging, PLC IP assignment, Viam provisioning)
 
-**What this proves:** The system can monitor heterogeneous industrial equipment and alert on any component failure.
+### Future — Production Hardening
 
-### Phase 3 — Production Hardening (Future)
-
-- Redundant Viam agent
-- Grafana for historical trend analysis
-- Multi-cell monitoring (scale to additional robot cells)
-- Integration with existing plant SCADA/MES if applicable
+- Grafana for historical trend analysis across fleet
+- ML anomaly detection trained on fleet-wide sensor data
+- Predictive maintenance models based on encoder wear patterns and plate drop cadence
+- USB SSD for capture directory (if data volumes warrant it)
 
 ---
 
@@ -265,18 +254,20 @@ This is the strongest POC demo point — monitor the endpoints and infer wire st
 
 ```
 COLLECTED:                          NEVER COLLECTED:
-  Machine power state                 Camera feeds of work area
-  Fault codes (numeric)               Operator identity
-  Digital I/O states (on/off)         Cycle time per operator
-  Network connectivity (up/down)      Production counts by shift
-  Process running (yes/no)            Audio from work area
+  PLC connection state (up/down)      Camera feeds of work area
+  Encoder count and distance          Operator identity
+  Digital I/O states (on/off)         Production counts by operator
+  Eject coil states                   Cycle time per operator
+  DS holding register values          Audio from work area
+  Track speed and direction           GPS location
+  Plate drop count and rate           Personal data of any kind
 ```
 
 ### How the Architecture Enforces This
 
-- Each sensor module has a **fixed return schema** — it can only return the fields defined in its `GetReadings()` implementation. Adding a new data field requires writing new code, building a new module version, and deploying it.
-- No cameras are connected to the Viam agent. The vision system cameras are on a separate network segment and the health sensor only checks "is the process alive" — it never accesses image data.
-- The Viam data management service captures only what sensors report. There is no ambient data collection.
+- The `plc-sensor` module has a **fixed return schema** — it can only return the ~55 fields defined in its `get_readings()` implementation. Adding a new data field requires writing new code, building a new module version, and deploying it.
+- No cameras, microphones, or GPS receivers are connected to the Viam agent. The Pi 5 reads only the Click PLC via Modbus TCP.
+- The Viam data management service captures only what the sensor module reports. There is no ambient data collection.
 - **Expanding scope requires:** new module code → code review → build → deploy → reconfigure Viam agent. This is a multi-step, auditable process, not a configuration toggle.
 
 ---
@@ -286,84 +277,85 @@ COLLECTED:                          NEVER COLLECTED:
 | Task | Software Lead | Hardware Lead | Together |
 |---|---|---|---|
 | Viam agent setup and configuration | Primary | | |
-| PLC Modbus integration | Primary | Consult on register map | |
-| Robot arm sensor module (Viam side) | Primary | | |
-| Robot arm controller-side integration | | Primary | |
-| Vision health sensor module | Primary | Consult on ports/API | |
-| Dashboard build | Primary | | |
-| Physical wire test scenarios | | Primary | |
-| Hardware network topology | | Primary | |
-| Integration testing | | | Joint |
-| Stakeholder demo | | | Joint |
+| PLC Modbus sensor module | Primary | Consult on register map | |
+| Click PLC ladder logic | | Primary | |
+| Dashboard build and deployment | Primary | | |
+| Encoder integration and calibration | | Primary | Consult on wheel diameter |
+| Fleet SD card imaging procedure | Primary | | |
+| Per-truck PLC IP and wiring | | Primary | |
+| Field deployment and testing | | | Joint |
 
-**Clean seam:** The hardware lead owns everything that runs *on* the industrial hardware (controller programs, PLC configuration, vision system settings). The software lead owns everything that runs *outside* the industrial hardware (Viam agent, modules, dashboard, cloud configuration). The interface contract is: the hardware side exposes a TCP endpoint or Modbus register at a known IP and port that returns machine state; the software side reads it.
+**Clean seam:** The hardware lead owns everything that runs *on* the PLC (ladder logic, I/O wiring, encoder mounting). The software lead owns everything that runs *outside* the PLC (Viam agent, plc-sensor module, dashboard, cloud configuration). The interface contract is: the PLC exposes Modbus TCP registers at a known IP and port; the software side reads them.
 
 ---
 
-## 8. Assumptions Requiring Validation
+## 8. Resolved and Open Questions
 
-These need answers from the hardware integration lead before committing to implementation details:
+### Resolved
+
+| # | Question | Answer |
+|---|---|---|
+| 1 | What PLC brand/model? | Click PLC C0-10DD2E-D — supports Modbus TCP natively |
+| 2 | PLC IP address? | 169.168.10.21:502 |
+| 3 | Encoder type and connection? | SICK DBS60E-BDEC01000 (1000 PPR), connected to PLC HSC input |
+| 4 | Wheel diameter for distance calc? | 406.4 mm (16" DMF RW-1650 railgear guide wheel) |
+| 5 | Capture directory persistence? | `/home/andrew/.viam/capture` on SD card ext4 (survives power loss) |
+
+### Open (for fleet rollout)
 
 | # | Question | Impact if Wrong |
 |---|---|---|
-| 1 | Is Modbus TCP enabled on the CS9? What registers expose robot mode, fault state, and power status? | If unavailable, must use VAL3 socket approach |
-| 2 | What fieldbus protocol is configured (EtherNet/IP vs PROFINET)? | Determines sensor module protocol |
-| 3 | What PLC brand/model is in the cell? | Determines if Modbus TCP is available |
-| 4 | What OS does the vision server run? | Determines health check approach |
-| 5 | Does the vision software expose any status API or socket interface? | Determines richness of monitoring data |
-| 6 | Is there a managed switch on the cell network with a free port for the Viam agent? | Physical connectivity requirement |
-| 7 | Are there any IT/OT network segmentation policies that would block the Viam agent from reaching Viam Cloud? | May require proxy configuration or firewall rules |
-| 8 | Can the hardware lead write and deploy a VAL3 program to the CS9 for testing? | Required for Option A of robot monitoring |
+| 1 | Will all trucks use the same PLC IP (169.168.10.21) or will each need a unique IP? | Affects Viam Fragment per-truck override strategy |
+| 2 | Will trucks have cellular connectivity for cloud sync, or only WiFi at the shop? | Affects sync interval tuning and offline buffer sizing |
+| 3 | SD card endurance under continuous 1 Hz writes — should we move capture_dir to USB SSD? | SD card wear could cause field failures |
+| 4 | Per-truck identification scheme (truck number, asset tag)? | Needed for fleet-wide data tagging and dashboard multi-truck view |
 
 ---
 
 ## 9. Current Implementation State
 
-Last updated: March 19, 2026. This section maps every component in the architecture diagram above to its actual current state.
+Last updated: March 20, 2026. This section maps every component in the architecture diagram above to its actual current state.
 
 ### Component-by-component status
 
-**Viam Agent (viam-server).** Deployed and working. Runs on a Raspberry Pi 5 (Raspberry Pi OS Lite 64-bit, aarch64) as a systemd service. Version 0.116.0. Auto-starts on boot, auto-recovers from power loss. Connected to Viam Cloud at `staubli-pi-main.djgpitarpm.viam.cloud`. Machine shows "Live" in the Viam app. Power cycle test passed: unplugging the Pi and plugging it back in results in full automatic recovery with no manual intervention.
+**Viam Agent (viam-server).** Deployed and working. Runs on a Raspberry Pi 5 (Raspberry Pi OS Lite 64-bit, aarch64) as a systemd service. Auto-starts on boot, auto-recovers from power loss. Connected to Viam Cloud. Machine shows "Live" in the Viam app. Power cycle test passed: unplugging the Pi and plugging it back in results in full automatic recovery with no manual intervention.
 
-**Vision Health Sensor module.** Deployed and working. Custom Python module at `/opt/viam-modules/vision-health-sensor/`. Registered in Viam app as component "vision-health". Targets 8.8.8.8:53 (Google DNS) as a stand-in for the Apera vision server. Returns `{"connected": true, "process_running": true}` on every poll. Both ICMP ping and TCP port probe run concurrently with timeouts. Data capture configured at 0.2 Hz, readings sync to Viam Cloud via the data_manager service.
+**PLC Sensor module (`plc-sensor` / `plc-monitor`).** Deployed and working against real hardware. Custom Python module at `modules/plc-sensor/` registered as Viam component `plc-monitor`. Connects via Modbus TCP to a **Click PLC C0-10DD2E-D** at `169.168.10.21:502`.
 
-**Robot Arm Sensor module.** Scaffold only. Code is complete with Viam registration, configuration handling, and placeholder readings for both Modbus TCP and VAL3 socket protocols. Not deployed to the Pi. Blocked on Staubli CS9 protocol confirmation from the hardware lead.
+The module reads the full TPS register map every second:
+- **DS1-DS25** (Modbus addr 0-24): all 25 TPS holding registers
+- **DD1** (Modbus addr 16384-16385): 32-bit signed encoder count from SICK DBS60E via HSC
+- **X1-X8** (discrete inputs): TPS power loop (X4), camera signal (X3), air eagle feedback (X5/X6), air eagle enable (X7)
+- **Y1-Y3** (output coils at addr 8192-8194): TPS eject solenoids
+- **C1999-C2000** (internal coils at addr 1998-1999): encoder reset, floating zero
 
-**PLC / Modbus Sensor module.** Deployed and working against real hardware. Custom Python module at `modules/plc-sensor/` registered as Viam component `plc-monitor`. Connects via Modbus TCP to a **Click PLC C0-10DD2E-D** at `192.168.0.10:502`. The Click PLC reads two physical buttons (Fuji AR22F0L servo power button on X1, NC e-stop on X2) and sets coil 0 on button press. The plc-sensor module reads 25 E-Cat cable registers (0-24), 18 sensor/state registers (100-117), and coil 0 (button state).
+The module derives production analytics from raw PLC data:
+- **Track distance** (mm, ft) and **speed** (mm/s, ft/min) from encoder count delta and wheel circumference
+- **Plates per minute** from OFF-to-ON transitions on Y1 (Eject TPS_1) over a rolling 60-second window
+- **Plate drop count** (cumulative, resets on viam-server restart)
+- **System state** ("running" when tps_power_loop is active, "idle" otherwise, "disconnected" on Modbus failure)
 
-The module implements a **software servo power latch**: pressing the blue button latches servo power ON, pressing e-stop clears it. The Click PLC does not update holding registers 0-1 (servo_power_on / servo_disable) — the latch is maintained entirely in software. The `estop_off` register (24) reads 1 during normal operation (e-stop NOT engaged) and 0 when e-stop IS active. Stale fault code 4 (`estop_triggered`) in register 113 is ignored when e-stop is not actually active.
+Self-healing: exponential backoff (1s to 30s) on connection failures, automatic reconnection, diagnostic logging with troubleshooting hints.
 
-The module also maintains **software-side analytics counters** that persist between polls (reset on viam-server restart): `servo_power_press_count` (rising-edge count of button presses), `estop_activation_count` (rising-edge count of e-stop events), `current_uptime_seconds` (time since module start), and `last_estop_duration_seconds` (duration of most recent e-stop event). These replace PLC registers 114-117 which are always zero on the Click PLC.
+The deployed module files at `/opt/viam-modules/` are **symlinked** to the git repo at `/home/andrew/Viam-Staubli-Apera-PLC-Mobile-POC/modules/`, so `git pull` immediately updates the code viam-server runs. The PLC is powered by a Rhino PSR-24-480 24 VDC supply and connected to the Pi via Ethernet. A ZipLink ZL-RTB20-1 breakout board provides clean terminal access to all PLC I/O.
 
-The deployed module files at `/opt/viam-modules/` are **symlinked** to the git repo at `/home/andrew/Viam-Staubli-Apera-PLC-Mobile-POC/modules/`, so `git pull` immediately updates the code viam-server runs. The PLC is powered by a Rhino PSR-24-480 24 VDC supply and connected to the Pi via a Netgear Ethernet switch. A ZipLink ZL-RTB20-1 breakout board provides clean terminal access to all PLC I/O. The Pi 5 (192.168.0.176, WiFi) runs viam-server with the plc-sensor module connecting to the Click PLC over the local network.
-
-**Wire / Connection monitoring.** Derived from PLC sensor readings. The dashboard Wire/Connection card shows green when the PLC sensor reports `connected: true` and `fault: false`. When the Pi Zero W loses power or network, the Modbus connection fails and the card turns red. Additionally, each of the 25 E-Cat cable signals is individually monitored. If any signal drops from 1 to 0, a specific fault event is logged (e.g., "E-Cat Signal Lost — Servo Power ON (Pin 1)"). Recovery is also logged when signals return to 1. For GPIO-wired signals, physically disconnecting a wire causes the pin's pull-down to register 0, which is immediately visible on the dashboard.
-
-**Viam Data Management Service.** Deployed and working. Configured in the Viam app with capture directory at `/tmp/viam-data`, sync interval of 6 seconds, tagged with "robot-cell-monitor". Both `plc-monitor` and `vision-health` sensors are captured. Readings are stored as binary protobuf files and synced to Viam Cloud. Historical readings are visible in the Viam app Data tab. Software analytics (servo press count, e-stop count, uptime, e-stop duration) are included in every captured reading.
+**Viam Data Management Service.** Deployed and working. Configured with:
+- `capture_dir`: `/home/andrew/.viam/capture` (persistent, on SD card ext4 filesystem — survives power loss)
+- `offline_buffer_dir`: `/home/andrew/.viam/offline-buffer/` (50 MB cap, date-stamped JSONL files)
+- `sync_interval`: 0.1 min (6 seconds)
+- Only the `plc-monitor` sensor is captured. Readings are stored as binary protobuf files and synced to Viam Cloud. Historical readings are visible in the Viam app Data tab.
 
 **Viam Triggers.** Not configured. Dashboard handles alerting client-side. Cloud-side triggers for email/Slack are a future item.
 
-**Monitoring Dashboard.** Deployed and working. Next.js application deployed to Vercel. Accessible from any browser with internet access. Connects to viam-server on the Pi 5 via the Viam TypeScript SDK (@viamrobotics/sdk v0.34.0) over WebRTC, negotiated through Viam Cloud. Polls sensor readings every 2 seconds. Three of four cards are green: Vision System (OK), PLC / Controller (OK), Wire / Connection (OK). Robot Arm shows yellow Pending (hardware not available). Two data panels: (1) PLC Sensor Data showing system state, cycle count, temperature, humidity, vibration, pressure, servo positions, button state; (2) E-Cat Signal Status showing all 25 cable signals with green/red dot indicators. E-Cat signal changes are logged in fault history with signal name and pin number (loss in red, recovery in green). Fault detection with audible klaxon, red screen flash, alert banner, and 10-event fault history log. Mock mode available via environment variable for demos without hardware.
+**Monitoring Dashboard.** Deployed and working. Next.js application deployed to Vercel. Mobile-responsive. Accessible from any browser with internet access. Connects to viam-server on the Pi 5 via the Viam TypeScript SDK over WebRTC, negotiated through Viam Cloud. Polls sensor readings every 2 seconds. Single **TPS Controller** status card showing system health, encoder/track data, machine status, eject system, and production metrics. Fault detection with audible klaxon, red screen flash, alert banner, and fault history log. Server-side API route proxies Viam credentials (env vars without `NEXT_PUBLIC_` prefix). Mock mode available via `NEXT_PUBLIC_MOCK_MODE` for demos without hardware.
 
-### Divergences from the original plan
+### Deployment workflow
 
-**Raspberry Pi 5 instead of Pi 4 or NUC.** Section 2 mentioned "Raspberry Pi 4/5, Intel NUC, or similar." The Pi 5 was used because it was available. viam-server runs comfortably on it.
+```
+git pull → sudo systemctl restart viam-server
+```
 
-**Component naming.** The Viam module directories use model names like `plc-sensor` and `robot-arm-sensor`, but the Viam component instance names differ: `plc-monitor`, `robot-arm-monitor`, `vision-health`. The dashboard uses the component instance names to query readings. The vision sensor is `vision-health`, the PLC sensor is `plc-monitor`, the robot arm is `robot-arm-sensor` (pending).
-
-**Dashboard hosted on Vercel, not on the Pi.** Section 4 listed "Vercel or local machine" as hosting options. Vercel was chosen because the dashboard should be available even when the Pi is offline. When the Pi loses power, the dashboard still loads and shows the fault state. If the dashboard ran on the Pi, it would go down at exactly the moment you most need it.
-
-**Dashboard reads directly from machine via WebRTC, not from cloud data API.** Section 2 shows the dashboard reading from "Viam API (gRPC/REST)" in the cloud layer. The actual implementation connects the browser directly to viam-server on the Pi via WebRTC, negotiated through Viam Cloud. This has lower latency but means live readings require the machine to be online. The data_manager service separately syncs readings to cloud storage for historical access.
-
-**Privacy architecture is fully enforced.** Section 6 described the privacy constraints. The implementation follows them exactly. The vision-health-sensor returns only `connected` (bool) and `process_running` (bool). No camera, audio, or personnel data is collected or displayable.
-
-### What the pending modules need
-
-The PLC sensor module is deployed and working against a real Click PLC C0-10DD2E-D at 192.168.0.10. The module maintains a software servo power latch (button press ON, e-stop clears) and software analytics counters because the Click PLC does not update the relevant holding registers. Key bug fix (March 19, 2026): the `estop_off` register (24) was incorrectly interpreted — value 1 means e-stop is NOT engaged (normal), not that e-stop is active. The deployed module files are symlinked from `/opt/viam-modules/` to the git repo so `git pull` + `sudo systemctl restart viam-server` is the complete deployment workflow.
-
-The robot arm sensor module code is complete for both protocol options. To activate it: confirm which protocol the CS9 exposes and provide either the Modbus register addresses or confirm that a VAL3 socket server is running.
-
-The wire/connection indicator derives its state from the PLC sensor and is now active — it shows green when the PLC is connected and turns red when the connection drops.
+Module files are symlinked from `/opt/viam-modules/` to the git repo, so pulling new code and restarting the service is the complete deployment process. No build step required (Python module).
 
 ---
 
@@ -383,7 +375,7 @@ RAIV trucks operate on remote railroad job sites for 5–10+ hours with no inter
 
 The `capture_dir` setting in `viam-server.json` controls where sensor readings are buffered on disk before syncing to the cloud. This MUST be a persistent path that survives reboots and power loss.
 
-- **Current setting:** `/home/pi/.viam/capture` (persistent, on SD card ext4 filesystem)
+- **Current setting:** `/home/andrew/.viam/capture` (persistent, on SD card ext4 filesystem)
 - **Previously:** `/tmp/viam-data` (WRONG — `/tmp` is volatile, cleared on reboot)
 
 If `capture_dir` points to `/tmp` and the truck loses power in the field, all buffered data that hasn't synced is permanently lost. This was identified and fixed during the March 2026 data management audit.
@@ -401,35 +393,35 @@ Viam's auto-deletion threshold: if the filesystem reaches **90% disk usage** AND
 
 ### Data Volume Summary
 
-At current capture rates (PLC at 1 Hz, arm and vision at 0.2 Hz) during 10-hour workdays:
+At current capture rates (PLC at 1 Hz) during 10-hour workdays:
 
 | Scope | Daily | Monthly (22 days) |
 |---|---|---|
 | Per truck | ~39 MB | ~858 MB |
-| 36-truck fleet | ~1.4 GB | ~30.9 GB |
+| 30+-truck fleet | ~1.4 GB | ~30.9 GB |
 
 Estimated Viam Cloud cost at fleet scale with 90-day retention: **~$51/month**. See `docs/data-management.md` section 3 for the full cost breakdown.
 
 ### Future: Viam Abstraction Roadmap
 
-The long-term strategy is to minimize custom-owned code by shifting infrastructure responsibilities to Viam's managed services. The only code we maintain should be the three thin sensor modules — the protocol translation layer between industrial hardware and the Viam sensor interface. Everything else should be Viam-managed.
+The long-term strategy is to minimize custom-owned code by shifting infrastructure responsibilities to Viam's managed services. The only code we maintain should be the `plc-sensor` module — the protocol translation layer between the Click PLC (Modbus TCP) and the Viam sensor interface. Everything else should be Viam-managed.
 
 #### Step 1: Publish Modules to the Viam Registry
 
-**Current state:** Modules are `"type": "local"` — deployed as files on the Pi via SCP.
+**Current state:** Module is `"type": "local"` — deployed as files on the Pi via symlink to git repo.
 
-**Target state:** Modules published to the Viam Registry as versioned packages.
+**Target state:** Module published to the Viam Registry as a versioned package.
 
 **What Viam then owns:**
-- OTA deployment and updates across all 36 trucks
+- OTA deployment and updates across all 30+ trucks
 - Module version management and rollback
 - No more SSH-ing into Pis to update module code
 
 #### Step 2: Use Viam Fragments for All Configuration
 
-**Current state:** `viam-server.json` template config in this repo, manually applied per truck.
+**Current state:** Config managed per-machine in the Viam app.
 
-**Target state:** A single Viam Fragment applied to all machines, with per-truck overrides for PLC IP and truck-specific tags.
+**Target state:** A single Viam Fragment applied to all 30+ machines, with per-truck overrides for PLC IP and truck-specific tags.
 
 **What Viam then owns:**
 - Config distribution fleet-wide
@@ -440,7 +432,7 @@ The long-term strategy is to minimize custom-owned code by shifting infrastructu
 
 **Current state:** The dashboard handles fault detection client-side (JavaScript polling + klaxon).
 
-**Target state:** Viam Triggers — cloud-side rules that fire on conditions like `system_state == "fault"` or `estop_off == 0`. Triggers send webhooks to email/Slack.
+**Target state:** Viam Triggers — cloud-side rules that fire on conditions like `system_state == "disconnected"` or `fault == true`. Triggers send webhooks to email/Slack.
 
 **What Viam then owns:**
 - Alerting pipeline execution
@@ -465,7 +457,7 @@ See `docs/data-management.md` section 9 for detailed ML data requirements.
 
 | Concern | Today (we own it) | After abstraction (Viam owns it) |
 |---|---|---|
-| Module deployment | SCP files to each Pi | Viam Registry + OTA |
+| Module deployment | Symlinked git repo on each Pi | Viam Registry + OTA |
 | Config management | Edit JSON per truck | Fragments with overrides |
 | Alerting | Dashboard JS code | Viam Triggers |
 | Data storage | SD card + manual checks | Viam Cloud + retention policies |
@@ -473,21 +465,21 @@ See `docs/data-management.md` section 9 for detailed ML data requirements.
 | Model deployment | Not started | Viam edge ML |
 | Fleet health monitoring | SSH into each Pi | Viam app fleet view |
 
-**The resulting ownership boundary:** We own three thin Python sensor modules that translate industrial protocols (Modbus TCP, TCP socket, ICMP/TCP probe) into Viam sensor readings. Everything else — deployment, configuration, data management, alerting, ML, and fleet operations — is Viam-managed.
+**The resulting ownership boundary:** We own one Python sensor module (`plc-sensor`) that translates Modbus TCP registers into Viam sensor readings with TPS-specific derived fields. Everything else — deployment, configuration, data management, alerting, ML, and fleet operations — is Viam-managed.
 
 ### Future: ML Data Collection Requirements
 
-The 46 PLC fields captured at 1 Hz provide a rich time-series dataset for ML. The two highest-value models and their data requirements:
+The ~55 PLC fields captured at 1 Hz provide a rich time-series dataset for ML. The two highest-value models and their data requirements:
 
 **Model 1 — Anomaly Detection (unsupervised, no labeling required):**
-- Key features: `vibration_x/y/z`, `temperature_f`, `servo1_position`, `servo2_position`, `cycle_count`, `current_uptime_seconds`
+- Key features: `encoder_speed_mmps`, `encoder_distance_mm`, `plates_per_minute`, `ds1`-`ds25`, `current_uptime_seconds`
 - Learns "normal" operating signatures per truck, flags deviations before they become faults
-- Minimum data: 2–4 weeks of normal operation per truck; recommended 8+ weeks to capture full range of operating conditions (load, temperature, shift patterns)
+- Minimum data: 2-4 weeks of normal operation per truck; recommended 8+ weeks to capture full range of operating conditions (load, terrain, shift patterns)
 
 **Model 2 — Fault Prediction (supervised, requires labeled fault events):**
-- Key features: All 25 E-Cat signals, `system_state` transitions, `fault`/`last_fault`, `estop_activation_count`, `button_state`
+- Key features: `system_state` transitions, `fault`/`last_fault`, `tps_power_loop`, `air_eagle_1_feedback`/`air_eagle_2_feedback`, eject coil patterns (`eject_tps_1`, `eject_left_tps_2`, `eject_right_tps_2`)
 - Learns signal patterns that precede faults
-- Minimum data: 50–100 labeled fault events across the fleet; recommended 200+ for reliable classification
+- Minimum data: 50-100 labeled fault events across the fleet; recommended 200+ for reliable classification
 - Critical bottleneck: faults are rare, so accumulating labeled examples takes time across the fleet
 
 **Practical timeline at current collection rates:**
@@ -502,5 +494,6 @@ See `docs/data-management.md` section 9 for the full ML data requirements breakd
 
 ### Future: Additional Data Sources
 
-- **Image capture.** The Pi camera component (`pi-camera`) is configured but not currently captured by the data management service. Adding image capture would significantly increase data volume and may warrant moving `capture_dir` to a USB SSD.
-- **Predictive maintenance analytics.** The `servo_power_press_count`, `estop_activation_count`, and `current_uptime_seconds` fields enable usage-based maintenance scheduling per truck — no ML required, just threshold-based rules via Viam Triggers.
+- **GPS/location data.** Adding a GPS module to the Pi would enable per-truck location tracking and geofencing. This would require a privacy review per section 6.
+- **Predictive maintenance analytics.** The `plates_per_minute`, `plate_drop_count`, `encoder_distance_mm`, and `current_uptime_seconds` fields enable usage-based maintenance scheduling per truck — no ML required, just threshold-based rules via Viam Triggers.
+- **USB SSD for capture directory.** If data volumes increase (e.g., higher capture rate or additional sensors), the capture directory should move from the SD card to a USB SSD to avoid SD card wear.

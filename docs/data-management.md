@@ -2,7 +2,7 @@
 
 ## Overview
 
-Each RAIV truck carries a Raspberry Pi 5 running viam-server. Three sensor modules capture hardware state from the PLC, robot arm controller, and vision system. Viam's Data Management service writes these readings to local disk and syncs them to Viam Cloud when the truck has internet connectivity.
+Each RAIV truck carries a Raspberry Pi 5 running viam-server. A single sensor module (`plc-monitor`) captures hardware state from the PLC over Modbus TCP. Viam's Data Management service writes these readings to local disk and syncs them to Viam Cloud when the truck has internet connectivity.
 
 This document covers how data flows from PLC registers to the cloud, how to operate the system, and the storage/cost implications at fleet scale.
 
@@ -11,17 +11,17 @@ This document covers how data flows from PLC registers to the cloud, how to oper
 ## 1. How Data Flows
 
 ```
-PLC Registers          Robot Arm Controller       Vision Server
-(Click C0-10DD2E-D)    (Stäubli CS9)              (Apera AI)
-   │ Modbus TCP            │ Modbus/TCP Socket        │ Ping + TCP probe
-   │ 192.168.0.10:502      │ raiv-cs9.local:502       │ health check
-   ▼                       ▼                          ▼
+PLC Registers
+(Click C0-10DD2E-D)
+   │ Modbus TCP
+   │ 169.168.10.21:502
+   ▼
 ┌────────────────────────────────────────────────────────────┐
 │                    viam-server (Pi 5)                       │
 │                                                            │
-│  plc-monitor          robot-arm-monitor    vision-health   │
-│  get_readings()       get_readings()       get_readings()  │
-│  46 fields @ 1 Hz     4 fields @ 0.2 Hz   2 fields @ 0.2 Hz│
+│  plc-monitor                                               │
+│  get_readings()                                            │
+│  ~55 fields @ 1 Hz                                         │
 │                                                            │
 │  ┌──────────────────────────────────────────────────────┐  │
 │  │           Data Management Service                     │  │
@@ -31,7 +31,7 @@ PLC Registers          Robot Arm Controller       Vision Server
 │  │  • Buffers locally when offline                       │  │
 │  └──────────────┬───────────────────────────────────────┘  │
 │                 │                                           │
-│     /home/pi/.viam/capture/                                │
+│     /home/andrew/.viam/capture/                            │
 │     └── <component-name>/                                  │
 │         └── <method>/                                      │
 │             └── <timestamp>.capture                        │
@@ -50,37 +50,26 @@ PLC Registers          Robot Arm Controller       Vision Server
 
 ### What Each Sensor Captures
 
-**PLC Monitor** (`plc-monitor`) — 46 fields per reading at 1 Hz:
-- `connected` (bool), `fault` (bool), `button_state` (string)
-- 25 E-Cat cable signals: `servo_power_on`, `servo_disable`, `plate_cycle`, `abort_stow`, `speed`, `gripper_lock`, `clear_position`, `belt_forward`, `belt_reverse`, 9 lamp status signals, `emag_status`, `emag_on`, `emag_part_detect`, `emag_malfunction`, `poe_status`, `estop_enable`, `estop_off`
-- 6 motion/vibration readings: `vibration_x/y/z`, `gyro_x/y/z`
-- Environmental: `temperature_f`, `humidity_pct`, `pressure_simulated`
-- Servo: `servo1_position`, `servo2_position`
-- State: `cycle_count`, `system_state`, `last_fault`
-- Analytics: `servo_power_press_count`, `estop_activation_count`, `current_uptime_seconds`, `last_estop_duration_seconds`
+**PLC Monitor** (`plc-monitor`) — ~55 fields per reading at 1 Hz:
 
-**Robot Arm Monitor** (`robot-arm-monitor`) — 4 fields per reading at 0.2 Hz:
-- `connected` (bool), `mode` (string), `fault` (bool), `fault_code` (int)
-
-**Vision Health Monitor** (`vision-health-monitor`) — 2 fields per reading at 0.2 Hz:
-- `connected` (bool), `process_running` (bool)
+- **System health:** `connected`, `fault`, `system_state`, `last_fault`, `current_uptime_seconds`, `total_reads`, `total_errors`
+- **Encoder:** `encoder_count`, `encoder_direction`, `encoder_distance_mm`, `encoder_distance_ft`, `encoder_speed_mmps`, `encoder_speed_ftpm`, `encoder_revolutions`
+- **TPS Machine Status:** `tps_power_loop`, `camera_signal`, `encoder_enabled`, `floating_zero`, `encoder_reset`
+- **TPS Eject:** `eject_tps_1`, `eject_left_tps_2`, `eject_right_tps_2`, `air_eagle_1_feedback`, `air_eagle_2_feedback`, `air_eagle_3_enable`
+- **TPS Production:** `plates_per_minute`, `plate_drop_count`
+- **DS Holding Registers:** `ds1` through `ds25` (25 registers)
+- **Discrete inputs:** `x1`, `x2`, `x8`
 
 ### What the Data Looks Like on Disk
 
 Viam writes captured readings as binary protobuf files in a structured directory:
 
 ```
-/home/pi/.viam/capture/
-├── plc-monitor/
-│   └── Readings/
-│       ├── 2026-03-18T08-00-00Z.capture
-│       ├── 2026-03-18T08-00-01Z.capture
-│       └── ...
-├── robot-arm-monitor/
-│   └── Readings/
-│       └── ...
-└── vision-health-monitor/
+/home/andrew/.viam/capture/
+└── plc-monitor/
     └── Readings/
+        ├── 2026-03-18T08-00-00Z.capture
+        ├── 2026-03-18T08-00-01Z.capture
         └── ...
 ```
 
@@ -100,11 +89,11 @@ Files are written incrementally and rotated periodically. After successful sync 
 
 RAIV trucks operate on remote railroad job sites for 5–10+ hours with no internet. The data management system is designed around this reality:
 
-1. **Capture never stops.** Whether online or offline, viam-server writes readings to `/home/pi/.viam/capture/` at the configured frequency. The capture process has no dependency on connectivity.
+1. **Capture never stops.** Whether online or offline, viam-server writes readings to `/home/andrew/.viam/capture/` at the configured frequency. The capture process has no dependency on connectivity.
 
 2. **Sync is opportunistic.** Every 6 seconds (`sync_interval_mins: 0.1`), viam-server checks if it can reach Viam Cloud. If yes, it uploads any pending `.capture` files. If no, it moves on and tries again in 6 seconds.
 
-3. **Data accumulates safely.** During a 10-hour offline shift, approximately 39 MB of data accumulates on disk. A 32 GB SD card can buffer weeks of data if needed.
+3. **Data accumulates safely.** During a 10-hour offline shift, approximately 43 MB of data accumulates on disk. A 32 GB SD card can buffer weeks of data if needed.
 
 4. **Sync resumes automatically.** When the truck returns to the shop and connects to WiFi, viam-server detects connectivity and begins uploading the full backlog. No manual intervention required.
 
@@ -127,7 +116,7 @@ When viam-server syncs captured data to the cloud:
 
 The original config used `/tmp/viam-data`. On Linux, `/tmp` is a tmpfs (RAM-backed filesystem) that is cleared on every reboot. If a truck loses power — which **will** happen on remote job sites — all buffered data that hasn't synced to the cloud is permanently lost.
 
-The current config uses `/home/pi/.viam/capture`, which is on the SD card's ext4 filesystem. This survives power loss, reboots, and even unclean shutdowns (ext4 has journaling).
+The current config uses `/home/andrew/.viam/capture`, which is on the SD card's ext4 filesystem. This survives power loss, reboots, and even unclean shutdowns (ext4 has journaling).
 
 ### Disk Usage and Auto-Deletion
 
@@ -140,9 +129,9 @@ Viam monitors disk usage and automatically deletes captured files when **all thr
 When triggered, it deletes every Nth captured file (controlled by `delete_every_nth_when_disk_full`, default `5`). If disk usage is >= 90% but the capture directory is less than 50% of usage, viam-server logs a warning but does **not** delete files (the disk pressure is from something else).
 
 **Mitigations:**
-- A 32 GB SD card provides ~28 GB usable space. At 39 MB/day, you'd need 700+ offline days to hit 90%.
+- A 32 GB SD card provides ~28 GB usable space. At 43 MB/day, you'd need 650+ offline days to hit 90%.
 - For extra safety or higher capture rates, mount a USB drive and set `capture_dir` to the USB path (e.g., `/mnt/usb-viam-data`).
-- Monitor disk usage via SSH: `df -h /home/pi/.viam/capture`
+- Monitor disk usage via SSH: `df -h /home/andrew/.viam/capture`
 
 ---
 
@@ -152,27 +141,22 @@ When triggered, it deletes every Nth captured file (controlled by `delete_every_
 
 | Component | Fields | Estimated Size (protobuf + metadata) |
 |---|---|---|
-| `plc-monitor` | 46 | ~1.0 KB per reading |
-| `robot-arm-monitor` | 4 | ~0.2 KB per reading |
-| `vision-health-monitor` | 2 | ~0.18 KB per reading |
+| `plc-monitor` | ~55 | ~1.2 KB per reading |
 
 ### Daily Volume Per Truck (10-hour workday)
 
 | Component | Frequency | Readings/Day | Size/Day |
 |---|---|---|---|
-| `plc-monitor` | 1 Hz | 36,000 | **36.0 MB** |
-| `robot-arm-monitor` | 0.2 Hz | 7,200 | **1.4 MB** |
-| `vision-health-monitor` | 0.2 Hz | 7,200 | **1.3 MB** |
-| **Total per truck** | | **50,400** | **~38.7 MB** |
+| `plc-monitor` | 1 Hz | 36,000 | **~43.2 MB** |
 
 ### Scaling to Fleet
 
 | Time Period | Per Truck | 36-Truck Fleet |
 |---|---|---|
-| Daily (10-hr shift) | 39 MB | 1.4 GB |
-| Weekly (5 days) | 195 MB | 7.0 GB |
-| Monthly (22 days) | 858 MB | 30.9 GB |
-| Yearly | 10.3 GB | 370.8 GB |
+| Daily (10-hr shift) | 43 MB | 1.55 GB |
+| Weekly (5 days) | 215 MB | 7.74 GB |
+| Monthly (22 days) | 950 MB | 34.2 GB |
+| Yearly | 11.4 GB | 410.4 GB |
 
 ### Viam Cloud Cost Estimate
 
@@ -180,26 +164,26 @@ Pricing: **$0.50/GB/month** storage + **$0.15/GB** upload (one-time on ingest).
 
 | | Monthly Upload | Cumulative Storage (Month 1) | Cumulative Storage (Month 12) |
 |---|---|---|---|
-| **Per truck** | $0.13 upload + $0.43 storage = **$0.56** | 0.86 GB | 10.3 GB |
-| **36 trucks** | $4.64 upload + $15.45 storage = **$20.09** | 30.9 GB | 370.8 GB |
+| **Per truck** | $0.14 upload + $0.48 storage = **$0.62** | 0.95 GB | 11.4 GB |
+| **36 trucks** | $5.13 upload + $17.10 storage = **$22.23** | 34.2 GB | 410.4 GB |
 
 **Cost growth over time** (36 trucks, no data deletion):
 
 | Month | Cumulative Cloud Storage | Monthly Storage Cost | Monthly Upload Cost | Total Monthly Cost |
 |---|---|---|---|---|
-| 1 | 30.9 GB | $15.45 | $4.64 | **$20.09** |
-| 6 | 185.4 GB | $92.70 | $4.64 | **$97.34** |
-| 12 | 370.8 GB | $185.40 | $4.64 | **$190.04** |
+| 1 | 34.2 GB | $17.10 | $5.13 | **$22.23** |
+| 6 | 205.2 GB | $102.60 | $5.13 | **$107.73** |
+| 12 | 410.4 GB | $205.20 | $5.13 | **$210.33** |
 
-**Recommendation:** Set a cloud data retention policy (e.g., 90 days) to cap storage costs. At 90 days, storage would plateau at ~93 GB fleet-wide = ~$46.50/month storage + $4.64 upload = **~$51/month total**.
+**Recommendation:** Set a cloud data retention policy (e.g., 90 days) to cap storage costs. At 90 days, storage would plateau at ~103 GB fleet-wide = ~$51.50/month storage + $5.13 upload = **~$57/month total**.
 
 ### SD Card Lifespan
 
 Modern industrial SD cards (Samsung PRO Endurance, SanDisk MAX Endurance) are rated for continuous write workloads:
 
-- **Daily writes per truck:** ~39 MB captured + ~39 MB deleted after sync ≈ 78 MB/day total writes
+- **Daily writes per truck:** ~43 MB captured + ~43 MB deleted after sync ≈ 86 MB/day total writes
 - **Samsung PRO Endurance 32 GB:** Rated for 17,520 hours of continuous 26 Mbps write ≈ 205 TB total writes
-- **At 78 MB/day:** 205 TB ÷ 78 MB = **7.2 million days** (~19,700 years)
+- **At 86 MB/day:** 205 TB ÷ 86 MB = **6.5 million days** (~17,800 years)
 
 SD card write endurance is not a concern at this data rate. The SD card will fail from age or physical damage long before write exhaustion.
 
@@ -215,7 +199,7 @@ SD card write endurance is not a concern at this data rate. The SD card will fai
 2. Navigate to your organization → **Data** tab
 3. Filter by:
    - **Tags:** `robot-cell-monitor` or `raiv-digital-twin`
-   - **Component:** `plc-monitor`, `robot-arm-monitor`, or `vision-health-monitor`
+   - **Component:** `plc-monitor`
    - **Time range:** Select the period of interest
 4. View individual readings or export as JSON/CSV
 
@@ -321,16 +305,16 @@ A **fragment** is a reusable configuration block that can be applied to multiple
 **From the truck (via SSH):**
 ```bash
 # Connect to the Pi (you need to be on the same network)
-ssh pi@<truck-pi-ip>
+ssh andrew@<truck-pi-ip>
 
 # Check if viam-server is running
 sudo systemctl status viam-server
 
 # Check how much captured data is waiting to sync
-du -sh /home/pi/.viam/capture/
+du -sh /home/andrew/.viam/capture/
 
 # List recent capture files
-ls -lt /home/pi/.viam/capture/plc-monitor/Readings/ | head -10
+ls -lt /home/andrew/.viam/capture/plc-monitor/Readings/ | head -10
 ```
 
 ### How to Verify Data Synced After a Truck Returns
@@ -341,13 +325,13 @@ ls -lt /home/pi/.viam/capture/plc-monitor/Readings/ | head -10
 4. Go to **Data** tab, filter by the truck's name, and look for readings from the time the truck was in the field
 5. If you see data with timestamps from the field shift, sync is working
 
-**How long does sync take?** At 39 MB for a 10-hour shift, sync takes about 1–3 minutes on typical WiFi. You'll see the data appear in the cloud dashboard progressively.
+**How long does sync take?** At 43 MB for a 10-hour shift, sync takes about 1–3 minutes on typical WiFi. You'll see the data appear in the cloud dashboard progressively.
 
 ### How to Check Disk Usage on the Pi
 
 ```bash
-ssh pi@<truck-pi-ip>
-df -h /home/pi
+ssh andrew@<truck-pi-ip>
+df -h /home/andrew
 ```
 
 You'll see something like:
@@ -361,7 +345,7 @@ If `Use%` is above 80%, investigate. Above 90%, Viam may start deleting un-synce
 ### How to Restart viam-server
 
 ```bash
-ssh pi@<truck-pi-ip>
+ssh andrew@<truck-pi-ip>
 sudo systemctl restart viam-server
 ```
 
@@ -435,33 +419,32 @@ The sensor data already being captured maps to two ML model types:
 
 **Anomaly Detection Features (unsupervised — no labeling required):**
 
-| Field | Why It Matters |
+| Field(s) | Why It Matters |
 |---|---|
-| `vibration_x`, `vibration_y`, `vibration_z` | Bearing wear, loose bolts, misalignment |
-| `temperature_f` | Overheating components, ambient drift |
-| `servo1_position`, `servo2_position` | Mechanical drift over time |
-| `cycle_count` | Usage-based wear correlation |
+| `encoder_speed_mmps`, `encoder_speed_ftpm` | Speed deviations indicate mechanical issues |
+| `encoder_distance_mm`, `encoder_distance_ft` | Travel pattern changes over time |
+| `plates_per_minute`, `plate_drop_count` | Production rate anomalies |
+| `ds1`–`ds25` (holding registers) | Baseline drift in PLC register values |
 | `current_uptime_seconds` | Fatigue patterns within a shift |
-| `humidity_pct` | Environmental correlation with faults |
 
 **Fault Prediction Features (supervised — requires labeled fault events):**
 
-| Field | Why It Matters |
+| Field(s) | Why It Matters |
 |---|---|
-| All 25 E-Cat signals | Signal degradation patterns before failure |
+| TPS machine status booleans (`tps_power_loop`, `camera_signal`, `encoder_enabled`, `floating_zero`, `encoder_reset`) | Signal state changes that precede faults |
+| TPS eject booleans (`eject_tps_1`, `eject_left_tps_2`, `eject_right_tps_2`, `air_eagle_1_feedback`, `air_eagle_2_feedback`, `air_eagle_3_enable`) | Eject system patterns before failure |
 | `system_state` | State transitions that precede faults |
 | `fault` / `last_fault` | Labeled examples of what went wrong |
-| `estop_activation_count` | Operator behavior correlating with issues |
-| `button_state` | Operational patterns before faults |
-| `servo_power_press_count` | Usage intensity leading to failures |
+| `encoder_direction`, `encoder_count` | Operational patterns before faults |
+| Discrete inputs (`x1`, `x2`, `x8`) | Input state correlations with failures |
 
 ### Data Volume Requirements
 
 | Model Type | Minimum Data | Recommended | Rationale |
 |---|---|---|---|
-| Anomaly detection (unsupervised) | 2–4 weeks of normal operation per truck | 8+ weeks | Needs to see full range of "normal" — different loads, temperatures, shift patterns |
+| Anomaly detection (unsupervised) | 2–4 weeks of normal operation per truck | 8+ weeks | Needs to see full range of "normal" — different loads, production patterns, shift patterns |
 | Fault classification (supervised) | 50–100 labeled fault events across the fleet | 200+ | Each fault type needs enough examples to learn the preceding pattern |
-| Vibration pattern recognition | 4–6 weeks continuous | 12+ weeks | Mechanical degradation is slow — needs long baseline to distinguish trend from noise |
+| Production pattern recognition | 4–6 weeks continuous | 12+ weeks | Encoder and production counter trends are gradual — needs long baseline to distinguish trend from noise |
 
 ### Critical Bottleneck: Labeled Fault Data
 
@@ -478,11 +461,11 @@ Fault *classification* (predicting *which specific fault* will occur) requires l
 
 | Metric | Per Truck (10-hr shift) | Fleet (36 trucks) |
 |---|---|---|
-| Sensor readings / day | 50,400 | 1.8M |
-| Data volume / day | ~39 MB | ~1.4 GB |
-| Data volume / 8 weeks | ~2.2 GB | ~78 GB |
+| Sensor readings / day | 36,000 | 1.3M |
+| Data volume / day | ~43 MB | ~1.55 GB |
+| Data volume / 8 weeks | ~2.4 GB | ~87 GB |
 
-78 GB of time-series data across 36 trucks after 8 weeks is a substantial dataset for training anomaly detection. This is well within Viam's ML pipeline capacity.
+87 GB of time-series data across 36 trucks after 8 weeks is a substantial dataset for training anomaly detection. This is well within Viam's ML pipeline capacity.
 
 ### Practical ML Roadmap
 
@@ -492,7 +475,7 @@ Fault *classification* (predicting *which specific fault* will occur) requires l
 - When faults occur, tag them in Viam Cloud (manually or via a future Viam Trigger).
 
 **Week 8 (first model — anomaly detection):**
-- Use Viam's ML tools to train an anomaly detection model on vibration + temperature patterns.
+- Use Viam's ML tools to train an anomaly detection model on encoder data, production counters, and DS register patterns.
 - This is unsupervised — no labeling required. It learns from the 8 weeks of "normal" data.
 - Deploy the model to each Pi via Viam's edge ML deployment.
 - Model runs locally on the Pi — anomaly scores computed without cloud round-trip.
@@ -525,4 +508,4 @@ Fault *classification* (predicting *which specific fault* will occur) requires l
 
 ML training uses the data already being captured and stored in Viam Cloud. No additional data capture costs. Viam's ML pipeline pricing is usage-based — consult Viam for current pricing on training jobs and edge inference licensing.
 
-The main cost driver is cloud storage retention. For ML, longer retention = better models. Consider extending the recommended 90-day retention to 180 days if ML is a priority. At 36 trucks, 180-day retention would plateau at ~186 GB ≈ $93/month storage (vs $46.50/month at 90 days).
+The main cost driver is cloud storage retention. For ML, longer retention = better models. Consider extending the recommended 90-day retention to 180 days if ML is a priority. At 36 trucks, 180-day retention would plateau at ~206 GB ≈ $103/month storage (vs ~$51.50/month at 90 days).
