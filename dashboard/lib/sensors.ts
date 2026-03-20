@@ -28,13 +28,10 @@ export const SENSOR_CONFIGS: SensorConfig[] = [
     label: "TPS Controller",
     icon: "\u{1F5A5}",
     componentName: VIAM_COMPONENT_NAMES.plc,
-    // Healthy when Modbus connection is live, no fault, and not e-stopped
-    isHealthy: (r) =>
-      r.connected === true && r.fault === false && r.system_state !== "e-stopped",
-    isEstop: (r) => r.system_state === "e-stopped",
+    // Healthy when Modbus connection is live and no fault
+    isHealthy: (r) => r.connected === true && r.fault === false,
     getFaultMessage: (r) => {
-      if (r.connected !== true) return "No Modbus TCP connection";
-      if (r.system_state === "e-stopped") return "E-STOP ACTIVE";
+      if (r.connected !== true) return "No Modbus TCP connection to PLC";
       const fault = r.last_fault ?? "unknown";
       return `Fault: ${String(fault).toUpperCase()}`;
     },

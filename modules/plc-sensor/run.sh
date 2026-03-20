@@ -13,4 +13,4 @@ if [ ! -d "${VENV_DIR}" ]; then
     "${VENV_DIR}/bin/pip" install -r "${MODULE_DIR}/requirements.txt"
 fi
 
-exec "${VENV_DIR}/bin/python3" "${MODULE_DIR}/src/vision_health_sensor.py" "$@"
+exec "${VENV_DIR}/bin/python3" "${MODULE_DIR}/src/plc_sensor.py" "$@"

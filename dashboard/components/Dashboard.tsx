@@ -80,10 +80,7 @@ export default function Dashboard() {
   const [sdkError, setSdkError] = useState<string | null>(null);
   const [flashKey, setFlashKey] = useState(0); // bumping triggers flash animation
 
-  const [isEstop, setIsEstop] = useState(false);
-
   const prevFaultIds = useRef<Set<string>>(new Set());
-  const prevSystemState = useRef<string | null>(null);
   const prevServoPower = useRef<number | null>(null);
   const playAlarm = useRef(buildAlarmPlayer());
 
@@ -112,12 +109,11 @@ export default function Dashboard() {
           : await viamFetch!(cfg.componentName);
 
         const healthy = cfg.isHealthy(readings);
-        const estop = cfg.isEstop?.(readings) ?? false;
-        status = estop ? "estop" : healthy ? "healthy" : "fault";
+        status = healthy ? "healthy" : "fault";
 
         if (!healthy) {
           faultMessage = cfg.getFaultMessage(readings);
-          if (!estop) currentFaultIds.add(cfg.id);
+          currentFaultIds.add(cfg.id);
 
           // Only record a new history entry when this fault is newly detected
           if (!prevFaultIds.current.has(cfg.id)) {
@@ -181,56 +177,20 @@ export default function Dashboard() {
     }
 
     // -----------------------------------------------------------------
-    // State change detection for servo power and e-stop
+    // State change detection for TPS power
     // -----------------------------------------------------------------
     const plcState = newStates.find((c) => c.id === "plc");
     if (plcState?.readings && plcState.readings.connected === true) {
-      // E-stop state change detection — log dedicated history entries
-      const curState = String(plcState.readings.system_state ?? "");
-      const prevState = prevSystemState.current;
-      if (prevState !== null && prevState !== curState) {
-        if (curState === "e-stopped") {
-          newFaultEvents.push({
-            id: `estop-activated-${Date.now()}`,
-            componentId: "plc",
-            componentLabel: "E-Stop",
-            message: "E-Stop Activated — system halted",
-            timestamp: new Date(),
-          });
-        } else if (prevState === "e-stopped") {
-          newFaultEvents.push({
-            id: `estop-released-${Date.now()}`,
-            componentId: "plc",
-            componentLabel: "E-Stop",
-            message: "E-Stop Released — system ready",
-            timestamp: new Date(),
-          });
-        }
-      }
-      prevSystemState.current = curState;
-      setIsEstop(curState === "e-stopped");
-
-      // Servo power state change detection — log dedicated history entries
       const curServo = Number(plcState.readings.servo_power_on ?? 0);
       const prevServo = prevServoPower.current;
       if (prevServo !== null && prevServo !== curServo) {
-        if (curServo === 1) {
-          newFaultEvents.push({
-            id: `servo-energized-${Date.now()}`,
-            componentId: "plc",
-            componentLabel: "Servo Power",
-            message: "Servo Power Energized — drives enabled",
-            timestamp: new Date(),
-          });
-        } else {
-          newFaultEvents.push({
-            id: `servo-idle-${Date.now()}`,
-            componentId: "plc",
-            componentLabel: "Servo Power",
-            message: "Servo Power Off — drives idle",
-            timestamp: new Date(),
-          });
-        }
+        newFaultEvents.push({
+          id: `power-change-${Date.now()}`,
+          componentId: "plc",
+          componentLabel: "TPS Power",
+          message: curServo === 1 ? "TPS Power ON" : "TPS Power OFF",
+          timestamp: new Date(),
+        });
       }
       prevServoPower.current = curServo;
     }
@@ -300,8 +260,8 @@ export default function Dashboard() {
         {/* ---------------------------------------------------------------- */}
         {/* Alert Banner — shown only when faults are active                */}
         {/* ---------------------------------------------------------------- */}
-        {(activeFaultLabels.length > 0 || isEstop) && (
-          <AlertBanner faultNames={activeFaultLabels} isEstop={isEstop} />
+        {activeFaultLabels.length > 0 && (
+          <AlertBanner faultNames={activeFaultLabels} isEstop={false} />
         )}
 
         {/* ---------------------------------------------------------------- */}

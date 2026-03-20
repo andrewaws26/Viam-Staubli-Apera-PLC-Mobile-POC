@@ -9,7 +9,6 @@ export default function StatusCard({ component }: Props) {
 
   const isHealthy = status === "healthy";
   const isFault = status === "fault" || status === "error";
-  const isEstop = status === "estop";
   const isLoading = status === "loading";
   const isPending = status === "pending";
 
@@ -19,7 +18,6 @@ export default function StatusCard({ component }: Props) {
         "rounded-2xl border flex flex-col items-center gap-4 p-6 transition-all duration-300",
         isHealthy ? "border-green-800 bg-gray-900" : "",
         isFault ? "border-red-700 bg-red-950/40" : "",
-        isEstop ? "border-red-700 bg-red-950/40" : "",
         isPending ? "border-yellow-800/50 bg-gray-900/60" : "",
         isLoading ? "border-gray-800 bg-gray-900" : "",
       ]
@@ -28,7 +26,7 @@ export default function StatusCard({ component }: Props) {
     >
       {/* Status circle with ping ring on fault */}
       <div className="relative flex items-center justify-center w-36 h-36">
-        {(isFault || isEstop) && (
+        {isFault && (
           <span className="absolute inset-0 rounded-full bg-red-500 opacity-25 animate-ping" />
         )}
         <div
@@ -36,7 +34,6 @@ export default function StatusCard({ component }: Props) {
             "w-36 h-36 rounded-full flex flex-col items-center justify-center shadow-lg select-none",
             isHealthy ? "bg-green-500 shadow-green-900/60" : "",
             isFault ? "bg-red-600 shadow-red-900/60 animate-pulse" : "",
-            isEstop ? "bg-red-800 shadow-red-900/60 animate-pulse" : "",
             isPending ? "bg-yellow-700/40 shadow-yellow-900/30" : "",
             isLoading ? "bg-gray-700" : "",
           ]
@@ -56,7 +53,7 @@ export default function StatusCard({ component }: Props) {
             <>
               <span className="text-4xl">{icon}</span>
               <span className="text-white font-black text-xl mt-1">
-                {isHealthy ? "OK" : isEstop ? "E-STOP" : "FAULT"}
+                {isHealthy ? "OK" : "FAULT"}
               </span>
             </>
           )}
@@ -69,7 +66,7 @@ export default function StatusCard({ component }: Props) {
       </h2>
 
       {/* Fault message or pending note */}
-      {(isFault || isEstop) && faultMessage && (
+      {isFault && faultMessage && (
         <p className="text-sm text-red-300 text-center leading-snug font-medium">
           {faultMessage}
         </p>

@@ -1,28 +1,32 @@
 """
-PLC Modbus Sensor Module for Viam.
+PLC Modbus Sensor Module for Viam — TPS Production Monitor.
 
-Reads the RAIV truck's PLC state via Modbus TCP and returns structured
-sensor readings for remote monitoring.  Connects to a Click PLC
-C0-10DD2E-D at 192.168.0.10.
+Reads the TPS (Tie Plate System) PLC state via Modbus TCP and returns
+structured sensor readings for remote monitoring.  Connects to a Click PLC
+C0-10DD2E-D.
 
-Register map (see docs/click-plc-setup-guide.md for full documentation):
-  Registers 0-24:   E-Cat cable signals (25-pin cable pinout)
-  Registers 100-117: Optional sensor/analytics data (zero on Click PLC)
-  DD1 (Modbus 16384-16385): Encoder pulse count (32-bit signed, quadrature x1)
-    16384: low 16 bits of DD1
-    16385: high 16 bits of DD1
-    Direction derived from count delta (positive = forward, negative = reverse)
+Register map — only real PLC ladder logic, no simulated values:
+  DS1-DS14 (addr 0-13):  TPS production config registers
+  DD1 (addr 16384-16385): Encoder pulse count (32-bit signed, quadrature x1)
+  X1-X8 (discrete):      TPS discrete inputs (power loop, camera, air eagles)
+  Y1-Y3 (coils 8192+):   TPS eject output coils
+  C1999-C2000 (coils):   Encoder reset, floating zero
 
-The Click PLC ladder logic manages servo power state, system state, and
-counters in holding registers.  This module reads those registers directly
-— no software latch or coil reads needed.
+Offline buffering:
+  When configured with offline_buffer_dir, readings are buffered to local
+  JSONL files so no data is lost during network outages.  Viam's built-in
+  data manager syncs the capture directory when connectivity is restored.
+  The buffer also writes a separate JSONL file that persists across reboots
+  and can be replayed or uploaded independently.
 """
 
 import asyncio
 import collections
+import json
 import math
+import os
 import time
-from typing import Any, ClassVar, Deque, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, ClassVar, Deque, Dict, Mapping, Optional, Sequence
 
 from pymodbus.client import ModbusTcpClient
 from typing_extensions import Self
@@ -39,41 +43,12 @@ from viam.utils import SensorReading
 
 LOGGER = getLogger(__name__)
 
-# Fault code lookups — code 4 can originate from either the PLC ladder
-# logic (e-stop triggered) or the old simulator (clamp_fail).
-_FAULT_NAMES = {0: "none", 1: "vibration", 2: "temperature", 3: "pressure", 4: "estop_triggered"}
-
-# E-Cat signal names for registers 0-24 (25-pin cable pinout)
-_ECAT_SIGNAL_NAMES = [
-    "servo_power_on",       # Register 0  — Pin 1
-    "servo_disable",        # Register 1  — Pin 2
-    "plate_cycle",          # Register 2  — Pin 3 (Start / Plate Cycle)
-    "abort_stow",           # Register 3  — Pin 4
-    "speed",                # Register 4  — Pin 5
-    "gripper_lock",         # Register 5  — Pin 6
-    "clear_position",       # Register 6  — Pin 7
-    "belt_forward",         # Register 7  — Pin 8
-    "belt_reverse",         # Register 8  — Pin 9
-    "lamp_servo_power",     # Register 9  — Pin 10
-    "lamp_servo_disable",   # Register 10 — Pin 11
-    "lamp_plate_cycle",     # Register 11 — Pin 12
-    "lamp_abort_stow",      # Register 12 — Pin 13
-    "lamp_speed",           # Register 13 — Pin 14
-    "lamp_gripper_lock",    # Register 14 — Pin 15
-    "lamp_clear_position",  # Register 15 — Pin 16
-    "lamp_belt_forward",    # Register 16 — Pin 17
-    "lamp_belt_reverse",    # Register 17 — Pin 18
-    "emag_status",          # Register 18 — Pin 19
-    "emag_on",              # Register 19 — Pin 20
-    "emag_part_detect",     # Register 20 — Pin 21
-    "emag_malfunction",     # Register 21 — Pin 22
-    "poe_status",           # Register 22 — Pin 23
-    "estop_enable",         # Register 23 — Pin 24
-    "estop_off",            # Register 24 — Pin 25
-]
-
 # Connection timeout in seconds
 _CONNECT_TIMEOUT = 2
+
+# Self-healing: retry backoff on repeated connection failures
+_MAX_BACKOFF_SECONDS = 30.0
+_INITIAL_BACKOFF_SECONDS = 1.0
 
 # Encoder constants
 _ENCODER_PPR = 1000          # Pulses per revolution (from SICK DBS60E-BDEC01000 datasheet)
@@ -83,6 +58,71 @@ _DEFAULT_WHEEL_DIAMETER_MM = 406.4  # 16 inches — DMF RW-1650 railgear guide w
 
 # Rolling window size for plates-per-minute calculation
 _PLATE_DROP_WINDOW_SECONDS = 60.0
+
+# Offline buffer defaults
+_DEFAULT_BUFFER_MAX_MB = 50
+
+
+class OfflineBuffer:
+    """Append-only JSONL buffer that persists readings to local disk.
+
+    Each reading is written as a single JSON line to a date-stamped file.
+    When the buffer directory exceeds max_mb, the oldest files are pruned.
+    Files are named ``readings_YYYYMMDD.jsonl`` so Viam's data manager or
+    an external uploader can pick them up and delete after sync.
+    """
+
+    def __init__(self, buffer_dir: str, max_mb: float = _DEFAULT_BUFFER_MAX_MB):
+        self._dir = buffer_dir
+        self._max_bytes = int(max_mb * 1024 * 1024)
+        os.makedirs(self._dir, exist_ok=True)
+        LOGGER.info("OfflineBuffer initialised: dir=%s max_mb=%.0f", self._dir, max_mb)
+
+    def _current_file(self) -> str:
+        date_str = time.strftime("%Y%m%d")
+        return os.path.join(self._dir, f"readings_{date_str}.jsonl")
+
+    def write(self, readings: Mapping[str, Any]) -> None:
+        """Append a single reading as a JSON line with an ISO timestamp."""
+        record = {
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "epoch": time.time(),
+            **{k: _serialise(v) for k, v in readings.items()},
+        }
+        path = self._current_file()
+        try:
+            with open(path, "a") as f:
+                f.write(json.dumps(record, separators=(",", ":")) + "\n")
+        except Exception as exc:
+            LOGGER.warning("OfflineBuffer write failed: %s", exc)
+            return
+        self._maybe_prune()
+
+    def _maybe_prune(self) -> None:
+        """Remove oldest JSONL files if total size exceeds the cap."""
+        try:
+            files = sorted(
+                (os.path.join(self._dir, f) for f in os.listdir(self._dir) if f.endswith(".jsonl")),
+                key=os.path.getmtime,
+            )
+            total = sum(os.path.getsize(f) for f in files)
+            while total > self._max_bytes and len(files) > 1:
+                oldest = files.pop(0)
+                size = os.path.getsize(oldest)
+                os.remove(oldest)
+                total -= size
+                LOGGER.info("OfflineBuffer pruned %s (%.1f KB)", oldest, size / 1024)
+        except Exception as exc:
+            LOGGER.warning("OfflineBuffer prune error: %s", exc)
+
+
+def _serialise(value: Any) -> Any:
+    """Make a value JSON-safe (bools, ints, floats, strings)."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float, str)):
+        return value
+    return str(value)
 
 
 def _uint16(value: int) -> int:
@@ -94,24 +134,12 @@ def _uint16(value: int) -> int:
     return value & 0xFFFF
 
 
-def _int16_to_float(value: int, scale: float = 100.0) -> float:
-    """Convert an unsigned Modbus register value back to a signed float.
-
-    Signed values are encoded as unsigned int16:
-      positive: stored directly (e.g., 981 = 9.81)
-      negative: stored as 65536 + value (e.g., 65531 = -0.05)
-    """
-    value = _uint16(value)
-    if value > 32767:
-        value -= 65536
-    return round(value / scale, 2)
-
-
 class PlcSensor(Sensor):
-    """Reads PLC state from the RAIV truck via Modbus TCP.
+    """Reads TPS PLC state via Modbus TCP.
 
-    Returns the full register map as human-readable sensor readings,
-    including 25-pin E-Cat cable signals and sensor data.
+    Returns production readings: encoder, discrete inputs, output coils,
+    internal coils, and DS holding registers — only what the real Click PLC
+    ladder logic provides.  No simulated or placeholder values.
     """
 
     MODEL: ClassVar[Model] = Model(
@@ -120,17 +148,21 @@ class PlcSensor(Sensor):
     )
 
     def __init__(self, name: str, *, host: str, port: int,
-                 wheel_diameter_mm: float = _DEFAULT_WHEEL_DIAMETER_MM):
+                 wheel_diameter_mm: float = _DEFAULT_WHEEL_DIAMETER_MM,
+                 offline_buffer_dir: Optional[str] = None,
+                 offline_buffer_max_mb: float = _DEFAULT_BUFFER_MAX_MB):
         super().__init__(name)
         self.host = host
         self.port = port
         self.client: Optional[ModbusTcpClient] = None
         self._start_time: float = time.time()
+        # Offline buffer — persists readings to local disk across reboots
+        self._offline_buffer: Optional[OfflineBuffer] = None
+        if offline_buffer_dir:
+            self._offline_buffer = OfflineBuffer(offline_buffer_dir, offline_buffer_max_mb)
         # Software counters — edge detection on PLC register values
         self._servo_press_count: int = 0
-        self._estop_count: int = 0
         self._prev_servo_on: Optional[int] = None   # DS1 previous value
-        self._prev_estop_active: Optional[bool] = None
         # Encoder: distance-per-count derived from wheel diameter
         self._wheel_diameter_mm = wheel_diameter_mm
         wheel_circumference_mm = math.pi * wheel_diameter_mm
@@ -143,6 +175,11 @@ class PlcSensor(Sensor):
         self._prev_eject_tps1: Optional[bool] = None
         self._plate_drop_count: int = 0
         self._plate_drop_times: Deque[float] = collections.deque()  # rolling window timestamps
+        # Self-healing: exponential backoff on repeated connection failures
+        self._consecutive_failures: int = 0
+        self._next_retry_time: float = 0.0
+        self._total_reads: int = 0
+        self._total_errors: int = 0
 
     @classmethod
     def new(
@@ -154,15 +191,25 @@ class PlcSensor(Sensor):
         wheel_dia = _DEFAULT_WHEEL_DIAMETER_MM
         if "wheel_diameter_mm" in fields and fields["wheel_diameter_mm"].number_value:
             wheel_dia = fields["wheel_diameter_mm"].number_value
+        # Offline buffer config
+        buf_dir: Optional[str] = None
+        if "offline_buffer_dir" in fields and fields["offline_buffer_dir"].string_value:
+            buf_dir = fields["offline_buffer_dir"].string_value
+        buf_max_mb = _DEFAULT_BUFFER_MAX_MB
+        if "offline_buffer_max_mb" in fields and fields["offline_buffer_max_mb"].number_value:
+            buf_max_mb = fields["offline_buffer_max_mb"].number_value
         sensor = cls(
             config.name,
             host=fields["host"].string_value or "192.168.0.10",
             port=int(fields["port"].number_value or 502),
             wheel_diameter_mm=wheel_dia,
+            offline_buffer_dir=buf_dir,
+            offline_buffer_max_mb=buf_max_mb,
         )
         LOGGER.info(
-            "PlcSensor configured: host=%s port=%d wheel_diameter_mm=%.1f",
+            "PlcSensor configured: host=%s port=%d wheel_diameter_mm=%.1f buffer=%s",
             sensor.host, sensor.port, sensor._wheel_diameter_mm,
+            buf_dir or "disabled",
         )
         return sensor
 
@@ -184,9 +231,19 @@ class PlcSensor(Sensor):
             self.client = None
 
     def _ensure_connected(self) -> bool:
-        """Connect to the PLC if not already connected. Returns True on success."""
+        """Connect to the PLC if not already connected. Returns True on success.
+
+        Self-healing: on repeated failures, backs off exponentially up to
+        _MAX_BACKOFF_SECONDS to avoid hammering a down PLC.  Resets
+        immediately on successful connection.
+        """
         if self.client is not None and self.client.connected:
             return True
+
+        # Backoff: skip reconnect if we're in a cooldown period
+        now = time.time()
+        if now < self._next_retry_time:
+            return False
 
         # Discard any dead socket before creating a fresh one
         self._disconnect()
@@ -199,46 +256,59 @@ class PlcSensor(Sensor):
             )
             connected = self.client.connect()
             if connected:
-                LOGGER.info("Connected to PLC at %s:%d", self.host, self.port)
+                if self._consecutive_failures > 0:
+                    LOGGER.info(
+                        "🟢 PLC reconnected at %s:%d after %d failures — self-healed",
+                        self.host, self.port, self._consecutive_failures,
+                    )
+                else:
+                    LOGGER.info("🟢 Connected to PLC at %s:%d", self.host, self.port)
+                self._consecutive_failures = 0
+                self._next_retry_time = 0.0
+                return True
             else:
-                LOGGER.warning("Failed to connect to PLC at %s:%d", self.host, self.port)
-                self._disconnect()
-            return connected
+                self._on_connection_failure("TCP connect returned False")
+                return False
         except Exception as e:
-            LOGGER.error("Connection error to PLC at %s:%d: %s", self.host, self.port, e)
-            self._disconnect()
+            self._on_connection_failure(str(e))
             return False
+
+    def _on_connection_failure(self, reason: str) -> None:
+        """Handle a connection failure: log diagnostics and schedule retry."""
+        self._disconnect()
+        self._consecutive_failures += 1
+        self._total_errors += 1
+        backoff = min(
+            _INITIAL_BACKOFF_SECONDS * (2 ** (self._consecutive_failures - 1)),
+            _MAX_BACKOFF_SECONDS,
+        )
+        self._next_retry_time = time.time() + backoff
+        LOGGER.warning(
+            "🔴 PLC connection failed [%s:%d]: %s | "
+            "failures=%d | retry_in=%.1fs | total_reads=%d | total_errors=%d",
+            self.host, self.port, reason,
+            self._consecutive_failures, backoff,
+            self._total_reads, self._total_errors,
+        )
+        if self._consecutive_failures == 1:
+            LOGGER.info(
+                "🔧 TROUBLESHOOT: Check that the PLC is powered (PWR+RUN LEDs green), "
+                "Ethernet cable is connected to the PLC's Ethernet port, "
+                "and the Pi is on the same subnet as %s",
+                self.host,
+            )
 
     @staticmethod
     def _disconnected_readings(reason: str) -> Mapping[str, SensorReading]:
         """Return a full readings dict with connected=False and all values zeroed."""
-        readings: Dict[str, Any] = {
+        return {
             "connected": False,
             "fault": True,
-        }
-        # E-Cat signals — all zeroed, using the same keys as _ECAT_SIGNAL_NAMES
-        for name in _ECAT_SIGNAL_NAMES:
-            readings[name] = 0
-        # Sensor data — all zeroed
-        readings.update({
-            "vibration_x": 0.0,
-            "vibration_y": 0.0,
-            "vibration_z": 0.0,
-            "gyro_x": 0.0,
-            "gyro_y": 0.0,
-            "gyro_z": 0.0,
-            "temperature_f": 0.0,
-            "humidity_pct": 0.0,
-            "pressure_simulated": 0,
-            "servo1_position": 0,
-            "servo2_position": 0,
-            "cycle_count": 0,
             "system_state": "disconnected",
             "last_fault": reason,
             "servo_power_press_count": 0,
-            "estop_activation_count": 0,
             "current_uptime_seconds": 0,
-            # Encoder data
+            # Encoder
             "encoder_count": 0,
             "encoder_direction": "forward",
             "encoder_distance_mm": 0.0,
@@ -275,45 +345,36 @@ class PlcSensor(Sensor):
             "encoder_enabled": False,
             "plate_drop_count": 0,
             "plates_per_minute": 0.0,
-        })
-        return readings
+        }
 
     async def get_readings(
         self,
         extra: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> Mapping[str, SensorReading]:
-        """Return current PLC state as structured sensor readings.
+        """Return current TPS PLC state as structured sensor readings.
 
-        Reads all Modbus registers and returns human-readable keys matching
-        the 25-pin E-Cat cable labels plus sensor data.  On any failure the
-        client is closed so the next poll cycle creates a fresh connection.
+        Reads only real PLC registers: DS holding registers, encoder (DD1),
+        discrete inputs, output coils, and internal coils.  On any failure
+        the client is closed so the next poll cycle creates a fresh connection.
         """
+        self._total_reads += 1
         connected = self._ensure_connected()
 
         if not connected:
             return self._disconnected_readings("connection_failed")
 
         try:
-            # Read E-Cat cable registers (0-24)
-            ecat_result = self.client.read_holding_registers(address=0, count=25)
-            if ecat_result.isError():
-                LOGGER.warning("Error reading E-Cat registers: %s", ecat_result)
+            # ── Read DS holding registers (0-14) — TPS production config ──
+            ds_result = self.client.read_holding_registers(address=0, count=15)
+            if ds_result.isError():
+                LOGGER.warning("Error reading DS registers: %s", ds_result)
                 self._disconnect()
-                return self._disconnected_readings("ecat_read_error")
+                return self._disconnected_readings("ds_read_error")
 
-            ecat = [_uint16(v) for v in ecat_result.registers]
+            ds = [_uint16(v) for v in ds_result.registers]
 
-            # Read sensor/analytics registers (100-117) — optional, zero on Click PLC
-            sensor = [0] * 18
-            try:
-                sensor_result = self.client.read_holding_registers(address=100, count=18)
-                if not sensor_result.isError():
-                    sensor = [_uint16(v) for v in sensor_result.registers]
-            except Exception:
-                pass
-
-            # Read encoder count from DD1 (Modbus address 16384, 2 registers)
+            # ── Read encoder count from DD1 (Modbus address 16384, 2 registers) ──
             # DD1 is the production HSC current count value — 32-bit signed quadrature x1
             enc_lo, enc_hi = 0, 0
             try:
@@ -409,18 +470,10 @@ class PlcSensor(Sensor):
             # Encoder enabled: True when C1999 (Encoder Reset) is OFF and encoder is counting
             encoder_enabled = not encoder_reset_coil and encoder_count != 0
 
-            # ── Read state directly from PLC ladder-logic registers ──
-            # DS1 (reg 0):   servo_power_on (1=on, 0=off)
-            # DS113 (reg 112): system_state (0=idle, 1=running, 2=fault, 3=e-stopped)
-            # DS114 (reg 113): last_fault code
-            # DS115 (reg 114): servo_power_press_count
-            # DS116 (reg 115): estop_activation_count
-            servo_on = ecat[0]  # DS1
-            estop_active = ecat[24] == 0  # DS25: estop_off=0 means active
-
-            _STATE_MAP = {0: "idle", 1: "running", 2: "fault", 3: "e-stopped"}
-            derived_state = _STATE_MAP.get(sensor[12], "unknown")  # DS113 = reg 112
-            fault_code = sensor[13]  # DS114 = reg 113
+            # ── Derive system state from real PLC signals ──
+            servo_on = ds[0]  # DS1: servo_power_on (also used as encoder_ignore)
+            # System state derived from discrete inputs and coil states
+            system_state = "running" if tps_power_loop else "idle"
 
             # ── Software counters — detect rising edges on PLC register values ──
             # Servo press: count transitions of DS1 from 0→1 (servo toggled on)
@@ -428,40 +481,17 @@ class PlcSensor(Sensor):
                 self._servo_press_count += 1
             self._prev_servo_on = servo_on
 
-            # E-stop: count transitions from not-active to active
-            if self._prev_estop_active is not None and not self._prev_estop_active and estop_active:
-                self._estop_count += 1
-            self._prev_estop_active = estop_active
-
-            # ── Build readings ──
+            # ── Build readings — only real PLC data ──
             readings: Dict[str, Any] = {
                 "connected": True,
-                "fault": derived_state == "fault",
-            }
-
-            # E-Cat cable signals (registers 0-24) with named keys
-            for i, name in enumerate(_ECAT_SIGNAL_NAMES):
-                readings[name] = ecat[i]
-
-            # Sensor data (registers 100-117)
-            readings.update({
-                "vibration_x": _int16_to_float(sensor[0]),
-                "vibration_y": _int16_to_float(sensor[1]),
-                "vibration_z": _int16_to_float(sensor[2]),
-                "gyro_x": _int16_to_float(sensor[3]),
-                "gyro_y": _int16_to_float(sensor[4]),
-                "gyro_z": _int16_to_float(sensor[5]),
-                "temperature_f": _int16_to_float(sensor[6], 10.0),
-                "humidity_pct": _int16_to_float(sensor[7], 10.0),
-                "pressure_simulated": sensor[8],
-                "servo1_position": sensor[9],
-                "servo2_position": sensor[10],
-                "cycle_count": sensor[11],
-                "system_state": derived_state,
-                "last_fault": _FAULT_NAMES.get(fault_code, f"unknown({fault_code})"),
+                "fault": False,
+                "system_state": system_state,
+                "last_fault": "none",
+                "servo_power_on": servo_on,
                 "servo_power_press_count": self._servo_press_count,
-                "estop_activation_count": self._estop_count,
                 "current_uptime_seconds": round(time.time() - self._start_time),
+                "total_reads": self._total_reads,
+                "total_errors": self._total_errors,
                 # Encoder data (SICK DBS60E-BDEC01000)
                 "encoder_count": encoder_count,
                 "encoder_direction": "forward" if encoder_direction == 0 else "reverse",
@@ -484,27 +514,35 @@ class PlcSensor(Sensor):
                 "encoder_reset": encoder_reset_coil,
                 "floating_zero": floating_zero,
                 # TPS production registers (from DS holding registers)
-                "encoder_ignore": ecat[0],              # DS1
-                "adjustable_tie_spacing": ecat[1],      # DS2
-                "ds3_value": ecat[2],                    # DS3
-                "detector_offset_bits": ecat[4],        # DS5
-                "ds6_value": ecat[5],                    # DS6
-                "ds7_value": ecat[6],                    # DS7
-                "ds10_value": ecat[9],                   # DS10
-                "ds11_value": ecat[10],                  # DS11
-                "ds12_value": ecat[11],                  # DS12
-                "ds13_value": ecat[12],                  # DS13
-                "ds14_value": ecat[13],                  # DS14
+                "encoder_ignore": ds[0],                 # DS1
+                "adjustable_tie_spacing": ds[1],         # DS2
+                "ds3_value": ds[2],                      # DS3
+                "detector_offset_bits": ds[4],           # DS5
+                "ds6_value": ds[5],                      # DS6
+                "ds7_value": ds[6],                      # DS7
+                "ds10_value": ds[9],                     # DS10
+                "ds11_value": ds[10],                    # DS11
+                "ds12_value": ds[11],                    # DS12
+                "ds13_value": ds[12],                    # DS13
+                "ds14_value": ds[13],                    # DS14
                 # TPS derived readings
                 "encoder_enabled": encoder_enabled,
                 "plate_drop_count": self._plate_drop_count,
                 "plates_per_minute": round(plates_per_minute, 1),
-            })
+            }
+
+            # Persist to local offline buffer (survives reboots + cloud outages)
+            if self._offline_buffer is not None:
+                self._offline_buffer.write(readings)
 
             return readings
 
         except Exception as e:
-            LOGGER.error("Error reading PLC registers: %s", e)
+            self._total_errors += 1
+            LOGGER.error(
+                "🔴 Error reading PLC registers: %s | total_reads=%d errors=%d",
+                e, self._total_reads, self._total_errors,
+            )
             self._disconnect()
             return self._disconnected_readings(str(e))
 

@@ -1,3 +1,0 @@
-viam-sdk>=0.69.0
-# Uncomment based on chosen protocol after hardware validation:
-# pymodbus>=3.6.0    # For Option B (Modbus TCP)

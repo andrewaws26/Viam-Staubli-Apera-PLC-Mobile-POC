@@ -4,16 +4,6 @@
       "type": "local",
       "name": "plc-sensor-module",
       "executable_path": "/home/pi/Viam-Staubli-Apera-PLC-Mobile-POC/modules/plc-sensor/src/plc_sensor.py"
-    },
-    {
-      "type": "local",
-      "name": "robot-arm-sensor-module",
-      "executable_path": "/home/pi/Viam-Staubli-Apera-PLC-Mobile-POC/modules/robot-arm-sensor/src/robot_arm_sensor.py"
-    },
-    {
-      "type": "local",
-      "name": "vision-health-sensor-module",
-      "executable_path": "/home/pi/Viam-Staubli-Apera-PLC-Mobile-POC/modules/vision-health-sensor/run.sh"
     }
   ],
   "components": [
@@ -24,7 +14,9 @@
       "attributes": {
         "host": "169.168.10.21",
         "port": 502,
-        "wheel_diameter_mm": 406.4
+        "wheel_diameter_mm": 406.4,
+        "offline_buffer_dir": "/home/pi/.viam/offline-buffer",
+        "offline_buffer_max_mb": 50
       },
       "depends_on": [],
       "service_configs": [
@@ -41,64 +33,6 @@
           }
         }
       ]
-    },
-    {
-      "name": "robot-arm-monitor",
-      "api": "rdk:component:sensor",
-      "model": "viam-staubli-apera-poc:monitor:robot-arm-sensor",
-      "attributes": {
-        "host": "raiv-cs9.local",
-        "port": 502,
-        "protocol": "modbus"
-      },
-      "depends_on": [],
-      "service_configs": [
-        {
-          "type": "data_manager",
-          "attributes": {
-            "capture_methods": [
-              {
-                "method": "Readings",
-                "capture_frequency_hz": 0.2,
-                "additional_params": {}
-              }
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "vision-health-monitor",
-      "api": "rdk:component:sensor",
-      "model": "viam-staubli-apera-poc:monitor:vision-health-sensor",
-      "attributes": {
-        "host": "8.8.8.8",
-        "port": 53
-      },
-      "depends_on": [],
-      "service_configs": [
-        {
-          "type": "data_manager",
-          "attributes": {
-            "capture_methods": [
-              {
-                "method": "Readings",
-                "capture_frequency_hz": 0.2,
-                "additional_params": {}
-              }
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "pi-camera",
-      "api": "rdk:component:camera",
-      "model": "rdk:builtin:webcam",
-      "attributes": {
-        "video_path": "video0"
-      },
-      "depends_on": []
     }
   ],
   "services": [
@@ -108,7 +42,8 @@
       "attributes": {
         "capture_dir": "/home/pi/.viam/capture",
         "sync_interval_mins": 0.1,
-        "tags": ["robot-cell-monitor", "raiv-digital-twin"]
+        "sync_disabled": false,
+        "tags": ["tps-monitor"]
       }
     }
   ]

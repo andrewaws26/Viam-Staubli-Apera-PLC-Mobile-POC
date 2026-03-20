@@ -1,5 +1,0 @@
-pymodbus>=3.6.0
-RPi.GPIO>=0.7.0
-smbus2>=0.4.0
-adafruit-circuitpython-dht>=4.0.0
-PyYAML>=6.0
