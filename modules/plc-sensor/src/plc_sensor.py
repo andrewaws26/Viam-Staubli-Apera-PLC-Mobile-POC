@@ -55,7 +55,7 @@ _INITIAL_BACKOFF_SECONDS = 1.0
 _ENCODER_PPR = 1000          # Pulses per revolution (from SICK DBS60E-BDEC01000 datasheet)
 _ENCODER_QUADRATURE = 1      # Production HSC uses x1 count mode
 _ENCODER_COUNTS_PER_REV = _ENCODER_PPR * _ENCODER_QUADRATURE  # 1000
-_DEFAULT_WHEEL_DIAMETER_MM = 406.4  # 16 inches — DMF RW-1650 railgear guide wheel
+_DEFAULT_WHEEL_DIAMETER_MM = 341.4  # ~13.4 inches — calibrated: 15 revolutions = 0.01 miles
 
 # DS8 travel accumulator: the PLC ladder increments DS8 as the encoder
 # counts pulses.  Calibrated: ~40 encoder pulses per DS8 count.
