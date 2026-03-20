@@ -144,7 +144,7 @@ function runChecks(r: SensorReadings): DiagnosticCheck[] {
   // ── Plate Spacing Drift ──
   const lastSpacing = typeof r.last_drop_spacing_in === "number" ? r.last_drop_spacing_in : 0;
   const avgSpacing = typeof r.avg_drop_spacing_in === "number" ? r.avg_drop_spacing_in : 0;
-  const targetSpacing = typeof r.ds2 === "number" ? r.ds2 : 0;
+  const targetSpacing = 18; // 18 inches — average tie plate spacing
 
   if (targetSpacing > 0 && lastSpacing > 0) {
     const deviation = Math.abs(lastSpacing - targetSpacing) / targetSpacing;
@@ -153,14 +153,14 @@ function runChecks(r: SensorReadings): DiagnosticCheck[] {
         id: "spacing-drift-severe",
         label: "Plate Spacing",
         severity: "error",
-        message: `Last drop spacing ${lastSpacing.toFixed(1)} in is ${(deviation * 100).toFixed(0)}% off target (DS2=${targetSpacing}) — encoder may be out of sync with plate dropper.`,
+        message: `Last drop spacing ${lastSpacing.toFixed(1)} in is ${(deviation * 100).toFixed(0)}% off target (${targetSpacing} in) — encoder may be out of sync with plate dropper.`,
       });
     } else if (deviation > 0.1) {
       checks.push({
         id: "spacing-drift-moderate",
         label: "Plate Spacing",
         severity: "warn",
-        message: `Last drop spacing ${lastSpacing.toFixed(1)} in is ${(deviation * 100).toFixed(0)}% off target (DS2=${targetSpacing}) — monitor for worsening drift.`,
+        message: `Last drop spacing ${lastSpacing.toFixed(1)} in is ${(deviation * 100).toFixed(0)}% off target (${targetSpacing} in) — monitor for worsening drift.`,
       });
     }
   }
