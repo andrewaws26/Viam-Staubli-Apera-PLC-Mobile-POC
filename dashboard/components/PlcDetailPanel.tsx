@@ -17,6 +17,7 @@ export default function PlcDetailPanel({ readings }: Props) {
   }
 
   const targetSpacing = 19.5; // 19.5 inches — tie plate spacing
+  const detectorOffset = 607.5; // inches — distance from front camera to plate dropper
   const dropCount = (readings["drop_count_in_window"] ?? 0) as number;
 
   return (
@@ -159,6 +160,13 @@ export default function PlcDetailPanel({ readings }: Props) {
                   {count}
                 </span>
               </div>
+            </div>
+
+            {/* Reference values */}
+            <div className="flex items-center justify-center gap-4 mb-3 text-[10px] sm:text-xs text-gray-600">
+              <span>Target: <span className="text-gray-400 font-mono">{target}"</span></span>
+              <span className="text-gray-700">|</span>
+              <span>Detector Offset: <span className="text-gray-400 font-mono">{detectorOffset}" ({(detectorOffset / 12).toFixed(1)} ft)</span></span>
             </div>
 
             {/* Progress bar to next drop */}
