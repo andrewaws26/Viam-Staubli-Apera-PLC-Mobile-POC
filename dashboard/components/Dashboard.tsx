@@ -11,6 +11,7 @@ import StatusCard from "./StatusCard";
 import AlertBanner from "./AlertBanner";
 import FaultHistory from "./FaultHistory";
 import PlcDetailPanel from "./PlcDetailPanel";
+import DiagnosticsPanel from "./DiagnosticsPanel";
 import ConnectionDot from "./ConnectionDot";
 import { getMockReadings, injectFault, toggleServo } from "../lib/mock";
 
@@ -278,6 +279,17 @@ export default function Dashboard() {
             const plcComp = components.find((c) => c.id === "plc");
             if (plcComp && plcComp.readings && plcComp.status !== "pending") {
               return <PlcDetailPanel readings={plcComp.readings} />;
+            }
+            return null;
+          })()}
+
+          {/* -------------------------------------------------------------- */}
+          {/* System Diagnostics                                            */}
+          {/* -------------------------------------------------------------- */}
+          {(() => {
+            const plcComp = components.find((c) => c.id === "plc");
+            if (plcComp && plcComp.readings) {
+              return <DiagnosticsPanel readings={plcComp.readings} />;
             }
             return null;
           })()}
