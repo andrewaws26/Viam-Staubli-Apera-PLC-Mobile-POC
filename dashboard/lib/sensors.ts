@@ -114,11 +114,11 @@ export const DROP_SPACING_FIELDS: {
   highlight?: boolean;
   warn?: (v: number, target: number) => boolean;
 }[] = [
-  { key: "distance_since_last_drop_ft", label: "Distance Since Last Drop", unit: "ft", highlight: true },
-  { key: "last_drop_spacing_ft", label: "Last Drop Spacing", unit: "ft", highlight: true },
-  { key: "avg_drop_spacing_ft", label: "Avg Spacing (last 20)", unit: "ft" },
-  { key: "min_drop_spacing_ft", label: "Min Spacing", unit: "ft" },
-  { key: "max_drop_spacing_ft", label: "Max Spacing", unit: "ft" },
+  { key: "distance_since_last_drop_in", label: "Distance Since Last Drop", unit: "in", highlight: true },
+  { key: "last_drop_spacing_in", label: "Last Drop Spacing", unit: "in", highlight: true },
+  { key: "avg_drop_spacing_in", label: "Avg Spacing (last 20)", unit: "in" },
+  { key: "min_drop_spacing_in", label: "Min Spacing", unit: "in" },
+  { key: "max_drop_spacing_in", label: "Max Spacing", unit: "in" },
 ];
 
 // ---------------------------------------------------------------------------

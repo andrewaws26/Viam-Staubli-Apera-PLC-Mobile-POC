@@ -58,10 +58,12 @@ _ENCODER_COUNTS_PER_REV = _ENCODER_PPR * _ENCODER_QUADRATURE  # 1000
 _DEFAULT_WHEEL_DIAMETER_MM = 406.4  # 16 inches — DMF RW-1650 railgear guide wheel
 
 # DS8 travel accumulator: the PLC ladder increments DS8 as the encoder
-# counts pulses.  Empirically measured: ~485 encoder pulses per DS8 count.
+# counts pulses.  Calibrated: ~40 encoder pulses per DS8 count.
 # DD1 (raw HSC) is NOT usable — the PLC ladder resets it each scan cycle,
 # so it only holds a per-scan delta that bounces around zero.
-_DS8_PULSES_PER_COUNT = 485  # encoder pulses per DS8 increment (empirical)
+# NOTE: Original value (485) was 12× too high — caused all distances to
+# read in feet instead of the correct inches (e.g. 39 ft vs 39 in spacing).
+_DS8_PULSES_PER_COUNT = 40  # encoder pulses per DS8 increment (calibrated)
 
 # Rolling window size for plates-per-minute calculation
 _PLATE_DROP_WINDOW_SECONDS = 60.0
@@ -191,6 +193,7 @@ class PlcSensor(Sensor):
         # Plate drop spacing diagnostics — encoder count at each drop
         self._drop_encoder_counts: Deque[int] = collections.deque(maxlen=_MAX_DROP_HISTORY)
         self._drop_spacings_mm: Deque[float] = collections.deque(maxlen=_MAX_DROP_HISTORY)
+        self._drop_spacings_in: Deque[float] = collections.deque(maxlen=_MAX_DROP_HISTORY)
         self._drop_spacings_ft: Deque[float] = collections.deque(maxlen=_MAX_DROP_HISTORY)
         # Self-healing: exponential backoff on repeated connection failures
         self._consecutive_failures: int = 0
@@ -361,12 +364,17 @@ class PlcSensor(Sensor):
             "plates_per_minute": 0.0,
             "plate_drop_count": 0,
             # Plate drop spacing diagnostics
+            "last_drop_spacing_in": 0.0,
             "last_drop_spacing_ft": 0.0,
             "last_drop_encoder_count": 0,
+            "avg_drop_spacing_in": 0.0,
             "avg_drop_spacing_ft": 0.0,
+            "min_drop_spacing_in": 0.0,
             "min_drop_spacing_ft": 0.0,
+            "max_drop_spacing_in": 0.0,
             "max_drop_spacing_ft": 0.0,
             "drop_count_in_window": 0,
+            "distance_since_last_drop_in": 0.0,
             "distance_since_last_drop_ft": 0.0,
             # Discrete inputs (raw)
             "x1": False,
@@ -507,13 +515,15 @@ class PlcSensor(Sensor):
                 if len(self._drop_encoder_counts) >= 2:
                     delta_ds8 = abs(self._drop_encoder_counts[-1] - self._drop_encoder_counts[-2])
                     spacing_mm = delta_ds8 * self._mm_per_ds8
+                    spacing_in = spacing_mm / 25.4
                     spacing_ft = spacing_mm / 304.8
                     self._drop_spacings_mm.append(round(spacing_mm, 1))
+                    self._drop_spacings_in.append(round(spacing_in, 1))
                     self._drop_spacings_ft.append(round(spacing_ft, 2))
                     LOGGER.info(
-                        "📍 Plate drop #%d — ds8=%d delta=%d spacing=%.1fmm (%.2fft)",
+                        "📍 Plate drop #%d — ds8=%d delta=%d spacing=%.1fin (%.1fmm)",
                         self._plate_drop_count, travel_count, delta_ds8,
-                        spacing_mm, spacing_ft,
+                        spacing_in, spacing_mm,
                     )
             self._prev_eject_tps1 = eject_tps_1
 
@@ -523,9 +533,11 @@ class PlcSensor(Sensor):
             if self._drop_encoder_counts:
                 ds8_since_last_drop = abs(travel_count - self._drop_encoder_counts[-1])
                 distance_since_last_drop_mm = ds8_since_last_drop * self._mm_per_ds8
+                distance_since_last_drop_in = distance_since_last_drop_mm / 25.4
                 distance_since_last_drop_ft = distance_since_last_drop_mm / 304.8
             else:
                 distance_since_last_drop_mm = 0.0
+                distance_since_last_drop_in = 0.0
                 distance_since_last_drop_ft = 0.0
 
             # Expire old entries outside the rolling window
@@ -578,13 +590,18 @@ class PlcSensor(Sensor):
                 "plates_per_minute": round(plates_per_minute, 1),
                 "plate_drop_count": self._plate_drop_count,
                 # Plate drop spacing diagnostics — summary stats (not full history)
+                "last_drop_spacing_in": self._drop_spacings_in[-1] if self._drop_spacings_in else 0.0,
                 "last_drop_spacing_ft": self._drop_spacings_ft[-1] if self._drop_spacings_ft else 0.0,
                 "last_drop_encoder_count": self._drop_encoder_counts[-1] if self._drop_encoder_counts else 0,
+                "avg_drop_spacing_in": round(sum(self._drop_spacings_in) / len(self._drop_spacings_in), 1) if self._drop_spacings_in else 0.0,
                 "avg_drop_spacing_ft": round(sum(self._drop_spacings_ft) / len(self._drop_spacings_ft), 2) if self._drop_spacings_ft else 0.0,
+                "min_drop_spacing_in": min(self._drop_spacings_in) if self._drop_spacings_in else 0.0,
                 "min_drop_spacing_ft": min(self._drop_spacings_ft) if self._drop_spacings_ft else 0.0,
+                "max_drop_spacing_in": max(self._drop_spacings_in) if self._drop_spacings_in else 0.0,
                 "max_drop_spacing_ft": max(self._drop_spacings_ft) if self._drop_spacings_ft else 0.0,
                 "drop_count_in_window": len(self._drop_spacings_ft),
                 # Live sync tracking — distance accumulating since last plate drop
+                "distance_since_last_drop_in": round(distance_since_last_drop_in, 1),
                 "distance_since_last_drop_ft": round(distance_since_last_drop_ft, 2),
                 # DS Holding Registers — all 25 from Click PLC ladder logic
                 "ds1": ds[0],
