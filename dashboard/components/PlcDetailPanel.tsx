@@ -4,7 +4,6 @@ import {
   TPS_STATUS_FIELDS,
   TPS_EJECT_FIELDS,
   TPS_PRODUCTION_FIELDS,
-  DROP_SPACING_FIELDS,
   PLC_REGISTER_FIELDS,
 } from "../lib/sensors";
 
@@ -65,189 +64,166 @@ export default function PlcDetailPanel({ readings }: Props) {
         </div>
       </div>
 
-      {/* Section 2: TPS Production */}
-      <div className="border border-gray-800 rounded-2xl p-4 sm:p-6">
-        <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-3 sm:mb-4">
-          TPS Production
-        </h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 sm:gap-x-6 gap-y-3">
-          {TPS_PRODUCTION_FIELDS.map(({ key, label, unit, highlight }) => {
-            const val = readings[key];
-            if (val === undefined) return null;
-            return (
-              <div key={key} className="flex flex-col min-w-0">
-                <span className="text-[10px] sm:text-xs text-gray-600 uppercase tracking-wide truncate">
-                  {label}
-                </span>
-                <span
-                  className={[
-                    "font-mono font-bold truncate",
-                    highlight ? "text-base sm:text-lg text-blue-400" : "text-sm text-gray-200",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                >
-                  {String(val)}
-                  {unit && (
-                    <span className="text-gray-600 font-normal ml-0.5 text-xs sm:text-sm">
-                      {unit}
-                    </span>
-                  )}
+      {/* Section 2: Plate Drops — single consolidated view */}
+      {(() => {
+        const rate = (readings["plates_per_minute"] ?? 0) as number;
+        const count = (readings["plate_drop_count"] ?? 0) as number;
+        const lastSpacing = readings["last_drop_spacing_in"] as number | undefined;
+        const avgSpacing = readings["avg_drop_spacing_in"] as number | undefined;
+        const minSpacing = readings["min_drop_spacing_in"] as number | undefined;
+        const maxSpacing = readings["max_drop_spacing_in"] as number | undefined;
+        const distSinceLast = (readings["distance_since_last_drop_in"] ?? 0) as number;
+        const target = targetSpacing && targetSpacing > 0 ? targetSpacing : 0;
+
+        // Determine overall status
+        type DropStatus = "good" | "drift" | "bad" | "idle";
+        let status: DropStatus = "idle";
+        let statusLabel = "No Drops Yet";
+
+        if (dropCount > 0 && target > 0) {
+          const lastDev = lastSpacing ? Math.abs(lastSpacing - target) / target : 0;
+          const pctOfTarget = target > 0 ? distSinceLast / target : 0;
+
+          if (lastDev > 0.2 || pctOfTarget > 1.2) {
+            status = "bad";
+            statusLabel = pctOfTarget > 1.2 ? "Drop Overdue" : "Off Target";
+          } else if (lastDev > 0.1 || pctOfTarget > 1.05) {
+            status = "drift";
+            statusLabel = pctOfTarget > 1.05 ? "Drop Late" : "Drifting";
+          } else {
+            status = "good";
+            statusLabel = "On Target";
+          }
+        } else if (rate > 0) {
+          status = "good";
+          statusLabel = "Dropping";
+        }
+
+        const statusConfig = {
+          good:  { border: "border-green-900/50", bg: "bg-green-950/10", badge: "bg-green-500", text: "text-green-400", icon: "✓" },
+          drift: { border: "border-yellow-900/50", bg: "bg-yellow-950/10", badge: "bg-yellow-500", text: "text-yellow-400", icon: "⚠" },
+          bad:   { border: "border-red-900/50", bg: "bg-red-950/10", badge: "bg-red-500", text: "text-red-400", icon: "✕" },
+          idle:  { border: "border-gray-800", bg: "", badge: "bg-gray-600", text: "text-gray-500", icon: "—" },
+        }[status];
+
+        const pct = target > 0 ? Math.min((distSinceLast / target) * 100, 150) : 0;
+        const barColor = status === "bad" ? "bg-red-500" : status === "drift" ? "bg-yellow-500" : "bg-green-500";
+
+        return (
+          <div className={`border ${statusConfig.border} ${statusConfig.bg} rounded-2xl p-4 sm:p-6`}>
+            {/* Header with status badge */}
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500">
+                Plate Drops
+              </h3>
+              <div className={`flex items-center gap-2 px-3 py-1 rounded-full ${statusConfig.badge}/20`}>
+                <span className={`text-sm font-bold ${statusConfig.text}`}>{statusConfig.icon}</span>
+                <span className={`text-xs font-bold uppercase tracking-wide ${statusConfig.text}`}>
+                  {statusLabel}
                 </span>
               </div>
-            );
-          })}
-        </div>
-      </div>
+            </div>
 
-      {/* Section 2b: Plate Drop Spacing — sync diagnostics */}
-      <div className="border border-amber-900/40 bg-amber-950/10 rounded-2xl p-4 sm:p-6">
-        <h3 className="text-xs font-bold uppercase tracking-widest text-amber-500 mb-3 sm:mb-4">
-          Plate Drop Spacing — Sync Monitor
-        </h3>
-
-        {/* Key metrics */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-4 sm:gap-x-6 gap-y-3 mb-4">
-          {DROP_SPACING_FIELDS.map(({ key, label, unit, highlight }) => {
-            const val = readings[key];
-            if (val === undefined) return null;
-            const numVal = typeof val === "number" ? val : 0;
-            // Warn if spacing deviates more than 10% from target (DS2)
-            const isOff =
-              targetSpacing && targetSpacing > 0 && numVal > 0 &&
-              key.includes("spacing") &&
-              Math.abs(numVal - targetSpacing) / targetSpacing > 0.1;
-            return (
-              <div key={key} className="flex flex-col min-w-0">
-                <span className="text-[10px] sm:text-xs text-gray-600 uppercase tracking-wide truncate">
-                  {label}
-                </span>
-                <span
-                  className={[
-                    "font-mono font-bold truncate",
-                    isOff
-                      ? "text-base sm:text-lg text-red-400"
-                      : highlight
-                      ? "text-base sm:text-lg text-amber-400"
-                      : "text-sm text-gray-200",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                >
-                  {String(val)}
-                  {unit && (
-                    <span className="text-gray-600 font-normal ml-0.5 text-xs sm:text-sm">
-                      {unit}
-                    </span>
-                  )}
-                  {isOff && (
-                    <span className="text-red-500 font-normal ml-1 text-xs">
-                      ⚠ OFF TARGET
-                    </span>
-                  )}
+            {/* 3 big numbers */}
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              <div className="flex flex-col items-center">
+                <span className="text-[10px] sm:text-xs text-gray-600 uppercase tracking-wide">Rate</span>
+                <span className="font-mono font-bold text-xl sm:text-2xl text-blue-400">
+                  {rate.toFixed(1)}
+                  <span className="text-gray-600 font-normal text-xs sm:text-sm ml-0.5">/min</span>
                 </span>
               </div>
-            );
-          })}
-        </div>
-
-        {/* Live progress toward next drop */}
-        {targetSpacing !== undefined && targetSpacing > 0 && (() => {
-          const distSinceLast = (readings["distance_since_last_drop_in"] ?? 0) as number;
-          const pct = Math.min((distSinceLast / targetSpacing) * 100, 150);
-          const isOverdue = pct > 105;
-          const isLate = pct > 120;
-          const barColor = isLate
-            ? "bg-red-500"
-            : isOverdue
-            ? "bg-yellow-500"
-            : "bg-blue-500";
-          return (
-            <div className="mb-4">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-[10px] sm:text-xs text-gray-600 uppercase tracking-wide">
-                  Next Drop Progress
+              <div className="flex flex-col items-center">
+                <span className="text-[10px] sm:text-xs text-gray-600 uppercase tracking-wide">Last Spacing</span>
+                <span className={`font-mono font-bold text-xl sm:text-2xl ${
+                  lastSpacing && target > 0
+                    ? Math.abs(lastSpacing - target) / target <= 0.1
+                      ? "text-green-400"
+                      : Math.abs(lastSpacing - target) / target <= 0.2
+                      ? "text-yellow-400"
+                      : "text-red-400"
+                    : "text-gray-400"
+                }`}>
+                  {lastSpacing !== undefined ? lastSpacing.toFixed(1) : "—"}
+                  <span className="text-gray-600 font-normal text-xs sm:text-sm ml-0.5">in</span>
                 </span>
-                <span className={[
-                  "text-xs font-mono font-bold",
-                  isLate ? "text-red-400" : isOverdue ? "text-yellow-400" : "text-blue-400",
-                ].join(" ")}>
-                  {distSinceLast.toFixed(1)} / {targetSpacing} in
-                  {isLate && " — OVERDUE"}
-                  {isOverdue && !isLate && " — LATE"}
-                </span>
-              </div>
-              <div className="w-full h-3 sm:h-4 bg-gray-800 rounded-full overflow-hidden relative">
-                {/* Target marker */}
-                <div
-                  className="absolute top-0 bottom-0 w-0.5 bg-amber-400 z-10"
-                  style={{ left: `${Math.min(100 / (pct > 100 ? pct / 100 : 1), 100)}%` }}
-                  title={`Target: ${targetSpacing} in`}
-                />
-                {/* Progress fill */}
-                <div
-                  className={`h-full rounded-full transition-all duration-500 ${barColor}`}
-                  style={{ width: `${Math.min(pct, 100)}%` }}
-                />
-                {/* Overflow indicator if past 100% */}
-                {pct > 100 && (
-                  <div
-                    className="absolute top-0 bottom-0 right-0 bg-red-500/30 animate-pulse"
-                    style={{ width: `${Math.min(pct - 100, 50)}%` }}
-                  />
+                {target > 0 && (
+                  <span className="text-[10px] text-gray-600">
+                    target {target}
+                  </span>
                 )}
               </div>
+              <div className="flex flex-col items-center">
+                <span className="text-[10px] sm:text-xs text-gray-600 uppercase tracking-wide">Total</span>
+                <span className="font-mono font-bold text-xl sm:text-2xl text-gray-200">
+                  {count}
+                </span>
+              </div>
             </div>
-          );
-        })()}
 
-        {/* Spacing summary stats */}
-        {dropCount > 0 ? (
-          <div className="mt-3">
-            <p className="text-[10px] sm:text-xs text-gray-600 uppercase tracking-wide mb-2">
-              Drop Spacing Summary — last {dropCount} drops
-            </p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {[
-                { label: "Last", key: "last_drop_spacing_in" },
-                { label: "Avg", key: "avg_drop_spacing_in" },
-                { label: "Min", key: "min_drop_spacing_in" },
-                { label: "Max", key: "max_drop_spacing_in" },
-              ].map(({ label, key }) => {
-                const val = readings[key] as number | undefined;
-                let color = "text-gray-200";
-                if (targetSpacing && targetSpacing > 0 && val !== undefined && val > 0) {
-                  const deviation = Math.abs(val - targetSpacing) / targetSpacing;
-                  if (deviation <= 0.1) color = "text-green-400";
-                  else if (deviation <= 0.2) color = "text-yellow-400";
-                  else color = "text-red-400";
-                }
-                return (
-                  <div key={key} className="flex flex-col min-w-0">
-                    <span className="text-[10px] sm:text-xs text-gray-600 uppercase tracking-wide">{label}</span>
-                    <span className={`font-mono font-bold text-sm ${color}`}>
-                      {val !== undefined ? val.toFixed(1) : "—"} in
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-            {targetSpacing !== undefined && targetSpacing > 0 && (
-              <p className="text-[10px] text-gray-600 mt-2">
-                Target: <span className="text-amber-500 font-mono">{targetSpacing}</span> (DS2)
-                {" · "}
-                <span className="text-green-400">■</span> ±10%
-                {" "}
-                <span className="text-yellow-400">■</span> ±20%
-                {" "}
-                <span className="text-red-400">■</span> &gt;20% off
-              </p>
+            {/* Progress bar to next drop */}
+            {target > 0 && (
+              <div className="mb-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] sm:text-xs text-gray-600 uppercase tracking-wide">
+                    Next Drop
+                  </span>
+                  <span className={`text-xs font-mono font-bold ${statusConfig.text}`}>
+                    {distSinceLast.toFixed(1)} / {target} in
+                  </span>
+                </div>
+                <div className="w-full h-3 bg-gray-800 rounded-full overflow-hidden relative">
+                  <div
+                    className="absolute top-0 bottom-0 w-0.5 bg-white/30 z-10"
+                    style={{ left: `${Math.min(100 / (pct > 100 ? pct / 100 : 1), 100)}%` }}
+                  />
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${barColor}`}
+                    style={{ width: `${Math.min(pct, 100)}%` }}
+                  />
+                  {pct > 100 && (
+                    <div
+                      className="absolute top-0 bottom-0 right-0 bg-red-500/30 animate-pulse rounded-r-full"
+                      style={{ width: `${Math.min(pct - 100, 50)}%` }}
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Expandable detail stats */}
+            {dropCount > 0 && (
+              <details className="mt-2">
+                <summary className="text-[10px] sm:text-xs text-gray-600 uppercase tracking-wide cursor-pointer hover:text-gray-400 select-none">
+                  Spacing Details (last {dropCount} drops) ▸
+                </summary>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-2">
+                  {([
+                    { label: "Last", val: lastSpacing },
+                    { label: "Avg", val: avgSpacing },
+                    { label: "Min", val: minSpacing },
+                    { label: "Max", val: maxSpacing },
+                  ] as const).map(({ label, val }) => {
+                    let color = "text-gray-200";
+                    if (target > 0 && val !== undefined && val > 0) {
+                      const dev = Math.abs(val - target) / target;
+                      color = dev <= 0.1 ? "text-green-400" : dev <= 0.2 ? "text-yellow-400" : "text-red-400";
+                    }
+                    return (
+                      <div key={label} className="flex flex-col min-w-0">
+                        <span className="text-[10px] text-gray-600 uppercase">{label}</span>
+                        <span className={`font-mono font-bold text-sm ${color}`}>
+                          {val !== undefined ? val.toFixed(1) : "—"} in
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </details>
             )}
           </div>
-        ) : (
-          <p className="text-gray-700 text-sm">No plate drops recorded yet this session.</p>
-        )}
-      </div>
+        );
+      })()}
 
       {/* Section 3: TPS Machine Status */}
       <div className="border border-gray-800 rounded-2xl p-4 sm:p-6">

@@ -89,7 +89,7 @@ export const TPS_EJECT_FIELDS: {
 ];
 
 // ---------------------------------------------------------------------------
-// TPS Production Stats
+// TPS Production Stats (shown outside the plate drop section)
 // ---------------------------------------------------------------------------
 export const TPS_PRODUCTION_FIELDS: {
   key: string;
@@ -100,25 +100,6 @@ export const TPS_PRODUCTION_FIELDS: {
   { key: "plates_per_minute", label: "Plate Rate", unit: "/min", highlight: true },
   { key: "plate_drop_count", label: "Total Plates Dropped" },
   { key: "ds2", label: "Tie Spacing Setting" },
-  { key: "ds1", label: "DS1" },
-  { key: "ds5", label: "DS5" },
-];
-
-// ---------------------------------------------------------------------------
-// Plate Drop Spacing — encoder-based diagnostics for sync issues
-// ---------------------------------------------------------------------------
-export const DROP_SPACING_FIELDS: {
-  key: string;
-  label: string;
-  unit?: string;
-  highlight?: boolean;
-  warn?: (v: number, target: number) => boolean;
-}[] = [
-  { key: "distance_since_last_drop_in", label: "Distance Since Last Drop", unit: "in", highlight: true },
-  { key: "last_drop_spacing_in", label: "Last Drop Spacing", unit: "in", highlight: true },
-  { key: "avg_drop_spacing_in", label: "Avg Spacing (last 20)", unit: "in" },
-  { key: "min_drop_spacing_in", label: "Min Spacing", unit: "in" },
-  { key: "max_drop_spacing_in", label: "Max Spacing", unit: "in" },
 ];
 
 // ---------------------------------------------------------------------------
