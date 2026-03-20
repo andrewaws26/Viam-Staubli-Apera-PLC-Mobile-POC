@@ -188,6 +188,8 @@ class PlcSensor(Sensor):
         self._mm_per_count = wheel_circumference_mm / _ENCODER_COUNTS_PER_REV
         # DS8 travel accumulator: mm per DS8 count
         self._mm_per_ds8 = _DS8_PULSES_PER_COUNT * self._mm_per_count
+        # Encoder: high-water mark for DS8 — distance never regresses
+        self._ds8_high_water: int = 0
         # Encoder: speed tracking (delta DS8 / delta time)
         self._prev_ds8: Optional[int] = None
         self._prev_ds8_time: Optional[float] = None
@@ -453,10 +455,13 @@ class PlcSensor(Sensor):
                 # delta == 0: keep previous direction
             encoder_direction = self._encoder_direction
 
-            # Distance: DS8 * mm_per_ds8 (each DS8 count ≈ 485 encoder pulses)
-            encoder_distance_mm = travel_count * self._mm_per_ds8
+            # Distance: use high-water mark so distance never regresses
+            # when encoder jitters while stationary
+            if travel_count > self._ds8_high_water:
+                self._ds8_high_water = travel_count
+            encoder_distance_mm = self._ds8_high_water * self._mm_per_ds8
             encoder_distance_ft = encoder_distance_mm / 304.8
-            encoder_revolutions = (travel_count * _DS8_PULSES_PER_COUNT) / _ENCODER_COUNTS_PER_REV
+            encoder_revolutions = (self._ds8_high_water * _DS8_PULSES_PER_COUNT) / _ENCODER_COUNTS_PER_REV
 
             # Speed from DS8 delta / delta time
             if self._prev_ds8 is not None and self._prev_ds8_time is not None:
