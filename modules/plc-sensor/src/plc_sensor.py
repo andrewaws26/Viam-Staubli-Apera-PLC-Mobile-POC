@@ -57,23 +57,25 @@ _ENCODER_QUADRATURE = 1      # Production HSC uses x1 count mode
 _ENCODER_COUNTS_PER_REV = _ENCODER_PPR * _ENCODER_QUADRATURE  # 1000
 _DEFAULT_WHEEL_DIAMETER_MM = 341.4  # ~13.4 inches — calibrated: 15 revolutions = 0.01 miles
 
-# DS8 travel accumulator: the PLC ladder increments DS8 as the encoder
-# counts pulses.  Calibrated: ~40 encoder pulses per DS8 count.
+# DS7 travel accumulator: the PLC ladder increments DS7 as the encoder
+# counts pulses.  Calibrated: 1 encoder rev (1000 pulses) = ~5.3 DS7 counts,
+# so ~189 pulses per DS7 count.  Field-tested 2026-03-20 by hand-spinning
+# the encoder bearing (3 revolutions → +16 DS7 counts).
 # DD1 (raw HSC) is NOT usable — the PLC ladder resets it each scan cycle,
 # so it only holds a per-scan delta that bounces around zero.
-# NOTE: Original value (485) was 12× too high — caused all distances to
-# read in feet instead of the correct inches (e.g. 39 ft vs 39 in spacing).
-_DS8_PULSES_PER_COUNT = 40  # encoder pulses per DS8 increment (calibrated)
+# NOTE: Previously used DS8 (index 7) which barely moves — DS7 (index 6)
+# is the actual travel accumulator.
+_DS7_PULSES_PER_COUNT = 189  # encoder pulses per DS7 increment (calibrated)
 
 # Rolling window size for plates-per-minute calculation
 _PLATE_DROP_WINDOW_SECONDS = 60.0
 
 # Plate drop debounce — Y1 (eject solenoid) can fire multiple pulses per
 # real plate drop, causing false transitions.  Require a minimum travel
-# distance (in DS8 counts) since the last recorded drop before counting
-# a new one.  With 40 pulses/count ≈ 2 in/count, 5 counts ≈ 10 inches —
-# well below the ~19 count real spacing but safely above chatter (0-2).
-_MIN_DS8_COUNTS_BETWEEN_DROPS = 5
+# distance (in DS7 counts) since the last recorded drop before counting
+# a new one.  With 189 pulses/count ≈ 8 in/count, 1 count ≈ 8 inches —
+# well below the ~2 count real spacing (18 in) but safely above chatter.
+_MIN_DS7_COUNTS_BETWEEN_DROPS = 1
 
 # Plate drop spacing history — how many recent drops to keep for diagnostics
 _MAX_DROP_HISTORY = 20
@@ -186,13 +188,13 @@ class PlcSensor(Sensor):
         self._wheel_diameter_mm = wheel_diameter_mm
         wheel_circumference_mm = math.pi * wheel_diameter_mm
         self._mm_per_count = wheel_circumference_mm / _ENCODER_COUNTS_PER_REV
-        # DS8 travel accumulator: mm per DS8 count
-        self._mm_per_ds8 = _DS8_PULSES_PER_COUNT * self._mm_per_count
-        # Encoder: high-water mark for DS8 — distance never regresses
-        self._ds8_high_water: int = 0
-        # Encoder: speed tracking (delta DS8 / delta time)
-        self._prev_ds8: Optional[int] = None
-        self._prev_ds8_time: Optional[float] = None
+        # DS7 travel accumulator: mm per DS7 count
+        self._mm_per_ds7 = _DS7_PULSES_PER_COUNT * self._mm_per_count
+        # Encoder: high-water mark for DS7 — distance never regresses
+        self._ds7_high_water: int = 0
+        # Encoder: speed tracking (delta DS7 / delta time)
+        self._prev_ds7: Optional[int] = None
+        self._prev_ds7_time: Optional[float] = None
         self._encoder_speed_mmps: float = 0.0  # mm per second
         self._encoder_direction: int = 0  # 0=forward, 1=reverse
         # TPS plate drop counter — tracks OFF→ON transitions on Y1 (Eject TPS_1)
@@ -438,16 +440,16 @@ class PlcSensor(Sensor):
             if dd1_raw > 0x7FFFFFFF:
                 dd1_raw -= 0x100000000
 
-            # ── Travel distance from DS8 (PLC-accumulated distance counter) ──
-            # DS8 is the authoritative travel counter maintained by the PLC
-            # ladder logic.  Left spin (forward) = DS8 increases.
-            # Right spin (reverse) = DS8 decreases.
-            travel_count = ds[7]  # DS8
+            # ── Travel distance from DS7 (PLC-accumulated distance counter) ──
+            # DS7 is the authoritative travel counter maintained by the PLC
+            # ladder logic.  Left spin (forward) = DS7 increases.
+            # Right spin (reverse) = DS7 decreases.
+            travel_count = ds[6]  # DS7
 
-            # Direction from DS8 delta (stable — no per-scan jitter)
+            # Direction from DS7 delta (stable — no per-scan jitter)
             now_ts = time.time()
-            if self._prev_ds8 is not None:
-                delta = travel_count - self._prev_ds8
+            if self._prev_ds7 is not None:
+                delta = travel_count - self._prev_ds7
                 if delta > 0:
                     self._encoder_direction = 0  # forward
                 elif delta < 0:
@@ -457,20 +459,20 @@ class PlcSensor(Sensor):
 
             # Distance: use high-water mark so distance never regresses
             # when encoder jitters while stationary
-            if travel_count > self._ds8_high_water:
-                self._ds8_high_water = travel_count
-            encoder_distance_mm = self._ds8_high_water * self._mm_per_ds8
+            if travel_count > self._ds7_high_water:
+                self._ds7_high_water = travel_count
+            encoder_distance_mm = self._ds7_high_water * self._mm_per_ds7
             encoder_distance_ft = encoder_distance_mm / 304.8
-            encoder_revolutions = (self._ds8_high_water * _DS8_PULSES_PER_COUNT) / _ENCODER_COUNTS_PER_REV
+            encoder_revolutions = (self._ds7_high_water * _DS7_PULSES_PER_COUNT) / _ENCODER_COUNTS_PER_REV
 
-            # Speed from DS8 delta / delta time
-            if self._prev_ds8 is not None and self._prev_ds8_time is not None:
-                dt = now_ts - self._prev_ds8_time
+            # Speed from DS7 delta / delta time
+            if self._prev_ds7 is not None and self._prev_ds7_time is not None:
+                dt = now_ts - self._prev_ds7_time
                 if dt > 0.01:
-                    delta_counts = abs(travel_count - self._prev_ds8)
-                    self._encoder_speed_mmps = (delta_counts * self._mm_per_ds8) / dt
-            self._prev_ds8 = travel_count
-            self._prev_ds8_time = now_ts
+                    delta_counts = abs(travel_count - self._prev_ds7)
+                    self._encoder_speed_mmps = (delta_counts * self._mm_per_ds7) / dt
+            self._prev_ds7 = travel_count
+            self._prev_ds7_time = now_ts
 
             # Keep DD1 raw value as encoder_count for reference in readings
             encoder_count = dd1_raw
@@ -521,44 +523,44 @@ class PlcSensor(Sensor):
             # ── TPS plate drop counter — detect OFF→ON on Y1 (Eject TPS_1) ──
             # Y1 can chatter (multiple pulses per real drop), so we debounce:
             # only count a new drop if the truck has traveled at least
-            # _MIN_DS8_COUNTS_BETWEEN_DROPS since the last recorded drop.
+            # _MIN_DS7_COUNTS_BETWEEN_DROPS since the last recorded drop.
             if self._prev_eject_tps1 is not None and not self._prev_eject_tps1 and eject_tps_1:
-                ds8_since_last = (
+                ds7_since_last = (
                     abs(travel_count - self._drop_encoder_counts[-1])
                     if self._drop_encoder_counts
-                    else _MIN_DS8_COUNTS_BETWEEN_DROPS  # first drop always counts
+                    else _MIN_DS7_COUNTS_BETWEEN_DROPS  # first drop always counts
                 )
-                if ds8_since_last >= _MIN_DS8_COUNTS_BETWEEN_DROPS:
+                if ds7_since_last >= _MIN_DS7_COUNTS_BETWEEN_DROPS:
                     self._plate_drop_count += 1
                     self._plate_drop_times.append(now_ts)
-                    # Record DS8 position at this drop for spacing analysis
+                    # Record DS7 position at this drop for spacing analysis
                     self._drop_encoder_counts.append(travel_count)
                     if len(self._drop_encoder_counts) >= 2:
-                        delta_ds8 = abs(self._drop_encoder_counts[-1] - self._drop_encoder_counts[-2])
-                        spacing_mm = delta_ds8 * self._mm_per_ds8
+                        delta_ds7 = abs(self._drop_encoder_counts[-1] - self._drop_encoder_counts[-2])
+                        spacing_mm = delta_ds7 * self._mm_per_ds7
                         spacing_in = spacing_mm / 25.4
                         spacing_ft = spacing_mm / 304.8
                         self._drop_spacings_mm.append(round(spacing_mm, 1))
                         self._drop_spacings_in.append(round(spacing_in, 1))
                         self._drop_spacings_ft.append(round(spacing_ft, 2))
                         LOGGER.info(
-                            "📍 Plate drop #%d — ds8=%d delta=%d spacing=%.1fin (%.1fmm)",
-                            self._plate_drop_count, travel_count, delta_ds8,
+                            "📍 Plate drop #%d — ds7=%d delta=%d spacing=%.1fin (%.1fmm)",
+                            self._plate_drop_count, travel_count, delta_ds7,
                             spacing_in, spacing_mm,
                         )
                 else:
                     LOGGER.debug(
-                        "Y1 chatter suppressed — ds8=%d, delta=%d (need >=%d)",
-                        travel_count, ds8_since_last, _MIN_DS8_COUNTS_BETWEEN_DROPS,
+                        "Y1 chatter suppressed — ds7=%d, delta=%d (need >=%d)",
+                        travel_count, ds7_since_last, _MIN_DS7_COUNTS_BETWEEN_DROPS,
                     )
             self._prev_eject_tps1 = eject_tps_1
 
             # ── Distance since last drop — for predictive sync monitoring ──
-            # Compares current DS8 position to last drop position.
-            # If this exceeds DS2 target without Y1 firing, the dropper is late.
+            # Compares current DS7 position to last drop position.
+            # If this exceeds target (18 in) without Y1 firing, the dropper is late.
             if self._drop_encoder_counts:
-                ds8_since_last_drop = abs(travel_count - self._drop_encoder_counts[-1])
-                distance_since_last_drop_mm = ds8_since_last_drop * self._mm_per_ds8
+                ds7_since_last_drop = abs(travel_count - self._drop_encoder_counts[-1])
+                distance_since_last_drop_mm = ds7_since_last_drop * self._mm_per_ds7
                 distance_since_last_drop_in = distance_since_last_drop_mm / 25.4
                 distance_since_last_drop_ft = distance_since_last_drop_mm / 304.8
             else:
