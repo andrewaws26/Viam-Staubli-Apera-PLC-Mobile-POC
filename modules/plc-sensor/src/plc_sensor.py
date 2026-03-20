@@ -190,8 +190,9 @@ class PlcSensor(Sensor):
         self._mm_per_count = wheel_circumference_mm / _ENCODER_COUNTS_PER_REV
         # DS7 travel accumulator: mm per DS7 count
         self._mm_per_ds7 = _DS7_PULSES_PER_COUNT * self._mm_per_count
-        # Encoder: high-water mark for DS7 — distance never regresses
-        self._ds7_high_water: int = 0
+        # Accumulated forward distance (only positive deltas) — survives PLC resets
+        self._accumulated_distance_mm: float = 0.0
+        self._accumulated_revs: float = 0.0
         # Encoder: speed tracking (delta DS7 / delta time)
         self._prev_ds7: Optional[int] = None
         self._prev_ds7_time: Optional[float] = None
@@ -452,18 +453,17 @@ class PlcSensor(Sensor):
                 delta = travel_count - self._prev_ds7
                 if delta > 0:
                     self._encoder_direction = 0  # forward
+                    # Accumulate only forward movement — ignores jitter and PLC resets
+                    self._accumulated_distance_mm += delta * self._mm_per_ds7
+                    self._accumulated_revs += (delta * _DS7_PULSES_PER_COUNT) / _ENCODER_COUNTS_PER_REV
                 elif delta < 0:
                     self._encoder_direction = 1  # reverse
                 # delta == 0: keep previous direction
             encoder_direction = self._encoder_direction
 
-            # Distance: use high-water mark so distance never regresses
-            # when encoder jitters while stationary
-            if travel_count > self._ds7_high_water:
-                self._ds7_high_water = travel_count
-            encoder_distance_mm = self._ds7_high_water * self._mm_per_ds7
+            encoder_distance_mm = self._accumulated_distance_mm
             encoder_distance_ft = encoder_distance_mm / 304.8
-            encoder_revolutions = (self._ds7_high_water * _DS7_PULSES_PER_COUNT) / _ENCODER_COUNTS_PER_REV
+            encoder_revolutions = self._accumulated_revs
 
             # Speed from DS7 delta / delta time
             if self._prev_ds7 is not None and self._prev_ds7_time is not None:
