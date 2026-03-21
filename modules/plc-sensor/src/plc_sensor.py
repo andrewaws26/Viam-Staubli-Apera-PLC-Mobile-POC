@@ -314,8 +314,9 @@ class PlcSensor(Sensor):
         self._disconnect()
         self._consecutive_failures += 1
         self._total_errors += 1
+        capped_exp = min(self._consecutive_failures - 1, 5)
         backoff = min(
-            _INITIAL_BACKOFF_SECONDS * (2 ** (self._consecutive_failures - 1)),
+            _INITIAL_BACKOFF_SECONDS * (2 ** capped_exp),
             _MAX_BACKOFF_SECONDS,
         )
         self._next_retry_time = time.time() + backoff
