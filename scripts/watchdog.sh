@@ -212,6 +212,19 @@ Diagnose the issues and attempt safe fixes. Be conservative — if unsure, just 
     else
         log "Claude fix attempt exited with code $RESULT"
     fi
+
+    # Log incident to IronSight persistent memory
+    python3 -c "
+import sys, os
+sys.path.insert(0, os.path.join('$PROJECT_DIR', 'scripts', 'lib'))
+from ironsight_memory import IronSightMemory
+m = IronSightMemory()
+m.log_event('watchdog', 'incident', {
+    'id': '$INCIDENT_ID',
+    'issues': '''$ISSUES''',
+    'result': $RESULT
+})
+" 2>/dev/null || true
 else
     # All checks passed — reset fail counter
     echo "0" > "$FAIL_COUNT_FILE"

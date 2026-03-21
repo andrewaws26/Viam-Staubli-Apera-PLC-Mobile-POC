@@ -1,0 +1,29 @@
+[Unit]
+Description=IronSight Device Discovery Daemon
+Documentation=https://github.com/andrew/Viam-Staubli-Apera-PLC-Mobile-POC
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=andrew
+Group=andrew
+WorkingDirectory=/home/andrew/Viam-Staubli-Apera-PLC-Mobile-POC
+ExecStart=/usr/bin/python3 /home/andrew/Viam-Staubli-Apera-PLC-Mobile-POC/scripts/ironsight-discovery-daemon.py
+Restart=on-failure
+RestartSec=10
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ironsight-discovery
+
+# Security hardening
+NoNewPrivileges=false
+ProtectSystem=false
+
+# Environment
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
