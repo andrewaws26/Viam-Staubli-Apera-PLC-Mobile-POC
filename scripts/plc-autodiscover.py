@@ -88,9 +88,27 @@ logging.basicConfig(
 log = logging.getLogger("ironsight-discover")
 
 
+def _post_to_bus(phase: str, message: str, progress: int = -1,
+                 plc_ip: str = None, success: bool = None):
+    """Post to the IronSight status bus for the display."""
+    try:
+        # Import the status bus if available
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from ironsight_status import post
+        level = "success" if success is True else ("error" if success is False else "info")
+        extra = {}
+        if progress >= 0:
+            extra["progress"] = progress
+        post("discovery", phase, message, progress=progress,
+             plc_ip=plc_ip, success=success, level=level, extra=extra)
+    except Exception:
+        pass
+
+
 def write_status(phase: str, message: str, progress: int = 0,
                  plc_ip: Optional[str] = None, success: Optional[bool] = None):
     """Write current status to /tmp for the display script to read."""
+    _post_to_bus(phase, message, progress, plc_ip, success)
     status = {
         "ts": time.time(),
         "phase": phase,

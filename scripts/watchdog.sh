@@ -14,9 +14,21 @@ REQUIRED_FAILURES=2  # consecutive check failures before alerting Claude
 PLC_HOST="169.168.10.21"
 PLC_PORT=502
 
+STATUS_SCRIPT="$PROJECT_DIR/scripts/ironsight-status.py"
+
 timestamp() { date '+%Y-%m-%d %H:%M:%S'; }
 
 log() { echo "[$(timestamp)] $1" >> "$LOG"; }
+
+# Post status to the display
+post_status() {
+    local phase="$1"
+    local message="$2"
+    local level="${3:-info}"
+    if [ -f "$STATUS_SCRIPT" ]; then
+        python3 "$STATUS_SCRIPT" watchdog "$phase" "$message" --level "$level" 2>/dev/null &
+    fi
+}
 
 # --- Maintenance mode check ---
 if [ -f "$MAINTENANCE_FLAG" ]; then
@@ -38,6 +50,7 @@ if systemctl is-active --quiet viam-server; then
 fi
 
 ISSUES=""
+post_status "checking" "Running health checks..."
 
 # --- Check 1: Is viam-server running? ---
 if systemctl is-active --quiet viam-server; then
@@ -162,6 +175,7 @@ if [ -n "$ISSUES" ]; then
 
     log "ISSUES CONFIRMED ($PREV_FAILS consecutive failures): $ISSUES"
     log "Calling Claude for auto-fix..."
+    post_status "fixing" "Calling Claude to diagnose issues..." "warning"
 
     cd "$PROJECT_DIR" || exit 1
 
@@ -235,13 +249,17 @@ Diagnose the issues and attempt safe fixes. Be conservative — if unsure, just 
 
     if [ $RESULT -eq 0 ]; then
         log "Claude fix attempt completed successfully"
+        post_status "fixed" "Claude fix completed" "success"
     elif [ $RESULT -eq 124 ]; then
         log "Claude fix attempt timed out (5 min)"
+        post_status "timeout" "Claude fix timed out" "warning"
     else
         log "Claude fix attempt exited with code $RESULT"
+        post_status "error" "Claude fix failed (code $RESULT)" "error"
     fi
 else
     # All checks passed — reset fail counter
     echo "0" > "$FAIL_COUNT_FILE"
     log "ALL CHECKS PASSED"
+    post_status "ok" "All checks passed" "success"
 fi
