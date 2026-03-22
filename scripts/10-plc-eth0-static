@@ -1,0 +1,25 @@
+#!/bin/bash
+# Ensure eth0 always has the PLC static IP when it comes up.
+# Also triggers PLC auto-discovery if the configured IP doesn't respond.
+#
+# Install: sudo cp scripts/10-plc-eth0-static /etc/NetworkManager/dispatcher.d/
+#          sudo chmod +x /etc/NetworkManager/dispatcher.d/10-plc-eth0-static
+INTERFACE="$1"
+ACTION="$2"
+
+PROJECT_DIR="/home/andrew/Viam-Staubli-Apera-PLC-Mobile-POC"
+DISCOVER_SCRIPT="$PROJECT_DIR/scripts/plc-autodiscover.py"
+
+if [ "$INTERFACE" = "eth0" ] && [ "$ACTION" = "up" ]; then
+    # Add default static IP so we can reach PLCs on the standard subnet
+    if ! ip addr show eth0 | grep -q "169.168.10.1/24"; then
+        logger -t plc-eth0 "eth0 came up without 169.168.10.1/24 — adding it"
+        ip addr add 169.168.10.1/24 dev eth0
+    fi
+
+    # Trigger auto-discovery in background (finds PLC even if on different subnet)
+    if [ -x "$DISCOVER_SCRIPT" ] || [ -f "$DISCOVER_SCRIPT" ]; then
+        logger -t plc-eth0 "Triggering PLC auto-discovery..."
+        nohup python3 "$DISCOVER_SCRIPT" --on-link-up >> /var/log/ironsight-discovery.log 2>&1 &
+    fi
+fi

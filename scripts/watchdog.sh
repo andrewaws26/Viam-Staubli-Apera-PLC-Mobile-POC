@@ -51,8 +51,36 @@ fi
 if timeout 3 bash -c "echo >/dev/tcp/$PLC_HOST/$PLC_PORT" 2>/dev/null; then
     log "OK: PLC reachable at $PLC_HOST:$PLC_PORT"
 else
-    ISSUES="${ISSUES}PLC not reachable at $PLC_HOST:$PLC_PORT. "
-    log "FAIL: PLC not reachable"
+    log "FAIL: PLC not reachable at $PLC_HOST:$PLC_PORT"
+    # Auto-discovery: if eth0 has carrier but PLC unreachable, try to find it
+    ETH0_CARRIER=$(cat /sys/class/net/eth0/carrier 2>/dev/null || echo 0)
+    if [ "$ETH0_CARRIER" = "1" ]; then
+        log "eth0 has carrier — triggering PLC auto-discovery..."
+        DISCOVER_SCRIPT="$PROJECT_DIR/scripts/plc-autodiscover.py"
+        if [ -f "$DISCOVER_SCRIPT" ]; then
+            DISCOVER_RESULT=$(python3 "$DISCOVER_SCRIPT" --watchdog 2>&1)
+            DISCOVER_EXIT=$?
+            if [ $DISCOVER_EXIT -eq 0 ]; then
+                log "AUTO-DISCOVERY: Found and configured new PLC — $DISCOVER_RESULT"
+                # Re-read the updated PLC_HOST
+                NEW_HOST=$(python3 -c "import json; c=json.load(open('$PROJECT_DIR/config/viam-server.json')); print([x['attributes']['host'] for x in c['components'] if x['name']=='plc-monitor'][0])" 2>/dev/null)
+                if [ -n "$NEW_HOST" ] && [ "$NEW_HOST" != "$PLC_HOST" ]; then
+                    PLC_HOST="$NEW_HOST"
+                    log "PLC_HOST updated to $PLC_HOST by auto-discovery"
+                fi
+                # Skip adding PLC issue since we just fixed it
+            elif [ $DISCOVER_EXIT -eq 2 ]; then
+                log "AUTO-DISCOVERY: PLC reachable at configured IP (race condition)"
+            else
+                ISSUES="${ISSUES}PLC not reachable at $PLC_HOST:$PLC_PORT. "
+                log "AUTO-DISCOVERY: No PLC found on any subnet"
+            fi
+        else
+            ISSUES="${ISSUES}PLC not reachable at $PLC_HOST:$PLC_PORT. "
+        fi
+    else
+        ISSUES="${ISSUES}PLC not reachable at $PLC_HOST:$PLC_PORT (eth0 no carrier). "
+    fi
 fi
 
 # --- Check 3: Is the plc-sensor module process alive? ---
