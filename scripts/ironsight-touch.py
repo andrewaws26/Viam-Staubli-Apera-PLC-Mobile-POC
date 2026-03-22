@@ -379,6 +379,123 @@ class TouchInput:
 
 
 # ─────────────────────────────────────────────────────────────
+#  PTT Button (USB presenter clicker / any USB HID button)
+# ─────────────────────────────────────────────────────────────
+
+class PTTButton:
+    """Listen for a USB HID button press/release for push-to-talk.
+
+    Works with wireless presenter clickers, USB arcade buttons, or any
+    USB device that sends keyboard key events. Ignores the Pi's built-in
+    keyboard (if any) and the touchscreen.
+    """
+
+    IGNORED_NAMES = {"ADS7846", "ads7846", "raspberrypi", "vc4"}
+
+    def __init__(self):
+        self.device = None
+        self.held = False  # True while any key is held down
+        self._lock = threading.Lock()
+        self._pressed = False   # edge-detected: became pressed
+        self._released = False  # edge-detected: became released
+        self._thread = None
+        self._running = False
+
+    def find_device(self) -> bool:
+        """Find a USB HID input device (not the touchscreen)."""
+        if not HAS_EVDEV:
+            return False
+        try:
+            for path in evdev.list_devices():
+                dev = evdev.InputDevice(path)
+                # Skip known non-button devices
+                if any(skip in dev.name for skip in self.IGNORED_NAMES):
+                    continue
+                # Must have EV_KEY capability (keyboard/button events)
+                caps = dev.capabilities(verbose=False)
+                if ecodes.EV_KEY not in caps:
+                    continue
+                # Skip if it has ABS events (probably a touchscreen/mouse)
+                if ecodes.EV_ABS in caps:
+                    continue
+                self.device = dev
+                print(f"PTT button found: {dev.name} at {path}")
+                return True
+        except Exception as e:
+            print(f"Error finding PTT device: {e}")
+        return False
+
+    def start(self):
+        """Start listening for button events in background."""
+        if not self.device:
+            if not self.find_device():
+                print("No PTT button found — use touchscreen instead")
+                return
+        self._running = True
+        self._thread = threading.Thread(target=self._read_loop, daemon=True)
+        self._thread.start()
+
+    def stop(self):
+        self._running = False
+        if self._thread:
+            self._thread.join(timeout=2)
+
+    def _read_loop(self):
+        """Background thread reading HID key events."""
+        try:
+            for event in self.device.read_loop():
+                if not self._running:
+                    break
+                if event.type == ecodes.EV_KEY:
+                    with self._lock:
+                        if event.value == 1:  # key down
+                            self.held = True
+                            self._pressed = True
+                        elif event.value == 0:  # key up
+                            self.held = False
+                            self._released = True
+        except Exception as e:
+            print(f"PTT read error: {e}")
+            # Device may have been unplugged — try to reconnect
+            self.device = None
+            while self._running:
+                time.sleep(5)
+                if self.find_device():
+                    print("PTT button reconnected")
+                    try:
+                        for event in self.device.read_loop():
+                            if not self._running:
+                                return
+                            if event.type == ecodes.EV_KEY:
+                                with self._lock:
+                                    if event.value == 1:
+                                        self.held = True
+                                        self._pressed = True
+                                    elif event.value == 0:
+                                        self.held = False
+                                        self._released = True
+                    except Exception:
+                        self.device = None
+                        continue
+
+    def get_pressed(self) -> bool:
+        """Returns True once when button is first pressed (edge detect)."""
+        with self._lock:
+            if self._pressed:
+                self._pressed = False
+                return True
+        return False
+
+    def get_released(self) -> bool:
+        """Returns True once when button is released (edge detect)."""
+        with self._lock:
+            if self._released:
+                self._released = False
+                return True
+        return False
+
+
+# ─────────────────────────────────────────────────────────────
 #  Button system
 # ─────────────────────────────────────────────────────────────
 
@@ -1900,6 +2017,10 @@ def main():
     # Set up voice chat
     voice_chat = VoiceChat(sys_status_fn=get_system_status)
 
+    # Set up PTT button (USB presenter clicker / any USB HID button)
+    ptt_button = PTTButton()
+    ptt_button.start()
+
     # App state
     current_page = "home"
     pending_dialog = None  # action string for confirm dialog
@@ -1911,8 +2032,9 @@ def main():
 
     print("IronSight Touch Display started")
     print(f"Touch: {'enabled' if not args.no_touch and touch.device else 'disabled'}")
+    print(f"PTT button: {ptt_button.device.name if ptt_button.device else 'not found (use touchscreen)'}")
     print(f"Whisper: {'available' if HAS_WHISPER else 'not installed'}")
-    print(f"Claude API: {'available' if HAS_ANTHROPIC else 'not installed'}")
+    print(f"Claude: via CLI")
 
     try:
         while True:
@@ -1924,9 +2046,22 @@ def main():
                 last_data_refresh = now
                 needs_redraw = True
 
-            # Check if touch is currently held (for PTT)
+            # Check if touch is currently held (for PTT via touchscreen)
             if ptt_held and not touch._touching:
-                # Touch released — stop recording
+                ptt_held = False
+                voice_chat.stop_recording()
+                needs_redraw = True
+
+            # Poll USB PTT button (works from any page)
+            if ptt_button.get_pressed():
+                # Button pressed — switch to chat page and start recording
+                if current_page != "chat":
+                    current_page = "chat"
+                    scroll_offset = 0
+                voice_chat.start_recording()
+                ptt_held = True
+                needs_redraw = True
+            if ptt_button.get_released() and ptt_held:
                 ptt_held = False
                 voice_chat.stop_recording()
                 needs_redraw = True
@@ -2005,6 +2140,7 @@ def main():
         print("\nStopping...")
     finally:
         touch.stop()
+        ptt_button.stop()
         if fb:
             fb.close()
 
