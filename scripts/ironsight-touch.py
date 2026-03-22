@@ -6,13 +6,14 @@ Touch-friendly UI with big buttons for glove operation on the truck.
 Renders to Linux framebuffer, reads touch from evdev (ADS7846/XPT2046).
 
 Pages:
-  HOME     — 4 big quadrant buttons: LIVE, COMMANDS, LOGS, SYSTEM
+  HOME     — 5 navigation buttons: LIVE, COMMANDS, CHAT, LOGS, SYSTEM
   LIVE     — Real-time PLC data (encoder, plates, speed, spacing)
   COMMANDS — Actionable buttons (restart, test PLC, WiFi, etc.)
+  CHAT     — Push-to-talk voice chat with Claude AI
   LOGS     — Scrollable recent activity & incidents
   SYSTEM   — Health dashboard (disk, CPU, network, services)
 
-Requires: pip3 install Pillow evdev
+Requires: pip3 install Pillow evdev anthropic faster-whisper
 """
 
 import json
@@ -38,6 +39,18 @@ try:
     HAS_EVDEV = True
 except ImportError:
     HAS_EVDEV = False
+
+try:
+    import anthropic as _anthropic_mod
+    HAS_ANTHROPIC = True
+except ImportError:
+    HAS_ANTHROPIC = False
+
+try:
+    from faster_whisper import WhisperModel
+    HAS_WHISPER = True
+except ImportError:
+    HAS_WHISPER = False
 
 # ─────────────────────────────────────────────────────────────
 #  Configuration
@@ -71,6 +84,11 @@ DARK_CYAN = (0, 70, 90)
 DARK_ORANGE = (100, 55, 10)
 
 PISUGAR_SOCK = "/tmp/pisugar-server.sock"
+CHAT_HISTORY_FILE = Path("/tmp/ironsight-chat.json")
+WHISPER_MODEL = "tiny"  # tiny=39MB, base=74MB — both fast on Pi 5
+MAX_RECORD_SECONDS = 30
+SAMPLE_RATE = 16000
+AUDIO_DEVICE = "default"  # ALSA device for USB mic
 
 LEVEL_COLORS = {
     "info": LIGHT_GRAY,
@@ -804,6 +822,255 @@ class CommandExecutor:
 
 
 # ─────────────────────────────────────────────────────────────
+#  Voice Chat system
+# ─────────────────────────────────────────────────────────────
+
+@dataclass
+class ChatMessage:
+    role: str       # "user" or "assistant"
+    text: str
+    timestamp: str
+
+    def to_dict(self):
+        return {"role": self.role, "text": self.text, "timestamp": self.timestamp}
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(role=d["role"], text=d["text"], timestamp=d.get("timestamp", ""))
+
+
+class VoiceChat:
+    """Push-to-talk voice chat with Claude via whisper + Anthropic API."""
+
+    def __init__(self, sys_status_fn):
+        self.messages: List[ChatMessage] = []
+        self.scroll_offset = 0
+        self.state = "idle"  # idle, recording, transcribing, thinking, error
+        self.state_message = ""
+        self._recording = False
+        self._audio_data = []
+        self._record_thread = None
+        self._process_thread = None
+        self._whisper_model = None
+        self._sys_status_fn = sys_status_fn
+        self._load_history()
+
+    def _load_history(self):
+        """Load chat history from disk."""
+        try:
+            data = json.loads(CHAT_HISTORY_FILE.read_text())
+            self.messages = [ChatMessage.from_dict(m) for m in data[-50:]]
+        except Exception:
+            self.messages = []
+
+    def _save_history(self):
+        """Save chat history to disk."""
+        try:
+            data = [m.to_dict() for m in self.messages[-50:]]
+            CHAT_HISTORY_FILE.write_text(json.dumps(data))
+        except Exception:
+            pass
+
+    def _get_whisper(self):
+        """Lazy-load whisper model."""
+        if self._whisper_model is None and HAS_WHISPER:
+            self.state = "loading"
+            self.state_message = "Loading whisper model..."
+            try:
+                self._whisper_model = WhisperModel(
+                    WHISPER_MODEL, device="cpu", compute_type="int8"
+                )
+            except Exception as e:
+                print(f"Whisper load error: {e}")
+                self.state = "error"
+                self.state_message = f"Whisper failed: {str(e)[:30]}"
+        return self._whisper_model
+
+    def start_recording(self):
+        """Start recording audio from USB mic."""
+        if self._recording or self.state in ("transcribing", "thinking"):
+            return
+        self._recording = True
+        self._audio_data = []
+        self.state = "recording"
+        self.state_message = "Recording... release to send"
+        self._record_thread = threading.Thread(target=self._record_loop, daemon=True)
+        self._record_thread.start()
+
+    def _record_loop(self):
+        """Record audio via arecord subprocess."""
+        try:
+            self._audio_file = f"/tmp/ironsight-voice-{int(time.time())}.wav"
+            self._record_proc = subprocess.Popen(
+                ["arecord", "-D", AUDIO_DEVICE, "-f", "S16_LE",
+                 "-r", str(SAMPLE_RATE), "-c", "1", "-t", "wav",
+                 "-d", str(MAX_RECORD_SECONDS), self._audio_file],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+            # Wait for recording to stop (either timeout or stop_recording called)
+            self._record_proc.wait()
+        except Exception as e:
+            print(f"Record error: {e}")
+            self.state = "error"
+            self.state_message = f"Mic error: {str(e)[:30]}"
+            self._recording = False
+
+    def stop_recording(self):
+        """Stop recording and process the audio."""
+        if not self._recording:
+            return
+        self._recording = False
+        # Kill the arecord process
+        try:
+            if hasattr(self, '_record_proc') and self._record_proc.poll() is None:
+                self._record_proc.terminate()
+                self._record_proc.wait(timeout=2)
+        except Exception:
+            pass
+        # Process in background
+        self._process_thread = threading.Thread(target=self._process_audio, daemon=True)
+        self._process_thread.start()
+
+    def _process_audio(self):
+        """Transcribe audio and send to Claude."""
+        audio_file = getattr(self, '_audio_file', None)
+        if not audio_file or not os.path.exists(audio_file):
+            self.state = "error"
+            self.state_message = "No audio recorded"
+            return
+
+        # Check file size — too small means no audio
+        file_size = os.path.getsize(audio_file)
+        if file_size < 1000:
+            self.state = "error"
+            self.state_message = "No audio detected — check mic"
+            try:
+                os.unlink(audio_file)
+            except Exception:
+                pass
+            return
+
+        # Transcribe
+        self.state = "transcribing"
+        self.state_message = "Transcribing..."
+        transcript = self._transcribe(audio_file)
+
+        # Clean up audio file
+        try:
+            os.unlink(audio_file)
+        except Exception:
+            pass
+
+        if not transcript or not transcript.strip():
+            self.state = "error"
+            self.state_message = "Could not understand audio"
+            return
+
+        # Add user message
+        user_msg = ChatMessage(
+            role="user", text=transcript.strip(),
+            timestamp=time.strftime("%H:%M")
+        )
+        self.messages.append(user_msg)
+        self.scroll_offset = 0  # scroll to bottom
+
+        # Send to Claude
+        self.state = "thinking"
+        self.state_message = "Claude is thinking..."
+        response = self._ask_claude(transcript.strip())
+
+        if response:
+            assistant_msg = ChatMessage(
+                role="assistant", text=response,
+                timestamp=time.strftime("%H:%M")
+            )
+            self.messages.append(assistant_msg)
+        else:
+            self.state = "error"
+            self.state_message = "Claude API error"
+            return
+
+        self._save_history()
+        self.state = "idle"
+        self.state_message = ""
+
+    def _transcribe(self, audio_file: str) -> str:
+        """Transcribe audio file using faster-whisper."""
+        model = self._get_whisper()
+        if model:
+            try:
+                segments, _ = model.transcribe(
+                    audio_file, beam_size=1, language="en",
+                    vad_filter=True
+                )
+                return " ".join(seg.text for seg in segments).strip()
+            except Exception as e:
+                print(f"Transcription error: {e}")
+
+        # Fallback: no whisper — show error
+        self.state = "error"
+        self.state_message = "Whisper not available"
+        return ""
+
+    def _ask_claude(self, user_text: str) -> str:
+        """Send message to Claude API with system context."""
+        if not HAS_ANTHROPIC:
+            return "Error: anthropic SDK not installed"
+
+        try:
+            client = _anthropic_mod.Anthropic()  # uses ANTHROPIC_API_KEY env var
+
+            # Build system context from current system status
+            sys_status = self._sys_status_fn()
+            bat = sys_status.get("battery", {})
+            context = f"""You are IronSight, an AI assistant on a TPS railroad truck monitoring system.
+You run on a Raspberry Pi 5 connected to a Click PLC via Modbus TCP.
+Keep responses SHORT (2-3 sentences max) — they display on a tiny 3.5" screen.
+Use plain language, no markdown formatting.
+
+Current status:
+- PLC: {'connected' if sys_status['connected'] else 'disconnected'} ({sys_status['plc_ip']})
+- viam-server: {'running' if sys_status['viam_server'] else 'stopped'}
+- Internet: {'connected' if sys_status['internet'] else 'offline'} (WiFi: {sys_status['wifi_ssid']})
+- Ethernet: {'linked' if sys_status['eth0_carrier'] else 'NO CARRIER'}
+- Plates dropped: {sys_status['plate_count']}
+- Travel: {sys_status['travel_ft']:.1f} ft
+- Speed: {sys_status['speed_ftpm']:.1f} ft/min
+- Spacing: last {sys_status['last_spacing_in']:.1f}" avg {sys_status['avg_spacing_in']:.1f}"
+- Battery: {f"{bat['percent']:.0f}% {'charging' if bat['charging'] else 'discharging'}" if bat.get('available') else 'N/A'}
+- CPU: {sys_status['cpu_temp']:.0f}C, Mem: {sys_status['mem_pct']}%, Disk: {sys_status['disk_pct']}%
+- Uptime: {sys_status['uptime']}"""
+
+            # Build message history (last few for context)
+            api_messages = []
+            for msg in self.messages[-6:]:
+                api_messages.append({
+                    "role": msg.role,
+                    "content": msg.text
+                })
+            # Add current user message
+            api_messages.append({"role": "user", "content": user_text})
+
+            response = client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=200,
+                system=context,
+                messages=api_messages,
+            )
+            return response.content[0].text
+
+        except Exception as e:
+            print(f"Claude API error: {e}")
+            return f"API error: {str(e)[:50]}"
+
+    def clear_history(self):
+        """Clear chat history."""
+        self.messages = []
+        self.scroll_offset = 0
+        self._save_history()
+
+
+# ─────────────────────────────────────────────────────────────
 #  Page renderers
 # ─────────────────────────────────────────────────────────────
 
@@ -903,52 +1170,67 @@ def render_home(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
     _draw_status_bar(draw, sys_status)
 
     buttons = []
-    font = find_font(18)
-    font_sm = find_font(11)
+    font = find_font(16)
+    font_sm = find_font(10)
 
-    # Grid layout: 2x2 below header
-    gap = 6
+    # Grid layout: row 1 = 3 buttons, row 2 = 2 buttons + CHAT (wider)
+    gap = 5
     top = HEADER_H + gap
-    btn_w = (W - MARGIN * 2 - gap) // 2
-    btn_h = (H - top - MARGIN - gap) // 2
+    total_h = H - top - MARGIN
+    row_h = (total_h - gap) // 2
 
-    grid = [
-        # (col, row, label, icon, action, color, subtitle)
-        (0, 0, "LIVE", "", "nav_live", DARK_GREEN,
-         f"{'ONLINE' if sys_status['connected'] else 'OFFLINE'} | {sys_status['plate_count']} plates"),
-        (1, 0, "COMMANDS", "", "nav_commands", DARK_ORANGE,
-         "Restart, test, WiFi"),
-        (0, 1, "LOGS", "", "nav_logs", DARK_BLUE,
-         "Activity & events"),
-        (1, 1, "SYSTEM", "", "nav_system", DARK_CYAN,
-         _system_subtitle(sys_status)),
+    # Row 1: LIVE, COMMANDS, LOGS (3 equal buttons)
+    r1_btn_w = (W - MARGIN * 2 - gap * 2) // 3
+    row1 = [
+        ("LIVE", "nav_live", DARK_GREEN,
+         f"{'ON' if sys_status['connected'] else 'OFF'} | {sys_status['plate_count']}pl"),
+        ("COMMANDS", "nav_commands", DARK_ORANGE, "Restart, test"),
+        ("LOGS", "nav_logs", DARK_BLUE, "Events"),
     ]
-
-    for col, row, label, icon, action, color, subtitle in grid:
-        bx = MARGIN + col * (btn_w + gap)
-        by = top + row * (btn_h + gap)
-
-        btn = Button(bx, by, btn_w, btn_h, label, action, color=color)
+    for i, (label, action, color, subtitle) in enumerate(row1):
+        bx = MARGIN + i * (r1_btn_w + gap)
+        by = top
+        btn = Button(bx, by, r1_btn_w, row_h, label, action, color=color)
         buttons.append(btn)
-
-        # Draw button background
-        draw.rounded_rectangle(
-            [bx, by, bx + btn_w, by + btn_h],
-            radius=10, fill=color
-        )
-
-        # Draw label centered vertically (slightly above center)
+        draw.rounded_rectangle([bx, by, bx + r1_btn_w, by + row_h], radius=10, fill=color)
         bbox = draw.textbbox((0, 0), label, font=font)
         tw = bbox[2] - bbox[0]
-        tx = bx + (btn_w - tw) // 2
-        ty = by + btn_h // 2 - 20
-        draw.text((tx, ty), label, fill=WHITE, font=font)
-
-        # Subtitle below
+        draw.text((bx + (r1_btn_w - tw) // 2, by + row_h // 2 - 18), label, fill=WHITE, font=font)
         bbox2 = draw.textbbox((0, 0), subtitle, font=font_sm)
         sw = bbox2[2] - bbox2[0]
-        sx = bx + (btn_w - sw) // 2
-        draw.text((sx, ty + 28), subtitle, fill=LIGHT_GRAY, font=font_sm)
+        draw.text((bx + (r1_btn_w - sw) // 2, by + row_h // 2 + 6), subtitle, fill=LIGHT_GRAY, font=font_sm)
+
+    # Row 2: SYSTEM, CHAT (2 buttons, CHAT gets more space)
+    r2_y = top + row_h + gap
+    sys_w = (W - MARGIN * 2 - gap) * 2 // 5
+    chat_w = W - MARGIN * 2 - gap - sys_w
+
+    # SYSTEM button
+    sys_sub = _system_subtitle(sys_status)
+    btn = Button(MARGIN, r2_y, sys_w, row_h, "SYSTEM", "nav_system", color=DARK_CYAN)
+    buttons.append(btn)
+    draw.rounded_rectangle([MARGIN, r2_y, MARGIN + sys_w, r2_y + row_h], radius=10, fill=DARK_CYAN)
+    bbox = draw.textbbox((0, 0), "SYSTEM", font=font)
+    tw = bbox[2] - bbox[0]
+    draw.text((MARGIN + (sys_w - tw) // 2, r2_y + row_h // 2 - 18), "SYSTEM", fill=WHITE, font=font)
+    bbox2 = draw.textbbox((0, 0), sys_sub, font=font_sm)
+    sw = bbox2[2] - bbox2[0]
+    draw.text((MARGIN + (sys_w - sw) // 2, r2_y + row_h // 2 + 6), sys_sub, fill=LIGHT_GRAY, font=font_sm)
+
+    # CHAT button (larger, prominent)
+    chat_x = MARGIN + sys_w + gap
+    PURPLE = (100, 40, 140)
+    btn = Button(chat_x, r2_y, chat_w, row_h, "CHAT", "nav_chat", color=PURPLE)
+    buttons.append(btn)
+    draw.rounded_rectangle([chat_x, r2_y, chat_x + chat_w, r2_y + row_h], radius=10, fill=PURPLE)
+    chat_label = "CHAT"
+    bbox = draw.textbbox((0, 0), chat_label, font=font)
+    tw = bbox[2] - bbox[0]
+    draw.text((chat_x + (chat_w - tw) // 2, r2_y + row_h // 2 - 18), chat_label, fill=WHITE, font=font)
+    chat_sub = "Push to talk"
+    bbox2 = draw.textbbox((0, 0), chat_sub, font=font_sm)
+    sw = bbox2[2] - bbox2[0]
+    draw.text((chat_x + (chat_w - sw) // 2, r2_y + row_h // 2 + 6), chat_sub, fill=LIGHT_GRAY, font=font_sm)
 
     return img, buttons
 
@@ -1229,6 +1511,127 @@ def render_system(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
     return img, [back]
 
 
+def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image", List[Button]]:
+    """CHAT — push-to-talk voice chat with Claude."""
+    img = Image.new("RGB", (W, H), DARK_GRAY)
+    draw = ImageDraw.Draw(img)
+    _draw_status_bar(draw, sys_status)
+
+    font = find_font(10)
+    font_sm = find_font(9)
+    font_btn = find_font(13)
+
+    buttons = []
+    PURPLE = (100, 40, 140)
+
+    # Chat area boundaries
+    chat_top = HEADER_H + 4
+    btn_area_h = 55  # bottom area for buttons
+    chat_bottom = H - btn_area_h
+    chat_h = chat_bottom - chat_top
+
+    # Render chat messages (scrollable)
+    messages = voice_chat.messages
+    line_h = 14
+    max_chars = 52  # characters per line at font size 10
+
+    # Word-wrap messages into display lines
+    display_lines = []
+    for msg in messages:
+        prefix = "You: " if msg.role == "user" else "AI: "
+        color = CYAN if msg.role == "user" else GREEN
+        full_text = prefix + msg.text
+        # Word wrap
+        words = full_text.split()
+        line = ""
+        for word in words:
+            test = (line + " " + word).strip()
+            if len(test) > max_chars:
+                if line:
+                    display_lines.append((line, color, msg.timestamp))
+                line = word
+            else:
+                line = test
+        if line:
+            display_lines.append((line, color, msg.timestamp))
+        display_lines.append(("", BLACK, ""))  # spacer
+
+    # Show most recent lines that fit, with scroll offset
+    visible_lines = chat_h // line_h
+    total_lines = len(display_lines)
+
+    # Auto-scroll to bottom unless user scrolled up
+    start = max(0, total_lines - visible_lines - voice_chat.scroll_offset)
+    end = start + visible_lines
+    visible = display_lines[start:end]
+
+    y = chat_top
+    for text, color, ts in visible:
+        if text:
+            draw.text((MARGIN, y), text, fill=color, font=font)
+        y += line_h
+
+    # Scroll indicators
+    if start > 0:
+        up_btn = Button(W - 45, chat_top, 40, 35, "UP", "chat_scroll_up", color=MID_GRAY)
+        buttons.append(up_btn)
+        draw_button(draw, up_btn, find_font(11))
+
+    if end < total_lines:
+        dn_btn = Button(W - 45, chat_bottom - 40, 40, 35, "DN", "chat_scroll_down", color=MID_GRAY)
+        buttons.append(dn_btn)
+        draw_button(draw, dn_btn, find_font(11))
+
+    # Status indicator
+    state = voice_chat.state
+    if state == "recording":
+        # Recording indicator — pulsing red
+        draw.rounded_rectangle(
+            [MARGIN, chat_bottom - 20, W - MARGIN, chat_bottom],
+            radius=4, fill=DARK_RED
+        )
+        draw.text((MARGIN + 8, chat_bottom - 18), "Recording... release to send",
+                   fill=RED, font=font_sm)
+    elif state in ("transcribing", "thinking", "loading"):
+        draw.rounded_rectangle(
+            [MARGIN, chat_bottom - 20, W - MARGIN, chat_bottom],
+            radius=4, fill=DARK_BLUE
+        )
+        draw.text((MARGIN + 8, chat_bottom - 18), voice_chat.state_message,
+                   fill=CYAN, font=font_sm)
+    elif state == "error":
+        draw.rounded_rectangle(
+            [MARGIN, chat_bottom - 20, W - MARGIN, chat_bottom],
+            radius=4, fill=DARK_RED
+        )
+        draw.text((MARGIN + 8, chat_bottom - 18), voice_chat.state_message,
+                   fill=RED, font=font_sm)
+
+    # Bottom button area
+    draw.rectangle([0, chat_bottom + 2, W, H], fill=(20, 20, 25))
+
+    # BACK button (left)
+    back = Button(MARGIN, chat_bottom + 7, 70, 42, "< BACK", "nav_home", color=MID_GRAY)
+    buttons.append(back)
+    draw_button(draw, back, find_font(12))
+
+    # Push-to-talk button (center, big)
+    ptt_w = 220
+    ptt_x = (W - ptt_w) // 2
+    ptt_color = RED if state == "recording" else PURPLE
+    ptt_label = "RECORDING" if state == "recording" else "HOLD TO TALK"
+    ptt = Button(ptt_x, chat_bottom + 7, ptt_w, 42, ptt_label, "chat_ptt", color=ptt_color)
+    buttons.append(ptt)
+    draw_button(draw, ptt, font_btn)
+
+    # Clear button (right)
+    clear = Button(W - 60 - MARGIN, chat_bottom + 7, 60, 42, "CLR", "chat_clear", color=MID_GRAY)
+    buttons.append(clear)
+    draw_button(draw, clear, find_font(12))
+
+    return img, buttons
+
+
 def render_confirm_dialog(base_img: "Image.Image", action: str) -> Tuple["Image.Image", List[Button]]:
     """Overlay a confirmation dialog on the current page."""
     img = base_img.copy()
@@ -1491,6 +1894,9 @@ def main():
     # Set up command executor
     executor = CommandExecutor()
 
+    # Set up voice chat
+    voice_chat = VoiceChat(sys_status_fn=get_system_status)
+
     # App state
     current_page = "home"
     pending_dialog = None  # action string for confirm dialog
@@ -1498,9 +1904,12 @@ def main():
     sys_status = {}
     last_data_refresh = 0
     needs_redraw = True
+    ptt_held = False  # push-to-talk state
 
     print("IronSight Touch Display started")
     print(f"Touch: {'enabled' if not args.no_touch and touch.device else 'disabled'}")
+    print(f"Whisper: {'available' if HAS_WHISPER else 'not installed'}")
+    print(f"Claude API: {'available' if HAS_ANTHROPIC else 'not installed'}")
 
     try:
         while True:
@@ -1512,6 +1921,13 @@ def main():
                 last_data_refresh = now
                 needs_redraw = True
 
+            # Check if touch is currently held (for PTT)
+            if ptt_held and not touch._touching:
+                # Touch released — stop recording
+                ptt_held = False
+                voice_chat.stop_recording()
+                needs_redraw = True
+
             # Poll for touch
             tap = touch.get_tap()
             if tap:
@@ -1519,9 +1935,8 @@ def main():
                 tx, ty = tap
 
                 if pending_dialog:
-                    # Dialog is showing — only dialog buttons are active
-                    # Re-render to get dialog buttons
-                    base_img, _ = _render_current_page(current_page, sys_status, scroll_offset)
+                    base_img, _ = _render_current_page(
+                        current_page, sys_status, scroll_offset, voice_chat)
                     _, dialog_buttons = render_confirm_dialog(base_img, pending_dialog)
                     hit = find_hit(dialog_buttons, tx, ty)
                     if hit:
@@ -1532,8 +1947,8 @@ def main():
                             executor.execute(real_action)
                             pending_dialog = None
                 else:
-                    # Normal page — check page buttons
-                    _, buttons = _render_current_page(current_page, sys_status, scroll_offset)
+                    _, buttons = _render_current_page(
+                        current_page, sys_status, scroll_offset, voice_chat)
                     hit = find_hit(buttons, tx, ty)
                     if hit:
                         action = hit.action
@@ -1548,16 +1963,29 @@ def main():
                             scroll_offset += 5
                         elif action.startswith("cmd_"):
                             executor.execute(action)
+                        # Chat actions
+                        elif action == "chat_ptt":
+                            # Start recording on tap (hold detection below)
+                            voice_chat.start_recording()
+                            ptt_held = True
+                        elif action == "chat_scroll_up":
+                            voice_chat.scroll_offset += 5
+                        elif action == "chat_scroll_down":
+                            voice_chat.scroll_offset = max(0, voice_chat.scroll_offset - 5)
+                        elif action == "chat_clear":
+                            voice_chat.clear_history()
 
-            # Redraw if needed
+            # Redraw if needed, or if chat state is active (recording/thinking)
+            if current_page == "chat" and voice_chat.state in ("recording", "transcribing", "thinking", "loading"):
+                needs_redraw = True
+
             if needs_redraw and fb:
-                img, _ = _render_current_page(current_page, sys_status, scroll_offset)
+                img, _ = _render_current_page(
+                    current_page, sys_status, scroll_offset, voice_chat)
 
-                # Overlay dialog if active
                 if pending_dialog:
                     img, _ = render_confirm_dialog(img, pending_dialog)
 
-                # Overlay feedback toast
                 if executor.has_feedback:
                     draw = ImageDraw.Draw(img)
                     render_feedback_toast(draw, executor)
@@ -1565,7 +1993,6 @@ def main():
                 fb.show(img)
                 needs_redraw = False
 
-            # Also redraw when feedback state changes
             if executor.has_feedback:
                 needs_redraw = True
 
@@ -1580,7 +2007,8 @@ def main():
 
 
 def _render_current_page(page: str, sys_status: dict,
-                         scroll_offset: int) -> Tuple["Image.Image", List[Button]]:
+                         scroll_offset: int,
+                         voice_chat: "VoiceChat" = None) -> Tuple["Image.Image", List[Button]]:
     """Render the current page and return (image, buttons)."""
     if page == "home":
         return render_home(sys_status)
@@ -1588,6 +2016,8 @@ def _render_current_page(page: str, sys_status: dict,
         return render_live(sys_status)
     elif page == "commands":
         return render_commands(sys_status)
+    elif page == "chat" and voice_chat:
+        return render_chat(sys_status, voice_chat)
     elif page == "logs":
         return render_logs(sys_status, scroll_offset)
     elif page == "system":

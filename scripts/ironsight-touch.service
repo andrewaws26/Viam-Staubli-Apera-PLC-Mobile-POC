@@ -10,7 +10,9 @@ Restart=on-failure
 RestartSec=5
 User=root
 Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=-/etc/ironsight/env
 # Needs root for /dev/fb0, /dev/input/event*, and systemctl commands
+# ANTHROPIC_API_KEY loaded from /etc/ironsight/env
 
 [Install]
 WantedBy=multi-user.target
