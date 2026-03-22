@@ -253,6 +253,13 @@ class TouchInput:
         self._touch_start_time = 0
         self._last_tap_time = 0
 
+        # Double-tap detection
+        self._double_tap_queue: List[Tuple[int, int]] = []
+        self._prev_tap_time = 0
+        self._prev_tap_pos = (0, 0)
+        self.DOUBLE_TAP_MS = 400   # max time between taps
+        self.DOUBLE_TAP_PX = 50    # max distance between taps
+
     def _load_calibration(self):
         """Load calibration from file if it exists."""
         try:
@@ -349,6 +356,7 @@ class TouchInput:
                                 sx, sy = self._map_coordinates(self._raw_x, self._raw_y)
                                 with self._lock:
                                     self._tap_queue.append((sx, sy))
+                                    self._check_double_tap(sx, sy)
                                 self._last_tap_time = now
 
                 elif event.type == ecodes.EV_KEY:
@@ -363,10 +371,24 @@ class TouchInput:
                                 sx, sy = self._map_coordinates(self._raw_x, self._raw_y)
                                 with self._lock:
                                     self._tap_queue.append((sx, sy))
+                                    self._check_double_tap(sx, sy)
                                 self._last_tap_time = now
 
         except Exception as e:
             print(f"Touch read error: {e}")
+
+    def _check_double_tap(self, sx: int, sy: int):
+        """Check if this tap forms a double-tap with the previous one."""
+        now = time.time()
+        dt = (now - self._prev_tap_time) * 1000
+        dx = abs(sx - self._prev_tap_pos[0])
+        dy = abs(sy - self._prev_tap_pos[1])
+        if dt < self.DOUBLE_TAP_MS and dx < self.DOUBLE_TAP_PX and dy < self.DOUBLE_TAP_PX:
+            self._double_tap_queue.append((sx, sy))
+            self._prev_tap_time = 0  # reset so triple-tap doesn't fire again
+        else:
+            self._prev_tap_time = now
+            self._prev_tap_pos = (sx, sy)
 
     def get_tap(self) -> Optional[Tuple[int, int]]:
         """Return the most recent tap, or None. Non-blocking."""
@@ -374,6 +396,15 @@ class TouchInput:
             if self._tap_queue:
                 tap = self._tap_queue[-1]
                 self._tap_queue.clear()
+                return tap
+        return None
+
+    def get_double_tap(self) -> Optional[Tuple[int, int]]:
+        """Return the most recent double-tap, or None. Non-blocking."""
+        with self._lock:
+            if self._double_tap_queue:
+                tap = self._double_tap_queue[-1]
+                self._double_tap_queue.clear()
                 return tap
         return None
 
@@ -1632,28 +1663,65 @@ def render_system(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
 
 
 def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image", List[Button]]:
-    """CHAT — push-to-talk voice chat with Claude."""
+    """CHAT — full-screen chat with double-tap-to-talk.
+
+    Double-tap anywhere to start recording, double-tap again to stop and send.
+    Swipe/scroll with UP/DN only when history overflows. No button bar — all
+    screen space goes to the conversation.
+    """
     img = Image.new("RGB", (W, H), DARK_GRAY)
     draw = ImageDraw.Draw(img)
-    _draw_status_bar(draw, sys_status)
 
     font = find_font(10)
     font_sm = find_font(9)
-    font_btn = find_font(13)
+    font_hint = find_font(8)
 
     buttons = []
-    PURPLE = (100, 40, 140)
+    state = voice_chat.state
 
-    # Chat area boundaries
-    chat_top = HEADER_H + 4
-    btn_area_h = 55  # bottom area for buttons
-    chat_bottom = H - btn_area_h
+    # Thin status line at top (smaller than normal header to save space)
+    status_h = 18
+    if state == "recording":
+        draw.rectangle([0, 0, W, status_h], fill=DARK_RED)
+        draw.text((MARGIN, 3), "RECORDING  — double-tap to send", fill=RED, font=font_sm)
+        # Recording time
+        elapsed = time.time() - voice_chat._touch_start_time if hasattr(voice_chat, '_touch_start_time') else 0
+        # Show a pulsing dot
+        dot_color = RED if int(time.time() * 2) % 2 == 0 else DARK_RED
+        draw.ellipse([W - 20, 5, W - 12, 13], fill=dot_color)
+    elif state in ("transcribing", "thinking", "loading"):
+        draw.rectangle([0, 0, W, status_h], fill=DARK_BLUE)
+        draw.text((MARGIN, 3), voice_chat.state_message, fill=CYAN, font=font_sm)
+        # Spinner dots
+        dots = "." * (int(time.time() * 3) % 4)
+        draw.text((W - 30, 3), dots, fill=CYAN, font=font_sm)
+    elif state == "error":
+        draw.rectangle([0, 0, W, status_h], fill=DARK_RED)
+        draw.text((MARGIN, 3), voice_chat.state_message, fill=RED, font=font_sm)
+    else:
+        draw.rectangle([0, 0, W, status_h], fill=(15, 15, 20))
+        # Show hint + back/clear as text links
+        draw.text((MARGIN, 3), "CHAT", fill=BLUE, font=font_sm)
+        hint = "double-tap to talk"
+        hw = draw.textlength(hint, font=font_hint)
+        draw.text(((W - hw) // 2, 4), hint, fill=MID_GRAY, font=font_hint)
+        # Back and Clear as small text buttons (top corners)
+        draw.text((W - 60, 3), "BACK", fill=LIGHT_GRAY, font=font_sm)
+        back_btn = Button(W - 65, 0, 55, status_h, "", "nav_home")
+        buttons.append(back_btn)
+        draw.text((W - 100, 3), "CLR", fill=MID_GRAY, font=font_sm)
+        clr_btn = Button(W - 105, 0, 40, status_h, "", "chat_clear")
+        buttons.append(clr_btn)
+
+    # Chat area — full screen below status line
+    chat_top = status_h + 2
+    chat_bottom = H - 2
     chat_h = chat_bottom - chat_top
 
-    # Render chat messages (scrollable)
+    # Render chat messages
     messages = voice_chat.messages
     line_h = 14
-    max_chars = 52  # characters per line at font size 10
+    max_chars = 55  # more chars now with full width
 
     # Word-wrap messages into display lines
     display_lines = []
@@ -1661,22 +1729,21 @@ def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image
         prefix = "You: " if msg.role == "user" else "AI: "
         color = CYAN if msg.role == "user" else GREEN
         full_text = prefix + msg.text
-        # Word wrap
         words = full_text.split()
         line = ""
         for word in words:
             test = (line + " " + word).strip()
             if len(test) > max_chars:
                 if line:
-                    display_lines.append((line, color, msg.timestamp))
+                    display_lines.append((line, color))
                 line = word
             else:
                 line = test
         if line:
-            display_lines.append((line, color, msg.timestamp))
-        display_lines.append(("", BLACK, ""))  # spacer
+            display_lines.append((line, color))
+        display_lines.append(("", BLACK))  # spacer between messages
 
-    # Show most recent lines that fit, with scroll offset
+    # Calculate visible window
     visible_lines = chat_h // line_h
     total_lines = len(display_lines)
 
@@ -1685,69 +1752,36 @@ def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image
     end = start + visible_lines
     visible = display_lines[start:end]
 
+    # Draw messages
     y = chat_top
-    for text, color, ts in visible:
+    for text, color in visible:
         if text:
             draw.text((MARGIN, y), text, fill=color, font=font)
         y += line_h
 
-    # Scroll indicators
+    # Empty state
+    if not messages and state == "idle":
+        empty_msgs = [
+            "Double-tap anywhere to start talking.",
+            "I can see PLC status, plates, speed,",
+            "battery, network — ask me anything.",
+        ]
+        y = chat_top + 40
+        for line in empty_msgs:
+            lw = draw.textlength(line, font=font)
+            draw.text(((W - lw) // 2, y), line, fill=MID_GRAY, font=font)
+            y += 20
+
+    # Scroll indicators (small, unobtrusive)
     if start > 0:
-        up_btn = Button(W - 45, chat_top, 40, 35, "UP", "chat_scroll_up", color=MID_GRAY)
+        draw.text((W - 20, chat_top + 2), "^", fill=LIGHT_GRAY, font=font)
+        up_btn = Button(W - 30, chat_top, 30, 25, "", "chat_scroll_up")
         buttons.append(up_btn)
-        draw_button(draw, up_btn, find_font(11))
 
     if end < total_lines:
-        dn_btn = Button(W - 45, chat_bottom - 40, 40, 35, "DN", "chat_scroll_down", color=MID_GRAY)
+        draw.text((W - 20, chat_bottom - 14), "v", fill=LIGHT_GRAY, font=font)
+        dn_btn = Button(W - 30, chat_bottom - 20, 30, 25, "", "chat_scroll_down")
         buttons.append(dn_btn)
-        draw_button(draw, dn_btn, find_font(11))
-
-    # Status indicator
-    state = voice_chat.state
-    if state == "recording":
-        # Recording indicator — pulsing red
-        draw.rounded_rectangle(
-            [MARGIN, chat_bottom - 20, W - MARGIN, chat_bottom],
-            radius=4, fill=DARK_RED
-        )
-        draw.text((MARGIN + 8, chat_bottom - 18), "Recording... release to send",
-                   fill=RED, font=font_sm)
-    elif state in ("transcribing", "thinking", "loading"):
-        draw.rounded_rectangle(
-            [MARGIN, chat_bottom - 20, W - MARGIN, chat_bottom],
-            radius=4, fill=DARK_BLUE
-        )
-        draw.text((MARGIN + 8, chat_bottom - 18), voice_chat.state_message,
-                   fill=CYAN, font=font_sm)
-    elif state == "error":
-        draw.rounded_rectangle(
-            [MARGIN, chat_bottom - 20, W - MARGIN, chat_bottom],
-            radius=4, fill=DARK_RED
-        )
-        draw.text((MARGIN + 8, chat_bottom - 18), voice_chat.state_message,
-                   fill=RED, font=font_sm)
-
-    # Bottom button area
-    draw.rectangle([0, chat_bottom + 2, W, H], fill=(20, 20, 25))
-
-    # BACK button (left)
-    back = Button(MARGIN, chat_bottom + 7, 70, 42, "< BACK", "nav_home", color=MID_GRAY)
-    buttons.append(back)
-    draw_button(draw, back, find_font(12))
-
-    # Push-to-talk button (center, big)
-    ptt_w = 220
-    ptt_x = (W - ptt_w) // 2
-    ptt_color = RED if state == "recording" else PURPLE
-    ptt_label = "RECORDING" if state == "recording" else "HOLD TO TALK"
-    ptt = Button(ptt_x, chat_bottom + 7, ptt_w, 42, ptt_label, "chat_ptt", color=ptt_color)
-    buttons.append(ptt)
-    draw_button(draw, ptt, font_btn)
-
-    # Clear button (right)
-    clear = Button(W - 60 - MARGIN, chat_bottom + 7, 60, 42, "CLR", "chat_clear", color=MID_GRAY)
-    buttons.append(clear)
-    draw_button(draw, clear, find_font(12))
 
     return img, buttons
 
@@ -2028,7 +2062,7 @@ def main():
     sys_status = {}
     last_data_refresh = 0
     needs_redraw = True
-    ptt_held = False  # push-to-talk state
+    chat_recording = False  # double-tap toggle state
 
     print("IronSight Touch Display started")
     print(f"Touch: {'enabled' if not args.no_touch and touch.device else 'disabled'}")
@@ -2046,25 +2080,34 @@ def main():
                 last_data_refresh = now
                 needs_redraw = True
 
-            # Check if touch is currently held (for PTT via touchscreen)
-            if ptt_held and not touch._touching:
-                ptt_held = False
-                voice_chat.stop_recording()
-                needs_redraw = True
-
-            # Poll USB PTT button (works from any page)
+            # Poll USB PTT button (works from any page — hold style)
             if ptt_button.get_pressed():
-                # Button pressed — switch to chat page and start recording
                 if current_page != "chat":
                     current_page = "chat"
                     scroll_offset = 0
                 voice_chat.start_recording()
-                ptt_held = True
                 needs_redraw = True
-            if ptt_button.get_released() and ptt_held:
-                ptt_held = False
+            if ptt_button.get_released() and voice_chat.state == "recording":
                 voice_chat.stop_recording()
                 needs_redraw = True
+
+            # Check for double-tap (toggle recording in chat mode)
+            dtap = touch.get_double_tap()
+            if dtap and current_page == "chat":
+                if not chat_recording and voice_chat.state == "idle":
+                    # Start recording
+                    chat_recording = True
+                    voice_chat.start_recording()
+                    needs_redraw = True
+                elif chat_recording and voice_chat.state == "recording":
+                    # Stop recording and send
+                    chat_recording = False
+                    voice_chat.stop_recording()
+                    needs_redraw = True
+
+            # Reset recording flag when processing finishes
+            if chat_recording and voice_chat.state not in ("recording", "idle"):
+                chat_recording = False
 
             # Poll for touch
             tap = touch.get_tap()
@@ -2102,10 +2145,6 @@ def main():
                         elif action.startswith("cmd_"):
                             executor.execute(action)
                         # Chat actions
-                        elif action == "chat_ptt":
-                            # Start recording on tap (hold detection below)
-                            voice_chat.start_recording()
-                            ptt_held = True
                         elif action == "chat_scroll_up":
                             voice_chat.scroll_offset += 5
                         elif action == "chat_scroll_down":
