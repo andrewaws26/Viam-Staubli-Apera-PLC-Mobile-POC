@@ -5,3 +5,7 @@ __pycache__/
 venv/
 .env
 *.egg-info/
+
+# Uploaded photos/videos — stay local, never push to repo
+uploads/photos/
+uploads/analyses/
