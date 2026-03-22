@@ -1,0 +1,15 @@
+[Unit]
+Description=IronSight Upload & Analysis Server
+After=network.target viam-server.service
+Wants=viam-server.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /home/andrew/Viam-Staubli-Apera-PLC-Mobile-POC/scripts/ironsight-server.py
+Restart=on-failure
+RestartSec=10
+User=andrew
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
