@@ -70,6 +70,8 @@ DARK_BLUE = (20, 50, 100)
 DARK_CYAN = (0, 70, 90)
 DARK_ORANGE = (100, 55, 10)
 
+PISUGAR_SOCK = "/tmp/pisugar-server.sock"
+
 LEVEL_COLORS = {
     "info": LIGHT_GRAY,
     "success": GREEN,
@@ -447,6 +449,52 @@ def find_font(size: int):
 #  Data sources (same as ironsight-display.py)
 # ─────────────────────────────────────────────────────────────
 
+def _pisugar_query(cmd: str) -> str:
+    """Query the PiSugar server via Unix socket. Returns response or empty string."""
+    try:
+        import socket as _sock
+        s = _sock.socket(_sock.AF_UNIX, _sock.SOCK_STREAM)
+        s.settimeout(1)
+        s.connect(PISUGAR_SOCK)
+        s.sendall((cmd + "\n").encode())
+        data = s.recv(256).decode().strip()
+        s.close()
+        return data
+    except Exception:
+        return ""
+
+
+def get_battery_status() -> dict:
+    """Read battery info from PiSugar 3 Plus."""
+    battery = {
+        "available": False,
+        "percent": -1,
+        "voltage": 0.0,
+        "charging": False,
+        "power_plugged": False,
+    }
+    try:
+        resp = _pisugar_query("get battery")
+        if resp and ":" in resp:
+            battery["percent"] = float(resp.split(":")[1].strip())
+            battery["available"] = True
+
+        resp = _pisugar_query("get battery_v")
+        if resp and ":" in resp:
+            battery["voltage"] = float(resp.split(":")[1].strip())
+
+        resp = _pisugar_query("get battery_charging")
+        if resp and ":" in resp:
+            battery["charging"] = resp.split(":")[1].strip().lower() == "true"
+
+        resp = _pisugar_query("get battery_power_plugged")
+        if resp and ":" in resp:
+            battery["power_plugged"] = resp.split(":")[1].strip().lower() == "true"
+    except Exception:
+        pass
+    return battery
+
+
 def get_component_status() -> dict:
     try:
         data = json.loads(STATUS_FILE.read_text())
@@ -487,6 +535,7 @@ def get_system_status() -> dict:
         "mem_pct": 0,
         "tailscale_ip": "",
         "eth0_ip": "",
+        "battery": {"available": False, "percent": -1, "voltage": 0.0, "charging": False, "power_plugged": False},
     }
 
     # viam-server
@@ -573,6 +622,9 @@ def get_system_status() -> dict:
             status["mem_pct"] = int(100 * (total - avail) / total)
     except Exception:
         pass
+
+    # Battery (PiSugar 3 Plus)
+    status["battery"] = get_battery_status()
 
     # PLC config
     try:
@@ -773,13 +825,43 @@ def _draw_status_bar(draw, sys_status):
     # IRONSIGHT brand
     draw.text((MARGIN, 8), "IRONSIGHT", fill=BLUE, font=font)
 
+    # Battery indicator (right side)
+    bat = sys_status.get("battery", {})
+    x_right = W - MARGIN
+    if bat.get("available"):
+        pct = bat.get("percent", 0)
+        charging = bat.get("charging", False)
+
+        # Battery icon: outline rectangle with fill level
+        bat_w, bat_h = 24, 12
+        bat_x = x_right - bat_w
+        bat_y = 10
+        # Battery body
+        draw.rectangle([bat_x, bat_y, bat_x + bat_w, bat_y + bat_h], outline=LIGHT_GRAY, width=1)
+        # Battery tip
+        draw.rectangle([bat_x + bat_w, bat_y + 3, bat_x + bat_w + 3, bat_y + bat_h - 3], fill=LIGHT_GRAY)
+        # Fill level
+        fill_w = max(0, int((bat_w - 2) * pct / 100))
+        bat_color = GREEN if pct > 30 else YELLOW if pct > 15 else RED
+        if charging:
+            bat_color = CYAN
+        if fill_w > 0:
+            draw.rectangle([bat_x + 1, bat_y + 1, bat_x + 1 + fill_w, bat_y + bat_h - 1], fill=bat_color)
+        # Percentage text
+        pct_str = f"{pct:.0f}%"
+        if charging:
+            pct_str = f"+{pct_str}"
+        pw = draw.textlength(pct_str, font=font_sm)
+        draw.text((bat_x - pw - 4, 9), pct_str, fill=bat_color, font=font_sm)
+        x_right = bat_x - pw - 10
+
     # Status indicators (compact)
     indicators = [
         ("PLC", sys_status["connected"]),
         ("NET", sys_status["internet"]),
         ("VIM", sys_status["viam_server"]),
     ]
-    x = W - MARGIN
+    x = x_right
     for label, ok in reversed(indicators):
         color = GREEN if ok else RED
         lw = draw.textlength(label, font=font_sm)
@@ -801,6 +883,17 @@ def _back_button() -> Button:
         label="< BACK", action="nav_home",
         color=MID_GRAY, text_color=WHITE
     )
+
+
+def _system_subtitle(sys_status: dict) -> str:
+    """Build subtitle for SYSTEM button on home screen."""
+    bat = sys_status.get("battery", {})
+    if bat.get("available"):
+        pct = bat.get("percent", 0)
+        charging = bat.get("charging", False)
+        chg = " CHG" if charging else ""
+        return f"BAT {pct:.0f}%{chg} | CPU {sys_status['cpu_temp']:.0f}C"
+    return f"CPU {sys_status['cpu_temp']:.0f}C | Disk {sys_status['disk_pct']}%"
 
 
 def render_home(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
@@ -828,7 +921,7 @@ def render_home(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
         (0, 1, "LOGS", "", "nav_logs", DARK_BLUE,
          "Activity & events"),
         (1, 1, "SYSTEM", "", "nav_system", DARK_CYAN,
-         f"CPU {sys_status['cpu_temp']:.0f}C | Disk {sys_status['disk_pct']}%"),
+         _system_subtitle(sys_status)),
     ]
 
     for col, row, label, icon, action, color, subtitle in grid:
@@ -1092,6 +1185,16 @@ def render_system(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
         ("DISK", sys_status["disk_pct"], f"{sys_status['disk_pct']}%",
          GREEN if sys_status["disk_pct"] < 80 else YELLOW if sys_status["disk_pct"] < 90 else RED),
     ]
+
+    # Add battery gauge if available
+    bat = sys_status.get("battery", {})
+    if bat.get("available"):
+        pct = bat.get("percent", 0)
+        charging = bat.get("charging", False)
+        v = bat.get("voltage", 0)
+        bat_label = f"{pct:.0f}% {v:.2f}V" + (" CHG" if charging else "")
+        bat_color = CYAN if charging else (GREEN if pct > 30 else YELLOW if pct > 15 else RED)
+        gauges.append(("BAT", pct, bat_label, bat_color))
 
     for label, value, text, color in gauges:
         draw.text((MARGIN, y), label, fill=LIGHT_GRAY, font=font_sm)
