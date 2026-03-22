@@ -51,10 +51,11 @@ from urllib.parse import parse_qs, urlparse
 # ─────────────────────────────────────────────────────────────
 
 PORT = 8420
-UPLOAD_DIR = Path("/home/andrew/ironsight-uploads")
-ANALYSIS_DIR = UPLOAD_DIR / "analysis"
-MAX_UPLOAD_MB = 100
 PROJECT_DIR = Path("/home/andrew/Viam-Staubli-Apera-PLC-Mobile-POC")
+UPLOAD_DIR = PROJECT_DIR / "uploads" / "photos"
+ANALYSIS_DIR = PROJECT_DIR / "uploads" / "analyses"
+LATEST_UPLOAD = Path("/tmp/ironsight-latest-upload")
+MAX_UPLOAD_MB = 100
 STATUS_SCRIPT = PROJECT_DIR / "scripts" / "ironsight-status.py"
 
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
@@ -460,6 +461,8 @@ class IronSightHandler(BaseHTTPRequestHandler):
                 with open(save_path, "wb") as f:
                     f.write(file_data)
 
+                # Write latest upload pointer so the current CLI session can find it
+                LATEST_UPLOAD.write_text(str(save_path))
                 return str(save_path), prompt
 
         # Raw body upload (from iOS Shortcuts)
@@ -483,6 +486,8 @@ class IronSightHandler(BaseHTTPRequestHandler):
                     f.write(chunk)
                     remaining -= len(chunk)
 
+            # Write latest upload pointer
+            LATEST_UPLOAD.write_text(str(save_path))
             prompt = parse_qs(urlparse(self.path).query).get("prompt", [None])[0]
             return str(save_path), prompt
 

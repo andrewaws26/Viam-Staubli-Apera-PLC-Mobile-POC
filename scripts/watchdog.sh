@@ -179,9 +179,11 @@ if [ -n "$ISSUES" ]; then
 
     cd "$PROJECT_DIR" || exit 1
 
-    # Gather past incidents for context
+    # Gather past incidents for context — use consolidated summary, not 400+ individual files
     PAST_INCIDENTS=""
-    if [ -d "$INCIDENTS_DIR" ] && ls "$INCIDENTS_DIR"/*.md >/dev/null 2>&1; then
+    if [ -f "$INCIDENTS_DIR/SUMMARY.md" ]; then
+        PAST_INCIDENTS=$(cat "$INCIDENTS_DIR/SUMMARY.md")
+    elif [ -d "$INCIDENTS_DIR" ] && ls "$INCIDENTS_DIR"/*.md >/dev/null 2>&1; then
         PAST_INCIDENTS=$(cat "$INCIDENTS_DIR"/*.md 2>/dev/null | tail -200)
     fi
 
@@ -199,7 +201,11 @@ PAST INCIDENTS (learn from these — what worked before, what didn't):
 $PAST_INCIDENTS
 
 AFTER YOU DIAGNOSE AND ATTEMPT A FIX, you MUST write an incident report to:
-$INCIDENTS_DIR/incident-$INCIDENT_ID.md
+$INCIDENTS_DIR/archive/incident-$INCIDENT_ID.md
+
+IMPORTANT: If this is a NEW type of problem (not already in SUMMARY.md), also append
+a new section to $INCIDENTS_DIR/SUMMARY.md with the pattern, root cause, and fix.
+If it's a repeat of an existing problem, just write the individual incident file.
 
 Use this exact format:
 ---
