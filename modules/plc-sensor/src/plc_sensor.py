@@ -25,6 +25,7 @@ import collections
 import json
 import math
 import os
+import subprocess
 import time
 import uuid
 from typing import Any, ClassVar, Deque, Dict, Mapping, Optional, Sequence
@@ -155,6 +156,206 @@ def _uint16(value: int) -> int:
     return value & 0xFFFF
 
 
+class ConnectionQualityMonitor:
+    """Monitor ethernet link quality to detect cable degradation.
+
+    Reads ethtool statistics and kernel link events to classify
+    connection health:
+      - "healthy":     Link up, zero errors, stable
+      - "degraded":    Link up but CRC/frame errors increasing
+      - "flapping":    Link going up and down repeatedly (bad cable/connector)
+      - "down":        Link down, no carrier
+      - "down_endofday": Link down, matches end-of-shift pattern
+
+    Also tracks: link speed changes, error rates, time-of-day patterns.
+    """
+
+    def __init__(self, interface: str = "eth0"):
+        self._iface = interface
+        self._prev_errors: Dict[str, int] = {}
+        self._error_deltas: Deque[Dict[str, int]] = collections.deque(maxlen=60)
+        self._link_events: Deque[Dict[str, Any]] = collections.deque(maxlen=50)
+        self._last_check: float = 0
+        self._check_interval: float = 10.0  # seconds between checks
+        self._last_link_state: Optional[bool] = None
+        self._link_flap_count: int = 0
+        self._link_flap_window: Deque[float] = collections.deque(maxlen=20)
+        self._link_up_time: Optional[float] = None
+        self._link_down_time: Optional[float] = None
+        self._link_speed: str = "unknown"
+        # Summary state
+        self.status: str = "unknown"
+        self.error_rate: float = 0.0  # errors per minute
+        self.link_uptime_seconds: float = 0.0
+        self.total_crc_errors: int = 0
+        self.total_link_flaps: int = 0
+        self.link_speed_mbps: int = 0
+        self.diagnosis: str = ""
+
+    def check(self) -> Dict[str, Any]:
+        """Run a connection quality check. Call this every read cycle."""
+        now = time.time()
+        if now - self._last_check < self._check_interval:
+            return self._current_state()
+        self._last_check = now
+
+        # 1. Check carrier state
+        carrier = self._read_carrier()
+
+        # 2. Detect link state changes
+        if self._last_link_state is not None and carrier != self._last_link_state:
+            event = {
+                "ts": now,
+                "time": time.strftime("%H:%M:%S"),
+                "event": "link_up" if carrier else "link_down",
+            }
+            self._link_events.append(event)
+
+            if carrier:
+                self._link_up_time = now
+                self._link_speed = self._read_link_speed()
+                LOGGER.info("🔗 eth0 link UP — speed: %s", self._link_speed)
+            else:
+                self._link_down_time = now
+                LOGGER.warning("🔗 eth0 link DOWN")
+
+            # Track flapping
+            self._link_flap_count += 1
+            self._link_flap_window.append(now)
+            self.total_link_flaps += 1
+
+        self._last_link_state = carrier
+
+        # 3. Read error counters (only when link is up)
+        if carrier:
+            errors = self._read_ethtool_stats()
+            if errors and self._prev_errors:
+                deltas = {}
+                for key in errors:
+                    delta = errors[key] - self._prev_errors.get(key, 0)
+                    if delta > 0:
+                        deltas[key] = delta
+                if deltas:
+                    self._error_deltas.append(deltas)
+                    LOGGER.warning("⚠️ eth0 errors detected: %s", deltas)
+            self._prev_errors = errors
+
+            # Calculate error rate (errors per minute over last 60 checks)
+            total_recent_errors = sum(
+                sum(d.values()) for d in self._error_deltas
+            )
+            window_minutes = (len(self._error_deltas) * self._check_interval) / 60.0
+            self.error_rate = total_recent_errors / max(window_minutes, 0.1)
+
+            # Track CRC specifically
+            if errors:
+                self.total_crc_errors = errors.get("rx_frame_check_sequence_errors", 0)
+
+            # Link uptime
+            if self._link_up_time:
+                self.link_uptime_seconds = now - self._link_up_time
+
+            # Read speed
+            try:
+                self.link_speed_mbps = int(self._link_speed.replace("Mbps", "").strip())
+            except (ValueError, AttributeError):
+                self.link_speed_mbps = 0
+
+        # 4. Classify connection status
+        self.status, self.diagnosis = self._classify(carrier, now)
+
+        return self._current_state()
+
+    def _classify(self, carrier: bool, now: float) -> tuple:
+        """Classify the connection health."""
+        if not carrier:
+            # Check time of day — end of shift?
+            hour = time.localtime(now).tm_hour
+            if self._link_down_time:
+                down_hour = time.localtime(self._link_down_time).tm_hour
+                if 15 <= down_hour <= 18:
+                    return "down_endofday", "Link down — likely end-of-shift PLC shutdown"
+                down_duration = now - self._link_down_time
+                if down_duration > 3600:
+                    return "down", f"Link down for {down_duration/3600:.1f} hours — PLC off or cable disconnected"
+            return "down", "No carrier — cable disconnected or PLC powered off"
+
+        # Link is up — check quality
+        # Flapping? (>3 link events in last 5 minutes)
+        recent_flaps = sum(1 for t in self._link_flap_window if now - t < 300)
+        if recent_flaps > 3:
+            return "flapping", f"Link flapping ({recent_flaps} state changes in 5 min) — check cable/connector"
+
+        # Error rate?
+        if self.error_rate > 10:
+            return "degraded", f"High error rate ({self.error_rate:.1f}/min) — cable may be damaged"
+        if self.error_rate > 1:
+            return "degraded", f"Elevated errors ({self.error_rate:.1f}/min) — monitor cable"
+
+        # Speed drop?
+        if self.link_speed_mbps > 0 and self.link_speed_mbps < 100:
+            return "degraded", f"Link speed {self.link_speed_mbps}Mbps (expected 100) — cable quality issue"
+
+        return "healthy", "Link up, no errors"
+
+    def _read_carrier(self) -> bool:
+        try:
+            return open(f"/sys/class/net/{self._iface}/carrier").read().strip() == "1"
+        except Exception:
+            return False
+
+    def _read_link_speed(self) -> str:
+        try:
+            speed = open(f"/sys/class/net/{self._iface}/speed").read().strip()
+            return f"{speed}Mbps"
+        except Exception:
+            return "unknown"
+
+    def _read_ethtool_stats(self) -> Dict[str, int]:
+        """Read ethernet error counters from ethtool -S."""
+        error_keys = {
+            "rx_frame_check_sequence_errors",
+            "rx_alignment_errors",
+            "rx_symbol_errors",
+            "rx_length_field_frame_errors",
+            "rx_overruns",
+            "rx_resource_errors",
+            "tx_carrier_sense_errors",
+            "tx_excessive_collisions",
+            "tx_late_collisions",
+            "rx_ip_header_checksum_errors",
+            "rx_tcp_checksum_errors",
+        }
+        stats = {}
+        try:
+            out = subprocess.check_output(
+                ["ethtool", "-S", self._iface],
+                text=True, timeout=5, stderr=subprocess.DEVNULL
+            )
+            for line in out.splitlines():
+                line = line.strip()
+                if ":" in line:
+                    key, val = line.split(":", 1)
+                    key = key.strip()
+                    if key in error_keys:
+                        stats[key] = int(val.strip())
+        except Exception:
+            pass
+        return stats
+
+    def _current_state(self) -> Dict[str, Any]:
+        """Return current connection quality as a dict for readings."""
+        return {
+            "eth0_status": self.status,
+            "eth0_diagnosis": self.diagnosis,
+            "eth0_error_rate": round(self.error_rate, 2),
+            "eth0_link_speed_mbps": self.link_speed_mbps,
+            "eth0_link_uptime_seconds": round(self.link_uptime_seconds),
+            "eth0_crc_errors": self.total_crc_errors,
+            "eth0_link_flaps": self.total_link_flaps,
+        }
+
+
 class PlcSensor(Sensor):
     """Reads TPS PLC state via Modbus TCP.
 
@@ -212,6 +413,8 @@ class PlcSensor(Sensor):
         self._next_retry_time: float = 0.0
         self._total_reads: int = 0
         self._total_errors: int = 0
+        # Connection quality monitor — detects cable issues, link flapping
+        self._conn_monitor = ConnectionQualityMonitor()
 
     @classmethod
     def new(
@@ -396,6 +599,9 @@ class PlcSensor(Sensor):
         # DS Holding Registers — all 25 zeroed
         for i in range(1, 26):
             readings[f"ds{i}"] = 0
+        # Connection quality
+        conn_quality = self._conn_monitor.check()
+        readings.update(conn_quality)
         return readings
 
     async def get_readings(
@@ -662,6 +868,10 @@ class PlcSensor(Sensor):
                 "x2": bool(discrete_bits[1]),
                 "x8": bool(discrete_bits[7]),
             }
+
+            # Connection quality monitoring — detect cable degradation
+            conn_quality = self._conn_monitor.check()
+            readings.update(conn_quality)
 
             # Persist to local offline buffer (survives reboots + cloud outages)
             if self._offline_buffer is not None:
