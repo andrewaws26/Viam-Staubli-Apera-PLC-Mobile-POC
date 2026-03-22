@@ -1013,55 +1013,58 @@ class VoiceChat:
         return ""
 
     def _ask_claude(self, user_text: str) -> str:
-        """Send message to Claude API with system context."""
-        if not HAS_ANTHROPIC:
-            return "Error: anthropic SDK not installed"
-
+        """Send message to Claude via the claude CLI (already authenticated)."""
         try:
-            client = _anthropic_mod.Anthropic()  # uses ANTHROPIC_API_KEY env var
-
             # Build system context from current system status
             sys_status = self._sys_status_fn()
             bat = sys_status.get("battery", {})
-            context = f"""You are IronSight, an AI assistant on a TPS railroad truck monitoring system.
-You run on a Raspberry Pi 5 connected to a Click PLC via Modbus TCP.
-Keep responses SHORT (2-3 sentences max) — they display on a tiny 3.5" screen.
-Use plain language, no markdown formatting.
 
-Current status:
-- PLC: {'connected' if sys_status['connected'] else 'disconnected'} ({sys_status['plc_ip']})
-- viam-server: {'running' if sys_status['viam_server'] else 'stopped'}
-- Internet: {'connected' if sys_status['internet'] else 'offline'} (WiFi: {sys_status['wifi_ssid']})
-- Ethernet: {'linked' if sys_status['eth0_carrier'] else 'NO CARRIER'}
-- Plates dropped: {sys_status['plate_count']}
-- Travel: {sys_status['travel_ft']:.1f} ft
-- Speed: {sys_status['speed_ftpm']:.1f} ft/min
-- Spacing: last {sys_status['last_spacing_in']:.1f}" avg {sys_status['avg_spacing_in']:.1f}"
-- Battery: {f"{bat['percent']:.0f}% {'charging' if bat['charging'] else 'discharging'}" if bat.get('available') else 'N/A'}
-- CPU: {sys_status['cpu_temp']:.0f}C, Mem: {sys_status['mem_pct']}%, Disk: {sys_status['disk_pct']}%
-- Uptime: {sys_status['uptime']}"""
-
-            # Build message history (last few for context)
-            api_messages = []
-            for msg in self.messages[-6:]:
-                api_messages.append({
-                    "role": msg.role,
-                    "content": msg.text
-                })
-            # Add current user message
-            api_messages.append({"role": "user", "content": user_text})
-
-            response = client.messages.create(
-                model="claude-sonnet-4-20250514",
-                max_tokens=200,
-                system=context,
-                messages=api_messages,
+            context = (
+                "You are IronSight, an AI assistant on a TPS railroad truck. "
+                "Keep responses SHORT (2-3 sentences max) for a tiny 3.5 inch screen. "
+                "No markdown, no bullet points, plain text only.\n\n"
+                f"System: PLC {'connected' if sys_status['connected'] else 'disconnected'} "
+                f"({sys_status['plc_ip']}), "
+                f"viam-server {'running' if sys_status['viam_server'] else 'stopped'}, "
+                f"Internet {'connected' if sys_status['internet'] else 'offline'} "
+                f"(WiFi: {sys_status['wifi_ssid']}), "
+                f"eth0 {'linked' if sys_status['eth0_carrier'] else 'NO CARRIER'}, "
+                f"Plates: {sys_status['plate_count']}, "
+                f"Travel: {sys_status['travel_ft']:.1f}ft, "
+                f"Speed: {sys_status['speed_ftpm']:.1f}ft/m, "
+                f"Spacing: last {sys_status['last_spacing_in']:.1f}\" avg {sys_status['avg_spacing_in']:.1f}\", "
+                f"Battery: {'{:.0f}%'.format(bat['percent']) if bat.get('available') else 'N/A'}, "
+                f"CPU: {sys_status['cpu_temp']:.0f}C, Disk: {sys_status['disk_pct']}%, "
+                f"Up: {sys_status['uptime']}"
             )
-            return response.content[0].text
 
+            # Build conversation with recent history
+            prompt_parts = [context, ""]
+            for msg in self.messages[-6:]:
+                role = "User" if msg.role == "user" else "Assistant"
+                prompt_parts.append(f"{role}: {msg.text}")
+            prompt_parts.append(f"User: {user_text}")
+            prompt_parts.append("Respond in 2-3 short sentences:")
+
+            full_prompt = "\n".join(prompt_parts)
+
+            result = subprocess.run(
+                ["claude", "-p", "--model", "sonnet"],
+                input=full_prompt,
+                capture_output=True, text=True, timeout=60
+            )
+
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip()
+            else:
+                err = result.stderr.strip()[:50] if result.stderr else "no output"
+                return f"Claude error: {err}"
+
+        except subprocess.TimeoutExpired:
+            return "Claude took too long to respond."
         except Exception as e:
-            print(f"Claude API error: {e}")
-            return f"API error: {str(e)[:50]}"
+            print(f"Claude CLI error: {e}")
+            return f"Error: {str(e)[:50]}"
 
     def clear_history(self):
         """Clear chat history."""
