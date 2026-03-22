@@ -43,6 +43,7 @@ import tempfile
 import time
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from socketserver import ThreadingMixIn
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
@@ -240,6 +241,20 @@ UPLOAD_PAGE = """<!DOCTYPE html>
   .btn-primary { background: #2878dc; color: white; }
   .btn-secondary { background: #3a3a42; color: #ccc; }
   .btn:active { opacity: 0.8; }
+  .progress-bar {
+    width: 100%; background: #2a2a30; border-radius: 6px;
+    overflow: hidden; height: 24px; margin: 10px 0; display: none;
+  }
+  .progress-bar.show { display: block; }
+  .progress-fill {
+    height: 100%; background: #2878dc; border-radius: 6px;
+    transition: width 0.3s ease; display: flex; align-items: center;
+    justify-content: center; font-size: 12px; color: white; font-weight: 600;
+    min-width: 40px;
+  }
+  .progress-text {
+    text-align: center; font-size: 12px; color: #888; margin-bottom: 8px;
+  }
   .result {
     background: #1a1a20; border-radius: 10px; padding: 14px;
     font-size: 13px; line-height: 1.5; white-space: pre-wrap;
@@ -271,7 +286,7 @@ UPLOAD_PAGE = """<!DOCTYPE html>
   <p style="color: #666; font-size: 12px; margin-top: 8px;">Photo, video, or document</p>
 </div>
 
-<input type="file" id="fileInput" accept="image/*,video/*" capture="environment">
+<input type="file" id="fileInput" accept="image/*,video/*,.heic" multiple>
 <img class="preview" id="preview">
 
 <textarea id="prompt" placeholder="Optional: what should I look for? (e.g. 'check the encoder mounting' or 'read the register values on screen')"></textarea>
@@ -282,6 +297,11 @@ UPLOAD_PAGE = """<!DOCTYPE html>
 <button class="btn btn-secondary" onclick="uploadOnly()">
   Upload Only (no analysis)
 </button>
+
+<div class="progress-text" id="progressText"></div>
+<div class="progress-bar" id="progressBar">
+  <div class="progress-fill" id="progressFill" style="width: 0%">0%</div>
+</div>
 
 <div class="spinner" id="spinner">
   <p style="text-align:center; color: #2878dc;">⏳ Analyzing... this may take a minute</p>
@@ -294,62 +314,126 @@ const fileInput = document.getElementById('fileInput');
 const preview = document.getElementById('preview');
 const resultDiv = document.getElementById('result');
 const spinner = document.getElementById('spinner');
-let selectedFile = null;
+const progressBar = document.getElementById('progressBar');
+const progressFill = document.getElementById('progressFill');
+const progressText = document.getElementById('progressText');
+let selectedFiles = [];
+
+function showProgress(pct, text) {
+  progressBar.classList.add('show');
+  progressFill.style.width = pct + '%';
+  progressFill.textContent = pct + '%';
+  if (text) { progressText.textContent = text; progressText.style.display = 'block'; }
+}
+function hideProgress() {
+  progressBar.classList.remove('show');
+  progressText.style.display = 'none';
+}
+
+function uploadWithProgress(url, formData) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        const pct = Math.round(e.loaded / e.total * 100);
+        showProgress(pct, 'Uploading... ' + (e.loaded/1024/1024).toFixed(1) + ' / ' + (e.total/1024/1024).toFixed(1) + ' MB');
+      }
+    };
+    xhr.onload = () => {
+      try { resolve(JSON.parse(xhr.responseText)); }
+      catch(e) { reject(new Error('Invalid response')); }
+    };
+    xhr.onerror = () => reject(new Error('Network error'));
+    xhr.ontimeout = () => reject(new Error('Upload timed out'));
+    xhr.timeout = 300000;
+    xhr.send(formData);
+  });
+}
 
 fileInput.addEventListener('change', (e) => {
-  selectedFile = e.target.files[0];
-  if (selectedFile && selectedFile.type.startsWith('image/')) {
-    preview.src = URL.createObjectURL(selectedFile);
+  selectedFiles = Array.from(e.target.files);
+  if (selectedFiles.length === 0) return;
+
+  if (selectedFiles.length === 1 && selectedFiles[0].type.startsWith('image/')) {
+    preview.src = URL.createObjectURL(selectedFiles[0]);
     preview.classList.add('show');
   } else {
     preview.classList.remove('show');
   }
+
+  const totalMB = selectedFiles.reduce((s, f) => s + f.size, 0) / 1024 / 1024;
+  const names = selectedFiles.map(f => f.name).join(', ');
+  const truncNames = names.length > 60 ? names.slice(0, 57) + '...' : names;
   document.getElementById('dropZone').innerHTML =
-    '<p style="font-size: 24px;">✅</p><p>' + selectedFile.name + '</p>' +
-    '<p style="color:#666;font-size:12px;">' + (selectedFile.size/1024/1024).toFixed(1) + ' MB</p>';
+    '<p style="font-size: 24px;">✅</p>' +
+    '<p>' + selectedFiles.length + ' file' + (selectedFiles.length > 1 ? 's' : '') + ' selected</p>' +
+    '<p style="color:#aaa;font-size:11px;">' + truncNames + '</p>' +
+    '<p style="color:#666;font-size:12px;">' + totalMB.toFixed(1) + ' MB total</p>';
 });
 
 async function uploadAndAnalyze() {
-  if (!selectedFile) { alert('Select a file first'); return; }
-  const prompt = document.getElementById('prompt').value;
-  const formData = new FormData();
-  formData.append('file', selectedFile);
-  if (prompt) formData.append('prompt', prompt);
-
-  spinner.classList.add('show');
+  if (selectedFiles.length === 0) { alert('Select files first'); return; }
   resultDiv.classList.remove('show');
   document.getElementById('analyzeBtn').disabled = true;
 
-  try {
-    const resp = await fetch('/analyze', { method: 'POST', body: formData });
-    const data = await resp.json();
-    if (data.error) {
-      resultDiv.textContent = '❌ Error: ' + data.error;
-    } else {
-      resultDiv.textContent = data.analysis;
+  const prompt = document.getElementById('prompt').value;
+  let allResults = [];
+
+  for (let i = 0; i < selectedFiles.length; i++) {
+    const file = selectedFiles[i];
+    showProgress(0, 'Uploading ' + (i+1) + '/' + selectedFiles.length + ': ' + file.name);
+
+    const formData = new FormData();
+    formData.append('file', file);
+    if (prompt) formData.append('prompt', prompt);
+
+    try {
+      const data = await uploadWithProgress('/analyze', formData);
+      showProgress(100, 'Analyzing ' + (i+1) + '/' + selectedFiles.length + '...');
+      spinner.classList.add('show');
+      spinner.innerHTML = '<p style="text-align:center; color: #2878dc;">⏳ Waiting for AI analysis of ' + file.name + '...</p>';
+
+      if (data.error) {
+        allResults.push('❌ ' + file.name + ': ' + data.error);
+      } else {
+        allResults.push('📷 ' + file.name + ':\\n' + data.analysis);
+      }
+    } catch(e) {
+      allResults.push('❌ ' + file.name + ': ' + e.message);
     }
-    resultDiv.classList.add('show');
-  } catch(e) {
-    resultDiv.textContent = '❌ Upload failed: ' + e.message;
-    resultDiv.classList.add('show');
+    spinner.classList.remove('show');
   }
-  spinner.classList.remove('show');
+
+  hideProgress();
+  resultDiv.textContent = allResults.join('\\n\\n───────────────────\\n\\n');
+  resultDiv.classList.add('show');
   document.getElementById('analyzeBtn').disabled = false;
 }
 
 async function uploadOnly() {
-  if (!selectedFile) { alert('Select a file first'); return; }
-  const formData = new FormData();
-  formData.append('file', selectedFile);
-  try {
-    const resp = await fetch('/upload', { method: 'POST', body: formData });
-    const data = await resp.json();
-    resultDiv.textContent = '✅ Uploaded: ' + data.filename + '\\nSaved to: ' + data.path;
-    resultDiv.classList.add('show');
-  } catch(e) {
-    resultDiv.textContent = '❌ Upload failed: ' + e.message;
-    resultDiv.classList.add('show');
+  if (selectedFiles.length === 0) { alert('Select files first'); return; }
+  let results = [];
+  document.getElementById('analyzeBtn').disabled = true;
+
+  for (let i = 0; i < selectedFiles.length; i++) {
+    const file = selectedFiles[i];
+    showProgress(0, 'Uploading ' + (i+1) + '/' + selectedFiles.length + ': ' + file.name);
+
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const data = await uploadWithProgress('/upload', formData);
+      results.push('✅ ' + data.filename);
+    } catch(e) {
+      results.push('❌ ' + file.name + ': ' + e.message);
+    }
   }
+
+  hideProgress();
+  resultDiv.textContent = results.join('\\n');
+  resultDiv.classList.add('show');
+  document.getElementById('analyzeBtn').disabled = false;
 }
 
 // Load system status
@@ -518,6 +602,18 @@ class IronSightHandler(BaseHTTPRequestHandler):
             self.send_error(404)
 
     def do_POST(self):
+        try:
+            self._handle_post()
+        except (ConnectionResetError, BrokenPipeError) as e:
+            print(f"[{time.strftime('%H:%M:%S')}] Connection lost during upload: {e}")
+        except Exception as e:
+            print(f"[{time.strftime('%H:%M:%S')}] POST error: {e}")
+            try:
+                self._send_json({"ok": False, "error": str(e)}, 500)
+            except Exception:
+                pass
+
+    def _handle_post(self):
         path = urlparse(self.path).path
 
         if path == "/upload":
@@ -650,7 +746,10 @@ def main():
     parser.add_argument("--host", default="0.0.0.0", help="Bind address")
     args = parser.parse_args()
 
-    server = HTTPServer((args.host, args.port), IronSightHandler)
+    class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
+        daemon_threads = True
+
+    server = ThreadedHTTPServer((args.host, args.port), IronSightHandler)
 
     print(f"""
 ╔═══════════════════════════════════════╗
