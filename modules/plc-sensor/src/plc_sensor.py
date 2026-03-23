@@ -560,6 +560,31 @@ class PlcSensor(Sensor):
         # DS Holding Registers — all 25 zeroed
         for i in range(1, 26):
             readings[f"ds{i}"] = 0
+        # Operating Mode defaults
+        readings["operating_mode"] = "None"
+        readings["mode_tps1_single"] = False
+        readings["mode_tps1_double"] = False
+        readings["mode_tps2_both"] = False
+        readings["mode_tps2_left"] = False
+        readings["mode_tps2_right"] = False
+        readings["mode_tie_team"] = False
+        readings["mode_2nd_pass"] = False
+        # Drop Pipeline defaults
+        readings["drop_enable"] = False
+        readings["drop_enable_latch"] = False
+        readings["drop_software_eject"] = False
+        readings["drop_detector_eject"] = False
+        readings["drop_encoder_eject"] = False
+        readings["first_tie_detected"] = False
+        # Detection defaults
+        readings["encoder_mode"] = False
+        readings["camera_positive"] = False
+        readings["backup_alarm"] = False
+        readings["lay_ties_set"] = False
+        readings["drop_ties"] = False
+        # TD Timer defaults
+        readings["td5_seconds_laying"] = 0
+        readings["td6_tie_travel"] = 0
         # Connection quality
         conn_quality = self._conn_monitor.check()
         readings.update(conn_quality)
@@ -678,6 +703,38 @@ class PlcSensor(Sensor):
             encoder_reset_coil = bool(internal_coils[0])  # C1999
             floating_zero = bool(internal_coils[1])        # C2000
 
+            # ── Read C-bits C1-C34 for operating mode, drop pipeline, detection state ──
+            c_app_bits = [False] * 34
+            try:
+                cb_result = self.client.read_coils(address=0, count=34)
+                if not cb_result.isError():
+                    c_app_bits = list(cb_result.bits[:34])
+            except Exception:
+                pass
+
+            # Derived operating mode name from mutually-exclusive C-bits
+            _mode_map = [
+                (c_app_bits[19], "TPS-1 Single"), (c_app_bits[20], "TPS-1 Double"),
+                (c_app_bits[21], "TPS-2 Both"), (c_app_bits[26], "Tie Team"),
+                (c_app_bits[30], "2nd Pass"),
+            ]
+            _mode = next((name for active, name in _mode_map if active), "None")
+            if c_app_bits[22]:
+                _mode += " L"
+            if c_app_bits[23]:
+                _mode += " R"
+
+            # ── Read TD timers (HR 24576, 12 registers) ──
+            td5_laying = 0
+            td6_travel = 0
+            try:
+                td_result = self.client.read_holding_registers(address=24576, count=12)
+                if not td_result.isError():
+                    td5_laying = (td_result.registers[9] << 16) | td_result.registers[8]
+                    td6_travel = (td_result.registers[11] << 16) | td_result.registers[10]
+            except Exception:
+                pass
+
             # ── TPS plate drop counter — detect OFF→ON on Y1 (Eject TPS_1) ──
             if self._prev_eject_tps1 is not None and not self._prev_eject_tps1 and eject_tps_1:
                 self._plate_drop_count += 1
@@ -759,6 +816,31 @@ class PlcSensor(Sensor):
                 "x1": bool(discrete_bits[0]),
                 "x2": bool(discrete_bits[1]),
                 "x8": bool(discrete_bits[7]),
+                # Operating Mode (mutually exclusive C-bits)
+                "operating_mode": _mode,
+                "mode_tps1_single": bool(c_app_bits[19]),    # C20
+                "mode_tps1_double": bool(c_app_bits[20]),    # C21
+                "mode_tps2_both": bool(c_app_bits[21]),      # C22
+                "mode_tps2_left": bool(c_app_bits[22]),      # C23
+                "mode_tps2_right": bool(c_app_bits[23]),     # C24
+                "mode_tie_team": bool(c_app_bits[26]),       # C27
+                "mode_2nd_pass": bool(c_app_bits[30]),       # C31
+                # Drop Pipeline
+                "drop_enable": bool(c_app_bits[15]),         # C16
+                "drop_enable_latch": bool(c_app_bits[16]),   # C17
+                "drop_software_eject": bool(c_app_bits[28]), # C29
+                "drop_detector_eject": bool(c_app_bits[29]), # C30
+                "drop_encoder_eject": bool(c_app_bits[31]),  # C32
+                "first_tie_detected": bool(c_app_bits[33]),  # C34
+                # Detection
+                "encoder_mode": bool(c_app_bits[2]),         # C3
+                "camera_positive": bool(c_app_bits[11]),     # C12
+                "backup_alarm": bool(c_app_bits[6]),         # C7
+                "lay_ties_set": bool(c_app_bits[12]),        # C13
+                "drop_ties": bool(c_app_bits[13]),           # C14
+                # TD Timers
+                "td5_seconds_laying": td5_laying,
+                "td6_tie_travel": td6_travel,
             }
 
             # Connection quality monitoring — detect cable degradation
