@@ -632,8 +632,7 @@ class PlcSensor(Sensor):
             if encoder_count > 0x7FFFFFFF:
                 encoder_count -= 0x100000000
 
-            # Invert sign: encoder is mounted so forward motion = negative counts
-            encoder_count = -encoder_count
+            # No sign inversion needed: forward motion = positive counts
 
             # ── Distance from DD1 encoder count ──
             # The PLC counts rising edges on X001 into DD1 (up-count mode).
