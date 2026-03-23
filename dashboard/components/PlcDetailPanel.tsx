@@ -55,7 +55,7 @@ export default function PlcDetailPanel({ readings }: Props) {
                     .filter(Boolean)
                     .join(" ")}
                 >
-                  {String(val)}
+                  {typeof val === "number" ? (Number.isInteger(val) ? val : val.toFixed(2)) : String(val)}
                   {unit && (
                     <span className="text-gray-600 font-normal ml-0.5 text-xs sm:text-sm">
                       {unit}
