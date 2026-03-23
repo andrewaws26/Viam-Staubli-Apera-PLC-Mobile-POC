@@ -113,8 +113,9 @@ export default function Dashboard() {
       if (simMode) {
         simRef.current.tick += 1;
         simRef.current.distance += 0.5; // 0.5 ft/sec = 30 ft/min
-        // Drop a plate roughly every 1.625 seconds (19.5" at 30 ft/min)
-        if (simRef.current.tick % 2 === 0) simRef.current.plates += 1;
+        // Drop a plate every 19.5 inches of travel (1.625 ft)
+        const expectedPlates = Math.floor((simRef.current.distance * 12) / 19.5);
+        simRef.current.plates = expectedPlates;
         const d = simRef.current;
         readings = {
           connected: true, fault: false, system_state: "running",
