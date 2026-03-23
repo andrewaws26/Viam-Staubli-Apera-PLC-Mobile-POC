@@ -526,11 +526,12 @@ class PlcSensor(Sensor):
         self._wheel_diameter_mm = wheel_diameter_mm
         wheel_circumference_mm = math.pi * wheel_diameter_mm
         self._mm_per_count = wheel_circumference_mm / _ENCODER_COUNTS_PER_REV
-        # Encoder: speed tracking (delta count / delta time)
-        self._prev_encoder_count: Optional[int] = None
+        # Encoder: distance from DS10 (Encoder Next Tie countdown)
+        self._prev_ds10: Optional[int] = None
+        self._prev_distance_mm: Optional[float] = None
         self._prev_encoder_time: Optional[float] = None
         self._encoder_speed_mmps: float = 0.0  # mm per second
-        self._accumulated_distance_mm: float = 0.0  # cumulative from deltas
+        self._accumulated_distance_mm: float = 0.0  # cumulative from DS10 deltas
         # TPS plate drop counter — tracks OFF→ON transitions on Y1 (Eject TPS_1)
         self._prev_eject_tps1: Optional[bool] = None
         self._plate_drop_count: int = 0
@@ -814,36 +815,45 @@ class PlcSensor(Sensor):
             if encoder_count > 0x7FFFFFFF:
                 encoder_count -= 0x100000000
 
-            # No sign inversion needed: forward motion = positive counts
-
-            # ── Distance from encoder count deltas ──
-            # DD1 is a raw quadrature counter that wraps and resets (PLC Rung 0).
-            # We accumulate distance from absolute deltas so it always increases
-            # regardless of count sign or PLC resets.
-            encoder_direction = 0  # default forward
+            # ── Distance from DS10 (Encoder Next Tie) ──
+            # DD1 is NOT usable for distance — the PLC resets it every ~10
+            # counts (Rung 0) at 0.1ms scan rate. We can't sample fast enough.
+            #
+            # Instead, use DS10 which counts down from DS3 (tie spacing in
+            # 0.1" units, typically 195 = 19.5") to 0, then resets. Each
+            # full cycle = one tie spacing of travel. We track the countdown
+            # and accumulate distance from the deltas.
+            ds10_encoder_next = ds[9]  # DS10: Encoder Next Tie (0.1" units)
+            ds3_tie_spacing = ds[2]    # DS3: Tie Spacing (0.1" units)
             now_ts = time.time()
-            if self._prev_encoder_count is not None:
-                delta = encoder_count - self._prev_encoder_count
-                # Ignore huge jumps from PLC resets (>10000 counts = ~35 ft)
-                if abs(delta) < 10000:
-                    self._accumulated_distance_mm += abs(delta) * self._mm_per_count
-                    if delta < 0:
-                        encoder_direction = 1  # reverse
+            encoder_direction = 0  # default forward
+
+            if self._prev_ds10 is not None and ds3_tie_spacing > 0:
+                delta_ds10 = self._prev_ds10 - ds10_encoder_next  # countdown: prev > current = forward
+                if delta_ds10 < 0:
+                    # DS10 reset (rolled over from near 0 back to ~195)
+                    # Distance traveled = remaining from prev + amount used in new cycle
+                    delta_ds10 = self._prev_ds10 + (ds3_tie_spacing - ds10_encoder_next)
+                if delta_ds10 < 0:
+                    # Reverse travel
+                    encoder_direction = 1
+                    delta_ds10 = abs(delta_ds10)
+                if delta_ds10 > 0 and delta_ds10 < ds3_tie_spacing * 2:
+                    # Convert 0.1" units to mm (1 unit = 0.1" = 2.54mm)
+                    self._accumulated_distance_mm += delta_ds10 * 2.54
+            self._prev_ds10 = ds10_encoder_next
 
             encoder_distance_mm = self._accumulated_distance_mm
             encoder_distance_ft = encoder_distance_mm / 304.8
             encoder_revolutions = encoder_distance_mm / (math.pi * self._wheel_diameter_mm)
 
-            # Speed from encoder count delta / delta time
-            if self._prev_encoder_count is not None and self._prev_encoder_time is not None:
+            # Speed from distance delta / time delta
+            if self._prev_distance_mm is not None and self._prev_encoder_time is not None:
                 dt = now_ts - self._prev_encoder_time
                 if dt > 0.01:
-                    delta_counts = abs(encoder_count - self._prev_encoder_count)
-                    if delta_counts < 10000:  # ignore PLC resets
-                        self._encoder_speed_mmps = (delta_counts * self._mm_per_count) / dt
-                    else:
-                        self._encoder_speed_mmps = 0.0
-            self._prev_encoder_count = encoder_count
+                    delta_mm = self._accumulated_distance_mm - self._prev_distance_mm
+                    self._encoder_speed_mmps = delta_mm / dt
+            self._prev_distance_mm = self._accumulated_distance_mm
             self._prev_encoder_time = now_ts
 
             # Speed in feet per minute (common railroad unit)
