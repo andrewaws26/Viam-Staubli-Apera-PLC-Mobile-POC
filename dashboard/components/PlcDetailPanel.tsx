@@ -4,6 +4,9 @@ import {
   TPS_STATUS_FIELDS,
   TPS_EJECT_FIELDS,
   TPS_PRODUCTION_FIELDS,
+  OPERATING_MODE_FIELDS,
+  DROP_PIPELINE_FIELDS,
+  DETECTION_FIELDS,
   PLC_REGISTER_FIELDS,
 } from "../lib/sensors";
 
@@ -291,7 +294,99 @@ export default function PlcDetailPanel({ readings }: Props) {
         </div>
       </div>
 
-      {/* Section 5: PLC DS Holding Registers — collapsible raw view */}
+      {/* Section 5: Operating Mode */}
+      <div className="border border-gray-800 rounded-2xl p-4 sm:p-6">
+        <div className="flex items-center justify-between mb-3 sm:mb-4">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500">
+            Operating Mode
+          </h3>
+          <span className="font-mono font-bold text-sm text-blue-400">
+            {String(readings["operating_mode"] ?? "None")}
+          </span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-2">
+          {OPERATING_MODE_FIELDS.filter((f) => f.type === "bool").map(({ key, label }) => {
+            const rawVal = readings[key];
+            const isActive = rawVal === 1 || rawVal === true;
+            return (
+              <div
+                key={key}
+                className="flex items-center gap-2 py-1"
+              >
+                <span
+                  className={[
+                    "inline-block w-2.5 h-2.5 rounded-full shrink-0",
+                    isActive ? "bg-green-500" : "bg-gray-700",
+                  ].join(" ")}
+                />
+                <span className="text-xs text-gray-400 truncate">
+                  {label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Section 6: Drop Pipeline */}
+      <div className="border border-gray-800 rounded-2xl p-4 sm:p-6">
+        <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-3 sm:mb-4">
+          Drop Pipeline
+        </h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-4 gap-y-2">
+          {DROP_PIPELINE_FIELDS.map(({ key, label }) => {
+            const rawVal = readings[key];
+            const isActive = rawVal === 1 || rawVal === true;
+            return (
+              <div
+                key={key}
+                className="flex items-center gap-2 py-1"
+              >
+                <span
+                  className={[
+                    "inline-block w-2.5 h-2.5 rounded-full shrink-0",
+                    isActive ? "bg-green-500" : "bg-red-500",
+                  ].join(" ")}
+                />
+                <span className="text-xs text-gray-400 truncate">
+                  {label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Section 7: Detection & Control */}
+      <div className="border border-gray-800 rounded-2xl p-4 sm:p-6">
+        <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-3 sm:mb-4">
+          Detection & Control
+        </h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-4 gap-y-2">
+          {DETECTION_FIELDS.map(({ key, label }) => {
+            const rawVal = readings[key];
+            const isActive = rawVal === 1 || rawVal === true;
+            return (
+              <div
+                key={key}
+                className="flex items-center gap-2 py-1"
+              >
+                <span
+                  className={[
+                    "inline-block w-2.5 h-2.5 rounded-full shrink-0",
+                    isActive ? "bg-green-500" : "bg-red-500",
+                  ].join(" ")}
+                />
+                <span className="text-xs text-gray-400 truncate">
+                  {label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Section 8: PLC DS Holding Registers — collapsible raw view */}
       <details className="border border-gray-800/50 rounded-2xl">
         <summary className="p-3 sm:p-4 cursor-pointer text-xs font-bold uppercase tracking-widest text-gray-600 hover:text-gray-400 select-none">
           PLC Raw Registers (DS1–DS25) ▸

@@ -103,6 +103,55 @@ export const TPS_PRODUCTION_FIELDS: {
 ];
 
 // ---------------------------------------------------------------------------
+// Operating Mode fields — derived from C-bit coils C20-C31
+// ---------------------------------------------------------------------------
+export const OPERATING_MODE_FIELDS: {
+  key: string;
+  label: string;
+  type: "bool" | "string";
+}[] = [
+  { key: "operating_mode", label: "Active Mode", type: "string" },
+  { key: "mode_tps1_single", label: "TPS-1 Single", type: "bool" },
+  { key: "mode_tps1_double", label: "TPS-1 Double", type: "bool" },
+  { key: "mode_tps2_both", label: "TPS-2 Both", type: "bool" },
+  { key: "mode_tps2_left", label: "Left Chute", type: "bool" },
+  { key: "mode_tps2_right", label: "Right Chute", type: "bool" },
+  { key: "mode_tie_team", label: "Tie Team", type: "bool" },
+  { key: "mode_2nd_pass", label: "2nd Pass", type: "bool" },
+];
+
+// ---------------------------------------------------------------------------
+// Drop Pipeline fields — eject chain from C-bit coils
+// ---------------------------------------------------------------------------
+export const DROP_PIPELINE_FIELDS: {
+  key: string;
+  label: string;
+  type: "bool";
+}[] = [
+  { key: "drop_enable", label: "Drop Enable", type: "bool" },
+  { key: "drop_enable_latch", label: "Drop Latch", type: "bool" },
+  { key: "drop_detector_eject", label: "Detector Eject", type: "bool" },
+  { key: "drop_encoder_eject", label: "Encoder Eject", type: "bool" },
+  { key: "drop_software_eject", label: "SW Eject", type: "bool" },
+  { key: "first_tie_detected", label: "1st Tie Found", type: "bool" },
+];
+
+// ---------------------------------------------------------------------------
+// Detection & Control fields — encoder mode, camera, alarms
+// ---------------------------------------------------------------------------
+export const DETECTION_FIELDS: {
+  key: string;
+  label: string;
+  type: "bool";
+}[] = [
+  { key: "encoder_mode", label: "Encoder Mode", type: "bool" },
+  { key: "camera_positive", label: "Camera Detection", type: "bool" },
+  { key: "backup_alarm", label: "Backup Alarm", type: "bool" },
+  { key: "lay_ties_set", label: "Lay Ties", type: "bool" },
+  { key: "drop_ties", label: "Drop Ties", type: "bool" },
+];
+
+// ---------------------------------------------------------------------------
 // PLC DS Holding Registers (DS1-DS25)
 // All 25 registers from the Click PLC ladder logic — raw values for
 // complete visibility into what the PLC is doing.
