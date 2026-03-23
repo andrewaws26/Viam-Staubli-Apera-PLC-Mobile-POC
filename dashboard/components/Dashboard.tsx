@@ -151,6 +151,10 @@ export default function Dashboard() {
           td5_seconds_laying: d.tick * 2, td6_tie_travel: 0,
           diagnostics: "[]", diagnostics_count: 0, diagnostics_critical: 0, diagnostics_warning: 0,
           diagnostic_log: "", diag_metrics: "",
+          location_city: "Louisville", location_region: "Kentucky",
+          location_timezone: "America/Kentucky/Louisville",
+          weather: "☀️ +48°F 56% ↓12mph", weather_temp: "+48°F",
+          local_time: new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }),
         } as unknown as SensorReadings;
         status = "healthy";
         setSdkConnected(true);
@@ -360,6 +364,25 @@ export default function Dashboard() {
               <StatusCard key={comp.id} component={comp} />
             ))}
           </div>
+
+          {/* Location & Weather bar */}
+          {(() => {
+            const plcComp = components.find((c) => c.id === "plc");
+            const r = plcComp?.readings;
+            if (!r) return null;
+            const city = r.location_city as string || "";
+            const region = r.location_region as string || "";
+            const weather = r.weather as string || "";
+            const localTime = r.local_time as string || "";
+            if (!city && !weather) return null;
+            return (
+              <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-gray-500 bg-gray-900/50 rounded-xl px-4 py-2">
+                {localTime && <span className="text-gray-300 font-mono">{localTime}</span>}
+                {city && <span>{city}{region ? `, ${region}` : ""}</span>}
+                {weather && <span className="text-gray-300">{weather}</span>}
+              </div>
+            );
+          })()}
 
           {/* -------------------------------------------------------------- */}
           {/* PLC Sensor Data Detail Panel                                   */}
