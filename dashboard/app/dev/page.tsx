@@ -327,6 +327,13 @@ export default function DevPage() {
     log: [],
   });
 
+  // Simulator
+  const [simEnabled, setSimEnabled] = useState(false);
+  const [simOverrides, setSimOverrides] = useState<Record<string, unknown>>({});
+  const simTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const simDistanceRef = useRef(0);
+  const simPlatesRef = useRef(0);
+
   const changedKeys = useRef<Set<string>>(new Set());
   const changeTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
@@ -341,17 +348,19 @@ export default function DevPage() {
         throw new Error(body.message || `HTTP ${res.status}`);
       }
       const data: SensorReadings = await res.json();
+      // Apply simulator overrides if enabled
+      const final = simEnabled ? { ...data, ...simOverrides } : data;
       setPrevReadings((prev) => prev);
       setReadings((prev) => {
         setPrevReadings(prev);
-        return data;
+        return final;
       });
       setPollError(null);
       setPollCount((c) => c + 1);
     } catch (err) {
       setPollError(err instanceof Error ? err.message : String(err));
     }
-  }, []);
+  }, [simEnabled, simOverrides]);
 
   useEffect(() => {
     poll();
@@ -636,6 +645,243 @@ export default function DevPage() {
       )}
 
       <main className="px-3 sm:px-6 py-4 sm:py-6 space-y-4">
+
+        {/* ================================================================ */}
+        {/* SIMULATOR                                                        */}
+        {/* ================================================================ */}
+        <details className="border border-purple-800/50 rounded-2xl bg-purple-950/10">
+          <summary className="p-4 sm:p-5 cursor-pointer select-none text-xs font-bold uppercase tracking-widest text-purple-400 hover:text-purple-300">
+            Simulator {simEnabled && <span className="ml-2 text-green-400 normal-case">(ACTIVE — overriding live data)</span>}
+          </summary>
+          <div className="px-4 sm:px-6 pb-4 sm:pb-6 space-y-4">
+            <p className="text-xs text-gray-500">
+              Override live PLC readings with simulated values. Useful for testing diagnostics, dashboard, and shift reports without TPS power.
+            </p>
+
+            {/* Master toggle */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  if (!simEnabled) {
+                    // Starting simulator — set up realistic defaults
+                    simDistanceRef.current = 0;
+                    simPlatesRef.current = 0;
+                    setSimOverrides({
+                      connected: true,
+                      tps_power_loop: true,
+                      operating_mode: "TPS-1 Single",
+                      mode_tps1_single: true,
+                      drop_enable: true,
+                      drop_enable_latch: true,
+                      encoder_speed_ftpm: 30,
+                      encoder_distance_ft: 0,
+                      encoder_direction: "forward",
+                      camera_signal: true,
+                      camera_positive: true,
+                      camera_detections_per_min: 12,
+                      camera_rate_trend: "stable",
+                      eject_rate_per_min: 10,
+                      lay_ties_set: true,
+                      drop_ties: true,
+                      first_tie_detected: true,
+                      encoder_mode: false,
+                      backup_alarm: false,
+                      ds2: 39,
+                      ds3: 195,
+                      plate_drop_count: 0,
+                      total_reads: 200,
+                      diagnostics: "[]",
+                      diagnostics_count: 0,
+                      diagnostics_critical: 0,
+                      diagnostics_warning: 0,
+                    });
+                    // Start auto-incrementing distance and plates
+                    if (simTimerRef.current) clearInterval(simTimerRef.current);
+                    simTimerRef.current = setInterval(() => {
+                      simDistanceRef.current += 0.5; // 0.5 ft per second = 30 ft/min
+                      // Drop a plate every 1.625 seconds (19.5" at 30 ft/min)
+                      if (Math.random() < 0.62) simPlatesRef.current += 1;
+                      setSimOverrides((prev) => ({
+                        ...prev,
+                        encoder_distance_ft: Math.round(simDistanceRef.current * 10) / 10,
+                        plate_drop_count: simPlatesRef.current,
+                        encoder_revolutions: Math.round(simDistanceRef.current / 4.19 * 100) / 100,
+                      }));
+                    }, 1000);
+                    setSimEnabled(true);
+                  } else {
+                    // Stopping simulator
+                    if (simTimerRef.current) clearInterval(simTimerRef.current);
+                    simTimerRef.current = null;
+                    setSimOverrides({});
+                    setSimEnabled(false);
+                  }
+                }}
+                className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
+                  simEnabled
+                    ? "bg-red-700 hover:bg-red-600 text-white"
+                    : "bg-purple-700 hover:bg-purple-600 text-white"
+                }`}
+              >
+                {simEnabled ? "Stop Simulator" : "Start Simulator"}
+              </button>
+              {simEnabled && (
+                <span className="text-xs text-green-400">
+                  Distance: {(simOverrides.encoder_distance_ft as number || 0).toFixed(1)} ft | Plates: {simOverrides.plate_drop_count as number || 0}
+                </span>
+              )}
+            </div>
+
+            {/* Scenario buttons */}
+            {simEnabled && (
+              <div className="space-y-3">
+                <p className="text-[10px] uppercase tracking-wider text-gray-600 font-bold">Trigger Scenarios</p>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    {
+                      label: "Normal Operation",
+                      color: "bg-green-800",
+                      overrides: {
+                        tps_power_loop: true, camera_detections_per_min: 12, camera_rate_trend: "stable",
+                        encoder_speed_ftpm: 30, drop_enable: true, backup_alarm: false,
+                        operating_mode: "TPS-1 Single", mode_tps1_single: true, camera_positive: true,
+                        eject_rate_per_min: 10, diagnostics: "[]", diagnostics_count: 0,
+                        diagnostics_critical: 0, diagnostics_warning: 0,
+                      },
+                    },
+                    {
+                      label: "Camera Dead (Sudden)",
+                      color: "bg-red-800",
+                      overrides: {
+                        camera_signal: false, camera_positive: false, camera_detections_per_min: 0,
+                        camera_rate_trend: "dead", camera_signal_duration_s: 120,
+                        diagnostics: "[{'rule':'camera_dead_sudden','severity':'critical','title':'Camera lost — check power and cable','action':'1. Check camera power cable at the junction box. 2. Check the signal cable at PLC terminal X3. 3. Look for a damaged or pinched cable.','category':'camera'}]",
+                        diagnostics_count: 1, diagnostics_critical: 1, diagnostics_warning: 0,
+                      },
+                    },
+                    {
+                      label: "Camera Degrading",
+                      color: "bg-yellow-800",
+                      overrides: {
+                        camera_detections_per_min: 3, camera_rate_trend: "declining", camera_positive: false,
+                        diagnostics: "[{'rule':'camera_dead_gradual','severity':'critical','title':'Camera detection degrading — clean lens','action':'1. Stop the truck safely. 2. Clean the camera lens with a dry cloth. 3. Check the camera mounting.','category':'camera'}]",
+                        diagnostics_count: 1, diagnostics_critical: 1, diagnostics_warning: 0,
+                      },
+                    },
+                    {
+                      label: "Encoder Stopped",
+                      color: "bg-red-800",
+                      overrides: {
+                        encoder_speed_ftpm: 0, encoder_noise: 0,
+                        diagnostics: "[{'rule':'encoder_stopped','severity':'critical','title':'Encoder not reading — check wheel and cable','action':'1. Check that the track wheel is in contact with the rail. 2. Check the encoder cable for damage. 3. Check X1/X2 wiring.','category':'encoder'}]",
+                        diagnostics_count: 1, diagnostics_critical: 1, diagnostics_warning: 0,
+                      },
+                    },
+                    {
+                      label: "Backward Travel",
+                      color: "bg-orange-800",
+                      overrides: {
+                        backup_alarm: true, encoder_direction: "reverse",
+                        diagnostics: "[{'rule':'backward_travel','severity':'warning','title':'Truck moving backward — plates will not drop','action':'Move the truck forward to resume plate dropping.','category':'operation'}]",
+                        diagnostics_count: 1, diagnostics_critical: 0, diagnostics_warning: 1,
+                      },
+                    },
+                    {
+                      label: "No Drops (Disabled)",
+                      color: "bg-red-800",
+                      overrides: {
+                        drop_enable: false, drop_enable_latch: false, eject_rate_per_min: 0,
+                        operating_mode: "None", mode_tps1_single: false,
+                        diagnostics: "[{'rule':'drop_disabled_troubleshoot','severity':'critical','title':'TPS powered but drops disabled','action':'1. Select an operating mode at the HMI. 2. Press Enable Drop. 3. Make sure the first tie has been detected.','category':'operation'},{'rule':'no_mode_selected','severity':'warning','title':'No operating mode selected','action':'Select a mode at the HMI.','category':'operation'}]",
+                        diagnostics_count: 2, diagnostics_critical: 1, diagnostics_warning: 1,
+                      },
+                    },
+                    {
+                      label: "PLC Slow",
+                      color: "bg-yellow-800",
+                      overrides: {
+                        modbus_response_time_ms: 15.5,
+                        diagnostics: "[{'rule':'plc_slow','severity':'warning','title':'PLC communication slowing — check Ethernet cable','action':'1. Check the Ethernet cable for damage. 2. Make sure connectors are pushed in fully. 3. Route cable away from power lines.','category':'plc'}]",
+                        diagnostics_count: 1, diagnostics_critical: 0, diagnostics_warning: 1,
+                      },
+                    },
+                    {
+                      label: "Eject No Confirm",
+                      color: "bg-yellow-800",
+                      overrides: {
+                        air_eagle_1_feedback: false, air_eagle_2_feedback: false, eject_rate_per_min: 8,
+                        diagnostics: "[{'rule':'eject_no_confirm','severity':'warning','title':'Eject firing but no Air Eagle confirmation','action':'1. Check air pressure — should be above 80 PSI. 2. Check Air Eagle wireless relay batteries. 3. Inspect solenoid valve.','category':'eject'}]",
+                        diagnostics_count: 1, diagnostics_critical: 0, diagnostics_warning: 1,
+                      },
+                    },
+                    {
+                      label: "TPS Power Off",
+                      color: "bg-gray-700",
+                      overrides: {
+                        tps_power_loop: false, encoder_speed_ftpm: 0, camera_signal: false,
+                        camera_detections_per_min: 0, eject_rate_per_min: 0, drop_enable: false,
+                        operating_mode: "None",
+                        diagnostics: "[]", diagnostics_count: 0, diagnostics_critical: 0, diagnostics_warning: 0,
+                      },
+                    },
+                  ].map((scenario) => (
+                    <button
+                      key={scenario.label}
+                      onClick={() => setSimOverrides((prev) => ({ ...prev, ...scenario.overrides }))}
+                      className={`${scenario.color} hover:brightness-110 text-white text-xs px-3 py-1.5 rounded-lg transition-all`}
+                    >
+                      {scenario.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Manual overrides */}
+                <div className="mt-3 pt-3 border-t border-gray-800">
+                  <p className="text-[10px] uppercase tracking-wider text-gray-600 font-bold mb-2">Manual Overrides</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                    {[
+                      { key: "encoder_speed_ftpm", label: "Speed (ft/min)", type: "number" },
+                      { key: "camera_detections_per_min", label: "Camera Rate (/min)", type: "number" },
+                      { key: "eject_rate_per_min", label: "Eject Rate (/min)", type: "number" },
+                      { key: "modbus_response_time_ms", label: "Modbus (ms)", type: "number" },
+                      { key: "ds2", label: "DS2 Spacing", type: "number" },
+                    ].map(({ key, label, type }) => (
+                      <div key={key}>
+                        <label className="text-[10px] text-gray-600 block mb-0.5">{label}</label>
+                        <input
+                          type={type}
+                          value={String(simOverrides[key] ?? "")}
+                          onChange={(e) => setSimOverrides((prev) => ({
+                            ...prev,
+                            [key]: type === "number" ? parseFloat(e.target.value) || 0 : e.target.value,
+                          }))}
+                          className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-gray-300"
+                        />
+                      </div>
+                    ))}
+                    {[
+                      { key: "tps_power_loop", label: "TPS Power" },
+                      { key: "backup_alarm", label: "Backup Alarm" },
+                      { key: "drop_enable", label: "Drop Enable" },
+                      { key: "camera_positive", label: "Camera Detect" },
+                      { key: "encoder_mode", label: "Encoder Mode" },
+                    ].map(({ key, label }) => (
+                      <div key={key} className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={!!simOverrides[key]}
+                          onChange={(e) => setSimOverrides((prev) => ({ ...prev, [key]: e.target.checked }))}
+                          className="rounded"
+                        />
+                        <label className="text-xs text-gray-400">{label}</label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </details>
 
         {/* ================================================================ */}
         {/* A. Pre-Flight Check                                              */}
