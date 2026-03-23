@@ -14,9 +14,21 @@ REQUIRED_FAILURES=2  # consecutive check failures before alerting Claude
 PLC_HOST="169.168.10.21"
 PLC_PORT=502
 
+STATUS_SCRIPT="$PROJECT_DIR/scripts/ironsight-status.py"
+
 timestamp() { date '+%Y-%m-%d %H:%M:%S'; }
 
 log() { echo "[$(timestamp)] $1" >> "$LOG"; }
+
+# Post status to the display
+post_status() {
+    local phase="$1"
+    local message="$2"
+    local level="${3:-info}"
+    if [ -f "$STATUS_SCRIPT" ]; then
+        python3 "$STATUS_SCRIPT" watchdog "$phase" "$message" --level "$level" 2>/dev/null &
+    fi
+}
 
 # --- Maintenance mode check ---
 if [ -f "$MAINTENANCE_FLAG" ]; then
@@ -46,6 +58,7 @@ if systemctl is-active --quiet viam-server; then
 fi
 
 ISSUES=""
+post_status "checking" "Running health checks..."
 
 # --- Check 1: Is viam-server running? ---
 if systemctl is-active --quiet viam-server; then
@@ -59,8 +72,36 @@ fi
 if timeout 3 bash -c "echo >/dev/tcp/$PLC_HOST/$PLC_PORT" 2>/dev/null; then
     log "OK: PLC reachable at $PLC_HOST:$PLC_PORT"
 else
-    ISSUES="${ISSUES}PLC not reachable at $PLC_HOST:$PLC_PORT. "
-    log "FAIL: PLC not reachable"
+    log "FAIL: PLC not reachable at $PLC_HOST:$PLC_PORT"
+    # Auto-discovery: if eth0 has carrier but PLC unreachable, try to find it
+    ETH0_CARRIER=$(cat /sys/class/net/eth0/carrier 2>/dev/null || echo 0)
+    if [ "$ETH0_CARRIER" = "1" ]; then
+        log "eth0 has carrier — triggering PLC auto-discovery..."
+        DISCOVER_SCRIPT="$PROJECT_DIR/scripts/plc-autodiscover.py"
+        if [ -f "$DISCOVER_SCRIPT" ]; then
+            DISCOVER_RESULT=$(python3 "$DISCOVER_SCRIPT" --watchdog 2>&1)
+            DISCOVER_EXIT=$?
+            if [ $DISCOVER_EXIT -eq 0 ]; then
+                log "AUTO-DISCOVERY: Found and configured new PLC — $DISCOVER_RESULT"
+                # Re-read the updated PLC_HOST
+                NEW_HOST=$(python3 -c "import json; c=json.load(open('$PROJECT_DIR/config/viam-server.json')); print([x['attributes']['host'] for x in c['components'] if x['name']=='plc-monitor'][0])" 2>/dev/null)
+                if [ -n "$NEW_HOST" ] && [ "$NEW_HOST" != "$PLC_HOST" ]; then
+                    PLC_HOST="$NEW_HOST"
+                    log "PLC_HOST updated to $PLC_HOST by auto-discovery"
+                fi
+                # Skip adding PLC issue since we just fixed it
+            elif [ $DISCOVER_EXIT -eq 2 ]; then
+                log "AUTO-DISCOVERY: PLC reachable at configured IP (race condition)"
+            else
+                ISSUES="${ISSUES}PLC not reachable at $PLC_HOST:$PLC_PORT. "
+                log "AUTO-DISCOVERY: No PLC found on any subnet"
+            fi
+        else
+            ISSUES="${ISSUES}PLC not reachable at $PLC_HOST:$PLC_PORT. "
+        fi
+    else
+        ISSUES="${ISSUES}PLC not reachable at $PLC_HOST:$PLC_PORT (eth0 no carrier). "
+    fi
 fi
 
 # --- Check 3: Is the plc-sensor module process alive? ---
@@ -142,12 +183,15 @@ if [ -n "$ISSUES" ]; then
 
     log "ISSUES CONFIRMED ($PREV_FAILS consecutive failures): $ISSUES"
     log "Calling Claude for auto-fix..."
+    post_status "fixing" "Calling Claude to diagnose issues..." "warning"
 
     cd "$PROJECT_DIR" || exit 1
 
-    # Gather past incidents for context
+    # Gather past incidents for context — use consolidated summary, not 400+ individual files
     PAST_INCIDENTS=""
-    if [ -d "$INCIDENTS_DIR" ] && ls "$INCIDENTS_DIR"/*.md >/dev/null 2>&1; then
+    if [ -f "$INCIDENTS_DIR/SUMMARY.md" ]; then
+        PAST_INCIDENTS=$(cat "$INCIDENTS_DIR/SUMMARY.md")
+    elif [ -d "$INCIDENTS_DIR" ] && ls "$INCIDENTS_DIR"/*.md >/dev/null 2>&1; then
         PAST_INCIDENTS=$(cat "$INCIDENTS_DIR"/*.md 2>/dev/null | tail -200)
     fi
 
@@ -165,7 +209,11 @@ PAST INCIDENTS (learn from these — what worked before, what didn't):
 $PAST_INCIDENTS
 
 AFTER YOU DIAGNOSE AND ATTEMPT A FIX, you MUST write an incident report to:
-$INCIDENTS_DIR/incident-$INCIDENT_ID.md
+$INCIDENTS_DIR/archive/incident-$INCIDENT_ID.md
+
+IMPORTANT: If this is a NEW type of problem (not already in SUMMARY.md), also append
+a new section to $INCIDENTS_DIR/SUMMARY.md with the pattern, root cause, and fix.
+If it's a repeat of an existing problem, just write the individual incident file.
 
 Use this exact format:
 ---
@@ -215,13 +263,17 @@ Diagnose the issues and attempt safe fixes. Be conservative — if unsure, just 
 
     if [ $RESULT -eq 0 ]; then
         log "Claude fix attempt completed successfully"
+        post_status "fixed" "Claude fix completed" "success"
     elif [ $RESULT -eq 124 ]; then
         log "Claude fix attempt timed out (5 min)"
+        post_status "timeout" "Claude fix timed out" "warning"
     else
         log "Claude fix attempt exited with code $RESULT"
+        post_status "error" "Claude fix failed (code $RESULT)" "error"
     fi
 else
     # All checks passed — reset fail counter
     echo "0" > "$FAIL_COUNT_FILE"
     log "ALL CHECKS PASSED"
+    post_status "ok" "All checks passed" "success"
 fi

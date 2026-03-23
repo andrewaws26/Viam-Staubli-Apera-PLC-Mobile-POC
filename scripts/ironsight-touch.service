@@ -1,0 +1,17 @@
+[Unit]
+Description=IronSight Interactive Touch Display
+After=viam-server.service
+Wants=viam-server.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /home/andrew/Viam-Staubli-Apera-PLC-Mobile-POC/scripts/ironsight-touch.py
+Restart=on-failure
+RestartSec=5
+User=root
+Environment=PYTHONUNBUFFERED=1
+# Needs root for /dev/fb0, /dev/input/event*, and systemctl commands
+# Chat uses `claude` CLI (already authenticated) — no API key needed
+
+[Install]
+WantedBy=multi-user.target

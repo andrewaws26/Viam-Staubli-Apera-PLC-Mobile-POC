@@ -6,8 +6,11 @@ venv/
 .env
 *.egg-info/
 
-# Uploads (photos, analyses)
+# Uploads (photos, analyses, grabbed files)
 uploads/
+uploads/photos/
+uploads/analyses/
+uploads/grabbed/
 
 # Next.js auto-generated
 dashboard/next-env.d.ts

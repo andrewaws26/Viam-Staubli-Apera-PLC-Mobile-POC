@@ -1,0 +1,15 @@
+[Unit]
+Description=IronSight Status Display
+After=viam-server.service
+Wants=viam-server.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /home/andrew/Viam-Staubli-Apera-PLC-Mobile-POC/scripts/ironsight-display.py
+Restart=on-failure
+RestartSec=10
+User=root
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
