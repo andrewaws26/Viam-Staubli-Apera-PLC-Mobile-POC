@@ -309,6 +309,28 @@ export default function DevPage() {
   const [pollError, setPollError] = useState<string | null>(null);
   const [pollCount, setPollCount] = useState(0);
 
+  // Remote control
+  const [cmdResult, setCmdResult] = useState<{ status: string; message: string } | null>(null);
+  const [cmdLoading, setCmdLoading] = useState(false);
+
+  const sendCommand = async (command: Record<string, unknown>) => {
+    setCmdLoading(true);
+    setCmdResult(null);
+    try {
+      const res = await fetch("/api/plc-command", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(command),
+      });
+      const data = await res.json();
+      setCmdResult({ status: data.status || "error", message: data.message || data.error || "Unknown response" });
+    } catch (err) {
+      setCmdResult({ status: "error", message: err instanceof Error ? err.message : "Request failed" });
+    } finally {
+      setCmdLoading(false);
+    }
+  };
+
   // Pre-flight
   const [preFlightChecks, setPreFlightChecks] = useState<PreFlightCheck[]>([]);
   const [preFlightRunning, setPreFlightRunning] = useState(false);
@@ -880,6 +902,99 @@ export default function DevPage() {
                 </div>
               </div>
             )}
+          </div>
+        </details>
+
+        {/* ================================================================ */}
+        {/* REMOTE CONTROL                                                   */}
+        {/* ================================================================ */}
+        <details className="border border-blue-800/50 rounded-2xl bg-blue-950/10">
+          <summary className="p-4 sm:p-5 cursor-pointer select-none text-xs font-bold uppercase tracking-widest text-blue-400 hover:text-blue-300">
+            Remote Control (via Viam do_command)
+          </summary>
+          <div className="px-4 sm:px-6 pb-4 sm:pb-6 space-y-4">
+            {/* TPS power warning */}
+            <div className={`p-3 rounded-lg text-xs ${
+              readings?.tps_power_loop
+                ? "bg-green-950/30 border border-green-800/50 text-green-400"
+                : "bg-yellow-950/30 border border-yellow-800/50 text-yellow-400"
+            }`}>
+              {readings?.tps_power_loop
+                ? "TPS Power is ON — eject commands will work"
+                : "⚠ TPS Power is OFF — eject commands require the physical TPS switch to be ON. Counter reset and mode commands work anytime."}
+            </div>
+
+            {/* Command result */}
+            {cmdResult && (
+              <div className={`p-3 rounded-lg text-xs ${
+                cmdResult.status === "ok"
+                  ? "bg-green-950/30 border border-green-800/50 text-green-300"
+                  : "bg-red-950/30 border border-red-800/50 text-red-300"
+              }`}>
+                {cmdResult.status === "ok" ? "✓" : "✕"} {cmdResult.message}
+              </div>
+            )}
+
+            {/* Eject buttons */}
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-gray-600 font-bold mb-2">Test Eject (requires TPS power)</p>
+              <div className="flex flex-wrap gap-2">
+                {["Y1", "Y2", "Y3"].map((output) => (
+                  <button
+                    key={output}
+                    disabled={cmdLoading}
+                    onClick={() => sendCommand({ action: "test_eject", output })}
+                    className="bg-red-800 hover:bg-red-700 disabled:bg-gray-800 text-white text-xs px-4 py-2 rounded-lg font-bold transition-colors"
+                  >
+                    {cmdLoading ? "..." : `Eject ${output}`}
+                  </button>
+                ))}
+                <button
+                  disabled={cmdLoading}
+                  onClick={() => sendCommand({ action: "software_eject" })}
+                  className="bg-orange-800 hover:bg-orange-700 disabled:bg-gray-800 text-white text-xs px-4 py-2 rounded-lg font-bold transition-colors"
+                >
+                  {cmdLoading ? "..." : "Software Eject (C29)"}
+                </button>
+              </div>
+            </div>
+
+            {/* Mode buttons */}
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-gray-600 font-bold mb-2">Set Operating Mode</p>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { mode: "single", label: "TPS-1 Single" },
+                  { mode: "double", label: "TPS-1 Double" },
+                  { mode: "both", label: "TPS-2 Both" },
+                  { mode: "left", label: "Left" },
+                  { mode: "right", label: "Right" },
+                  { mode: "tie_team", label: "Tie Team" },
+                  { mode: "2nd_pass", label: "2nd Pass" },
+                ].map(({ mode, label }) => (
+                  <button
+                    key={mode}
+                    disabled={cmdLoading}
+                    onClick={() => sendCommand({ action: "set_mode", mode })}
+                    className="bg-cyan-800 hover:bg-cyan-700 disabled:bg-gray-800 text-white text-xs px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Utility buttons */}
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-gray-600 font-bold mb-2">Utilities</p>
+              <button
+                disabled={cmdLoading}
+                onClick={() => sendCommand({ action: "reset_counters" })}
+                className="bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 text-white text-xs px-4 py-2 rounded-lg font-bold transition-colors"
+              >
+                Reset Counters
+              </button>
+            </div>
           </div>
         </details>
 

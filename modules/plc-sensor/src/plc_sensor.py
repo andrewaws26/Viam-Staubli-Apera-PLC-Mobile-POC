@@ -1169,6 +1169,126 @@ class PlcSensor(Sensor):
             self._disconnect()
             return self._disconnected_readings(str(e))
 
+    async def do_command(
+        self,
+        command: Dict[str, Any],
+        *,
+        timeout: Optional[float] = None,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """Execute remote commands on the PLC via Modbus writes.
+
+        Supported commands:
+          {"action": "test_eject", "output": "Y1"}  — Fire Y1/Y2/Y3 solenoid
+          {"action": "software_eject"}               — Set C29 (Software Eject)
+          {"action": "reset_counters"}               — Pulse C1 (Reset Plates and Time)
+          {"action": "set_mode", "mode": "single"}   — Set operating mode C-bit
+
+        SAFETY: TPS power (X4) must be ON for eject commands to work.
+        The PLC ladder gates all solenoid outputs — we cannot bypass it.
+        """
+        action = command.get("action", "")
+        result: Dict[str, Any] = {"action": action, "status": "error"}
+
+        if not self.client or not self._ensure_connected():
+            result["message"] = "PLC not connected"
+            return result
+
+        # Check TPS power for eject commands
+        tps_on = False
+        try:
+            di = self.client.read_discrete_inputs(address=0, count=8)
+            if not di.isError():
+                tps_on = bool(di.bits[3])  # X4
+        except Exception:
+            pass
+
+        if action == "test_eject":
+            output = command.get("output", "Y1").upper()
+            coil_map = {"Y1": 8192, "Y2": 8193, "Y3": 8194}
+            addr = coil_map.get(output)
+            if addr is None:
+                result["message"] = f"Unknown output: {output}. Use Y1, Y2, or Y3."
+                return result
+            if not tps_on:
+                result["message"] = "TPS power (X4) must be ON to fire eject. Turn on the TPS main switch first."
+                result["tps_power"] = False
+                return result
+            try:
+                self.client.write_coil(address=addr, value=True)
+                import asyncio
+                await asyncio.sleep(0.15)  # 150ms pulse
+                self.client.write_coil(address=addr, value=False)
+                result["status"] = "ok"
+                result["message"] = f"{output} eject pulse fired (150ms)"
+                result["tps_power"] = True
+                LOGGER.info("DO_COMMAND: test_eject %s — fired", output)
+            except Exception as e:
+                result["message"] = f"Modbus write failed: {e}"
+                LOGGER.error("DO_COMMAND: test_eject %s — error: %s", output, e)
+
+        elif action == "software_eject":
+            if not tps_on:
+                result["message"] = "TPS power (X4) must be ON for software eject. Turn on the TPS main switch first."
+                result["tps_power"] = False
+                return result
+            try:
+                self.client.write_coil(address=28, value=True)  # C29 Software Eject
+                import asyncio
+                await asyncio.sleep(0.2)
+                self.client.write_coil(address=28, value=False)
+                result["status"] = "ok"
+                result["message"] = "Software eject (C29) pulse fired"
+                result["tps_power"] = True
+                LOGGER.info("DO_COMMAND: software_eject — fired")
+            except Exception as e:
+                result["message"] = f"Modbus write failed: {e}"
+
+        elif action == "reset_counters":
+            try:
+                self.client.write_coil(address=0, value=True)  # C1 Reset Plates and Time
+                import asyncio
+                await asyncio.sleep(0.2)
+                self.client.write_coil(address=0, value=False)
+                self._plate_drop_count = 0
+                result["status"] = "ok"
+                result["message"] = "Counters reset (C1 pulsed, Pi plate count zeroed)"
+                LOGGER.info("DO_COMMAND: reset_counters — done")
+            except Exception as e:
+                result["message"] = f"Modbus write failed: {e}"
+
+        elif action == "set_mode":
+            mode = command.get("mode", "").lower()
+            mode_map = {
+                "single": (19, "TPS-1 Single"),      # C20
+                "double": (20, "TPS-1 Double"),       # C21
+                "both": (21, "TPS-2 Both"),           # C22
+                "left": (22, "TPS-2 Left"),           # C23
+                "right": (23, "TPS-2 Right"),         # C24
+                "tie_team": (26, "TPS-2 Tie Team"),   # C27
+                "2nd_pass": (30, "TPS-1 2nd Pass"),   # C31
+            }
+            if mode not in mode_map:
+                result["message"] = f"Unknown mode: {mode}. Use: {', '.join(mode_map.keys())}"
+                return result
+            coil_addr, mode_name = mode_map[mode]
+            try:
+                # Clear all mode bits first
+                for addr, _ in mode_map.values():
+                    self.client.write_coil(address=addr, value=False)
+                # Set the requested mode
+                self.client.write_coil(address=coil_addr, value=True)
+                result["status"] = "ok"
+                result["message"] = f"Mode set to {mode_name}"
+                LOGGER.info("DO_COMMAND: set_mode %s — done", mode_name)
+            except Exception as e:
+                result["message"] = f"Modbus write failed: {e}"
+
+        else:
+            result["message"] = f"Unknown action: {action}. Use: test_eject, software_eject, reset_counters, set_mode"
+
+        return result
+
     async def close(self):
         LOGGER.info("%s is closing.", self.name)
         if self.client is not None:
