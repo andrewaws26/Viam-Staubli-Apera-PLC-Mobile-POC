@@ -205,6 +205,193 @@ Each session gets its own git branch and working directory.
 
 ---
 
+## Parallel Tasks: Running Multiple Claude Sessions Safely
+
+### What Are Parallel Tasks?
+
+Claude Code can run multiple independent sessions simultaneously — each working on a
+different task, in its own isolated environment. This is powerful when you have several
+things to do and they don't depend on each other.
+
+There are three ways to run parallel work:
+
+### Method 1: Worktrees (`-w` flag) — Best for Code Changes
+
+Worktrees give each Claude session its own copy of the repo on a separate git branch.
+No two sessions can step on each other's files.
+
+```bash
+# Terminal 1: Fix the OverflowError bug
+claude -w fix-overflow-error
+> Fix the OverflowError in plc_sensor.py line 521 where failure count overflows float
+
+# Terminal 2: Update the dashboard
+claude -w update-dashboard
+> Add a connection status indicator to the dashboard header
+
+# Terminal 3: Write tests
+claude -w add-plc-tests
+> Write unit tests for the Modbus register parsing in plc_sensor.py
+```
+
+Each session:
+- Gets its own git branch (e.g., `fix-overflow-error`)
+- Works in an isolated directory (git worktree)
+- Can commit independently without merge conflicts
+- Merges back when you're ready
+
+**When to use**: Any task that changes files — bug fixes, features, refactors.
+
+### Method 2: Headless Parallel (`-p` flag in background) — Best for Analysis
+
+Run multiple read-only queries in parallel using background processes:
+
+```bash
+# Analyze three things at once
+claude -p "Review plc_sensor.py for error handling gaps" --output-format text > review-errors.txt &
+claude -p "Check watchdog.sh for race conditions" --output-format text > review-watchdog.txt &
+claude -p "Audit .claude/settings.local.json permissions for security" --output-format text > review-perms.txt &
+
+# Wait for all to finish
+wait
+cat review-errors.txt review-watchdog.txt review-perms.txt
+```
+
+**When to use**: Code reviews, log analysis, research questions — anything read-only.
+
+### Method 3: Subagents (Inside a Session) — Best for Complex Tasks
+
+Within a single interactive Claude session, Claude can spawn subagents that work in
+parallel. You don't control this directly — Claude decides when to parallelize. But
+you can prompt for it:
+
+```
+> I need three things done in parallel:
+> 1. Search the codebase for all TODO comments
+> 2. Check if any Python files have unused imports
+> 3. Find all hardcoded IP addresses
+```
+
+Claude will launch multiple search agents simultaneously and collect results.
+
+**When to use**: When you're already in a session and want Claude to fan out.
+
+### Best Practices
+
+#### Do: Plan Before Parallelizing
+Before launching parallel sessions, think about dependencies:
+```
+Good (independent):
+  Session A: Fix bug in plc_sensor.py
+  Session B: Update dashboard CSS
+  Session C: Write documentation
+
+Bad (conflicts):
+  Session A: Refactor plc_sensor.py error handling
+  Session B: Add new registers to plc_sensor.py    ← SAME FILE = merge conflict
+```
+
+#### Do: Use Budget Limits on Every Parallel Session
+Each session burns tokens independently. Three runaway sessions = 3x the cost.
+```bash
+claude -w fix-bug --max-turns 20 --max-budget-usd 1.00
+claude -w update-docs --max-turns 10 --max-budget-usd 0.50
+```
+
+#### Do: Use Read-Only Mode for Analysis Tasks
+If a parallel session only needs to read code, restrict its tools:
+```bash
+claude -p "Review this code" --allowedTools "Read,Glob,Grep"
+```
+This prevents accidental writes from a session that shouldn't be changing anything.
+
+#### Do: Name Worktrees Descriptively
+```bash
+# Good — clear what each session is doing
+claude -w fix-overflow-error-line521
+claude -w dashboard-add-status-badge
+
+# Bad — no idea what these are when you come back later
+claude -w task1
+claude -w branch2
+```
+
+#### Don't: Run Too Many Sessions on the Pi
+The Raspberry Pi 5 has 8GB RAM. Each Claude session plus its subprocesses uses memory.
+Practical limits:
+- **2-3 worktree sessions**: Fine on the Pi
+- **4+ sessions**: Start watching `htop` for memory pressure
+- **Headless `-p` tasks**: Lighter weight, can run 4-5 comfortably
+
+```bash
+# Quick check before launching another session
+free -h | head -2
+```
+
+#### Don't: Parallelize Tasks That Share State
+Avoid running parallel sessions that:
+- Edit the same file (merge conflicts)
+- Restart the same service (race condition)
+- Write to the same log or output file
+- Both try to commit to the same branch
+
+#### Don't: Forget to Merge Worktrees
+Worktree branches don't auto-merge. After parallel work:
+```bash
+# Check what branches exist
+git branch
+
+# Merge each completed worktree branch
+git checkout main
+git merge fix-overflow-error
+git merge dashboard-add-status-badge
+git merge add-plc-tests
+
+# Or create PRs for review
+gh pr create --head fix-overflow-error --title "Fix OverflowError in plc_sensor"
+```
+
+### TPS-Specific Parallel Patterns
+
+Here are practical parallel workflows for this project:
+
+#### Pattern: Debug + Fix + Test
+```bash
+# Session 1: Investigate the problem
+claude -w investigate -p "Analyze the last 50 viam-server errors and identify the root cause"
+
+# Session 2: While that runs, write the test first
+claude -w write-test -p "Write a test for plc_sensor.py that verifies encoder overflow handling"
+```
+
+#### Pattern: Multi-File Review
+```bash
+# Review everything in parallel before a deploy
+claude -p "Review plc_sensor.py for production readiness" > /tmp/review-sensor.txt &
+claude -p "Review watchdog.sh for edge cases" > /tmp/review-watchdog.txt &
+claude -p "Review ironsight-server.py for security issues" > /tmp/review-server.txt &
+wait && cat /tmp/review-*.txt
+```
+
+#### Pattern: Dashboard + Backend Simultaneously
+```bash
+# Frontend and backend don't share files — safe to parallelize
+claude -w dashboard-feature   # works in dashboard/
+claude -w plc-sensor-feature  # works in modules/plc-sensor/
+```
+
+### Safety Checklist Before Running Parallel Tasks
+
+- [ ] Are the tasks truly independent? (different files, different services)
+- [ ] Does the Pi have enough free memory? (`free -h`)
+- [ ] Did I set `--max-budget-usd` on each session?
+- [ ] Did I set `--max-turns` on unattended sessions?
+- [ ] Am I using `--allowedTools` to restrict read-only sessions?
+- [ ] Are worktree names descriptive enough to remember later?
+- [ ] Do I have a plan to merge the branches afterward?
+
+---
+
 ## Current Setup Summary
 
 ### How Claude Code is Used Today
