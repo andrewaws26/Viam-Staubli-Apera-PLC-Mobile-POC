@@ -286,7 +286,7 @@ UPLOAD_PAGE = """<!DOCTYPE html>
   <p style="color: #666; font-size: 12px; margin-top: 8px;">Photo, video, or document</p>
 </div>
 
-<input type="file" id="fileInput" accept="image/*,video/*,.heic" multiple>
+<input type="file" id="fileInput" accept="image/*,video/*,.heic,.ckp,*/*" multiple>
 <img class="preview" id="preview">
 
 <textarea id="prompt" placeholder="Optional: what should I look for? (e.g. 'check the encoder mounting' or 'read the register values on screen')"></textarea>
@@ -555,9 +555,13 @@ class IronSightHandler(BaseHTTPRequestHandler):
             ext_map = {
                 "image/jpeg": ".jpg", "image/png": ".png",
                 "image/heic": ".heic", "video/quicktime": ".mov",
-                "video/mp4": ".mp4",
+                "video/mp4": ".mp4", "application/octet-stream": ".bin",
             }
             ext = ext_map.get(content_type.split(";")[0], ".bin")
+            # Preserve original extension for unknown types
+            orig_name = self.headers.get("X-Filename", "")
+            if ext == ".bin" and "." in orig_name:
+                ext = "." + orig_name.rsplit(".", 1)[-1].lower()
             safe_name = f"upload-{ts}{ext}"
             save_path = UPLOAD_DIR / safe_name
 
