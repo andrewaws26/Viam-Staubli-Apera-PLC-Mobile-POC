@@ -160,8 +160,28 @@ def _check_encoder(r: Dict[str, Any]) -> List[Diagnostic]:
     ds2 = r.get("ds2", 0)
     drop_count = r.get("drop_count_in_window", 0)
 
+    # encoder_disconnected: DD1 frozen — hardware fault, works regardless of TPS power
+    dd1_frozen = r.get("dd1_frozen", False)
+    if dd1_frozen:
+        out.append({
+            "rule": "encoder_disconnected",
+            "severity": "critical",
+            "category": "encoder",
+            "title": "Encoder disconnected \u2014 no signal from encoder",
+            "action": (
+                "1. Check the encoder cable \u2014 is it plugged in? "
+                "2. Check the cable for damage or pinching. "
+                "3. Check connections at PLC terminals X1 and X2. "
+                "4. Check the encoder has power."
+            ),
+            "evidence": (
+                f"DD1 has not changed for 10+ seconds (frozen). "
+                f"Encoder should always produce small fluctuations."
+            ),
+        })
+
     # encoder_stopped: power on, nothing moving
-    if speed == 0 and tps_power and tps_dur > 60:  # TUNE: 60s may still be too short for stops
+    if speed == 0 and tps_power and tps_dur > 60 and not dd1_frozen:  # TUNE: 60s may still be too short for stops
         out.append({
             "rule": "encoder_stopped",
             "severity": "critical",

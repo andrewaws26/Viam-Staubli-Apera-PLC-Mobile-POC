@@ -532,6 +532,8 @@ class PlcSensor(Sensor):
         self._prev_encoder_time: Optional[float] = None
         self._encoder_speed_mmps: float = 0.0  # mm per second
         self._accumulated_distance_mm: float = 0.0  # cumulative from DS10 deltas
+        # Encoder hardware health — track if DD1 is changing at all
+        self._dd1_history: collections.deque = collections.deque(maxlen=30)  # 30 seconds of DD1 values
         # TPS plate drop counter — tracks OFF→ON transitions on Y1 (Eject TPS_1)
         self._prev_eject_tps1: Optional[bool] = None
         self._plate_drop_count: int = 0
@@ -691,6 +693,7 @@ class PlcSensor(Sensor):
             "total_errors": self._total_errors,
             # Encoder & Track Distance
             "encoder_count": 0,
+            "dd1_frozen": True,
             "encoder_direction": "forward",
             "encoder_distance_ft": 0.0,
             "encoder_speed_ftpm": 0.0,
@@ -814,6 +817,13 @@ class PlcSensor(Sensor):
             encoder_count = (enc_hi << 16) | enc_lo
             if encoder_count > 0x7FFFFFFF:
                 encoder_count -= 0x100000000
+
+            # ── DD1 hardware health: is the encoder producing any pulses? ──
+            # DD1 oscillates 0-13 when encoder is alive (even at idle with vibration).
+            # If DD1 is stuck at the same value for 10+ seconds, encoder is disconnected.
+            self._dd1_history.append(encoder_count)
+            dd1_unique = len(set(self._dd1_history))
+            dd1_frozen = dd1_unique <= 1 and len(self._dd1_history) >= 10
 
             # ── Distance from DS10 (Encoder Next Tie) ──
             # DD1 is NOT usable for distance — the PLC resets it every ~10
@@ -982,6 +992,7 @@ class PlcSensor(Sensor):
                 "total_errors": self._total_errors,
                 # Encoder & Track Distance (DD1 + derived)
                 "encoder_count": encoder_count,
+                "dd1_frozen": dd1_frozen,
                 "encoder_direction": "forward" if encoder_direction == 0 else "reverse",
                 "encoder_distance_ft": round(encoder_distance_ft, 2),
                 "encoder_speed_ftpm": round(encoder_speed_ftpm, 1),
