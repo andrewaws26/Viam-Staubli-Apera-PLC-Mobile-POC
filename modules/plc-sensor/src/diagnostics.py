@@ -168,8 +168,8 @@ def _check_encoder(r: Dict[str, Any]) -> List[Diagnostic]:
 
     # ── Hardware faults (work regardless of TPS power) ──
 
-    # encoder_disconnected: DD1 frozen — no pulses from encoder at all
-    if dd1_frozen:
+    # encoder_disconnected: DD1 frozen while TPS is on — no pulses from encoder
+    if dd1_frozen and tps_power:
         out.append({
             "rule": "encoder_disconnected",
             "severity": "critical",
@@ -184,7 +184,7 @@ def _check_encoder(r: Dict[str, Any]) -> List[Diagnostic]:
             ),
             "evidence": (
                 f"DD1 has not changed for 10+ seconds (frozen at {r.get('encoder_count', '?')}). "
-                f"Encoder should always produce small fluctuations."
+                f"TPS is powered — encoder should be producing pulses."
             ),
         })
 

@@ -821,22 +821,11 @@ class PlcSensor(Sensor):
                 encoder_count -= 0x100000000
 
             # ── DD1 hardware health: is the encoder producing any pulses? ──
-            # DD1 oscillates 0-13 when encoder is alive.
-            # dd1_frozen = DD1 hasn't changed for 10+ seconds.
-            # dd1_was_active = DD1 changed at some point this session.
-            # We only alarm on frozen if encoder was previously active — this
-            # prevents false alarms when the system is idle/parked (DD1 is
-            # legitimately frozen when nothing is moving and TPS is off).
-            # Once the encoder spins (bench test or production), dd1_was_active
-            # latches true and a subsequent freeze triggers the alert.
+            # Only matters when TPS is on (production). When TPS is off,
+            # DD1 may legitimately be frozen — don't diagnose at idle.
             self._dd1_history.append(encoder_count)
             dd1_unique = len(set(self._dd1_history))
-            dd1_frozen_raw = dd1_unique <= 1 and len(self._dd1_history) >= 10
-            if not hasattr(self, "_dd1_was_active"):
-                self._dd1_was_active = False
-            if dd1_unique > 3:  # meaningful variation, not just noise
-                self._dd1_was_active = True
-            dd1_frozen = dd1_frozen_raw and self._dd1_was_active
+            dd1_frozen = dd1_unique <= 1 and len(self._dd1_history) >= 10
 
             # ── DS10 health: is the PLC counting distance? ──
             # DS10 should change when TPS is on and encoder is moving.
