@@ -1099,6 +1099,40 @@ class PlcSensor(Sensor):
                 1 for d in diagnostics if d["severity"] == "warning"
             )
 
+            # ── Diagnostic state change log ──
+            # Track which rules are active and log transitions (fire/clear).
+            # This flows to Viam Cloud for post-shift threshold tuning.
+            current_rules = {d["rule"] for d in diagnostics}
+            if not hasattr(self, "_prev_diag_rules"):
+                self._prev_diag_rules: set = set()
+            fired = current_rules - self._prev_diag_rules
+            cleared = self._prev_diag_rules - current_rules
+            if fired or cleared:
+                log_parts = []
+                for rule in fired:
+                    diag = next((d for d in diagnostics if d["rule"] == rule), None)
+                    evidence = diag.get("evidence", "") if diag else ""
+                    severity = diag.get("severity", "?") if diag else "?"
+                    log_parts.append(f"+{rule}({severity}): {evidence}")
+                    LOGGER.info("DIAG FIRED: %s [%s] %s", rule, severity, evidence)
+                for rule in cleared:
+                    log_parts.append(f"-{rule}")
+                    LOGGER.info("DIAG CLEARED: %s", rule)
+                readings["diagnostic_log"] = " | ".join(log_parts)
+            else:
+                readings["diagnostic_log"] = ""
+            self._prev_diag_rules = current_rules
+
+            # Key metrics snapshot for threshold tuning (always logged)
+            readings["diag_metrics"] = (
+                f"cam_rate={readings.get('camera_detections_per_min', 0):.1f} "
+                f"cam_trend={readings.get('camera_rate_trend', '?')} "
+                f"eject_rate={readings.get('eject_rate_per_min', 0):.1f} "
+                f"enc_noise={readings.get('encoder_noise', 0)} "
+                f"modbus_ms={readings.get('modbus_response_time_ms', 0):.1f} "
+                f"speed={readings.get('encoder_speed_ftpm', 0):.1f}"
+            )
+
             # Persist to local offline buffer (survives reboots + cloud outages)
             if self._offline_buffer is not None:
                 self._offline_buffer.write(readings)
