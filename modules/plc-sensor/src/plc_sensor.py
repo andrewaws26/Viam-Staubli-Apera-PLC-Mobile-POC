@@ -379,6 +379,7 @@ class PlcSensor(Sensor):
         self._prev_encoder_count: Optional[int] = None
         self._prev_encoder_time: Optional[float] = None
         self._encoder_speed_mmps: float = 0.0  # mm per second
+        self._accumulated_distance_mm: float = 0.0  # cumulative from deltas
         # TPS plate drop counter — tracks OFF→ON transitions on Y1 (Eject TPS_1)
         self._prev_eject_tps1: Optional[bool] = None
         self._plate_drop_count: int = 0
@@ -634,28 +635,33 @@ class PlcSensor(Sensor):
 
             # No sign inversion needed: forward motion = positive counts
 
-            # ── Distance from DD1 encoder count ──
-            # The PLC counts rising edges on X001 into DD1 (up-count mode).
-            # Just read the raw count and multiply by mm_per_count.
-            # No delta accumulation needed — the PLC maintains the count.
-            encoder_distance_mm = abs(encoder_count) * self._mm_per_count
-            encoder_distance_ft = encoder_distance_mm / 304.8
-            encoder_revolutions = abs(encoder_count) / _ENCODER_COUNTS_PER_REV
-
-            # Direction from count delta
+            # ── Distance from encoder count deltas ──
+            # DD1 is a raw quadrature counter that wraps and resets (PLC Rung 0).
+            # We accumulate distance from absolute deltas so it always increases
+            # regardless of count sign or PLC resets.
             encoder_direction = 0  # default forward
             now_ts = time.time()
             if self._prev_encoder_count is not None:
                 delta = encoder_count - self._prev_encoder_count
-                if delta < 0:
-                    encoder_direction = 1  # reverse
+                # Ignore huge jumps from PLC resets (>10000 counts = ~35 ft)
+                if abs(delta) < 10000:
+                    self._accumulated_distance_mm += abs(delta) * self._mm_per_count
+                    if delta < 0:
+                        encoder_direction = 1  # reverse
+
+            encoder_distance_mm = self._accumulated_distance_mm
+            encoder_distance_ft = encoder_distance_mm / 304.8
+            encoder_revolutions = encoder_distance_mm / (math.pi * self._wheel_diameter_mm)
 
             # Speed from encoder count delta / delta time
             if self._prev_encoder_count is not None and self._prev_encoder_time is not None:
                 dt = now_ts - self._prev_encoder_time
                 if dt > 0.01:
                     delta_counts = abs(encoder_count - self._prev_encoder_count)
-                    self._encoder_speed_mmps = (delta_counts * self._mm_per_count) / dt
+                    if delta_counts < 10000:  # ignore PLC resets
+                        self._encoder_speed_mmps = (delta_counts * self._mm_per_count) / dt
+                    else:
+                        self._encoder_speed_mmps = 0.0
             self._prev_encoder_count = encoder_count
             self._prev_encoder_time = now_ts
 
