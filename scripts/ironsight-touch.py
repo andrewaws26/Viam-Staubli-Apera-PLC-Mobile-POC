@@ -698,6 +698,7 @@ def get_system_status() -> dict:
         "eth0_carrier": False,
         "wifi_ssid": "",
         "wifi_signal_dbm": 0,
+        "iphone_connected": False,
         "cpu_temp": 0.0,
         "mem_pct": 0,
         "tailscale_ip": "",
@@ -772,6 +773,17 @@ def get_system_status() -> dict:
                 m = re.search(r"Signal level[=:]?\s*(-?\d+)", line)
                 if m:
                     status["wifi_signal_dbm"] = int(m.group(1))
+    except Exception:
+        pass
+
+    # iPhone USB tethering
+    try:
+        # Check for ipheth driver on any interface
+        import glob
+        for driver_path in glob.glob("/sys/class/net/*/device/driver"):
+            if "ipheth" in os.readlink(driver_path):
+                status["iphone_connected"] = True
+                break
     except Exception:
         pass
 
@@ -1290,21 +1302,17 @@ def _draw_status_bar(draw, sys_status):
         draw.text((bat_x - pw - 4, 9), pct_str, fill=bat_color, font=font_sm)
         x_right = bat_x - pw - 10
 
-    # Status indicators (compact)
-    indicators = [
-        ("PLC", sys_status["connected"]),
-        ("NET", sys_status["internet"]),
-        ("VIM", sys_status["viam_server"]),
-    ]
+    # Connection info (right to left)
     x = x_right
-    for label, ok in reversed(indicators):
-        color = GREEN if ok else RED
-        lw = draw.textlength(label, font=font_sm)
-        x -= lw + 14
-        draw.rectangle([x, 11, x + 8, 19], fill=color)
-        draw.text((x + 10, 9), label, fill=LIGHT_GRAY, font=font_sm)
 
-    # WiFi SSID + signal strength (human-readable)
+    # iPhone indicator
+    if sys_status.get("iphone_connected"):
+        iph_str = "iPhone"
+        iw = draw.textlength(iph_str, font=font_sm)
+        x -= iw + 6
+        draw.text((x, 9), iph_str, fill=CYAN, font=font_sm)
+
+    # WiFi SSID + signal strength
     ssid = sys_status.get("wifi_ssid", "")
     signal_dbm = sys_status.get("wifi_signal_dbm", 0)
     if ssid:
@@ -1322,13 +1330,19 @@ def _draw_status_bar(draw, sys_status):
             sig_label, sig_color = "", LIGHT_GRAY
         wifi_str = f"{ssid} ({sig_label})" if sig_label else ssid
         ww = draw.textlength(wifi_str, font=font_sm)
-        x -= ww + 10
+        x -= ww + 8
         draw.text((x, 9), wifi_str, fill=sig_color, font=font_sm)
+    elif not sys_status.get("iphone_connected"):
+        # No WiFi and no iPhone — show "No Network"
+        nw_str = "No Network"
+        nw = draw.textlength(nw_str, font=font_sm)
+        x -= nw + 8
+        draw.text((x, 9), nw_str, fill=RED, font=font_sm)
 
     # Time
-    now_str = time.strftime("%H:%M")
+    now_str = time.strftime("%I:%M %p")
     tw = draw.textlength(now_str, font=font_sm)
-    draw.text((x - tw - 10, 9), now_str, fill=LIGHT_GRAY, font=font_sm)
+    draw.text((x - tw - 8, 9), now_str, fill=LIGHT_GRAY, font=font_sm)
 
 
 def _back_button() -> Button:
