@@ -21,13 +21,12 @@ Offline buffering:
 """
 
 import asyncio
-import collections
 import json
 import math
 import os
 import time
 import uuid
-from typing import Any, ClassVar, Deque, Dict, Mapping, Optional, Sequence
+from typing import Any, ClassVar, Dict, Mapping, Optional, Sequence
 
 from pymodbus.client import ModbusTcpClient
 from typing_extensions import Self
@@ -61,18 +60,6 @@ _ENCODER_COUNTS_PER_REV = _ENCODER_PPR * _ENCODER_QUADRATURE  # 1000
 # ~1.19x per wheel revolution due to belt/gear ratio.  This effective
 # diameter absorbs that ratio so: count * mm_per_count = true distance.
 _DEFAULT_WHEEL_DIAMETER_MM = 341.4  # ~13.4 in effective (includes gear ratio)
-
-# Rolling window size for plates-per-minute calculation
-_PLATE_DROP_WINDOW_SECONDS = 60.0
-
-# Plate drop debounce — Y1 (eject solenoid) can fire multiple pulses per
-# real plate drop, causing false transitions.  Require minimum encoder
-# travel since last drop before counting a new one.  ~250 counts ≈ 10.5 in,
-# well below the ~19.5 in real spacing but safely above chatter.
-_MIN_ENCODER_COUNTS_BETWEEN_DROPS = 250
-
-# Plate drop spacing history — how many recent drops to keep for diagnostics
-_MAX_DROP_HISTORY = 20
 
 # Offline buffer defaults
 _DEFAULT_BUFFER_MAX_MB = 50
@@ -185,23 +172,13 @@ class PlcSensor(Sensor):
         self._wheel_diameter_mm = wheel_diameter_mm
         wheel_circumference_mm = math.pi * wheel_diameter_mm
         self._mm_per_count = wheel_circumference_mm / _ENCODER_COUNTS_PER_REV
-        # Accumulated forward distance from DD1 encoder deltas
-        self._accumulated_distance_mm: float = 0.0
-        self._accumulated_revs: float = 0.0
-        # Encoder: speed tracking (delta encoder count / delta time)
+        # Encoder: speed tracking (delta count / delta time)
         self._prev_encoder_count: Optional[int] = None
         self._prev_encoder_time: Optional[float] = None
         self._encoder_speed_mmps: float = 0.0  # mm per second
-        self._encoder_direction: int = 0  # 0=forward, 1=reverse
         # TPS plate drop counter — tracks OFF→ON transitions on Y1 (Eject TPS_1)
         self._prev_eject_tps1: Optional[bool] = None
         self._plate_drop_count: int = 0
-        self._plate_drop_times: Deque[float] = collections.deque()  # rolling window timestamps
-        # Plate drop spacing diagnostics — encoder count at each drop
-        self._drop_encoder_counts: Deque[int] = collections.deque(maxlen=_MAX_DROP_HISTORY)
-        self._drop_spacings_mm: Deque[float] = collections.deque(maxlen=_MAX_DROP_HISTORY)
-        self._drop_spacings_in: Deque[float] = collections.deque(maxlen=_MAX_DROP_HISTORY)
-        self._drop_spacings_ft: Deque[float] = collections.deque(maxlen=_MAX_DROP_HISTORY)
         # Self-healing: exponential backoff on repeated connection failures
         self._consecutive_failures: int = 0
         self._next_retry_time: float = 0.0
@@ -309,8 +286,9 @@ class PlcSensor(Sensor):
         self._disconnect()
         self._consecutive_failures += 1
         self._total_errors += 1
+        capped_exp = min(self._consecutive_failures - 1, 5)  # cap at 32s to avoid OverflowError
         backoff = min(
-            _INITIAL_BACKOFF_SECONDS * (2 ** (self._consecutive_failures - 1)),
+            _INITIAL_BACKOFF_SECONDS * (2 ** capped_exp),
             _MAX_BACKOFF_SECONDS,
         )
         self._next_retry_time = time.time() + backoff
@@ -368,21 +346,7 @@ class PlcSensor(Sensor):
             "air_eagle_2_feedback": False,
             "air_eagle_3_enable": False,
             # TPS Production
-            "plates_per_minute": 0.0,
             "plate_drop_count": 0,
-            # Plate drop spacing diagnostics
-            "last_drop_spacing_in": 0.0,
-            "last_drop_spacing_ft": 0.0,
-            "last_drop_encoder_count": 0,
-            "avg_drop_spacing_in": 0.0,
-            "avg_drop_spacing_ft": 0.0,
-            "min_drop_spacing_in": 0.0,
-            "min_drop_spacing_ft": 0.0,
-            "max_drop_spacing_in": 0.0,
-            "max_drop_spacing_ft": 0.0,
-            "drop_count_in_window": 0,
-            "distance_since_last_drop_in": 0.0,
-            "distance_since_last_drop_ft": 0.0,
             # Discrete inputs (raw)
             "x1": False,
             "x2": False,
@@ -439,24 +403,20 @@ class PlcSensor(Sensor):
             encoder_count = -encoder_count
 
             # ── Distance from DD1 encoder count ──
-            # Accumulate forward deltas so distance survives PLC resets.
-            # Formula: delta_counts × mm_per_count
-            #   mm_per_count = (π × 341.4mm) / 1000 = 1.0726 mm per count
+            # The PLC counts rising edges on X001 into DD1 (up-count mode).
+            # Just read the raw count and multiply by mm_per_count.
+            # No delta accumulation needed — the PLC maintains the count.
+            encoder_distance_mm = abs(encoder_count) * self._mm_per_count
+            encoder_distance_ft = encoder_distance_mm / 304.8
+            encoder_revolutions = abs(encoder_count) / _ENCODER_COUNTS_PER_REV
+
+            # Direction from count delta
+            encoder_direction = 0  # default forward
             now_ts = time.time()
             if self._prev_encoder_count is not None:
                 delta = encoder_count - self._prev_encoder_count
-                if delta > 0:
-                    self._encoder_direction = 0  # forward
-                    self._accumulated_distance_mm += delta * self._mm_per_count
-                    self._accumulated_revs += delta / _ENCODER_COUNTS_PER_REV
-                elif delta < 0:
-                    self._encoder_direction = 1  # reverse
-                # delta == 0: keep previous direction
-            encoder_direction = self._encoder_direction
-
-            encoder_distance_mm = self._accumulated_distance_mm
-            encoder_distance_ft = encoder_distance_mm / 304.8
-            encoder_revolutions = self._accumulated_revs
+                if delta < 0:
+                    encoder_direction = 1  # reverse
 
             # Speed from encoder count delta / delta time
             if self._prev_encoder_count is not None and self._prev_encoder_time is not None:
@@ -511,58 +471,13 @@ class PlcSensor(Sensor):
             floating_zero = bool(internal_coils[1])        # C2000
 
             # ── TPS plate drop counter — detect OFF→ON on Y1 (Eject TPS_1) ──
-            # Y1 can chatter (multiple pulses per real drop), so we debounce:
-            # only count a new drop if the truck has traveled at least
-            # _MIN_ENCODER_COUNTS_BETWEEN_DROPS since the last recorded drop.
             if self._prev_eject_tps1 is not None and not self._prev_eject_tps1 and eject_tps_1:
-                counts_since_last = (
-                    abs(encoder_count - self._drop_encoder_counts[-1])
-                    if self._drop_encoder_counts
-                    else _MIN_ENCODER_COUNTS_BETWEEN_DROPS  # first drop always counts
+                self._plate_drop_count += 1
+                LOGGER.info(
+                    "Plate drop #%d — encoder=%d",
+                    self._plate_drop_count, encoder_count,
                 )
-                if counts_since_last >= _MIN_ENCODER_COUNTS_BETWEEN_DROPS:
-                    self._plate_drop_count += 1
-                    self._plate_drop_times.append(now_ts)
-                    # Record encoder position at this drop for spacing analysis
-                    self._drop_encoder_counts.append(encoder_count)
-                    if len(self._drop_encoder_counts) >= 2:
-                        delta_counts = abs(self._drop_encoder_counts[-1] - self._drop_encoder_counts[-2])
-                        spacing_mm = delta_counts * self._mm_per_count
-                        spacing_in = spacing_mm / 25.4
-                        spacing_ft = spacing_mm / 304.8
-                        self._drop_spacings_mm.append(round(spacing_mm, 1))
-                        self._drop_spacings_in.append(round(spacing_in, 1))
-                        self._drop_spacings_ft.append(round(spacing_ft, 2))
-                        LOGGER.info(
-                            "Plate drop #%d — encoder=%d delta=%d spacing=%.1fin (%.1fmm)",
-                            self._plate_drop_count, encoder_count, delta_counts,
-                            spacing_in, spacing_mm,
-                        )
-                else:
-                    LOGGER.debug(
-                        "Y1 chatter suppressed — encoder=%d, delta=%d (need >=%d)",
-                        encoder_count, counts_since_last, _MIN_ENCODER_COUNTS_BETWEEN_DROPS,
-                    )
             self._prev_eject_tps1 = eject_tps_1
-
-            # ── Distance since last drop — for predictive sync monitoring ──
-            # Compares current encoder position to last drop position.
-            # If this exceeds target (~19.5 in) without Y1 firing, the dropper is late.
-            if self._drop_encoder_counts:
-                counts_since_last_drop = abs(encoder_count - self._drop_encoder_counts[-1])
-                distance_since_last_drop_mm = counts_since_last_drop * self._mm_per_count
-                distance_since_last_drop_in = distance_since_last_drop_mm / 25.4
-                distance_since_last_drop_ft = distance_since_last_drop_mm / 304.8
-            else:
-                distance_since_last_drop_mm = 0.0
-                distance_since_last_drop_in = 0.0
-                distance_since_last_drop_ft = 0.0
-
-            # Expire old entries outside the rolling window
-            cutoff = now_ts - _PLATE_DROP_WINDOW_SECONDS
-            while self._plate_drop_times and self._plate_drop_times[0] < cutoff:
-                self._plate_drop_times.popleft()
-            plates_per_minute = float(len(self._plate_drop_times))
 
             # Encoder enabled: True when C1999 (Encoder Reset) is OFF and encoder is counting
             encoder_enabled = not encoder_reset_coil and encoder_count != 0
@@ -605,22 +520,7 @@ class PlcSensor(Sensor):
                 "air_eagle_2_feedback": air_eagle_2_feedback,
                 "air_eagle_3_enable": air_eagle_3_enable,
                 # TPS Production (derived from coil transitions)
-                "plates_per_minute": round(plates_per_minute, 1),
                 "plate_drop_count": self._plate_drop_count,
-                # Plate drop spacing diagnostics — summary stats (not full history)
-                "last_drop_spacing_in": self._drop_spacings_in[-1] if self._drop_spacings_in else 0.0,
-                "last_drop_spacing_ft": self._drop_spacings_ft[-1] if self._drop_spacings_ft else 0.0,
-                "last_drop_encoder_count": self._drop_encoder_counts[-1] if self._drop_encoder_counts else 0,
-                "avg_drop_spacing_in": round(sum(self._drop_spacings_in) / len(self._drop_spacings_in), 1) if self._drop_spacings_in else 0.0,
-                "avg_drop_spacing_ft": round(sum(self._drop_spacings_ft) / len(self._drop_spacings_ft), 2) if self._drop_spacings_ft else 0.0,
-                "min_drop_spacing_in": min(self._drop_spacings_in) if self._drop_spacings_in else 0.0,
-                "min_drop_spacing_ft": min(self._drop_spacings_ft) if self._drop_spacings_ft else 0.0,
-                "max_drop_spacing_in": max(self._drop_spacings_in) if self._drop_spacings_in else 0.0,
-                "max_drop_spacing_ft": max(self._drop_spacings_ft) if self._drop_spacings_ft else 0.0,
-                "drop_count_in_window": len(self._drop_spacings_ft),
-                # Live sync tracking — distance accumulating since last plate drop
-                "distance_since_last_drop_in": round(distance_since_last_drop_in, 1),
-                "distance_since_last_drop_ft": round(distance_since_last_drop_ft, 2),
                 # DS Holding Registers — all 25 from Click PLC ladder logic
                 "ds1": ds[0],
                 "ds2": ds[1],

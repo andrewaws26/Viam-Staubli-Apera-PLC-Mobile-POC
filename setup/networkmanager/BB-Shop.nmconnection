@@ -1,0 +1,20 @@
+[connection]
+id=BB-Shop
+type=wifi
+autoconnect-priority=30
+interface-name=wlan0
+
+[wifi]
+mode=infrastructure
+ssid=B&B Shop
+
+[wifi-security]
+key-mgmt=wpa-psk
+psk=CHANGE_ME
+
+[ipv4]
+method=auto
+
+[ipv6]
+addr-gen-mode=default
+method=auto

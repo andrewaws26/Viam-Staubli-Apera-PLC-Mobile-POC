@@ -1,0 +1,16 @@
+[Unit]
+Description=Add secondary IP for Click PLC subnet
+After=network-online.target sys-subsystem-net-devices-eth0.device
+Wants=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/sh -c "ip link show eth0 > /dev/null 2>&1"
+ExecStart=/sbin/ip addr add 169.168.10.100/24 dev eth0
+RemainAfterExit=yes
+ExecStop=/sbin/ip addr del 169.168.10.100/24 dev eth0
+
+[Install]
+WantedBy=multi-user.target

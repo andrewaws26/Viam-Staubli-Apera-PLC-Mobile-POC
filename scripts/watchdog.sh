@@ -24,6 +24,14 @@ if [ -f "$MAINTENANCE_FLAG" ]; then
     exit 0
 fi
 
+# --- eth0 carrier check: suppress PLC alerts when physical link is down ---
+ETH0_CARRIER=$(cat /sys/class/net/eth0/carrier 2>/dev/null)
+if [ "$ETH0_CARRIER" != "1" ]; then
+    log "SKIP: eth0 has no carrier (PLC physically unreachable — cable disconnected or PLC powered off)"
+    echo "0" > "$FAIL_COUNT_FILE"
+    exit 0
+fi
+
 # --- Grace period: suppress alerts if viam-server recently restarted ---
 if systemctl is-active --quiet viam-server; then
     VIAM_PID=$(systemctl show -p MainPID --value viam-server 2>/dev/null)
