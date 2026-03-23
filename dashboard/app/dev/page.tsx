@@ -1004,16 +1004,79 @@ export default function DevPage() {
               <p className="text-[10px] text-gray-600 mt-1">Writes DS2 to PLC. Range: 10.0\" to 30.0\". Standard is 19.5\" (DS2=39). Change takes effect immediately.</p>
             </div>
 
+            {/* Toggle Controls */}
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-gray-600 font-bold mb-2">Toggle Controls</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[
+                  { action: "toggle_drop_enable", label: "Drop Enable", key: "drop_enable", color: "bg-green-800" },
+                  { action: "toggle_encoder", label: "Encoder", key: "encoder_enabled", color: "bg-blue-800" },
+                  { action: "toggle_lay_ties", label: "Lay Ties", key: "lay_ties_set", color: "bg-cyan-800" },
+                  { action: "toggle_drop_ties", label: "Drop Ties", key: "drop_ties", color: "bg-cyan-800" },
+                ].map(({ action, label, key, color }) => {
+                  const isOn = readings?.[key] === true;
+                  return (
+                    <button
+                      key={action}
+                      disabled={cmdLoading}
+                      onClick={() => sendCommand({ action })}
+                      className={`text-xs px-3 py-2 rounded-lg font-bold transition-colors ${
+                        isOn
+                          ? `${color} text-white`
+                          : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                      }`}
+                    >
+                      {label}: {isOn ? "ON" : "OFF"}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Detector Offset */}
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-gray-600 font-bold mb-2">Detector Offset</p>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400">
+                  Current: <span className="font-mono text-white">{readings?.ds5 ? `${Number(readings.ds5)} bits` : "—"}</span>
+                  {readings?.ds6 ? <span className="text-gray-600"> = {(Number(readings.ds6) / 10).toFixed(1)}&quot;</span> : null}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 mt-2">
+                <input
+                  type="number"
+                  placeholder="DS5 bits (100-5000)"
+                  className="w-40 bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs text-gray-300"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      const val = parseInt((e.target as HTMLInputElement).value);
+                      if (val) sendCommand({ action: "set_detector_offset", value: val });
+                    }
+                  }}
+                />
+                <span className="text-[10px] text-gray-600">Enter to set. PLC auto-calculates DS6 (inches).</span>
+              </div>
+            </div>
+
             {/* Utility buttons */}
             <div>
               <p className="text-[10px] uppercase tracking-wider text-gray-600 font-bold mb-2">Utilities</p>
-              <button
-                disabled={cmdLoading}
-                onClick={() => sendCommand({ action: "reset_counters" })}
-                className="bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 text-white text-xs px-4 py-2 rounded-lg font-bold transition-colors"
-              >
-                Reset Counters
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  disabled={cmdLoading}
+                  onClick={() => sendCommand({ action: "reset_counters" })}
+                  className="bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 text-white text-xs px-4 py-2 rounded-lg font-bold transition-colors"
+                >
+                  Reset Pi Counters
+                </button>
+                <button
+                  disabled={cmdLoading}
+                  onClick={() => sendCommand({ action: "clear_data_counts" })}
+                  className="bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 text-white text-xs px-4 py-2 rounded-lg font-bold transition-colors"
+                >
+                  Clear PLC Data Counts
+                </button>
+              </div>
             </div>
           </div>
         </details>

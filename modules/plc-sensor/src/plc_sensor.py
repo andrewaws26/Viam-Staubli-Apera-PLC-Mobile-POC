@@ -1320,10 +1320,102 @@ class PlcSensor(Sensor):
             except Exception as e:
                 result["message"] = f"Modbus write failed: {e}"
 
+        elif action == "toggle_drop_enable":
+            try:
+                r = self.client.read_coils(address=15, count=1)
+                current = bool(r.bits[0]) if not r.isError() else False
+                new_val = not current
+                self.client.write_coil(address=15, value=new_val)
+                state = "ENABLED" if new_val else "DISABLED"
+                result["status"] = "ok"
+                result["message"] = f"Drop enable (C16) {state}"
+                result["value"] = new_val
+                LOGGER.warning("DO_COMMAND: toggle_drop_enable → %s", state)
+            except Exception as e:
+                result["message"] = f"Modbus write failed: {e}"
+
+        elif action == "toggle_encoder":
+            try:
+                r = self.client.read_coils(address=27, count=1)
+                current = bool(r.bits[0]) if not r.isError() else False
+                new_val = not current
+                self.client.write_coil(address=27, value=new_val)
+                state = "ON" if new_val else "OFF"
+                result["status"] = "ok"
+                result["message"] = f"Encoder (C28) {state}"
+                result["value"] = new_val
+                LOGGER.info("DO_COMMAND: toggle_encoder → %s", state)
+            except Exception as e:
+                result["message"] = f"Modbus write failed: {e}"
+
+        elif action == "toggle_lay_ties":
+            try:
+                r = self.client.read_coils(address=12, count=1)
+                current = bool(r.bits[0]) if not r.isError() else False
+                new_val = not current
+                self.client.write_coil(address=12, value=new_val)
+                state = "SET" if new_val else "CLEARED"
+                result["status"] = "ok"
+                result["message"] = f"Lay Ties (C13) {state}"
+                result["value"] = new_val
+                LOGGER.info("DO_COMMAND: toggle_lay_ties → %s", state)
+            except Exception as e:
+                result["message"] = f"Modbus write failed: {e}"
+
+        elif action == "toggle_drop_ties":
+            try:
+                r = self.client.read_coils(address=13, count=1)
+                current = bool(r.bits[0]) if not r.isError() else False
+                new_val = not current
+                self.client.write_coil(address=13, value=new_val)
+                state = "SET" if new_val else "CLEARED"
+                result["status"] = "ok"
+                result["message"] = f"Drop Ties (C14) {state}"
+                result["value"] = new_val
+                LOGGER.info("DO_COMMAND: toggle_drop_ties → %s", state)
+            except Exception as e:
+                result["message"] = f"Modbus write failed: {e}"
+
+        elif action == "set_detector_offset":
+            value = command.get("value")
+            if value is None:
+                result["message"] = "Missing 'value' (DS5 in encoder bits)"
+                return result
+            try:
+                value = int(value)
+            except (ValueError, TypeError):
+                result["message"] = f"Invalid value: {value}. Must be an integer."
+                return result
+            if value < 100 or value > 5000:
+                result["message"] = f"Value {value} out of range (100-5000 bits)."
+                return result
+            try:
+                old = self.client.read_holding_registers(address=4, count=1)
+                old_val = old.registers[0] if not old.isError() else "?"
+                self.client.write_register(address=4, value=value)
+                result["status"] = "ok"
+                result["message"] = f"Detector offset: DS5={old_val} → {value} bits"
+                LOGGER.warning("DO_COMMAND: set_detector_offset DS5=%d — was %s", value, old_val)
+            except Exception as e:
+                result["message"] = f"Modbus write failed: {e}"
+
+        elif action == "clear_data_counts":
+            try:
+                self.client.write_coil(address=14, value=True)  # C15 Clear DATA Counts
+                import asyncio
+                await asyncio.sleep(0.2)
+                self.client.write_coil(address=14, value=False)
+                result["status"] = "ok"
+                result["message"] = "PLC data counts cleared (C15 pulsed)"
+                LOGGER.info("DO_COMMAND: clear_data_counts — done")
+            except Exception as e:
+                result["message"] = f"Modbus write failed: {e}"
+
         else:
             result["message"] = (
-                f"Unknown action: {action}. Use: software_eject, "
-                "reset_counters, set_mode, set_spacing"
+                f"Unknown action: {action}. Use: software_eject, reset_counters, "
+                "set_mode, set_spacing, toggle_drop_enable, toggle_encoder, "
+                "toggle_lay_ties, toggle_drop_ties, set_detector_offset, clear_data_counts"
             )
 
         return result
