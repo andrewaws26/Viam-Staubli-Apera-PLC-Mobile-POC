@@ -339,6 +339,156 @@ class ConnectionQualityMonitor:
         }
 
 
+class SignalMetrics:
+    """Rolling window signal analysis for diagnostic engine.
+
+    Tracks edge rates, state durations, camera trend classification,
+    and encoder noise — all bounded by deque maxlen to prevent leaks.
+    """
+
+    WINDOW_SEC = 60   # 1-minute rolling window for rates
+    TREND_SEC = 300   # 5-minute buffer for trend analysis
+
+    def __init__(self):
+        self._x3_edges: collections.deque = collections.deque(maxlen=300)
+        self._y1_edges: collections.deque = collections.deque(maxlen=300)
+        self._c30_edges: collections.deque = collections.deque(maxlen=300)
+        self._prev_x3: bool = False
+        self._prev_y1: bool = False
+        self._prev_c30: bool = False
+        self._encoder_reversals: collections.deque = collections.deque(maxlen=300)
+        self._prev_encoder_dir: int = 0
+        self._modbus_times: collections.deque = collections.deque(maxlen=60)
+        self._camera_rate_history: collections.deque = collections.deque(maxlen=300)
+        # State tracking: signal_name -> timestamp of last change
+        self._state_times: Dict[str, float] = {}
+        # State tracking: signal_name -> current bool value
+        self._state_vals: Dict[str, bool] = {}
+
+    def update(self, *, x3: bool, y1: bool, c30: bool,
+               encoder_dir: int, modbus_ms: float,
+               now: Optional[float] = None) -> Dict[str, Any]:
+        """Called once per read cycle. Returns computed metrics dict."""
+        if now is None:
+            now = time.time()
+
+        # ── Rising edge detection ──
+        if x3 and not self._prev_x3:
+            self._x3_edges.append(now)
+        self._prev_x3 = x3
+
+        if y1 and not self._prev_y1:
+            self._y1_edges.append(now)
+        self._prev_y1 = y1
+
+        if c30 and not self._prev_c30:
+            self._c30_edges.append(now)
+        self._prev_c30 = c30
+
+        # ── Encoder direction reversals ──
+        if encoder_dir != self._prev_encoder_dir and self._prev_encoder_dir != 0:
+            self._encoder_reversals.append(now)
+        self._prev_encoder_dir = encoder_dir
+
+        # ── Modbus response time tracking ──
+        self._modbus_times.append(modbus_ms)
+
+        # ── Compute rates (edges in last WINDOW_SEC) ──
+        cutoff = now - self.WINDOW_SEC
+        cam_rate = sum(1 for t in self._x3_edges if t > cutoff)
+        eject_rate = sum(1 for t in self._y1_edges if t > cutoff)
+        det_eject_rate = sum(1 for t in self._c30_edges if t > cutoff)
+        reversals = sum(1 for t in self._encoder_reversals if t > cutoff)
+
+        # ── Camera rate history (for trend) ──
+        self._camera_rate_history.append((now, cam_rate))
+
+        # ── Camera rate trend classification ──
+        camera_rate_trend = self._classify_camera_trend(now, cam_rate)
+
+        # ── State duration tracking ──
+        for name, val in [("camera_signal", x3), ("tps_power_loop", False)]:
+            # tps_power_loop is tracked externally; just camera here
+            pass
+        self._track_state("camera_signal", x3, now)
+
+        cam_dur = now - self._state_times.get("camera_signal", now)
+
+        # ── Encoder noise: reversals per minute ──
+        encoder_noise = reversals  # already per WINDOW_SEC (60s)
+
+        # ── Modbus avg response time ──
+        avg_modbus_ms = 0.0
+        if self._modbus_times:
+            avg_modbus_ms = sum(self._modbus_times) / len(self._modbus_times)
+
+        return {
+            "camera_detections_per_min": cam_rate,
+            "camera_rate_trend": camera_rate_trend,
+            "camera_signal_duration_s": round(cam_dur, 1),
+            "eject_rate_per_min": eject_rate,
+            "detector_eject_rate_per_min": det_eject_rate,
+            "encoder_noise": encoder_noise,
+            "encoder_reversals_per_min": reversals,
+            "modbus_response_time_ms": round(avg_modbus_ms, 2),
+        }
+
+    def _track_state(self, name: str, val: bool, now: float) -> None:
+        """Track when a boolean signal last changed state."""
+        prev = self._state_vals.get(name)
+        if prev is None or val != prev:
+            self._state_times[name] = now
+        self._state_vals[name] = val
+
+    def track_power(self, tps_power: bool, now: Optional[float] = None) -> float:
+        """Track TPS power state. Returns duration in current state."""
+        if now is None:
+            now = time.time()
+        self._track_state("tps_power_loop", tps_power, now)
+        return now - self._state_times.get("tps_power_loop", now)
+
+    def _classify_camera_trend(self, now: float, current_rate: int) -> str:
+        """Classify camera detection trend over the last 5 minutes.
+
+        Returns one of: "dead", "declining", "intermittent", "stable".
+        """
+        trend_cutoff = now - self.TREND_SEC
+        recent = [(t, r) for t, r in self._camera_rate_history if t > trend_cutoff]
+
+        if len(recent) < 10:
+            return "stable"  # not enough data yet
+
+        rates = [r for _, r in recent]
+
+        # dead: rate has been 0 for >30 consecutive seconds
+        zero_streak = 0
+        for _, r in reversed(recent):
+            if r == 0:
+                zero_streak += 1
+            else:
+                break
+        if zero_streak > 30:
+            return "dead"
+
+        # declining: rate dropped >50% from 5-min peak
+        peak = max(rates)
+        if peak > 0 and current_rate < (peak * 0.5):
+            return "declining"
+
+        # intermittent: rate alternated between >0 and 0 at least 3 times
+        transitions = 0
+        prev_zero = rates[0] == 0
+        for r in rates[1:]:
+            is_zero = (r == 0)
+            if is_zero != prev_zero:
+                transitions += 1
+            prev_zero = is_zero
+        if transitions >= 6:  # 3 full cycles = 6 transitions
+            return "intermittent"
+
+        return "stable"
+
+
 class PlcSensor(Sensor):
     """Reads TPS PLC state via Modbus TCP.
 
@@ -390,6 +540,11 @@ class PlcSensor(Sensor):
         self._total_errors: int = 0
         # Connection quality monitor — detects cable issues, link flapping
         self._conn_monitor = ConnectionQualityMonitor()
+        # Signal metrics — rolling window analysis for diagnostics
+        self._signal_metrics = SignalMetrics()
+        # Drop spacing tracking — distance between consecutive plate drops
+        self._distance_at_last_drop: float = 0.0
+        self._drop_spacings: collections.deque = collections.deque(maxlen=100)
 
     @classmethod
     def new(
@@ -586,6 +741,28 @@ class PlcSensor(Sensor):
         # TD Timer defaults
         readings["td5_seconds_laying"] = 0
         readings["td6_tie_travel"] = 0
+        # Drop spacing defaults
+        readings["last_drop_spacing_in"] = 0.0
+        readings["avg_drop_spacing_in"] = 0.0
+        readings["min_drop_spacing_in"] = 0.0
+        readings["max_drop_spacing_in"] = 0.0
+        readings["distance_since_last_drop_in"] = 0.0
+        readings["drop_count_in_window"] = 0
+        # Signal metrics defaults
+        readings["camera_detections_per_min"] = 0
+        readings["camera_rate_trend"] = "stable"
+        readings["camera_signal_duration_s"] = 0.0
+        readings["eject_rate_per_min"] = 0
+        readings["detector_eject_rate_per_min"] = 0
+        readings["encoder_noise"] = 0
+        readings["encoder_reversals_per_min"] = 0
+        readings["modbus_response_time_ms"] = 0.0
+        readings["tps_power_duration_s"] = 0.0
+        # Diagnostics defaults
+        readings["diagnostics"] = []
+        readings["diagnostics_count"] = 0
+        readings["diagnostics_critical"] = 0
+        readings["diagnostics_warning"] = 0
         # Connection quality
         conn_quality = self._conn_monitor.check()
         readings.update(conn_quality)
@@ -609,6 +786,9 @@ class PlcSensor(Sensor):
             return self._disconnected_readings("connection_failed")
 
         try:
+            # ── Modbus timing for diagnostic engine ──
+            _modbus_start = time.time()
+
             # ── Read DS holding registers (0-24) — all 25 TPS registers ──
             ds_result = self.client.read_holding_registers(address=0, count=25)
             if ds_result.isError():
@@ -740,14 +920,33 @@ class PlcSensor(Sensor):
             except Exception:
                 pass
 
+            # ── Modbus elapsed time ──
+            _modbus_elapsed_ms = (time.time() - _modbus_start) * 1000
+
             # ── TPS plate drop counter — detect OFF→ON on Y1 (Eject TPS_1) ──
+            # Also compute drop spacing (distance between consecutive drops)
+            encoder_distance_in = (self._accumulated_distance_mm / 25.4)
             if self._prev_eject_tps1 is not None and not self._prev_eject_tps1 and eject_tps_1:
                 self._plate_drop_count += 1
+                spacing = encoder_distance_in - self._distance_at_last_drop
+                if self._distance_at_last_drop > 0 and spacing > 0:
+                    self._drop_spacings.append(spacing)
+                self._distance_at_last_drop = encoder_distance_in
                 LOGGER.info(
-                    "Plate drop #%d — encoder=%d",
+                    "Plate drop #%d — encoder=%d spacing=%.1fin",
                     self._plate_drop_count, encoder_count,
+                    spacing if self._distance_at_last_drop > 0 else 0,
                 )
             self._prev_eject_tps1 = eject_tps_1
+
+            # Drop spacing stats
+            _spacings = list(self._drop_spacings)
+            last_drop_spacing_in = round(_spacings[-1], 2) if _spacings else 0.0
+            avg_drop_spacing_in = round(sum(_spacings) / len(_spacings), 2) if _spacings else 0.0
+            min_drop_spacing_in = round(min(_spacings), 2) if _spacings else 0.0
+            max_drop_spacing_in = round(max(_spacings), 2) if _spacings else 0.0
+            distance_since_last_drop_in = round(encoder_distance_in - self._distance_at_last_drop, 2)
+            drop_count_in_window = len(_spacings)
 
             # Encoder enabled: True when C1999 (Encoder Reset) is OFF and encoder is counting
             encoder_enabled = not encoder_reset_coil and encoder_count != 0
@@ -848,9 +1047,46 @@ class PlcSensor(Sensor):
                 "td6_tie_travel": td6_travel,
             }
 
+            # ── Drop spacing metrics ──
+            readings["last_drop_spacing_in"] = last_drop_spacing_in
+            readings["avg_drop_spacing_in"] = avg_drop_spacing_in
+            readings["min_drop_spacing_in"] = min_drop_spacing_in
+            readings["max_drop_spacing_in"] = max_drop_spacing_in
+            readings["distance_since_last_drop_in"] = distance_since_last_drop_in
+            readings["drop_count_in_window"] = drop_count_in_window
+
+            # ── Signal metrics — rolling window analysis ──
+            sig = self._signal_metrics.update(
+                x3=camera_signal,
+                y1=eject_tps_1,
+                c30=bool(c_app_bits[29]),  # C30 = detector eject
+                encoder_dir=encoder_direction,
+                modbus_ms=_modbus_elapsed_ms,
+                now=now_ts,
+            )
+            readings.update(sig)
+
+            # Track TPS power duration for diagnostics
+            tps_power_duration_s = self._signal_metrics.track_power(
+                tps_power_loop, now=now_ts,
+            )
+            readings["tps_power_duration_s"] = round(tps_power_duration_s, 1)
+
             # Connection quality monitoring — detect cable degradation
             conn_quality = self._conn_monitor.check()
             readings.update(conn_quality)
+
+            # ── Diagnostic rules engine ──
+            from diagnostics import evaluate as evaluate_diagnostics
+            diagnostics = evaluate_diagnostics(readings)
+            readings["diagnostics"] = diagnostics
+            readings["diagnostics_count"] = len(diagnostics)
+            readings["diagnostics_critical"] = sum(
+                1 for d in diagnostics if d["severity"] == "critical"
+            )
+            readings["diagnostics_warning"] = sum(
+                1 for d in diagnostics if d["severity"] == "warning"
+            )
 
             # Persist to local offline buffer (survives reboots + cloud outages)
             if self._offline_buffer is not None:
