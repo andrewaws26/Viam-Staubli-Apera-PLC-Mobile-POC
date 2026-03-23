@@ -532,8 +532,9 @@ class PlcSensor(Sensor):
         self._prev_encoder_time: Optional[float] = None
         self._encoder_speed_mmps: float = 0.0  # mm per second
         self._accumulated_distance_mm: float = 0.0  # cumulative from DS10 deltas
-        # Encoder hardware health — track if DD1 is changing at all
-        self._dd1_history: collections.deque = collections.deque(maxlen=30)  # 30 seconds of DD1 values
+        # Encoder hardware health — track if DD1 and DS10 are changing
+        self._dd1_history: collections.deque = collections.deque(maxlen=30)
+        self._ds10_history: collections.deque = collections.deque(maxlen=30)
         # TPS plate drop counter — tracks OFF→ON transitions on Y1 (Eject TPS_1)
         self._prev_eject_tps1: Optional[bool] = None
         self._plate_drop_count: int = 0
@@ -694,6 +695,7 @@ class PlcSensor(Sensor):
             # Encoder & Track Distance
             "encoder_count": 0,
             "dd1_frozen": True,
+            "ds10_frozen": True,
             "encoder_direction": "forward",
             "encoder_distance_ft": 0.0,
             "encoder_speed_ftpm": 0.0,
@@ -824,6 +826,13 @@ class PlcSensor(Sensor):
             self._dd1_history.append(encoder_count)
             dd1_unique = len(set(self._dd1_history))
             dd1_frozen = dd1_unique <= 1 and len(self._dd1_history) >= 10
+
+            # ── DS10 health: is the PLC counting distance? ──
+            # DS10 should change when TPS is on and encoder is moving.
+            # If DS10 is frozen while DD1 is alive, the PLC isn't processing.
+            self._ds10_history.append(ds[9])
+            ds10_unique = len(set(self._ds10_history))
+            ds10_frozen = ds10_unique <= 1 and len(self._ds10_history) >= 15
 
             # ── Distance from DS10 (Encoder Next Tie) ──
             # DD1 is NOT usable for distance — the PLC resets it every ~10
@@ -993,6 +1002,7 @@ class PlcSensor(Sensor):
                 # Encoder & Track Distance (DD1 + derived)
                 "encoder_count": encoder_count,
                 "dd1_frozen": dd1_frozen,
+                "ds10_frozen": ds10_frozen,
                 "encoder_direction": "forward" if encoder_direction == 0 else "reverse",
                 "encoder_distance_ft": round(encoder_distance_ft, 2),
                 "encoder_speed_ftpm": round(encoder_speed_ftpm, 1),

@@ -159,50 +159,137 @@ def _check_encoder(r: Dict[str, Any]) -> List[Diagnostic]:
     avg_spacing = r.get("avg_drop_spacing_in", 0)
     ds2 = r.get("ds2", 0)
     drop_count = r.get("drop_count_in_window", 0)
-
-    # encoder_disconnected: DD1 frozen — hardware fault, works regardless of TPS power
     dd1_frozen = r.get("dd1_frozen", False)
+    dd1_changing = not dd1_frozen
+    cam_rate = r.get("camera_detections_per_min", 0)
+    eject_rate = r.get("eject_rate_per_min", 0)
+    ds10 = r.get("ds10", 0)
+    ds10_frozen = r.get("ds10_frozen", False)
+
+    # ── Hardware faults (work regardless of TPS power) ──
+
+    # encoder_disconnected: DD1 frozen — no pulses from encoder at all
     if dd1_frozen:
         out.append({
             "rule": "encoder_disconnected",
             "severity": "critical",
             "category": "encoder",
-            "title": "Encoder disconnected \u2014 no signal from encoder",
+            "title": "Encoder disconnected \u2014 no signal",
             "action": (
                 "1. Check the encoder cable \u2014 is it plugged in? "
                 "2. Check the cable for damage or pinching. "
                 "3. Check connections at PLC terminals X1 and X2. "
-                "4. Check the encoder has power."
+                "4. Check the encoder has power. "
+                "5. If cable is good, the encoder itself may have failed."
             ),
             "evidence": (
-                f"DD1 has not changed for 10+ seconds (frozen). "
+                f"DD1 has not changed for 10+ seconds (frozen at {r.get('encoder_count', '?')}). "
                 f"Encoder should always produce small fluctuations."
             ),
         })
 
-    # encoder_stopped: power on, nothing moving
-    if speed == 0 and tps_power and tps_dur > 60 and not dd1_frozen:  # TUNE: 60s may still be too short for stops
+    # ── TPS-on faults (require production mode) ──
+
+    # encoder_spinning_no_distance: DD1 alive but DS10 not counting down
+    # Means encoder produces pulses but PLC isn't processing them into distance
+    if dd1_changing and ds10_frozen and tps_power and tps_dur > 30:
+        out.append({
+            "rule": "encoder_spinning_no_distance",
+            "severity": "critical",
+            "category": "encoder",
+            "title": "Encoder running but distance not counting",
+            "action": (
+                "1. The encoder is producing pulses but the PLC is not "
+                "converting them to distance. "
+                "2. Check PLC is in RUN mode (RUN LED green). "
+                "3. Check for PLC faults on the HMI. "
+                "4. Cycle TPS power off and on."
+            ),
+            "evidence": (
+                f"DD1 is changing (encoder alive), "
+                f"but DS10 is frozen at {ds10} (not counting down). "
+                f"TPS power on for {tps_dur:.0f}s."
+            ),
+        })
+
+    # encoder_stopped: TPS on, encoder alive, but no speed (wheel off rail)
+    if speed == 0 and tps_power and tps_dur > 60 and not dd1_frozen:  # TUNE: 60s
         out.append({
             "rule": "encoder_stopped",
             "severity": "critical",
             "category": "encoder",
-            "title": "Encoder not reading \u2014 check wheel and cable",
+            "title": "Encoder not moving \u2014 check wheel contact",
             "action": (
                 "1. Check that the track wheel is in contact with the "
                 "rail and turning. "
-                "2. Check the encoder cable for damage. "
-                "3. Check the cable connections at PLC terminals X1 and X2. "
-                "4. If the cable looks good, the encoder may have failed."
+                "2. The wheel may be lifted off the rail. "
+                "3. Check for debris jamming the wheel. "
+                "4. If the truck is actually stopped, this will clear "
+                "when you start moving."
             ),
             "evidence": (
                 f"encoder_speed_ftpm={speed}, "
                 f"tps_power_loop={tps_power}, "
-                f"tps_power_duration_s={tps_dur:.0f}"
+                f"tps_power_duration_s={tps_dur:.0f}, "
+                f"dd1_frozen={dd1_frozen}"
             ),
         })
 
-    # encoder_noisy
-    if noise > 30:  # TUNE: was 10, raised — railroad trucks vibrate a lot
+    # ── Motion anomalies ──
+
+    # unexpected_motion: encoder shows movement when TPS is off and idle
+    if speed > 2 and not tps_power and tps_dur > 300:  # TUNE: 2 ft/min, 5 min idle
+        out.append({
+            "rule": "unexpected_motion",
+            "severity": "warning",
+            "category": "encoder",
+            "title": "Encoder showing movement while system is off",
+            "action": (
+                "1. Is the truck actually moving? If being repositioned, "
+                "this is normal. "
+                "2. If the truck is parked, check for encoder noise \u2014 "
+                "vibration from nearby equipment may be causing false readings. "
+                "3. Check the encoder mounting is tight."
+            ),
+            "evidence": (
+                f"encoder_speed_ftpm={speed:.1f}, "
+                f"tps_power_loop={tps_power}, "
+                f"system idle for {tps_dur:.0f}s"
+            ),
+        })
+
+    # speed_vs_detection_mismatch: camera sees ties but speed doesn't match
+    # At 19.5" spacing, detection rate and speed should correlate:
+    # expected_rate = speed_in_per_min / 19.5
+    if tps_power and speed > 10 and cam_rate > 2:
+        speed_in_per_min = speed * 12  # ft/min to in/min
+        expected_cam_rate = speed_in_per_min / 19.5
+        ratio = cam_rate / expected_cam_rate if expected_cam_rate > 0 else 1.0
+        if ratio < 0.5 or ratio > 2.0:  # TUNE: 50% mismatch threshold
+            out.append({
+                "rule": "speed_vs_detection_mismatch",
+                "severity": "warning",
+                "category": "encoder",
+                "title": "Encoder speed doesn't match tie detection rate",
+                "action": (
+                    "1. If speed is too high relative to camera: encoder wheel "
+                    "may be slipping on rail (spinning faster than truck moves). "
+                    "2. If speed is too low relative to camera: encoder may be "
+                    "missing counts or wheel is dragging. "
+                    "3. Check wheel contact with rail. "
+                    "4. Check for debris on the wheel."
+                ),
+                "evidence": (
+                    f"speed={speed:.1f} ft/min, camera_rate={cam_rate:.1f}/min, "
+                    f"expected_camera_rate={expected_cam_rate:.1f}/min (at 19.5\" spacing), "
+                    f"ratio={ratio:.2f} (should be ~1.0)"
+                ),
+            })
+
+    # ── Signal quality ──
+
+    # encoder_noisy: too many direction reversals
+    if noise > 30:  # TUNE: was 10, raised for railroad vibration
         out.append({
             "rule": "encoder_noisy",
             "severity": "warning",
@@ -219,26 +306,29 @@ def _check_encoder(r: Dict[str, Any]) -> List[Diagnostic]:
             ),
         })
 
-    # encoder_drift: actual spacing differs from target
+    # encoder_drift: actual plate spacing differs from target setting
     if ds2 > 0 and drop_count > 10:
         target_in = ds2 * 0.5
         drift = abs(avg_spacing - target_in)
         if drift > 2.0:  # TUNE: 2" deviation threshold
+            direction = "long" if avg_spacing > target_in else "short"
             out.append({
                 "rule": "encoder_drift",
                 "severity": "warning",
                 "category": "encoder",
-                "title": "Plate spacing drifting from target",
+                "title": f"Plates dropping {drift:.1f}\" {direction} of target",
                 "action": (
                     "1. Check that the track wheel is tight on the rail "
                     "\u2014 a loose wheel slips and gives wrong distance. "
                     "2. Check for debris on the wheel. "
-                    "3. Verify DS2 spacing setting matches the job spec."
+                    "3. Verify DS2 spacing setting matches the job spec. "
+                    "4. If plates are consistently long, wheel may be worn "
+                    "(smaller diameter = more counts per foot)."
                 ),
                 "evidence": (
-                    f"avg_drop_spacing_in={avg_spacing:.1f}, "
+                    f"avg_drop_spacing_in={avg_spacing:.1f}\", "
                     f"target={target_in:.1f}\" (DS2={ds2}), "
-                    f"drift={drift:.1f}\", "
+                    f"drift={drift:.1f}\" {direction}, "
                     f"drop_count={drop_count}"
                 ),
             })
