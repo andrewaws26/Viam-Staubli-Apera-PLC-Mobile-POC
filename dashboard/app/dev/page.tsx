@@ -935,28 +935,17 @@ export default function DevPage() {
               </div>
             )}
 
-            {/* Eject buttons */}
+            {/* Eject button */}
             <div>
-              <p className="text-[10px] uppercase tracking-wider text-gray-600 font-bold mb-2">Test Eject (requires TPS power)</p>
-              <div className="flex flex-wrap gap-2">
-                {["Y1", "Y2", "Y3"].map((output) => (
-                  <button
-                    key={output}
-                    disabled={cmdLoading}
-                    onClick={() => sendCommand({ action: "test_eject", output })}
-                    className="bg-red-800 hover:bg-red-700 disabled:bg-gray-800 text-white text-xs px-4 py-2 rounded-lg font-bold transition-colors"
-                  >
-                    {cmdLoading ? "..." : `Eject ${output}`}
-                  </button>
-                ))}
-                <button
-                  disabled={cmdLoading}
-                  onClick={() => sendCommand({ action: "software_eject" })}
-                  className="bg-orange-800 hover:bg-orange-700 disabled:bg-gray-800 text-white text-xs px-4 py-2 rounded-lg font-bold transition-colors"
-                >
-                  {cmdLoading ? "..." : "Software Eject (C29)"}
-                </button>
-              </div>
+              <p className="text-[10px] uppercase tracking-wider text-gray-600 font-bold mb-2">Eject Plate (requires TPS power + mode selected)</p>
+              <button
+                disabled={cmdLoading}
+                onClick={() => sendCommand({ action: "software_eject" })}
+                className="bg-red-800 hover:bg-red-700 disabled:bg-gray-800 text-white text-sm px-6 py-2.5 rounded-lg font-bold transition-colors"
+              >
+                {cmdLoading ? "Sending..." : "Eject Plate"}
+              </button>
+              <p className="text-[10px] text-gray-600 mt-1">Sends C29 (Software Eject) through PLC ladder logic. PLC decides which chute fires based on active mode.</p>
             </div>
 
             {/* Mode buttons */}
