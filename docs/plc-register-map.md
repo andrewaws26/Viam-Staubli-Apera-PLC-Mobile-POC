@@ -1,7 +1,18 @@
 # Click PLC Register Map — TPS (Tie Plate System)
 
 Extracted from Click PLC project file (.ckp) on 2026-03-23.
-PLC: Click C0-10DD2E-D, CPU ID 209.
+PLC: Click C0-10DD2E-D, CPU ID 209, Firmware v3.80.
+478 named registers decoded from nickname table.
+
+> **⚠️ CRITICAL: DD1 is NOT a cumulative distance counter.**
+> The PLC resets DD1 every ~10 counts at 0.1ms scan rate. The Pi cannot
+> sample fast enough to track it. Distance MUST come from DS10 (Encoder
+> Next Tie countdown). See `docs/encoder-distance.md` for full explanation.
+
+> **Note:** DS register labels below were corrected from the full 478-entry
+> nickname table. The original extraction had an off-by-one error.
+> Corrected labels: DS1=Encoder Ignore, DS2=Adj Tie Spacing (×0.5"),
+> DS3=Tie Spacing (×0.1"), DS10=Encoder Next Tie (THE distance source).
 
 ## DS Registers (Signed Int 16-bit, Modbus Holding Registers 0-24)
 

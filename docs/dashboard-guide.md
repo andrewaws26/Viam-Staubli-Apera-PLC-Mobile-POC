@@ -25,18 +25,22 @@ The SICK DBS60E encoder on the track wheel. This is how the system knows how far
 
 | Field | What It Shows |
 |-------|---------------|
-| **Distance Traveled** | Total distance this session in feet. Resets when viam-server restarts. |
-| **Track Speed** | Real-time ground speed in feet per minute. |
-| **Direction** | "forward" or "reverse" based on encoder rotation. |
-| **Raw Pulse Count** | DD1 from PLC — the raw encoder value. Can be negative; that's normal. |
-| **Wheel Revolutions** | How many times the track wheel has turned. |
+| **Distance Traveled** | Total distance this session in feet. Derived from DS10 (Encoder Next Tie countdown), NOT from DD1. Resets when viam-server restarts. |
+| **Track Speed** | Real-time ground speed in feet per minute. Derived from DS10 change rate. |
+| **Direction** | "forward" or "reverse" based on DS10 counting down (forward) or up (reverse). |
+| **Raw Pulse Count** | DD1 from PLC — oscillates 0-13 rapidly. Shows encoder is alive but NOT used for distance (the PLC resets DD1 thousands of times per second). |
+| **Wheel Revolutions** | How many times the track wheel has turned. Calculated from accumulated distance ÷ wheel circumference. |
 | **Shift Hours** | Time since this monitoring session started. |
+
+### How distance actually works:
+Distance comes from **DS10 (Encoder Next Tie)**, not DD1. DS10 counts down from 195 (= 19.5") to 0 in 0.1-inch units. Each full cycle = 19.5" of travel. The Pi tracks this countdown and accumulates distance. This is reliable because DS10 changes slowly enough for 1Hz sampling. See `docs/encoder-distance.md` for the full technical explanation.
 
 ### What to look for:
 - **Speed reads 0 but truck is moving** → Encoder cable disconnected, encoder failure, or wheel not turning (lifted off rail)
 - **Direction shows "reverse" during forward travel** → Encoder wired backwards (swap A/B channels at PLC terminals X1/X2)
-- **Distance jumps or resets** → PLC reset DD1 (normal during direction changes, per Rung 0 in ladder logic)
-- **Speed fluctuating wildly at low speed** → Normal — encoder resolution makes slow speeds noisy
+- **Raw Pulse Count stuck at 0** → Encoder dead or cable disconnected. DD1 should oscillate 0-13 when moving.
+- **DS10 not changing** → PLC not processing encoder counts. Check PLC is in RUN mode.
+- **Speed fluctuating wildly at low speed** → Normal at very low speeds due to DS10 resolution (0.1" = 2.54mm)
 
 ---
 
