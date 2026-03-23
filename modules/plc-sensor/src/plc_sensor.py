@@ -21,12 +21,14 @@ Offline buffering:
 """
 
 import asyncio
+import collections
 import json
 import math
 import os
 import subprocess
 import time
 import uuid
+from collections import deque as Deque
 from typing import Any, ClassVar, Dict, Mapping, Optional, Sequence
 
 from pymodbus.client import ModbusTcpClient
