@@ -697,6 +697,7 @@ def get_system_status() -> dict:
         "ds_registers": {},
         "eth0_carrier": False,
         "wifi_ssid": "",
+        "wifi_signal_dbm": 0,
         "cpu_temp": 0.0,
         "mem_pct": 0,
         "tailscale_ip": "",
@@ -754,10 +755,23 @@ def get_system_status() -> dict:
     except Exception:
         pass
 
-    # WiFi SSID
+    # WiFi SSID + signal strength
     try:
         r = subprocess.check_output(["iwgetid", "-r"], text=True, timeout=5)
         status["wifi_ssid"] = r.strip()
+    except Exception:
+        pass
+    try:
+        r = subprocess.check_output(
+            ["iwconfig", "wlan0"], text=True, timeout=5, stderr=subprocess.DEVNULL
+        )
+        for line in r.splitlines():
+            if "Signal level" in line:
+                # Format: "Signal level=-52 dBm" or "Signal level=48/100"
+                import re
+                m = re.search(r"Signal level[=:]?\s*(-?\d+)", line)
+                if m:
+                    status["wifi_signal_dbm"] = int(m.group(1))
     except Exception:
         pass
 
@@ -1289,6 +1303,22 @@ def _draw_status_bar(draw, sys_status):
         x -= lw + 14
         draw.rectangle([x, 11, x + 8, 19], fill=color)
         draw.text((x + 10, 9), label, fill=LIGHT_GRAY, font=font_sm)
+
+    # WiFi SSID + signal strength
+    ssid = sys_status.get("wifi_ssid", "")
+    signal_dbm = sys_status.get("wifi_signal_dbm", 0)
+    if ssid:
+        # Signal strength color: green > -50, yellow -50 to -70, red < -70
+        if signal_dbm >= -50:
+            sig_color = GREEN
+        elif signal_dbm >= -70:
+            sig_color = YELLOW
+        else:
+            sig_color = RED
+        wifi_str = f"{ssid} {signal_dbm}dBm" if signal_dbm else ssid
+        ww = draw.textlength(wifi_str, font=font_sm)
+        x -= ww + 10
+        draw.text((x, 9), wifi_str, fill=sig_color, font=font_sm)
 
     # Time
     now_str = time.strftime("%H:%M")
