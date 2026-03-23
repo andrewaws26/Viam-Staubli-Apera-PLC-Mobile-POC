@@ -57,12 +57,12 @@ _INITIAL_BACKOFF_SECONDS = 1.0
 _ENCODER_PPR = 1000          # Pulses per revolution (from datasheet)
 _ENCODER_QUADRATURE = 1      # Production HSC uses x1 count mode
 _ENCODER_COUNTS_PER_REV = _ENCODER_PPR * _ENCODER_QUADRATURE  # 1000
-# Effective wheel diameter — calibrated from field test: 15 encoder
-# revolutions = 0.01 miles (3.52 ft/rev, circumference 1072.6 mm).
-# Physical DMF RW-1650 wheel is 406.4mm (16 in) but the encoder spins
-# ~1.19x per wheel revolution due to belt/gear ratio.  This effective
-# diameter absorbs that ratio so: count * mm_per_count = true distance.
-_DEFAULT_WHEEL_DIAMETER_MM = 341.4  # ~13.4 in effective (includes gear ratio)
+# Wheel diameter — physical DMF RW-1650 wheel is 406.4mm (16 in).
+# Encoder is direct-drive (no gear ratio). Verified against PLC:
+# Rung 0 defines 10 encoder counts = 0.5 inches, which with 1000 PPR
+# gives mm_per_count = 1.277mm. That matches pi*406.4/1000 = 1.277mm.
+# The previous 341.4mm "calibrated" value was 15.5% wrong.
+_DEFAULT_WHEEL_DIAMETER_MM = 406.4  # 16 in physical wheel, direct-drive encoder
 
 # Offline buffer defaults
 _DEFAULT_BUFFER_MAX_MB = 50
@@ -518,10 +518,11 @@ class PlcSensor(Sensor):
         self._offline_buffer: Optional[OfflineBuffer] = None
         if offline_buffer_dir:
             self._offline_buffer = OfflineBuffer(offline_buffer_dir, offline_buffer_max_mb)
-        # Encoder: distance-per-count derived from effective wheel diameter
+        # Encoder: distance-per-count derived from wheel diameter
         # mm_per_count = circumference / counts_per_rev
-        #   = (π × 341.4) / 1000 = 1.0726 mm per encoder count
-        #   = 0.04222 inches per count, 3.52 ft per revolution
+        #   = (π × 406.4) / 1000 = 1.2767 mm per encoder count
+        #   = 0.05025 inches per count, 4.19 ft per revolution
+        # Verified: PLC Rung 0 says 10 counts = 0.5", so 1 count = 1.27mm ✓
         self._wheel_diameter_mm = wheel_diameter_mm
         wheel_circumference_mm = math.pi * wheel_diameter_mm
         self._mm_per_count = wheel_circumference_mm / _ENCODER_COUNTS_PER_REV
