@@ -2,12 +2,18 @@
 Description=IronSight Interactive Touch Display
 After=viam-server.service
 Wants=viam-server.service
+# Only start if the SunFounder ili9486 framebuffer exists
+ConditionPathExists=/dev/fb0
 
 [Service]
 Type=simple
+# Pre-check: confirm fb0 is the ili9486 SPI display, not HDMI
+ExecStartPre=/bin/bash -c 'grep -q ili9486 /sys/class/graphics/fb0/name 2>/dev/null || (echo "fb0 is not ili9486 touchscreen — skipping" && exit 1)'
 ExecStart=/usr/bin/python3 /home/andrew/Viam-Staubli-Apera-PLC-Mobile-POC/scripts/ironsight-touch.py
 Restart=on-failure
-RestartSec=5
+RestartSec=30
+StartLimitIntervalSec=300
+StartLimitBurst=5
 User=root
 Environment=PYTHONUNBUFFERED=1
 # Needs root for /dev/fb0, /dev/input/event*, and systemctl commands

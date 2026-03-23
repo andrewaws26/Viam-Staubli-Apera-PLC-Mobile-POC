@@ -242,7 +242,7 @@ class TouchInput:
             "min_y": 200, "max_y": 3850,
             "swap_xy": True,
             "invert_x": True,
-            "invert_y": False,
+            "invert_y": True,
         }
         self._load_calibration()
 
@@ -817,23 +817,26 @@ def get_system_status() -> dict:
 
     # Latest reading from offline buffer
     try:
-        buf_dir = Path.home() / ".viam" / "offline-buffer"
+        buf_dir = Path("/home/andrew/.viam/offline-buffer")
         if buf_dir.exists():
             jsonl_files = sorted(buf_dir.glob("readings_*.jsonl"))
             if jsonl_files:
                 with open(jsonl_files[-1], "rb") as f:
+                    # Read last 4KB and grab the last complete JSON line
                     f.seek(0, 2)
-                    pos = f.tell()
-                    buf = b""
-                    while pos > 0:
-                        pos = max(0, pos - 1024)
-                        f.seek(pos)
-                        buf = f.read() + buf
-                        lines = buf.strip().split(b"\n")
-                        if len(lines) >= 2 or pos == 0:
+                    size = f.tell()
+                    f.seek(max(0, size - 4096))
+                    chunk = f.read()
+                    lines = chunk.strip().split(b"\n")
+                    # Last line is complete; second-to-last might be partial
+                    data = None
+                    for line in reversed(lines):
+                        try:
+                            data = json.loads(line)
                             break
-                    if lines:
-                        data = json.loads(lines[-1])
+                        except (json.JSONDecodeError, ValueError):
+                            continue
+                    if data:
                         status["travel_ft"] = data.get("encoder_distance_ft", 0)
                         status["speed_ftpm"] = data.get("encoder_speed_ftpm", 0)
                         status["plate_count"] = data.get("plate_drop_count", 0)
@@ -938,7 +941,7 @@ class CommandExecutor:
 
             elif action == "cmd_clear_buffer":
                 self._set_feedback("Clearing offline buffer...", "info")
-                buf_dir = Path.home() / ".viam" / "offline-buffer"
+                buf_dir = Path("/home/andrew/.viam/offline-buffer")
                 count = 0
                 if buf_dir.exists():
                     for f in buf_dir.glob("readings_*.jsonl"):
@@ -1294,10 +1297,10 @@ def _draw_status_bar(draw, sys_status):
 
 
 def _back_button() -> Button:
-    """Standard back button for sub-pages."""
+    """Standard back button for sub-pages — full width, easy to hit with gloves."""
     return Button(
         x=MARGIN, y=H - BACK_BTN_H - 5,
-        w=BACK_BTN_W, h=BACK_BTN_H,
+        w=W - MARGIN * 2, h=BACK_BTN_H,
         label="< BACK", action="nav_home",
         color=MID_GRAY, text_color=WHITE
     )
@@ -1476,9 +1479,12 @@ def render_commands(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
     ]
 
     buttons = []
-    btn_h = 42
     btn_w = W - MARGIN * 2
+    # Calculate button height to fit above the back button without overlap
+    back_top = H - BACK_BTN_H - 5
+    available_h = back_top - y - 10  # 10px gap above back button
     gap = 6
+    btn_h = min(42, (available_h - gap * (len(commands) - 1)) // len(commands))
 
     for label, action, color, needs_confirm in commands:
         btn_action = f"confirm_{action}" if needs_confirm else action
@@ -1487,7 +1493,7 @@ def render_commands(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
         draw_button(draw, btn, font)
         y += btn_h + gap
 
-    # Back button
+    # Back button (appended last so it draws on top)
     back = _back_button()
     draw_button(draw, back, find_font(14))
     buttons.append(back)
