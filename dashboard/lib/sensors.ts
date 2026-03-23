@@ -52,8 +52,6 @@ export const ENCODER_DETAIL_FIELDS: {
   { key: "encoder_distance_ft", label: "Distance Traveled", unit: "ft", highlight: true },
   { key: "encoder_speed_ftpm", label: "Track Speed", unit: "ft/min", highlight: true },
   { key: "encoder_direction", label: "Direction" },
-  { key: "encoder_count", label: "Raw Pulse Count" },
-  { key: "encoder_revolutions", label: "Wheel Revolutions" },
   { key: "shift_hours", label: "Shift Hours", unit: "hrs" },
 ];
 
