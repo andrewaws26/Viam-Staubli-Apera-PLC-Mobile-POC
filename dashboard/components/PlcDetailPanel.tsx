@@ -165,6 +165,57 @@ export default function PlcDetailPanel({ readings }: Props) {
               </div>
             </div>
 
+            {/* Distance vs Plates — the core accuracy metric */}
+            {(() => {
+              const distFt = (readings["encoder_distance_ft"] ?? 0) as number;
+              const distIn = distFt * 12;
+              const expectedPlates = target > 0 ? Math.floor(distIn / target) : 0;
+              const actualPerPlate = count > 0 ? distIn / count : 0;
+              const missed = expectedPlates - count;
+              const efficiency = expectedPlates > 0 ? (count / expectedPlates) * 100 : 0;
+
+              if (distFt < 1 || count === 0) return null;
+
+              const effColor = efficiency >= 97 ? "text-green-400"
+                : efficiency >= 90 ? "text-yellow-400" : "text-red-400";
+              const perPlateColor = target > 0 && actualPerPlate > 0
+                ? Math.abs(actualPerPlate - target) / target <= 0.05 ? "text-green-400"
+                  : Math.abs(actualPerPlate - target) / target <= 0.15 ? "text-yellow-400"
+                  : "text-red-400"
+                : "text-gray-400";
+
+              return (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3 py-2 border-t border-b border-gray-800/50">
+                  <div className="flex flex-col items-center">
+                    <span className="text-[10px] text-gray-600 uppercase">Avg Spacing</span>
+                    <span className={`font-mono font-bold text-sm ${perPlateColor}`}>
+                      {actualPerPlate.toFixed(1)}<span className="text-gray-600 font-normal text-[10px] ml-0.5">in</span>
+                    </span>
+                    <span className="text-[10px] text-gray-600">target {target}"</span>
+                  </div>
+                  <div className="flex flex-col items-center">
+                    <span className="text-[10px] text-gray-600 uppercase">Expected</span>
+                    <span className="font-mono font-bold text-sm text-gray-400">
+                      {expectedPlates}
+                    </span>
+                    <span className="text-[10px] text-gray-600">for {distFt.toFixed(0)} ft</span>
+                  </div>
+                  <div className="flex flex-col items-center">
+                    <span className="text-[10px] text-gray-600 uppercase">Missed</span>
+                    <span className={`font-mono font-bold text-sm ${missed > 0 ? "text-red-400" : "text-green-400"}`}>
+                      {missed > 0 ? missed : 0}
+                    </span>
+                  </div>
+                  <div className="flex flex-col items-center">
+                    <span className="text-[10px] text-gray-600 uppercase">Efficiency</span>
+                    <span className={`font-mono font-bold text-sm ${effColor}`}>
+                      {efficiency.toFixed(0)}<span className="text-gray-600 font-normal text-[10px] ml-0.5">%</span>
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Reference values */}
             <div className="flex items-center justify-center gap-4 mb-3 text-[10px] sm:text-xs text-gray-600">
               <span>Target: <span className="text-gray-400 font-mono">{target}"</span></span>
