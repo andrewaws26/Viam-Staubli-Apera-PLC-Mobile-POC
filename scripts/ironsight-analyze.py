@@ -25,7 +25,10 @@ Usage:
     ironsight-analyze <ip> --duration 120      # 120s observation per round
 
 Requires:
-    pip3 install pymodbus>=3.5 anthropic
+    pip3 install pymodbus>=3.5
+    Claude Code CLI (claude) must be installed and authenticated
+
+Requires a Claude Pro/Team/Enterprise subscription — no API key needed.
 """
 
 import argparse
@@ -42,12 +45,6 @@ try:
     from pymodbus.client import ModbusTcpClient
 except ImportError:
     print("ERROR: pymodbus not installed. Run: pip3 install pymodbus")
-    sys.exit(1)
-
-try:
-    import anthropic
-except ImportError:
-    print("ERROR: anthropic not installed. Run: pip3 install anthropic")
     sys.exit(1)
 
 # Import from sibling modules
@@ -78,31 +75,38 @@ DIM = _discover.DIM
 RESET = _discover.RESET
 
 # ─────────────────────────────────────────────────────────────
-#  Claude Headless Interface
+#  Claude CLI Headless Interface
 # ─────────────────────────────────────────────────────────────
 
-MODEL = "claude-sonnet-4-20250514"
-MAX_TOKENS = 4096
+# Claude CLI binary — override with CLAUDE_CLI env var if needed
+CLAUDE_CLI = os.environ.get("CLAUDE_CLI", "claude")
 
 
 def claude_headless(prompt: str, system: str = None) -> str:
-    """Send a prompt to Claude and return the text response.
+    """Send a prompt to Claude via the CLI in headless mode.
 
-    Uses the Anthropic API directly. Requires ANTHROPIC_API_KEY env var.
+    Uses `claude -p` (print mode) which takes a prompt on stdin,
+    sends it to Claude, and prints the response to stdout.
+    No API key needed — uses your Claude subscription.
     """
-    client = anthropic.Anthropic()  # picks up ANTHROPIC_API_KEY from env
+    cmd = [CLAUDE_CLI, "-p", "--output-format", "text"]
 
-    messages = [{"role": "user", "content": prompt}]
-    kwargs = {
-        "model": MODEL,
-        "max_tokens": MAX_TOKENS,
-        "messages": messages,
-    }
     if system:
-        kwargs["system"] = system
+        cmd.extend(["--system-prompt", system])
 
-    response = client.messages.create(**kwargs)
-    return response.content[0].text
+    result = subprocess.run(
+        cmd,
+        input=prompt,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+
+    if result.returncode != 0:
+        stderr = result.stderr.strip()
+        raise RuntimeError(f"Claude CLI failed (exit {result.returncode}): {stderr}")
+
+    return result.stdout.strip()
 
 
 # ─────────────────────────────────────────────────────────────
@@ -677,7 +681,7 @@ Examples:
   ironsight-analyze.py 192.168.3.39 --report report.json  # Use existing sweep data
 
 Environment:
-  ANTHROPIC_API_KEY    Required — your Anthropic API key
+  CLAUDE_CLI           Override claude binary path (default: "claude")
         """,
     )
     parser.add_argument("ip", help="PLC IP address")
@@ -690,10 +694,18 @@ Environment:
 
     args = parser.parse_args()
 
-    # Check for API key
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        print(f"{RED}ERROR: ANTHROPIC_API_KEY environment variable not set.{RESET}")
-        print(f"  export ANTHROPIC_API_KEY=sk-ant-...")
+    # Check that claude CLI is available
+    try:
+        result = subprocess.run(
+            [CLAUDE_CLI, "--version"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode != 0:
+            raise FileNotFoundError
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        print(f"{RED}ERROR: Claude CLI not found. Install it first:{RESET}")
+        print(f"  npm install -g @anthropic-ai/claude-code")
+        print(f"  Then run: claude login")
         sys.exit(1)
 
     analyze_unknown_plc(
