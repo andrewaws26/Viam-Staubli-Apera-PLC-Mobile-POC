@@ -59,7 +59,7 @@
         "capture_dir": "/home/pi/.viam/capture",
         "sync_interval_mins": 0.1,
         "sync_disabled": false,
-        "tags": ["tps-monitor"]
+        "tags": ["tps-monitor", "OVERRIDE_WITH_TRUCK_ID"]
       }
     }
   ]

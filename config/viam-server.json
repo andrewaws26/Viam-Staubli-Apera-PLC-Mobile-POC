@@ -44,7 +44,7 @@
         "capture_dir": "/home/andrew/.viam/capture",
         "sync_interval_mins": 0.1,
         "sync_disabled": false,
-        "tags": ["tps-monitor"]
+        "tags": ["tps-monitor", "truck-dev"]
       }
     }
   ]
