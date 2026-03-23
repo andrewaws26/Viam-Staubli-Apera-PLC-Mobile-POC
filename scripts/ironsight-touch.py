@@ -6,7 +6,7 @@ Touch-friendly UI with big buttons for glove operation on the truck.
 Renders to Linux framebuffer, reads touch from evdev (ADS7846/XPT2046).
 
 Pages:
-  HOME     — 5 navigation buttons: LIVE, COMMANDS, CHAT, LOGS, SYSTEM
+  HOME     — Live production dashboard (plates, speed, status) with nav bar
   LIVE     — Real-time PLC data (encoder, plates, speed, spacing)
   COMMANDS — Actionable buttons (restart, test PLC, WiFi, etc.)
   CHAT     — Push-to-talk voice chat with Claude AI
@@ -82,6 +82,8 @@ DARK_RED = (80, 20, 20)
 DARK_BLUE = (20, 50, 100)
 DARK_CYAN = (0, 70, 90)
 DARK_ORANGE = (100, 55, 10)
+PURPLE = (100, 40, 140)
+DARK_PURPLE = (55, 20, 80)
 
 PISUGAR_SOCK = "/tmp/pisugar-server.sock"
 CHAT_HISTORY_FILE = Path("/tmp/ironsight-chat.json")
@@ -260,6 +262,13 @@ class TouchInput:
         self.DOUBLE_TAP_MS = 400   # max time between taps
         self.DOUBLE_TAP_PX = 50    # max distance between taps
 
+        # Swipe/drag detection
+        self._swipe_queue: List[int] = []  # positive = swipe up (scroll down), negative = swipe down
+        self._touch_start_y: int = 0
+        self._touch_current_y: int = 0
+        self._is_dragging: bool = False
+        self.SWIPE_THRESHOLD_PX = 20  # minimum pixels to count as swipe vs tap
+
     def _load_calibration(self):
         """Load calibration from file if it exists."""
         try:
@@ -342,37 +351,60 @@ class TouchInput:
                         self._raw_x = event.value
                     elif event.code == ecodes.ABS_Y:
                         self._raw_y = event.value
+                        # Track current Y during drag
+                        if self._touching:
+                            _, sy = self._map_coordinates(self._raw_x, self._raw_y)
+                            self._touch_current_y = sy
                     elif event.code == ecodes.ABS_PRESSURE:
                         if event.value > 0 and not self._touching:
-                            # Touch down
+                            # Touch down — record start position
                             self._touching = True
                             self._touch_start_time = time.time()
+                            _, sy = self._map_coordinates(self._raw_x, self._raw_y)
+                            self._touch_start_y = sy
+                            self._touch_current_y = sy
+                            self._is_dragging = False
                         elif event.value == 0 and self._touching:
-                            # Touch up — register as tap
+                            # Touch up — determine if swipe or tap
                             self._touching = False
                             now = time.time()
-                            # Debounce
-                            if (now - self._last_tap_time) * 1000 > TAP_DEBOUNCE_MS:
-                                sx, sy = self._map_coordinates(self._raw_x, self._raw_y)
+                            delta_y = self._touch_start_y - self._touch_current_y
+                            if abs(delta_y) > self.SWIPE_THRESHOLD_PX:
+                                # It's a swipe, not a tap
                                 with self._lock:
-                                    self._tap_queue.append((sx, sy))
-                                    self._check_double_tap(sx, sy)
-                                self._last_tap_time = now
+                                    self._swipe_queue.append(delta_y)
+                            else:
+                                # Debounce and register as tap
+                                if (now - self._last_tap_time) * 1000 > TAP_DEBOUNCE_MS:
+                                    sx, sy = self._map_coordinates(self._raw_x, self._raw_y)
+                                    with self._lock:
+                                        self._tap_queue.append((sx, sy))
+                                        self._check_double_tap(sx, sy)
+                                    self._last_tap_time = now
 
                 elif event.type == ecodes.EV_KEY:
                     if event.code == ecodes.BTN_TOUCH:
                         if event.value == 1 and not self._touching:
                             self._touching = True
                             self._touch_start_time = time.time()
+                            _, sy = self._map_coordinates(self._raw_x, self._raw_y)
+                            self._touch_start_y = sy
+                            self._touch_current_y = sy
+                            self._is_dragging = False
                         elif event.value == 0 and self._touching:
                             self._touching = False
                             now = time.time()
-                            if (now - self._last_tap_time) * 1000 > TAP_DEBOUNCE_MS:
-                                sx, sy = self._map_coordinates(self._raw_x, self._raw_y)
+                            delta_y = self._touch_start_y - self._touch_current_y
+                            if abs(delta_y) > self.SWIPE_THRESHOLD_PX:
                                 with self._lock:
-                                    self._tap_queue.append((sx, sy))
-                                    self._check_double_tap(sx, sy)
-                                self._last_tap_time = now
+                                    self._swipe_queue.append(delta_y)
+                            else:
+                                if (now - self._last_tap_time) * 1000 > TAP_DEBOUNCE_MS:
+                                    sx, sy = self._map_coordinates(self._raw_x, self._raw_y)
+                                    with self._lock:
+                                        self._tap_queue.append((sx, sy))
+                                        self._check_double_tap(sx, sy)
+                                    self._last_tap_time = now
 
         except Exception as e:
             print(f"Touch read error: {e}")
@@ -406,6 +438,15 @@ class TouchInput:
                 tap = self._double_tap_queue[-1]
                 self._double_tap_queue.clear()
                 return tap
+        return None
+
+    def get_swipe(self) -> Optional[int]:
+        """Return swipe delta in pixels, or None. Positive = swipe up."""
+        with self._lock:
+            if self._swipe_queue:
+                delta = self._swipe_queue[-1]
+                self._swipe_queue.clear()
+                return delta
         return None
 
 
@@ -704,6 +745,10 @@ def get_system_status() -> dict:
         "tailscale_ip": "",
         "eth0_ip": "",
         "battery": {"available": False, "percent": -1, "voltage": 0.0, "charging": False, "power_plugged": False},
+        "diagnostics": [],
+        "tps_power_loop": False,
+        "camera_rate": 0.0,
+        "tps_mode": "",
     }
 
     # viam-server
@@ -871,6 +916,10 @@ def get_system_status() -> dict:
                         status["last_spacing_in"] = data.get("last_drop_spacing_in", 0)
                         status["avg_spacing_in"] = data.get("avg_drop_spacing_in", 0)
                         status["connected"] = data.get("connected", False)
+                        status["diagnostics"] = data.get("diagnostics", [])
+                        status["tps_power_loop"] = data.get("tps_power_loop", False)
+                        status["camera_rate"] = data.get("camera_rate", 0.0)
+                        status["tps_mode"] = data.get("tps_mode", "")
                         for i in range(1, 26):
                             key = f"ds{i}"
                             if key in data:
@@ -1355,6 +1404,69 @@ def _back_button() -> Button:
     )
 
 
+def _draw_alert_bar(draw, sys_status: dict, y_start: int) -> int:
+    """Draw a persistent alert bar if there are active diagnostics.
+
+    Returns the Y position after the bar (content below should shift down).
+    """
+    diagnostics = sys_status.get("diagnostics", [])
+    if not diagnostics:
+        return y_start
+
+    # Find the highest severity
+    has_critical = any(d.get("severity") == "critical" for d in diagnostics)
+    has_warning = any(d.get("severity") == "warning" for d in diagnostics)
+
+    if not has_critical and not has_warning:
+        return y_start
+
+    bar_h = 24
+    if has_critical:
+        bg = (160, 30, 30)
+        text_color = WHITE
+        icon = "!!"
+    else:
+        bg = (160, 130, 0)
+        text_color = BLACK
+        icon = "!"
+
+    draw.rectangle([0, y_start, W, y_start + bar_h], fill=bg)
+
+    font = find_font(10)
+    # Show the first diagnostic title, truncated
+    first = diagnostics[0]
+    title = first.get("title", first.get("message", "Alert"))
+    count = len(diagnostics)
+    suffix = f"  (+{count - 1} more)" if count > 1 else ""
+    display = f" {icon} {title}{suffix}"
+    # Truncate to fit
+    max_chars = 55
+    if len(display) > max_chars:
+        display = display[:max_chars - 3] + "..."
+    draw.text((MARGIN, y_start + 5), display, fill=text_color, font=font)
+
+    return y_start + bar_h
+
+
+def _beep():
+    """Short audible beep for tap feedback."""
+    try:
+        # Try the freedesktop button sound first
+        sound = "/usr/share/sounds/freedesktop/stereo/button-pressed.oga"
+        if os.path.exists(sound):
+            subprocess.Popen(
+                ["aplay", "-q", "-D", "default", sound],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+        else:
+            subprocess.Popen(
+                ["beep", "-f", "1000", "-l", "50"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+    except Exception:
+        pass  # No sound device? Skip silently.
+
+
 def _system_subtitle(sys_status: dict) -> str:
     """Build subtitle for SYSTEM button on home screen."""
     bat = sys_status.get("battery", {})
@@ -1367,73 +1479,136 @@ def _system_subtitle(sys_status: dict) -> str:
 
 
 def render_home(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
-    """HOME — 4 big quadrant buttons."""
+    """HOME — live production dashboard with big numbers and nav bar."""
     img = Image.new("RGB", (W, H), DARK_GRAY)
     draw = ImageDraw.Draw(img)
     _draw_status_bar(draw, sys_status)
 
     buttons = []
-    font = find_font(16)
-    font_sm = find_font(10)
+    font_huge = find_font(42)
+    font_big = find_font(28)
+    font_med = find_font(14)
+    font_sm = find_font(11)
+    font_unit = find_font(10)
+    font_nav = find_font(12)
 
-    # Grid layout: row 1 = 3 buttons, row 2 = 2 buttons + CHAT (wider)
+    y = HEADER_H
+    y = _draw_alert_bar(draw, sys_status, y)
+
+    # --- Derive system status ---
+    tps_power = sys_status.get("tps_power_loop", False)
+    diagnostics = sys_status.get("diagnostics", [])
+    has_critical = any(d.get("severity") == "critical" for d in diagnostics)
+    has_warning = any(d.get("severity") == "warning" for d in diagnostics)
+    connected = sys_status.get("connected", False)
+
+    if has_critical:
+        status_text = "FAULT"
+        status_color = RED
+    elif has_warning:
+        status_text = "WARNING"
+        status_color = YELLOW
+    elif tps_power and connected:
+        status_text = "RUNNING"
+        status_color = GREEN
+    elif connected:
+        status_text = "IDLE"
+        status_color = LIGHT_GRAY
+    else:
+        status_text = "OFFLINE"
+        status_color = RED
+
+    # --- Primary metrics row (big numbers) ---
+    y += 6
+    col_plates = MARGIN
+    col_speed = 175
+    col_status = 320
+
+    # PLATES (biggest number on screen — must be visible from 5 feet in sunlight)
+    plate_count = sys_status.get("plate_count", 0)
+    draw.text((col_plates, y), "PLATES", fill=WHITE, font=font_unit)
+    draw.text((col_plates, y + 13), str(plate_count), fill=WHITE, font=font_huge)
+
+    # SPEED
+    speed = sys_status.get("speed_ftpm", 0.0)
+    draw.text((col_speed, y), "SPEED", fill=WHITE, font=font_unit)
+    draw.text((col_speed, y + 13), f"{speed:.1f}", fill=WHITE, font=font_big)
+    # Unit below speed number
+    draw.text((col_speed, y + 45), "ft/min", fill=LIGHT_GRAY, font=font_unit)
+
+    # STATUS (colored dot + text — bold colors for sunlight)
+    draw.text((col_status, y), "STATUS", fill=WHITE, font=font_unit)
+    # Colored dot (bigger for visibility)
+    dot_y = y + 20
+    draw.ellipse([col_status, dot_y, col_status + 18, dot_y + 18], fill=status_color)
+    draw.text((col_status + 24, y + 18), status_text, fill=status_color, font=font_med)
+
+    # Plates/min below status
+    ppm = sys_status.get("plates_per_min", 0.0)
+    if ppm > 0:
+        draw.text((col_status, y + 42), f"{ppm:.1f}/min", fill=WHITE, font=font_sm)
+
+    # --- Secondary stats row ---
+    y += 68
+    draw.line([(MARGIN, y), (W - MARGIN, y)], fill=MID_GRAY, width=1)
+    y += 6
+
+    # Spacing
+    last_sp = sys_status.get("last_spacing_in", 0.0)
+    sp_str = f"Spacing: {last_sp:.1f}\"" if last_sp > 0 else "Spacing: --"
+    sp_color = GREEN if last_sp > 0 and abs(last_sp - 19.5) < 2 else (
+        YELLOW if last_sp > 0 and abs(last_sp - 19.5) < 5 else (
+            RED if last_sp > 0 else LIGHT_GRAY))
+    draw.text((MARGIN, y), sp_str, fill=sp_color, font=font_sm)
+
+    # Efficiency: plates / expected_plates * 100
+    travel_ft = sys_status.get("travel_ft", 0.0)
+    expected = (travel_ft * 12.0 / 19.5) if travel_ft > 0 else 0
+    efficiency = (plate_count / expected * 100) if expected > 0 else 0
+    eff_str = f"Efficiency: {efficiency:.0f}%" if expected > 0 else "Efficiency: --"
+    eff_color = GREEN if efficiency >= 95 else (YELLOW if efficiency >= 85 else LIGHT_GRAY)
+    eff_x = W // 2
+    draw.text((eff_x, y), eff_str, fill=eff_color, font=font_sm)
+
+    y += 18
+
+    # Mode + Camera rate (bright text for sunlight)
+    mode = sys_status.get("tps_mode", "")
+    mode_str = f"Mode: {mode}" if mode else "Mode: --"
+    draw.text((MARGIN, y), mode_str, fill=WHITE, font=font_sm)
+
+    camera_rate = sys_status.get("camera_rate", 0.0)
+    cam_color = GREEN if camera_rate > 5 else (YELLOW if camera_rate > 0 else LIGHT_GRAY)
+    cam_str = f"Camera: {camera_rate:.0f}/min" if camera_rate > 0 else "Camera: --"
+    draw.text((eff_x, y), cam_str, fill=cam_color, font=font_sm)
+
+    # --- Travel distance (compact, bright) ---
+    y += 18
+    travel_str = f"Travel: {travel_ft:.1f} ft"
+    draw.text((MARGIN, y), travel_str, fill=WHITE, font=font_sm)
+    avg_sp = sys_status.get("avg_spacing_in", 0.0)
+    if avg_sp > 0:
+        draw.text((eff_x, y), f"Avg spacing: {avg_sp:.1f}\"", fill=WHITE, font=font_sm)
+
+    # --- Bottom navigation bar (4 buttons) ---
+    nav_h = 40
+    nav_y = H - nav_h - 4
     gap = 5
-    top = HEADER_H + gap
-    total_h = H - top - MARGIN
-    row_h = (total_h - gap) // 2
+    btn_count = 4
+    btn_w = (W - MARGIN * 2 - gap * (btn_count - 1)) // btn_count
 
-    # Row 1: LIVE, COMMANDS, LOGS (3 equal buttons)
-    r1_btn_w = (W - MARGIN * 2 - gap * 2) // 3
-    row1 = [
-        ("LIVE", "nav_live", DARK_GREEN,
-         f"{'ON' if sys_status['connected'] else 'OFF'} | {sys_status['plate_count']}pl"),
-        ("COMMANDS", "nav_commands", DARK_ORANGE, "Restart, test"),
-        ("LOGS", "nav_logs", DARK_BLUE, "Events"),
+    nav_items = [
+        ("SYSTEM", "nav_system", DARK_CYAN),
+        ("COMMANDS", "nav_commands", DARK_ORANGE),
+        ("CHAT", "nav_chat", PURPLE),
+        ("LOGS", "nav_logs", DARK_BLUE),
     ]
-    for i, (label, action, color, subtitle) in enumerate(row1):
-        bx = MARGIN + i * (r1_btn_w + gap)
-        by = top
-        btn = Button(bx, by, r1_btn_w, row_h, label, action, color=color)
+
+    for i, (label, action, color) in enumerate(nav_items):
+        bx = MARGIN + i * (btn_w + gap)
+        btn = Button(bx, nav_y, btn_w, nav_h, label, action, color=color)
         buttons.append(btn)
-        draw.rounded_rectangle([bx, by, bx + r1_btn_w, by + row_h], radius=10, fill=color)
-        bbox = draw.textbbox((0, 0), label, font=font)
-        tw = bbox[2] - bbox[0]
-        draw.text((bx + (r1_btn_w - tw) // 2, by + row_h // 2 - 18), label, fill=WHITE, font=font)
-        bbox2 = draw.textbbox((0, 0), subtitle, font=font_sm)
-        sw = bbox2[2] - bbox2[0]
-        draw.text((bx + (r1_btn_w - sw) // 2, by + row_h // 2 + 6), subtitle, fill=LIGHT_GRAY, font=font_sm)
-
-    # Row 2: SYSTEM, CHAT (2 buttons, CHAT gets more space)
-    r2_y = top + row_h + gap
-    sys_w = (W - MARGIN * 2 - gap) * 2 // 5
-    chat_w = W - MARGIN * 2 - gap - sys_w
-
-    # SYSTEM button
-    sys_sub = _system_subtitle(sys_status)
-    btn = Button(MARGIN, r2_y, sys_w, row_h, "SYSTEM", "nav_system", color=DARK_CYAN)
-    buttons.append(btn)
-    draw.rounded_rectangle([MARGIN, r2_y, MARGIN + sys_w, r2_y + row_h], radius=10, fill=DARK_CYAN)
-    bbox = draw.textbbox((0, 0), "SYSTEM", font=font)
-    tw = bbox[2] - bbox[0]
-    draw.text((MARGIN + (sys_w - tw) // 2, r2_y + row_h // 2 - 18), "SYSTEM", fill=WHITE, font=font)
-    bbox2 = draw.textbbox((0, 0), sys_sub, font=font_sm)
-    sw = bbox2[2] - bbox2[0]
-    draw.text((MARGIN + (sys_w - sw) // 2, r2_y + row_h // 2 + 6), sys_sub, fill=LIGHT_GRAY, font=font_sm)
-
-    # CHAT button (larger, prominent)
-    chat_x = MARGIN + sys_w + gap
-    PURPLE = (100, 40, 140)
-    btn = Button(chat_x, r2_y, chat_w, row_h, "CHAT", "nav_chat", color=PURPLE)
-    buttons.append(btn)
-    draw.rounded_rectangle([chat_x, r2_y, chat_x + chat_w, r2_y + row_h], radius=10, fill=PURPLE)
-    chat_label = "CHAT"
-    bbox = draw.textbbox((0, 0), chat_label, font=font)
-    tw = bbox[2] - bbox[0]
-    draw.text((chat_x + (chat_w - tw) // 2, r2_y + row_h // 2 - 18), chat_label, fill=WHITE, font=font)
-    chat_sub = "Push to talk"
-    bbox2 = draw.textbbox((0, 0), chat_sub, font=font_sm)
-    sw = bbox2[2] - bbox2[0]
-    draw.text((chat_x + (chat_w - sw) // 2, r2_y + row_h // 2 + 6), chat_sub, fill=LIGHT_GRAY, font=font_sm)
+        draw_button(draw, btn, font_nav)
 
     return img, buttons
 
@@ -1449,7 +1624,9 @@ def render_live(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
     font_med = find_font(14)
     font_sm = find_font(11)
 
-    y = HEADER_H + 4
+    y = HEADER_H
+    y = _draw_alert_bar(draw, sys_status, y)
+    y += 4
 
     # PLC connection bar
     connected = sys_status["connected"]
@@ -1515,16 +1692,18 @@ def render_commands(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
     font = find_font(14)
     font_title = find_font(12)
 
-    y = HEADER_H + 6
+    y = HEADER_H
+    y = _draw_alert_bar(draw, sys_status, y)
+    y += 6
     draw.text((MARGIN, y), "COMMANDS", fill=LIGHT_GRAY, font=font_title)
     y += 20
 
     commands = [
-        ("Restart viam-server", "cmd_restart_viam", DARK_ORANGE, True),
-        ("Test PLC Connection", "cmd_test_plc", DARK_BLUE, False),
-        ("Scan WiFi Networks", "cmd_switch_wifi", DARK_CYAN, False),
-        ("Clear Offline Buffer", "cmd_clear_buffer", DARK_RED, True),
-        ("Force Cloud Sync", "cmd_force_sync", DARK_GREEN, False),
+        ("Fix Connection", "cmd_restart_viam", DARK_ORANGE, True),
+        ("Test PLC", "cmd_test_plc", DARK_BLUE, False),
+        ("Scan WiFi", "cmd_switch_wifi", DARK_CYAN, False),
+        ("Clear Data", "cmd_clear_buffer", DARK_RED, True),
+        ("Sync Now", "cmd_force_sync", DARK_GREEN, False),
     ]
 
     buttons = []
@@ -1560,7 +1739,9 @@ def render_logs(sys_status: dict, scroll_offset: int = 0) -> Tuple["Image.Image"
     font_sm = find_font(9)
     font_title = find_font(12)
 
-    y = HEADER_H + 6
+    y = HEADER_H
+    y = _draw_alert_bar(draw, sys_status, y)
+    y += 6
     draw.text((MARGIN, y), "RECENT EVENTS", fill=LIGHT_GRAY, font=font_title)
     y += 20
 
@@ -1632,7 +1813,9 @@ def render_system(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
     font_sm = find_font(10)
     font_title = find_font(12)
 
-    y = HEADER_H + 6
+    y = HEADER_H
+    y = _draw_alert_bar(draw, sys_status, y)
+    y += 6
     draw.text((MARGIN, y), "SYSTEM HEALTH", fill=LIGHT_GRAY, font=font_title)
     y += 20
 
@@ -1734,42 +1917,44 @@ def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image
     buttons = []
     state = voice_chat.state
 
-    # Thin status line at top (smaller than normal header to save space)
+    # Alert bar first (before chat status line)
+    alert_y = _draw_alert_bar(draw, sys_status, 0)
+
+    # Thin status line at top (below alert bar if present)
     status_h = 18
+    sl_y = alert_y  # status line Y start
     if state == "recording":
-        draw.rectangle([0, 0, W, status_h], fill=DARK_RED)
-        draw.text((MARGIN, 3), "RECORDING  — double-tap to send", fill=RED, font=font_sm)
-        # Recording time
-        elapsed = time.time() - voice_chat._touch_start_time if hasattr(voice_chat, '_touch_start_time') else 0
+        draw.rectangle([0, sl_y, W, sl_y + status_h], fill=DARK_RED)
+        draw.text((MARGIN, sl_y + 3), "RECORDING  -- double-tap to send", fill=RED, font=font_sm)
         # Show a pulsing dot
         dot_color = RED if int(time.time() * 2) % 2 == 0 else DARK_RED
-        draw.ellipse([W - 20, 5, W - 12, 13], fill=dot_color)
+        draw.ellipse([W - 20, sl_y + 5, W - 12, sl_y + 13], fill=dot_color)
     elif state in ("transcribing", "thinking", "loading"):
-        draw.rectangle([0, 0, W, status_h], fill=DARK_BLUE)
-        draw.text((MARGIN, 3), voice_chat.state_message, fill=CYAN, font=font_sm)
+        draw.rectangle([0, sl_y, W, sl_y + status_h], fill=DARK_BLUE)
+        draw.text((MARGIN, sl_y + 3), voice_chat.state_message, fill=CYAN, font=font_sm)
         # Spinner dots
         dots = "." * (int(time.time() * 3) % 4)
-        draw.text((W - 30, 3), dots, fill=CYAN, font=font_sm)
+        draw.text((W - 30, sl_y + 3), dots, fill=CYAN, font=font_sm)
     elif state == "error":
-        draw.rectangle([0, 0, W, status_h], fill=DARK_RED)
-        draw.text((MARGIN, 3), voice_chat.state_message, fill=RED, font=font_sm)
+        draw.rectangle([0, sl_y, W, sl_y + status_h], fill=DARK_RED)
+        draw.text((MARGIN, sl_y + 3), voice_chat.state_message, fill=RED, font=font_sm)
     else:
-        draw.rectangle([0, 0, W, status_h], fill=(15, 15, 20))
+        draw.rectangle([0, sl_y, W, sl_y + status_h], fill=(15, 15, 20))
         # Show hint + back/clear as text links
-        draw.text((MARGIN, 3), "CHAT", fill=BLUE, font=font_sm)
+        draw.text((MARGIN, sl_y + 3), "CHAT", fill=BLUE, font=font_sm)
         hint = "double-tap to talk"
         hw = draw.textlength(hint, font=font_hint)
-        draw.text(((W - hw) // 2, 4), hint, fill=MID_GRAY, font=font_hint)
+        draw.text(((W - hw) // 2, sl_y + 4), hint, fill=MID_GRAY, font=font_hint)
         # Back and Clear as small text buttons (top corners)
-        draw.text((W - 60, 3), "BACK", fill=LIGHT_GRAY, font=font_sm)
-        back_btn = Button(W - 65, 0, 55, status_h, "", "nav_home")
+        draw.text((W - 60, sl_y + 3), "BACK", fill=LIGHT_GRAY, font=font_sm)
+        back_btn = Button(W - 65, sl_y, 55, status_h, "", "nav_home")
         buttons.append(back_btn)
-        draw.text((W - 100, 3), "CLR", fill=MID_GRAY, font=font_sm)
-        clr_btn = Button(W - 105, 0, 40, status_h, "", "chat_clear")
+        draw.text((W - 100, sl_y + 3), "CLR", fill=MID_GRAY, font=font_sm)
+        clr_btn = Button(W - 105, sl_y, 40, status_h, "", "chat_clear")
         buttons.append(clr_btn)
 
     # Chat area — full screen below status line
-    chat_top = status_h + 2
+    chat_top = sl_y + status_h + 2
     chat_bottom = H - 2
     chat_h = chat_bottom - chat_top
 
@@ -2164,6 +2349,21 @@ def main():
             if chat_recording and voice_chat.state not in ("recording", "idle"):
                 chat_recording = False
 
+            # Poll for swipe (smooth scrolling on scrollable pages)
+            swipe = touch.get_swipe()
+            if swipe and current_page in ("logs", "system"):
+                if swipe > 0:
+                    scroll_offset += 3  # swipe up = scroll down = show more content
+                else:
+                    scroll_offset = max(0, scroll_offset - 3)
+                needs_redraw = True
+            elif swipe and current_page == "chat":
+                if swipe > 0:
+                    voice_chat.scroll_offset += 3
+                else:
+                    voice_chat.scroll_offset = max(0, voice_chat.scroll_offset - 3)
+                needs_redraw = True
+
             # Poll for touch
             tap = touch.get_tap()
             if tap:
@@ -2176,6 +2376,7 @@ def main():
                     _, dialog_buttons = render_confirm_dialog(base_img, pending_dialog)
                     hit = find_hit(dialog_buttons, tx, ty)
                     if hit:
+                        _beep()
                         if hit.action == "dialog_cancel":
                             pending_dialog = None
                         elif hit.action.startswith("do_"):
@@ -2187,6 +2388,7 @@ def main():
                         current_page, sys_status, scroll_offset, voice_chat)
                     hit = find_hit(buttons, tx, ty)
                     if hit:
+                        _beep()
                         action = hit.action
                         if action.startswith("nav_"):
                             current_page = action.replace("nav_", "")
