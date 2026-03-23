@@ -30,7 +30,7 @@
       "attributes": {
         "host": "OVERRIDE_WITH_TRUCK_PLC_IP",
         "port": 502,
-        "wheel_diameter_mm": 341.4,
+        "wheel_diameter_mm": 406.4,
         "offline_buffer_dir": "/home/pi/.viam/offline-buffer",
         "offline_buffer_max_mb": 50
       },

@@ -14,7 +14,7 @@ A production monitoring system for Tie Plate Systems (TPS) deployed on 30+ railr
 
 ## Key directories
 - `modules/plc-sensor/src/plc_sensor.py` — Core sensor module (THE critical file)
-- `modules/plc-sensor/src/diagnostics.py` — Diagnostic rules engine (14 rules, standalone)
+- `modules/plc-sensor/src/diagnostics.py` — Diagnostic rules engine (19 rules, standalone)
 - `dashboard/` — Next.js app deployed on Vercel
 - `dashboard/app/dev/page.tsx` — Dev mode page for testing/calibration
 - `dashboard/app/api/sensor-readings/route.ts` — Live sensor data proxy
@@ -65,7 +65,7 @@ See `docs/encoder-distance.md` for the full explanation.
 **Full map**: `docs/plc-register-map.md`
 
 ## Diagnostic Engine
-14 rules in `diagnostics.py` across 5 categories (camera, encoder, eject, PLC, operation). Each diagnostic includes severity, plain-English title, and step-by-step operator actions. Runs on every 1Hz reading after 60-second warmup.
+19 rules in `diagnostics.py` across 5 categories (camera, encoder, eject, PLC, operation). Each diagnostic includes severity, plain-English title, and step-by-step operator actions. Runs on every 1Hz reading after 60-second warmup.
 
 Rolling signal metrics in `SignalMetrics` class: camera detection rate, eject rate, camera trend (stable/declining/dead/intermittent), encoder noise, Modbus response time, state durations.
 

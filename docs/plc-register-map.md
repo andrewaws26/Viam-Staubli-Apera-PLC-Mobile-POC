@@ -18,33 +18,33 @@ PLC: Click C0-10DD2E-D, CPU ID 209, Firmware v3.80.
 
 | Register | Modbus Addr | Nickname | Description |
 |----------|-------------|----------|-------------|
-| DS1 | 0 | Adjustable Tie Spacing | Raw tie spacing value (current value: 1310 = 131.0 tenths?) |
-| DS2 | 1 | Tie Spacing Inches | User-defined spacing, e.g. 19.5" (value 39 = 3.9"? or raw bits) |
-| DS3 | 2 | Tenths of Mile Laying | Distance traveled in tenths of mile |
-| DS4 | 3 | Detector Offset Bits | Detector offset in encoder bits |
-| DS5 | 4 | Detector Offset Inches | Detector offset in inches. Selects which C:bit triggers eject |
-| DS6 | 5 | Plate Count | Running plate count |
-| DS7 | 6 | AVG Plates per Min | Average plates per minute (logged as "Plate Count") |
-| DS8 | 7 | Detector Next Tie | Distance to next detector-triggered tie drop |
-| DS9 | 8 | Encoder Next Tie | Distance to next encoder-triggered tie drop |
-| DS10 | 9 | 1st Detected Tie Distance | Distance of first detected tie |
-| DS11 | 10 | Detector Bits | Raw detector bit count |
-| DS12 | 11 | Last Detector Laid Inch | Last detector-triggered plate spacing in inches |
-| DS13 | 12 | 2nd Pass Double Lay | Second pass double lay value |
-| DS14 | 13 | Tie Team Skips | Number of ties skipped by tie team |
-| DS15 | 14 | Tie Team Lays | Number of ties laid by tie team |
-| DS16 | 15 | Skip Plus Lay Less 1 | Skip count + lay count - 1 |
-| DS17 | 16 | HMI | HMI screen/mode control |
+| DS1 | 0 | Encoder Ignore | Encoder ignore threshold (value: 1310) |
+| DS2 | 1 | Adjustable Tie Spacing | ×0.5" units. 39 = **19.5"** (user-set spacing) |
+| DS3 | 2 | Tie Spacing Inches | ×0.1" units. 195 = **19.5"** |
+| DS4 | 3 | Tenths of Mile Laying | Distance traveled (0 when idle) |
+| DS5 | 4 | Detector Offset Bits | Detector offset in encoder bits (1314) |
+| DS6 | 5 | Detector Offset Inches | ×0.1" units. 6070 = **607.0"** (50.6 ft) |
+| DS7 | 6 | Plate Count | PLC plate count |
+| DS8 | 7 | AVG Plates per Min | PLC-computed plate rate |
+| DS9 | 8 | Detector Next Tie | Distance to next detector drop (0.1" units) |
+| **DS10** | **9** | **Encoder Next Tie** | **THE distance source. Counts down from DS3 to 0 in 0.1" units. See encoder-distance.md** |
+| DS11 | 10 | 1st Detected Tie Distance | First detected tie position |
+| DS12 | 11 | Detector Bits | Detector position in bit counts |
+| DS13 | 12 | Last Detector Laid Inch | Last detector-triggered spacing |
+| DS14 | 13 | 2nd Pass Double Lay | Double lay position |
+| DS15 | 14 | Tie Team Skips | Ties skipped in tie team mode |
+| DS16 | 15 | Tie Team Lays | Ties laid in tie team mode |
+| DS17 | 16 | Skip Plus Lay Less 1 | Tie team calculation |
 | DS18 | 17 | (unused) | |
-| DS19 | 18 | HighSpeedCount1_Count | High-speed counter current value |
+| DS19 | 18 | HMI | HMI screen control |
 | DS20-25 | 19-24 | (unused) | |
 
 ## DD Registers (Signed Int 32-bit, Double-word)
 
 | Register | Modbus Addr | Nickname | Description |
 |----------|-------------|----------|-------------|
-| DD1 | 16384-16385 | Missed Ties | Encoder count / missed tie tracking. Resets when negative + forward travel. 0.5" travel when DD1>10 |
-| DD4 | 16390-16391 | Double Plates | Double plate count |
+| DD1 | 16384-16385 | HighSpeedCount1_Count | **Raw HSC encoder count. NOT usable for distance** — PLC resets every ~10 counts at 0.1ms. See encoder-distance.md |
+| DD4 | 16390-16391 | Missed Ties | Missed tie count |
 | DD6 | 16394-16395 | Camera | Camera signal tracking |
 | DD8 | 16398-16399 | Double Lay Ties | Double lay tie count |
 | DD12 | 16406-16407 | HMI HOME | HMI home screen register |
