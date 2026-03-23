@@ -84,6 +84,10 @@ export default function Dashboard() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
 
+  // Simulation mode
+  const [simMode, setSimMode] = useState(false);
+  const simRef = useRef({ distance: 0, plates: 0, tick: 0 });
+
   const prevFaultIds = useRef<Set<string>>(new Set());
   const prevServoPower = useRef<number | null>(null);
   const playAlarm = useRef(buildAlarmPlayer());
@@ -104,6 +108,55 @@ export default function Dashboard() {
       let readings: SensorReadings | null = null;
       let status: ComponentState["status"] = "loading";
       let faultMessage: string | null = null;
+
+      // Simulation mode — generate realistic production readings
+      if (simMode) {
+        simRef.current.tick += 1;
+        simRef.current.distance += 0.5; // 0.5 ft/sec = 30 ft/min
+        // Drop a plate roughly every 1.625 seconds (19.5" at 30 ft/min)
+        if (simRef.current.tick % 2 === 0) simRef.current.plates += 1;
+        const d = simRef.current;
+        readings = {
+          connected: true, fault: false, system_state: "running",
+          total_reads: d.tick * 50 + 200, total_errors: 0,
+          uptime_seconds: d.tick * 2, shift_hours: d.tick * 2 / 3600,
+          encoder_count: d.tick * 100, encoder_direction: "forward",
+          encoder_distance_ft: Math.round(d.distance * 100) / 100,
+          encoder_speed_ftpm: 30, encoder_revolutions: d.distance / 4.19,
+          tps_power_loop: true, camera_signal: d.tick % 3 !== 0,
+          encoder_enabled: true, floating_zero: false, encoder_reset: false,
+          eject_tps_1: d.tick % 2 === 0, eject_left_tps_2: false, eject_right_tps_2: false,
+          air_eagle_1_feedback: d.tick % 2 === 0, air_eagle_2_feedback: false, air_eagle_3_enable: false,
+          plate_drop_count: d.plates, plates_per_minute: 18.5,
+          ds1: 1310, ds2: 39, ds3: 195, ds4: 0, ds5: 1314, ds6: 6070,
+          ds7: d.plates, ds8: 18, ds9: Math.floor(Math.random() * 195), ds10: Math.floor(Math.random() * 195),
+          ds11: 6070, ds12: 1214, ds13: 5, ds14: 1295, ds15: 0, ds16: 0, ds17: 0, ds18: 0, ds19: 0,
+          ds20: 0, ds21: 0, ds22: 0, ds23: 0, ds24: 0, ds25: 1,
+          operating_mode: "TPS-1 Single", mode_tps1_single: true, mode_tps1_double: false,
+          mode_tps2_both: false, mode_tps2_left: false, mode_tps2_right: false,
+          mode_tie_team: false, mode_2nd_pass: false,
+          drop_enable: true, drop_enable_latch: true,
+          drop_detector_eject: d.tick % 3 === 0, drop_encoder_eject: d.tick % 3 !== 0,
+          drop_software_eject: false, first_tie_detected: true,
+          encoder_mode: false, camera_positive: d.tick % 3 !== 0, backup_alarm: false,
+          lay_ties_set: true, drop_ties: true,
+          camera_detections_per_min: 12.5, eject_rate_per_min: 18.5,
+          camera_rate_trend: "stable", encoder_noise: 2,
+          modbus_response_time_ms: 3.2, detector_eject_rate_per_min: 11.0,
+          last_drop_spacing_in: 19.3 + Math.random() * 0.4,
+          avg_drop_spacing_in: 19.5, min_drop_spacing_in: 18.9, max_drop_spacing_in: 20.1,
+          distance_since_last_drop_in: Math.random() * 19.5, drop_count_in_window: d.plates,
+          dd1_frozen: false, ds10_frozen: false,
+          td5_seconds_laying: d.tick * 2, td6_tie_travel: 0,
+          diagnostics: "[]", diagnostics_count: 0, diagnostics_critical: 0, diagnostics_warning: 0,
+          diagnostic_log: "", diag_metrics: "",
+        } as unknown as SensorReadings;
+        status = "healthy";
+        setSdkConnected(true);
+        setSdkError(null);
+        newStates.push({ id: cfg.id, label: cfg.label, icon: cfg.icon, status, readings, lastUpdated: new Date(), faultMessage: null });
+        continue;
+      }
 
       try {
         readings = await getSensorReadings(cfg.componentName);
@@ -205,7 +258,7 @@ export default function Dashboard() {
       );
     }
 
-  }, []);
+  }, [simMode]);
 
   useEffect(() => {
     poll();
@@ -262,11 +315,33 @@ export default function Dashboard() {
               Tie Plate System — Live Production Data
             </p>
           </div>
-          <ConnectionDot
-            connected={sdkConnected}
-            error={sdkError}
-          />
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => {
+                if (!simMode) {
+                  simRef.current = { distance: 0, plates: 0, tick: 0 };
+                }
+                setSimMode(!simMode);
+              }}
+              className={`text-[10px] sm:text-xs px-2 sm:px-3 py-1 rounded-lg font-bold transition-colors ${
+                simMode
+                  ? "bg-purple-700 text-white"
+                  : "border border-gray-700 text-gray-500 hover:text-gray-300"
+              }`}
+            >
+              {simMode ? "SIM ON" : "SIM"}
+            </button>
+            <ConnectionDot
+              connected={simMode || sdkConnected}
+              error={simMode ? null : sdkError}
+            />
+          </div>
         </header>
+        {simMode && (
+          <div className="bg-purple-900/30 border-b border-purple-700/50 px-3 sm:px-5 py-1.5 text-[10px] sm:text-xs text-purple-300">
+            Simulation mode — showing simulated production data. <button onClick={() => setSimMode(false)} className="underline hover:text-white ml-1">Stop</button>
+          </div>
+        )}
 
         {/* ---------------------------------------------------------------- */}
         {/* Alert Banner — shown only when faults are active                */}
