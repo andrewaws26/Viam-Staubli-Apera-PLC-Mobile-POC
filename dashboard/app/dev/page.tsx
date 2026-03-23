@@ -973,6 +973,37 @@ export default function DevPage() {
               </div>
             </div>
 
+            {/* Tie Spacing */}
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-gray-600 font-bold mb-2">Tie Plate Spacing</p>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400">Current: <span className="font-mono text-white">{readings?.ds2 ? `${Number(readings.ds2) * 0.5}"` : "—"}</span> (DS2={String(readings?.ds2 ?? "—")})</span>
+              </div>
+              <div className="flex items-center gap-2 mt-2">
+                {[
+                  { label: "18.0\"", value: 36 },
+                  { label: "19.0\"", value: 38 },
+                  { label: "19.5\"", value: 39 },
+                  { label: "20.0\"", value: 40 },
+                  { label: "21.0\"", value: 42 },
+                ].map(({ label, value }) => (
+                  <button
+                    key={value}
+                    disabled={cmdLoading}
+                    onClick={() => sendCommand({ action: "set_spacing", value })}
+                    className={`text-xs px-3 py-1.5 rounded-lg font-bold transition-colors ${
+                      readings?.ds2 === value
+                        ? "bg-green-700 text-white"
+                        : "bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 text-white"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-gray-600 mt-1">Writes DS2 to PLC. Range: 10.0\" to 30.0\". Standard is 19.5\" (DS2=39). Change takes effect immediately.</p>
+            </div>
+
             {/* Utility buttons */}
             <div>
               <p className="text-[10px] uppercase tracking-wider text-gray-600 font-bold mb-2">Utilities</p>

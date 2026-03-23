@@ -1284,8 +1284,47 @@ class PlcSensor(Sensor):
             except Exception as e:
                 result["message"] = f"Modbus write failed: {e}"
 
+        elif action == "set_spacing":
+            value = command.get("value")
+            if value is None:
+                result["message"] = "Missing 'value' parameter (DS2 in 0.5\" units, e.g. 39 = 19.5\")"
+                return result
+            try:
+                value = int(value)
+            except (ValueError, TypeError):
+                result["message"] = f"Invalid value: {value}. Must be an integer."
+                return result
+            # Bounds: 10" to 30" (DS2 = 20 to 60)
+            if value < 20 or value > 60:
+                result["message"] = (
+                    f"Value {value} out of range. "
+                    f"Must be 20-60 (10.0\"-30.0\"). "
+                    f"Standard is 39 (19.5\")."
+                )
+                return result
+            spacing_in = value * 0.5
+            try:
+                # Read current value first for logging
+                old = self.client.read_holding_registers(address=1, count=1)
+                old_val = old.registers[0] if not old.isError() else "?"
+                self.client.write_register(address=1, value=value)
+                result["status"] = "ok"
+                result["message"] = (
+                    f"Tie spacing changed: DS2={old_val} ({float(old_val)*0.5 if old_val != '?' else '?'}\")"
+                    f" → DS2={value} ({spacing_in}\")"
+                )
+                LOGGER.warning(
+                    "DO_COMMAND: set_spacing DS2=%d (%.1f in) — was DS2=%s",
+                    value, spacing_in, old_val,
+                )
+            except Exception as e:
+                result["message"] = f"Modbus write failed: {e}"
+
         else:
-            result["message"] = f"Unknown action: {action}. Use: test_eject, software_eject, reset_counters, set_mode"
+            result["message"] = (
+                f"Unknown action: {action}. Use: software_eject, "
+                "reset_counters, set_mode, set_spacing"
+            )
 
         return result
 
