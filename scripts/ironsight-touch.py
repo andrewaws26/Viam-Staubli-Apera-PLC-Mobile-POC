@@ -1304,18 +1304,23 @@ def _draw_status_bar(draw, sys_status):
         draw.rectangle([x, 11, x + 8, 19], fill=color)
         draw.text((x + 10, 9), label, fill=LIGHT_GRAY, font=font_sm)
 
-    # WiFi SSID + signal strength
+    # WiFi SSID + signal strength (human-readable)
     ssid = sys_status.get("wifi_ssid", "")
     signal_dbm = sys_status.get("wifi_signal_dbm", 0)
     if ssid:
-        # Signal strength color: green > -50, yellow -50 to -70, red < -70
-        if signal_dbm >= -50:
-            sig_color = GREEN
+        if signal_dbm >= -40:
+            sig_label, sig_color = "Strong", GREEN
+        elif signal_dbm >= -55:
+            sig_label, sig_color = "Good", GREEN
         elif signal_dbm >= -70:
-            sig_color = YELLOW
+            sig_label, sig_color = "Fair", YELLOW
+        elif signal_dbm >= -80:
+            sig_label, sig_color = "Weak", ORANGE
+        elif signal_dbm < -80:
+            sig_label, sig_color = "Poor", RED
         else:
-            sig_color = RED
-        wifi_str = f"{ssid} {signal_dbm}dBm" if signal_dbm else ssid
+            sig_label, sig_color = "", LIGHT_GRAY
+        wifi_str = f"{ssid} ({sig_label})" if sig_label else ssid
         ww = draw.textlength(wifi_str, font=font_sm)
         x -= ww + 10
         draw.text((x, 9), wifi_str, fill=sig_color, font=font_sm)
