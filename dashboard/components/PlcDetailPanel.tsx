@@ -172,35 +172,6 @@ export default function PlcDetailPanel({ readings }: Props) {
               <span>Detector Offset: <span className="text-gray-400 font-mono">{detectorOffset}" ({(detectorOffset / 12).toFixed(1)} ft)</span></span>
             </div>
 
-            {/* Progress bar to next drop */}
-            {target > 0 && (
-              <div className="mb-3">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[10px] sm:text-xs text-gray-600 uppercase tracking-wide">
-                    Next Drop
-                  </span>
-                  <span className={`text-xs font-mono font-bold ${statusConfig.text}`}>
-                    {distSinceLast.toFixed(1)} / {target} in
-                  </span>
-                </div>
-                <div className="w-full h-3 bg-gray-800 rounded-full overflow-hidden relative">
-                  <div
-                    className="absolute top-0 bottom-0 w-0.5 bg-white/30 z-10"
-                    style={{ left: `${Math.min(100 / (pct > 100 ? pct / 100 : 1), 100)}%` }}
-                  />
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${barColor}`}
-                    style={{ width: `${Math.min(pct, 100)}%` }}
-                  />
-                  {pct > 100 && (
-                    <div
-                      className="absolute top-0 bottom-0 right-0 bg-red-500/30 animate-pulse rounded-r-full"
-                      style={{ width: `${Math.min(pct - 100, 50)}%` }}
-                    />
-                  )}
-                </div>
-              </div>
-            )}
 
             {/* Expandable detail stats */}
             {dropCount > 0 && (
