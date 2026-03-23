@@ -12,6 +12,7 @@ import AlertBanner from "./AlertBanner";
 import FaultHistory from "./FaultHistory";
 import PlcDetailPanel from "./PlcDetailPanel";
 import DiagnosticsPanel from "./DiagnosticsPanel";
+import HistoryPanel from "./HistoryPanel";
 import ConnectionDot from "./ConnectionDot";
 const POLL_INTERVAL_MS = 2000;
 const MAX_FAULT_HISTORY = 10;
@@ -77,6 +78,11 @@ export default function Dashboard() {
   const [sdkConnected, setSdkConnected] = useState(false);
   const [sdkError, setSdkError] = useState<string | null>(null);
   const [flashKey, setFlashKey] = useState(0); // bumping triggers flash animation
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [historySummary, setHistorySummary] = useState<any | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
 
   const prevFaultIds = useRef<Set<string>>(new Set());
   const prevServoPower = useRef<number | null>(null);
@@ -207,6 +213,31 @@ export default function Dashboard() {
     return () => clearInterval(id);
   }, [poll]);
 
+  // -------------------------------------------------------------------------
+  // Historical data — fetched once on mount (NOT on the 2-second poll).
+  // -------------------------------------------------------------------------
+  const fetchHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const res = await fetch("/api/sensor-history?type=summary&hours=8");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ message: res.statusText }));
+        throw new Error(body.message || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      setHistorySummary(data);
+    } catch (err) {
+      setHistoryError(err instanceof Error ? err.message : "Failed to load history");
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchHistory();
+  }, [fetchHistory]);
+
   return (
     <>
       {/* Full-screen flash overlay — re-mounts on each new fault via key */}
@@ -275,6 +306,16 @@ export default function Dashboard() {
             }
             return null;
           })()}
+
+          {/* -------------------------------------------------------------- */}
+          {/* Production History (Viam Data API)                            */}
+          {/* -------------------------------------------------------------- */}
+          <HistoryPanel
+            summary={historySummary}
+            loading={historyLoading}
+            error={historyError}
+            onRefresh={fetchHistory}
+          />
 
           {/* -------------------------------------------------------------- */}
           {/* Fault History                                                  */}
