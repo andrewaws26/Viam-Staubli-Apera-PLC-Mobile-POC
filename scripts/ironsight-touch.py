@@ -1385,14 +1385,21 @@ class VoiceChat:
                 role = "User" if msg.role == "user" else "Assistant"
                 prompt_parts.append(f"{role}: {msg.text}")
             prompt_parts.append(f"User: {user_text}")
-            prompt_parts.append("Respond in 2-3 short sentences:")
+            prompt_parts.append(
+                "Respond in 2-3 short sentences. Plain text, no markdown. "
+                "Give practical advice for a railroad operator in the field — "
+                "things they can physically check or do at the truck. "
+                "Do NOT suggest checking PLC registers or running software commands:"
+            )
 
             full_prompt = "\n".join(prompt_parts)
 
+            claude_env = {**os.environ, "HOME": "/home/andrew"}
             result = subprocess.run(
                 ["claude", "-p", "--model", "sonnet"],
                 input=full_prompt,
-                capture_output=True, text=True, timeout=60
+                capture_output=True, text=True, timeout=60,
+                env=claude_env,
             )
 
             if result.returncode == 0 and result.stdout.strip():
@@ -1651,10 +1658,15 @@ class VoiceChat:
 
         Called when the user navigates to the DIAGNOSE page, or taps TRY AGAIN.
         Sends the full system context to Claude for a real AI-generated diagnosis.
+        Runs in a background thread so the UI stays responsive immediately.
 
         Args:
             retry: If True, bypasses cooldown and notes that previous fix didn't work.
         """
+        # Don't start a new diagnosis if one is already running
+        if self.state in ("loading", "thinking"):
+            return
+
         sys_status = self._sys_status_fn()
         diagnostics = [d for d in sys_status.get("diagnostics", []) if isinstance(d, dict)]
         active = [d for d in diagnostics if d.get("severity") in ("critical", "warning")]
@@ -1673,10 +1685,25 @@ class VoiceChat:
                 except Exception:
                     pass
 
-        # Show loading state
-        self.state = "loading"
+        # Show thinking state immediately — the render loop will paint this
+        # on the next frame (within 50ms) while Claude works in the background
+        self.state = "thinking"
         self.state_message = "Analyzing system..."
 
+        # Run the actual Claude call in a background thread
+        threading.Thread(
+            target=self._run_diagnosis,
+            args=(retry, sys_status, diagnostics, active),
+            daemon=True
+        ).start()
+
+    def _run_diagnosis(self, retry: bool, sys_status: dict,
+                       diagnostics: list, active: list):
+        """Background thread: build prompt, call Claude, store result.
+
+        Updates self.state/messages when done — the render loop picks up
+        the changes on its next frame.
+        """
         # Build the diagnosis prompt
         context = self._build_system_context()
         if retry:
@@ -1685,21 +1712,29 @@ class VoiceChat:
                 "Look at the current system data again and suggest something DIFFERENT. "
                 "What else could be wrong?\n\n"
                 f"{context}\n\n"
-                "Give a short diagnosis (3-5 sentences max) for a tiny screen. "
+                "Give a short diagnosis (3-5 sentences max) for a tiny 3.5-inch screen. "
                 "Plain text only, no markdown. Start with the problem or ALL CLEAR. "
-                "If there are problems, give the most important fix step."
+                "Give PRACTICAL advice the operator can do right now at the truck — "
+                "check cables, power cycle, look at indicator lights, listen for sounds. "
+                "Do NOT suggest checking PLC registers, running SSH commands, or "
+                "software debugging — this is a railroad worker in the field."
             )
         else:
             prompt = (
-                "Diagnose this TPS truck right now. Look at ALL the data — "
-                "PLC registers, signal metrics, control bits, network, encoder, "
-                "eject system, everything.\n\n"
+                "Diagnose this TPS (Tie Plate System) truck right now. "
+                "You have the full system data below — PLC registers, signal metrics, "
+                "control bits, network, encoder, eject system.\n\n"
                 f"{context}\n\n"
-                "Give a short diagnosis (3-5 sentences max) for a tiny screen. "
+                "Give a short diagnosis (3-5 sentences max) for a tiny 3.5-inch screen. "
                 "Plain text only, no markdown. "
-                "If everything is fine, say so and give a quick status summary. "
-                "If there are problems, name the most critical one and the fix. "
-                "Be specific — reference actual register values or metrics if relevant."
+                "If everything is fine, say ALL CLEAR and summarize: plates laid, speed, "
+                "connection status. "
+                "If there are problems, name the most critical one and give a PRACTICAL fix "
+                "the operator can do right now at the truck — things like: check the Ethernet "
+                "cable to the PLC, power cycle the PLC, check if the machine is running, look "
+                "at indicator lights, verify plates are loaded. "
+                "Do NOT tell them to check PLC registers, run SSH commands, or do software "
+                "debugging — they are railroad workers in the field, not engineers."
             )
 
         # Determine severity for display coloring (before Claude call, based on rules)
@@ -1713,11 +1748,15 @@ class VoiceChat:
             msg_severity = "ok"
 
         # Call Claude for the actual diagnosis
+        # Run as andrew's HOME so claude CLI finds its credentials
+        # (this script runs as root for framebuffer access)
+        claude_env = {**os.environ, "HOME": "/home/andrew"}
         try:
             result = subprocess.run(
                 ["claude", "-p", "--model", "sonnet"],
                 input=prompt,
-                capture_output=True, text=True, timeout=60
+                capture_output=True, text=True, timeout=60,
+                env=claude_env,
             )
             if result.returncode == 0 and result.stdout.strip():
                 diagnosis_text = result.stdout.strip()
@@ -3437,14 +3476,18 @@ def main():
                                     prompt = (
                                         f"{context}\n\n"
                                         f"You previously gave this diagnosis:\n\"{exp_msg.text}\"\n\n"
-                                        "Explain your reasoning in detail. What specific data points "
-                                        "led you to this conclusion? What did you check? "
-                                        "Keep it to 4-6 sentences for a small screen. Plain text only."
+                                        "Explain your reasoning in plain language. What data told you "
+                                        "this? What would you tell the operator to look for? "
+                                        "Keep it to 4-6 sentences for a small screen. Plain text only, "
+                                        "no markdown. Explain in terms of what they can see and do at "
+                                        "the truck, not PLC register values."
                                     )
+                                    claude_env = {**os.environ, "HOME": "/home/andrew"}
                                     result = subprocess.run(
                                         ["claude", "-p", "--model", "sonnet"],
                                         input=prompt,
-                                        capture_output=True, text=True, timeout=60
+                                        capture_output=True, text=True, timeout=60,
+                                        env=claude_env,
                                     )
                                     if result.returncode == 0 and result.stdout.strip():
                                         expanded_explanation = result.stdout.strip()
