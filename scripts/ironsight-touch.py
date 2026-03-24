@@ -1780,6 +1780,15 @@ class VoiceChat:
         self.scroll_offset = 0
         self._save_history()
 
+    def clear_history(self):
+        """Clear all chat messages and saved history."""
+        self.messages.clear()
+        self.scroll_offset = 0
+        try:
+            CHAT_HISTORY_FILE.unlink(missing_ok=True)
+        except Exception:
+            pass
+
     def _local_diagnosis(self, sys_status: dict, active: list, retry: bool) -> str:
         """Fallback local diagnosis when Claude is unavailable."""
         lines = []
@@ -2865,19 +2874,19 @@ def render_expanded_message(msg: "ChatMessage", explanation: str = "") -> Tuple[
     draw = ImageDraw.Draw(img)
     buttons = []
 
-    font_title = find_font(14)
-    font_body = find_font(15)
-    font_close = find_font(16)
-    font_btn = find_font(13)
+    font_title = find_font(16)
+    font_body = find_font(18)
+    font_close = find_font(18)
+    font_btn = find_font(14)
 
     # Header bar
     draw.rectangle([0, 0, W, 30], fill=(30, 30, 40))
     header_text = "AI EXPLANATION" if explanation else "AI DIAGNOSIS"
     draw.text((MARGIN, 6), header_text, fill=PURPLE, font=font_title)
 
-    # Close button (X) in top right
-    draw.text((W - 28, 5), "X", fill=WHITE, font=font_close)
-    close_btn = Button(W - 40, 0, 40, 30, "", "chat_close_expand")
+    # Close button (X) in top right — big tap target
+    draw.text((W - 30, 3), "X", fill=WHITE, font=font_close)
+    close_btn = Button(W - 50, 0, 50, 36, "", "chat_close_expand")
     buttons.append(close_btn)
 
     # Determine text color by severity
@@ -2898,8 +2907,8 @@ def render_expanded_message(msg: "ChatMessage", explanation: str = "") -> Tuple[
 
     # Word-wrap and draw the message in larger font
     y = 40
-    max_chars = 38  # fewer chars per line = bigger text
-    line_h = 20
+    max_chars = 32  # fewer chars per line = bigger text
+    line_h = 24
     max_y = H - btn_area_h - 24  # leave room for timestamp and button
     words = display_text.split()
     line = ""
@@ -3050,20 +3059,30 @@ def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image
     end = start + visible_lines
     visible = display_lines[start:end]
 
-    # Draw messages and add tap targets for AI messages
+    # Draw messages and track Y spans for AI message tap targets
     y = chat_top
-    seen_msg_indices = set()
+    # Track start Y for each AI message so we can make the full area tappable
+    msg_start_y = {}   # msg_idx -> first y
+    msg_end_y = {}     # msg_idx -> last y + line_h
     for text, color, msg_idx in visible:
         if text:
             draw.text((MARGIN, y), text, fill=color, font=font)
-            # Add tap target for first line of each AI message (to expand it)
-            if msg_idx >= 0 and msg_idx not in seen_msg_indices:
-                if messages[msg_idx].role == "assistant":
-                    # Make the entire message region tappable
-                    expand_btn = Button(0, y, W, line_h, str(msg_idx), "chat_expand")
-                    buttons.append(expand_btn)
-                seen_msg_indices.add(msg_idx)
+            if msg_idx >= 0 and messages[msg_idx].role == "assistant":
+                if msg_idx not in msg_start_y:
+                    msg_start_y[msg_idx] = y
+                msg_end_y[msg_idx] = y + line_h
         y += line_h
+
+    # Add tap targets and magnifying glass icon for each AI message
+    font_icon = find_font(13)
+    for msg_idx in msg_start_y:
+        top_y = msg_start_y[msg_idx]
+        bot_y = msg_end_y[msg_idx]
+        tap_h = max(bot_y - top_y, 40)  # minimum 40px tap target
+        expand_btn = Button(0, top_y, W, tap_h, str(msg_idx), "chat_expand")
+        buttons.append(expand_btn)
+        # Draw magnifying glass hint on first line, right side
+        draw.text((W - 22, top_y), "+", fill=MID_GRAY, font=font_icon)
 
     # Empty state — prompt to diagnose
     if not messages and state == "idle":
@@ -3527,6 +3546,9 @@ def main():
                         if action.startswith("nav_"):
                             new_page = action.replace("nav_", "")
                             if new_page == "chat" and current_page != "chat":
+                                # Fresh session every time — clear old chat
+                                voice_chat.messages.clear()
+                                voice_chat.scroll_offset = 0
                                 voice_chat.proactive_diagnosis()
                             current_page = new_page
                             expanded_msg_idx = -1  # close popup on page change
