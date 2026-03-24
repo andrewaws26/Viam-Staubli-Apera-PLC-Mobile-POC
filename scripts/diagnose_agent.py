@@ -88,7 +88,7 @@ def tool_read_plc_registers(start: int = 0, count: int = 25) -> dict:
     if not ModbusTcpClient:
         return {"error": "pymodbus not installed"}
     if not _plc_connected():
-        return {"error": "PLC not reachable at 169.168.10.21:502"}
+        return {"error": f"PLC not reachable at {PLC_HOST}:{PLC_PORT}"}
 
     try:
         client = ModbusTcpClient(PLC_HOST, port=PLC_PORT, timeout=2)

@@ -27,6 +27,19 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, Tuple, List
 
+# Add scripts/ to path so lib/ imports work when run from any directory
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from lib.plc_constants import (
+    PLC_HOST, PLC_PORT, OFFLINE_BUFFER_DIR, CAPTURE_DIR, CAPTURE_BASE_DIR,
+    DS_SHORT_LABELS, TIE_SPACING_DS2,
+    BLACK, WHITE, GREEN, RED, YELLOW, BLUE, CYAN, ORANGE, PURPLE,
+    DARK_GRAY, MID_GRAY, LIGHT_GRAY,
+    DARK_GREEN, DARK_RED, DARK_BLUE, DARK_CYAN, DARK_ORANGE, DARK_PURPLE,
+    LEVEL_COLORS,
+)
+from lib.buffer_reader import read_latest_entry, read_history, get_data_age_seconds
+
 try:
     from PIL import Image, ImageDraw, ImageFont
     HAS_PILLOW = True
@@ -65,25 +78,7 @@ TOUCH_POLL_HZ = 20            # touch polling rate
 TAP_DEBOUNCE_MS = 250         # minimum ms between taps
 FEEDBACK_DURATION = 3.0        # seconds to show command result toast
 
-# Colors (RGB) — high contrast for sunlight
-BLACK = (0, 0, 0)
-WHITE = (255, 255, 255)
-GREEN = (0, 200, 80)
-RED = (220, 50, 50)
-YELLOW = (240, 200, 0)
-BLUE = (40, 120, 220)
-CYAN = (0, 180, 220)
-DARK_GRAY = (30, 30, 35)
-MID_GRAY = (60, 60, 70)
-LIGHT_GRAY = (180, 180, 190)
-ORANGE = (240, 140, 20)
-DARK_GREEN = (0, 80, 40)
-DARK_RED = (80, 20, 20)
-DARK_BLUE = (20, 50, 100)
-DARK_CYAN = (0, 70, 90)
-DARK_ORANGE = (100, 55, 10)
-PURPLE = (100, 40, 140)
-DARK_PURPLE = (55, 20, 80)
+# Colors imported from lib.plc_constants
 
 PISUGAR_SOCK = "/tmp/pisugar-server.sock"
 CHAT_HISTORY_FILE = Path("/tmp/ironsight-chat.json")
@@ -92,12 +87,7 @@ MAX_RECORD_SECONDS = 30
 SAMPLE_RATE = 16000
 AUDIO_DEVICE = "default"  # ALSA device for USB mic
 
-LEVEL_COLORS = {
-    "info": LIGHT_GRAY,
-    "success": GREEN,
-    "warning": YELLOW,
-    "error": RED,
-}
+# LEVEL_COLORS imported from lib.plc_constants
 
 
 # ─────────────────────────────────────────────────────────────
@@ -943,68 +933,34 @@ def get_system_status() -> dict:
     live_connected = status["connected"]
 
     # Latest reading from offline buffer (production data, may be stale)
-    data_age_seconds = float("inf")
-    try:
-        buf_dir = Path("/home/andrew/.viam/offline-buffer")
-        if buf_dir.exists():
-            jsonl_files = sorted(buf_dir.glob("readings_*.jsonl"))
-            if jsonl_files:
-                with open(jsonl_files[-1], "rb") as f:
-                    # Read last 4KB and grab the last complete JSON line
-                    f.seek(0, 2)
-                    size = f.tell()
-                    f.seek(max(0, size - 4096))
-                    chunk = f.read()
-                    lines = chunk.strip().split(b"\n")
-                    # Last line is complete; second-to-last might be partial
-                    data = None
-                    for line in reversed(lines):
-                        try:
-                            data = json.loads(line)
-                            break
-                        except (json.JSONDecodeError, ValueError):
-                            continue
-                    if data:
-                        # Check how old this cached reading is
-                        ts_str = data.get("ts", "")
-                        if ts_str:
-                            try:
-                                from datetime import datetime, timezone
-                                reading_time = datetime.fromisoformat(
-                                    ts_str.replace("Z", "+00:00")
-                                )
-                                data_age_seconds = (
-                                    datetime.now(timezone.utc) - reading_time
-                                ).total_seconds()
-                            except Exception:
-                                pass
+    data = read_latest_entry()
+    data_age_seconds = get_data_age_seconds(data) if data else float("inf")
 
-                        status["travel_ft"] = data.get("encoder_distance_ft", 0)
-                        status["speed_ftpm"] = data.get("encoder_speed_ftpm", 0)
-                        status["plate_count"] = data.get("plate_drop_count", 0)
-                        status["plates_per_min"] = data.get("plates_per_minute", 0)
-                        status["system_state"] = data.get("system_state", "unknown")
-                        status["last_spacing_in"] = data.get("last_drop_spacing_in", 0)
-                        status["avg_spacing_in"] = data.get("avg_drop_spacing_in", 0)
-                        # NOTE: do NOT set status["connected"] from buffer —
-                        # the live TCP check above is authoritative
-                        raw_diag = data.get("diagnostics", [])
-                        if isinstance(raw_diag, str):
-                            try:
-                                raw_diag = json.loads(raw_diag)
-                            except (json.JSONDecodeError, ValueError):
-                                raw_diag = []
-                        status["diagnostics"] = raw_diag if isinstance(raw_diag, list) else []
-                        status["tps_power_loop"] = data.get("tps_power_loop", False)
-                        status["camera_rate"] = data.get("camera_rate", 0.0)
-                        status["tps_mode"] = data.get("tps_mode", "")
-                        status["encoder_direction"] = data.get("encoder_direction", "forward")
-                        for i in range(1, 26):
-                            key = f"ds{i}"
-                            if key in data:
-                                status["ds_registers"][key] = data[key]
-    except Exception:
-        pass
+    if data:
+        status["travel_ft"] = data.get("encoder_distance_ft", 0)
+        status["speed_ftpm"] = data.get("encoder_speed_ftpm", 0)
+        status["plate_count"] = data.get("plate_drop_count", 0)
+        status["plates_per_min"] = data.get("plates_per_minute", 0)
+        status["system_state"] = data.get("system_state", "unknown")
+        status["last_spacing_in"] = data.get("last_drop_spacing_in", 0)
+        status["avg_spacing_in"] = data.get("avg_drop_spacing_in", 0)
+        # NOTE: do NOT set status["connected"] from buffer —
+        # the live TCP check above is authoritative
+        raw_diag = data.get("diagnostics", [])
+        if isinstance(raw_diag, str):
+            try:
+                raw_diag = json.loads(raw_diag)
+            except (json.JSONDecodeError, ValueError):
+                raw_diag = []
+        status["diagnostics"] = raw_diag if isinstance(raw_diag, list) else []
+        status["tps_power_loop"] = data.get("tps_power_loop", False)
+        status["camera_rate"] = data.get("camera_rate", 0.0)
+        status["tps_mode"] = data.get("tps_mode", "")
+        status["encoder_direction"] = data.get("encoder_direction", "forward")
+        for i in range(1, 26):
+            key = f"ds{i}"
+            if key in data:
+                status["ds_registers"][key] = data[key]
 
     # Restore live PLC connection state (authoritative over cached buffer)
     status["plc_reachable"] = live_plc_reachable
@@ -1110,10 +1066,10 @@ class CommandExecutor:
                 import socket
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 sock.settimeout(3)
-                result = sock.connect_ex(("169.168.10.21", 502))
+                result = sock.connect_ex((PLC_HOST, PLC_PORT))
                 sock.close()
                 if result == 0:
-                    self._set_feedback("PLC reachable at 169.168.10.21:502", "success")
+                    self._set_feedback(f"PLC reachable at {PLC_HOST}:{PLC_PORT}", "success")
                 else:
                     self._set_feedback("PLC unreachable (no carrier?)", "error")
 
@@ -1147,7 +1103,7 @@ class CommandExecutor:
 
             elif action == "cmd_clear_buffer":
                 self._set_feedback("Clearing offline buffer...", "info")
-                buf_dir = Path("/home/andrew/.viam/offline-buffer")
+                buf_dir = OFFLINE_BUFFER_DIR
                 count = 0
                 if buf_dir.exists():
                     for f in buf_dir.glob("readings_*.jsonl"):
@@ -1426,32 +1382,12 @@ class VoiceChat:
         diagnostics = [d for d in sys_status.get("diagnostics", []) if isinstance(d, dict)]
 
         # Read the full latest sensor reading from offline buffer
-        sensor = {}
-        try:
-            buf_dir = Path("/home/andrew/.viam/offline-buffer")
-            if buf_dir.exists():
-                jsonl_files = sorted(buf_dir.glob("readings_*.jsonl"))
-                if jsonl_files:
-                    with open(jsonl_files[-1], "rb") as f:
-                        f.seek(0, 2)
-                        size = f.tell()
-                        f.seek(max(0, size - 4096))
-                        chunk = f.read()
-                        lines = chunk.strip().split(b"\n")
-                        for line in reversed(lines):
-                            try:
-                                sensor = json.loads(line)
-                                break
-                            except (json.JSONDecodeError, ValueError):
-                                continue
-        except Exception:
-            pass
+        sensor = read_latest_entry() or {}
 
         # Check Viam capture status
         capture_status = "unknown"
         try:
-            import glob as _glob
-            cap_dir = Path("/home/andrew/.viam/capture/rdk_component_sensor/plc-monitor/Readings")
+            cap_dir = CAPTURE_DIR
             if cap_dir.exists():
                 prog_files = sorted(cap_dir.glob("*.prog"))
                 if prog_files:
@@ -1535,16 +1471,9 @@ class VoiceChat:
         ds_regs = sys_status.get("ds_registers", {})
         if ds_regs:
             ctx += "\nPLC REGISTERS (DS1-DS25):\n"
-            ds_labels = {
-                "ds1": "Encoder Ignore", "ds2": "Tie Spacing (x0.5\")",
-                "ds3": "Tie Spacing (x0.1\")", "ds4": "Tenths Mile Laying",
-                "ds5": "Detector Offset Bits", "ds6": "Detector Offset (x0.1\")",
-                "ds7": "Plate Count", "ds8": "AVG Plates/Min",
-                "ds9": "Detector Next Tie", "ds10": "Encoder Next Tie",
-            }
             for key in sorted(ds_regs.keys(), key=lambda k: int(k[2:])):
                 val = ds_regs[key]
-                label = ds_labels.get(key, "")
+                label = DS_SHORT_LABELS.get(key, "")
                 label_str = f" ({label})" if label else ""
                 ctx += f"  {key.upper()}={val}{label_str}\n"
 
@@ -2591,7 +2520,7 @@ def _get_service_statuses(sys_status: dict) -> list:
     capture_ok = False
     capture_detail = "no data"
     try:
-        capture_dir = Path("/home/andrew/.viam/capture")
+        capture_dir = CAPTURE_BASE_DIR
         if capture_dir.exists():
             prog_files = list(capture_dir.rglob("*.prog"))
             if prog_files:
@@ -2609,7 +2538,7 @@ def _get_service_statuses(sys_status: dict) -> list:
 
     # Offline buffer
     try:
-        buf_dir = Path("/home/andrew/.viam/offline-buffer")
+        buf_dir = OFFLINE_BUFFER_DIR
         if buf_dir.exists():
             jsonl_files = list(buf_dir.glob("readings_*.jsonl"))
             if jsonl_files:
