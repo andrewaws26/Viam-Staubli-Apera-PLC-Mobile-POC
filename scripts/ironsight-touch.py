@@ -926,7 +926,7 @@ def get_system_status() -> dict:
     except Exception:
         pass
 
-    # PLC reachability
+    # PLC reachability (live TCP check — ground truth for connection state)
     try:
         import socket
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -938,7 +938,12 @@ def get_system_status() -> dict:
     except Exception:
         pass
 
-    # Latest reading from offline buffer
+    # Save live check results — offline buffer must NOT overwrite these
+    live_plc_reachable = status["plc_reachable"]
+    live_connected = status["connected"]
+
+    # Latest reading from offline buffer (production data, may be stale)
+    data_age_seconds = float("inf")
     try:
         buf_dir = Path("/home/andrew/.viam/offline-buffer")
         if buf_dir.exists():
@@ -960,6 +965,20 @@ def get_system_status() -> dict:
                         except (json.JSONDecodeError, ValueError):
                             continue
                     if data:
+                        # Check how old this cached reading is
+                        ts_str = data.get("ts", "")
+                        if ts_str:
+                            try:
+                                from datetime import datetime, timezone
+                                reading_time = datetime.fromisoformat(
+                                    ts_str.replace("Z", "+00:00")
+                                )
+                                data_age_seconds = (
+                                    datetime.now(timezone.utc) - reading_time
+                                ).total_seconds()
+                            except Exception:
+                                pass
+
                         status["travel_ft"] = data.get("encoder_distance_ft", 0)
                         status["speed_ftpm"] = data.get("encoder_speed_ftpm", 0)
                         status["plate_count"] = data.get("plate_drop_count", 0)
@@ -967,7 +986,8 @@ def get_system_status() -> dict:
                         status["system_state"] = data.get("system_state", "unknown")
                         status["last_spacing_in"] = data.get("last_drop_spacing_in", 0)
                         status["avg_spacing_in"] = data.get("avg_drop_spacing_in", 0)
-                        status["connected"] = data.get("connected", False)
+                        # NOTE: do NOT set status["connected"] from buffer —
+                        # the live TCP check above is authoritative
                         raw_diag = data.get("diagnostics", [])
                         if isinstance(raw_diag, str):
                             try:
@@ -985,6 +1005,58 @@ def get_system_status() -> dict:
                                 status["ds_registers"][key] = data[key]
     except Exception:
         pass
+
+    # Restore live PLC connection state (authoritative over cached buffer)
+    status["plc_reachable"] = live_plc_reachable
+    status["connected"] = live_connected
+    status["data_age_seconds"] = data_age_seconds
+
+    # ── Live diagnostic injection ─────────────────────────────
+    # The sensor's diagnostics list from the buffer may be empty or stale.
+    # Inject real-time checks here, equivalent to the web dashboard's
+    # runSnapshotChecks() in DiagnosticsPanel.tsx.
+    live_diags = list(status["diagnostics"])  # start with sensor diags
+
+    if not status["eth0_carrier"]:
+        live_diags.append({
+            "id": "eth0-no-carrier",
+            "severity": "critical",
+            "title": "Ethernet Cable Disconnected",
+            "action": "No carrier on eth0 — check the Ethernet cable between Pi and PLC.",
+        })
+    elif not live_connected:
+        live_diags.append({
+            "id": "plc-unreachable",
+            "severity": "critical",
+            "title": "PLC Not Responding",
+            "action": "Ethernet link up but PLC not responding on port 502. "
+                      "Check PLC power and Modbus TCP settings.",
+        })
+
+    if data_age_seconds > 30:
+        if data_age_seconds > 3600:
+            age_str = f"{data_age_seconds / 3600:.1f} hours"
+        elif data_age_seconds > 60:
+            age_str = f"{data_age_seconds / 60:.0f} minutes"
+        else:
+            age_str = f"{data_age_seconds:.0f} seconds"
+        live_diags.append({
+            "id": "stale-data",
+            "severity": "warning",
+            "title": f"Sensor Data Stale ({age_str} old)",
+            "action": "No fresh readings from plc-sensor. "
+                      "Check if viam-server is running and PLC is connected.",
+        })
+
+    if not status["viam_server"]:
+        live_diags.append({
+            "id": "viam-down",
+            "severity": "critical",
+            "title": "viam-server Not Running",
+            "action": "viam-server is not active. Go to Commands and tap Restart Viam.",
+        })
+
+    status["diagnostics"] = live_diags
 
     return status
 
