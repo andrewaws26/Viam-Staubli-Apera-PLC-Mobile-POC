@@ -2127,6 +2127,84 @@ def _get_service_statuses(sys_status: dict) -> list:
     return rows
 
 
+def _get_truck_statuses(sys_status: dict) -> list:
+    """Build truck equipment status rows.
+
+    Each entry: (label, ok_bool, detail_str)
+    """
+    rows = []
+    connected = sys_status.get("connected", False)
+    tps_on = sys_status.get("tps_power_loop", False)
+
+    # Encoder
+    speed = sys_status.get("speed_ftpm", 0.0)
+    direction = sys_status.get("encoder_direction", "forward")
+    if not connected:
+        rows.append(("Encoder", False, "no PLC"))
+    elif speed > 0.5:
+        dir_arrow = "▼ REV" if direction == "reverse" else "▲ FWD"
+        rows.append(("Encoder", True, f"{speed:.1f} ft/m {dir_arrow}"))
+    elif tps_on:
+        rows.append(("Encoder", True, "idle (0 ft/m)"))
+    else:
+        rows.append(("Encoder", True, "standby"))
+
+    # Plate Flipper (camera / X3)
+    cam_rate = sys_status.get("camera_rate", 0.0)
+    if not connected:
+        rows.append(("Plate Flipper", False, "no PLC"))
+    elif cam_rate > 5:
+        rows.append(("Plate Flipper", True, f"{cam_rate:.0f}/min"))
+    elif cam_rate > 0:
+        rows.append(("Plate Flipper", True, f"{cam_rate:.0f}/min (slow)"))
+    elif tps_on and speed > 0.5:
+        rows.append(("Plate Flipper", False, "no detections"))
+    else:
+        rows.append(("Plate Flipper", True, "standby"))
+
+    # Plate Drop / Production
+    plates = sys_status.get("plate_count", 0)
+    ppm = sys_status.get("plates_per_min", 0.0)
+    if not connected:
+        rows.append(("Plate Drop", False, "no PLC"))
+    elif plates > 0 and ppm > 0:
+        rows.append(("Plate Drop", True, f"{plates} plates ({ppm:.1f}/min)"))
+    elif plates > 0:
+        rows.append(("Plate Drop", True, f"{plates} plates"))
+    elif tps_on:
+        rows.append(("Plate Drop", True, "0 plates"))
+    else:
+        rows.append(("Plate Drop", True, "standby"))
+
+    # Spacing
+    last_sp = sys_status.get("last_spacing_in", 0.0)
+    avg_sp = sys_status.get("avg_spacing_in", 0.0)
+    if last_sp > 0:
+        in_tol = abs(last_sp - 19.5) < 2.0
+        sp_detail = f"last {last_sp:.1f}\""
+        if avg_sp > 0:
+            sp_detail += f"  avg {avg_sp:.1f}\""
+        rows.append(("Spacing", in_tol, sp_detail))
+    elif plates > 0:
+        rows.append(("Spacing", True, "no data yet"))
+    else:
+        rows.append(("Spacing", True, "standby"))
+
+    # Travel
+    travel_ft = sys_status.get("travel_ft", 0.0)
+    if travel_ft > 0:
+        rows.append(("Travel", True, f"{travel_ft:.1f} ft"))
+
+    # Efficiency
+    if travel_ft > 10 and plates > 0:
+        expected = travel_ft * 12.0 / 19.5
+        eff = plates / expected * 100 if expected > 0 else 0
+        eff_ok = eff >= 85
+        rows.append(("Efficiency", eff_ok, f"{eff:.0f}%"))
+
+    return rows
+
+
 def render_system(sys_status: dict, scroll_offset: int = 0) -> Tuple["Image.Image", List[Button]]:
     """SYSTEM — scrollable health dashboard with full component status."""
     img = Image.new("RGB", (W, H), DARK_GRAY)
@@ -2139,18 +2217,39 @@ def render_system(sys_status: dict, scroll_offset: int = 0) -> Tuple["Image.Imag
 
     y_top = HEADER_H
     y_top = _draw_alert_bar(draw, sys_status, y_top)
-    y_top += 6
-    draw.text((MARGIN, y_top), "SYSTEM HEALTH", fill=LIGHT_GRAY, font=font_title)
-    y_top += 20
+    y_top += 4
 
     # Build all content rows (we'll slice them for scrolling)
     # Each row: ("section"|"status"|"gauge"|"info", ...)
     all_rows = []
 
     # -- Service/connection status --
+    all_rows.append(("section", "COMPUTER SYSTEMS"))
     health_rows = _get_service_statuses(sys_status)
     for label, ok, detail in health_rows:
         all_rows.append(("status", label, ok, detail))
+
+    all_rows.append(("divider",))
+
+    # -- Truck equipment status --
+    all_rows.append(("section", "TRUCK EQUIPMENT"))
+    truck_rows = _get_truck_statuses(sys_status)
+    for label, ok, detail in truck_rows:
+        all_rows.append(("status", label, ok, detail))
+
+    # Individual diagnostics (expand each alert)
+    diags = [d for d in sys_status.get("diagnostics", []) if isinstance(d, dict)]
+    if diags:
+        all_rows.append(("divider",))
+        all_rows.append(("section", "ACTIVE ALERTS"))
+        for d in diags:
+            sev = d.get("severity", "info")
+            title = d.get("title", "unknown")
+            cat = d.get("category", "")
+            # Use severity to determine ok/not-ok
+            is_ok = sev == "info"
+            sev_tag = "CRIT" if sev == "critical" else ("WARN" if sev == "warning" else "INFO")
+            all_rows.append(("alert", title, sev, f"[{sev_tag}] {cat}"))
 
     all_rows.append(("divider",))
 
@@ -2181,19 +2280,23 @@ def render_system(sys_status: dict, scroll_offset: int = 0) -> Tuple["Image.Imag
     truck = sys_status["truck_id"]
     all_rows.append(("info", f"Uptime: {uptime}   Truck: {truck}"))
 
-    # Diagnostics summary
-    diags = sys_status.get("diagnostics", [])
-    if diags:
-        crits = sum(1 for d in diags if isinstance(d, dict) and d.get("severity") == "critical")
-        warns = sum(1 for d in diags if isinstance(d, dict) and d.get("severity") == "warning")
-        all_rows.append(("info", f"Diagnostics: {crits} critical, {warns} warning"))
+    # Diagnostics summary (quick glance)
+    diag_list = [d for d in sys_status.get("diagnostics", []) if isinstance(d, dict)]
+    if diag_list:
+        crits = sum(1 for d in diag_list if d.get("severity") == "critical")
+        warns = sum(1 for d in diag_list if d.get("severity") == "warning")
+        all_rows.append(("info", f"Alerts: {crits} critical, {warns} warning"))
     else:
-        all_rows.append(("info", "Diagnostics: all clear"))
+        all_rows.append(("info", "Alerts: all clear"))
 
     # -- Calculate row heights and apply scroll --
     row_heights = []
     for row in all_rows:
-        if row[0] == "status":
+        if row[0] == "section":
+            row_heights.append(20)
+        elif row[0] == "status":
+            row_heights.append(18)
+        elif row[0] == "alert":
             row_heights.append(18)
         elif row[0] == "gauge":
             row_heights.append(28)  # label + bar
@@ -2222,7 +2325,12 @@ def render_system(sys_status: dict, scroll_offset: int = 0) -> Tuple["Image.Imag
         if y > H - BACK_BTN_H - 15:
             break
 
-        if row[0] == "status":
+        if row[0] == "section":
+            _, title = row
+            draw.text((MARGIN, y + 4), title, fill=CYAN, font=font)
+            y += row_heights[i]
+
+        elif row[0] == "status":
             _, label, ok, detail = row
             color = GREEN if ok else RED
             sq = 8
@@ -2230,6 +2338,19 @@ def render_system(sys_status: dict, scroll_offset: int = 0) -> Tuple["Image.Imag
             draw.text((MARGIN + sq + 6, y), label, fill=WHITE, font=font_sm)
             dw = draw.textlength(detail, font=font_sm)
             draw.text((W - MARGIN - dw, y + 1), detail, fill=LIGHT_GRAY, font=font_sm)
+            y += row_heights[i]
+
+        elif row[0] == "alert":
+            _, title, severity, detail = row
+            sev_color = RED if severity == "critical" else (YELLOW if severity == "warning" else LIGHT_GRAY)
+            sq = 8
+            draw.rectangle([MARGIN, y + 4, MARGIN + sq, y + 4 + sq], fill=sev_color)
+            # Truncate title to fit (leave room for detail tag)
+            max_title_w = W - MARGIN * 2 - sq - 10
+            disp_title = title
+            while draw.textlength(disp_title, font=font_sm) > max_title_w and len(disp_title) > 10:
+                disp_title = disp_title[:-2] + "…"
+            draw.text((MARGIN + sq + 6, y), disp_title, fill=sev_color, font=font_sm)
             y += row_heights[i]
 
         elif row[0] == "gauge":
