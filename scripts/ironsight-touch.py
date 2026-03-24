@@ -672,7 +672,13 @@ def _pisugar_query(cmd: str) -> str:
 
 
 def get_battery_status() -> dict:
-    """Read battery info from PiSugar 3 Plus."""
+    """Read battery info from PiSugar 3 Plus.
+
+    The PiSugar socket can return stale/garbage values (0%, 100%, or
+    wildly different from the previous reading).  We sanity-check the
+    percent value against the voltage and against the previous reading
+    to filter these glitches out.
+    """
     battery = {
         "available": False,
         "percent": -1,
@@ -683,12 +689,42 @@ def get_battery_status() -> dict:
     try:
         resp = _pisugar_query("get battery")
         if resp and ":" in resp:
-            battery["percent"] = float(resp.split(":")[1].strip())
+            pct = float(resp.split(":")[1].strip())
             battery["available"] = True
 
-        resp = _pisugar_query("get battery_v")
-        if resp and ":" in resp:
-            battery["voltage"] = float(resp.split(":")[1].strip())
+            resp_v = _pisugar_query("get battery_v")
+            voltage = 0.0
+            if resp_v and ":" in resp_v:
+                voltage = float(resp_v.split(":")[1].strip())
+            battery["voltage"] = voltage
+
+            # Sanity check: if voltage is valid, reject percent readings
+            # that are wildly inconsistent with the voltage.
+            # PiSugar 3 Plus: ~3.0V = empty, ~4.2V = full
+            sane = True
+            if voltage > 2.0:
+                # Voltage-implied rough percent (linear approx)
+                v_pct = max(0, min(100, (voltage - 3.0) / 1.2 * 100))
+                # If percent and voltage disagree by >40%, it's a glitch
+                if abs(pct - v_pct) > 40:
+                    sane = False
+
+            # Also reject if percent jumped wildly from last known good
+            last = getattr(get_battery_status, "_last_good_pct", None)
+            if sane and last is not None:
+                # Allow up to 10% change per poll (2s interval)
+                if abs(pct - last) > 15:
+                    sane = False
+
+            if sane:
+                battery["percent"] = pct
+                get_battery_status._last_good_pct = pct
+            elif last is not None:
+                # Use last known good reading
+                battery["percent"] = last
+            else:
+                battery["percent"] = pct
+                get_battery_status._last_good_pct = pct
 
         resp = _pisugar_query("get battery_charging")
         if resp and ":" in resp:
@@ -749,6 +785,7 @@ def get_system_status() -> dict:
         "tps_power_loop": False,
         "camera_rate": 0.0,
         "tps_mode": "",
+        "encoder_direction": "forward",
     }
 
     # viam-server
@@ -916,10 +953,17 @@ def get_system_status() -> dict:
                         status["last_spacing_in"] = data.get("last_drop_spacing_in", 0)
                         status["avg_spacing_in"] = data.get("avg_drop_spacing_in", 0)
                         status["connected"] = data.get("connected", False)
-                        status["diagnostics"] = data.get("diagnostics", [])
+                        raw_diag = data.get("diagnostics", [])
+                        if isinstance(raw_diag, str):
+                            try:
+                                raw_diag = json.loads(raw_diag)
+                            except (json.JSONDecodeError, ValueError):
+                                raw_diag = []
+                        status["diagnostics"] = raw_diag if isinstance(raw_diag, list) else []
                         status["tps_power_loop"] = data.get("tps_power_loop", False)
                         status["camera_rate"] = data.get("camera_rate", 0.0)
                         status["tps_mode"] = data.get("tps_mode", "")
+                        status["encoder_direction"] = data.get("encoder_direction", "forward")
                         for i in range(1, 26):
                             key = f"ds{i}"
                             if key in data:
@@ -1241,28 +1285,7 @@ class VoiceChat:
     def _ask_claude(self, user_text: str) -> str:
         """Send message to Claude via the claude CLI (already authenticated)."""
         try:
-            # Build system context from current system status
-            sys_status = self._sys_status_fn()
-            bat = sys_status.get("battery", {})
-
-            context = (
-                "You are IronSight, an AI assistant on a TPS railroad truck. "
-                "Keep responses SHORT (2-3 sentences max) for a tiny 3.5 inch screen. "
-                "No markdown, no bullet points, plain text only.\n\n"
-                f"System: PLC {'connected' if sys_status['connected'] else 'disconnected'} "
-                f"({sys_status['plc_ip']}), "
-                f"viam-server {'running' if sys_status['viam_server'] else 'stopped'}, "
-                f"Internet {'connected' if sys_status['internet'] else 'offline'} "
-                f"(WiFi: {sys_status['wifi_ssid']}), "
-                f"eth0 {'linked' if sys_status['eth0_carrier'] else 'NO CARRIER'}, "
-                f"Plates: {sys_status['plate_count']}, "
-                f"Travel: {sys_status['travel_ft']:.1f}ft, "
-                f"Speed: {sys_status['speed_ftpm']:.1f}ft/m, "
-                f"Spacing: last {sys_status['last_spacing_in']:.1f}\" avg {sys_status['avg_spacing_in']:.1f}\", "
-                f"Battery: {'{:.0f}%'.format(bat['percent']) if bat.get('available') else 'N/A'}, "
-                f"CPU: {sys_status['cpu_temp']:.0f}C, Disk: {sys_status['disk_pct']}%, "
-                f"Up: {sys_status['uptime']}"
-            )
+            context = self._build_system_context()
 
             # Build conversation with recent history
             prompt_parts = [context, ""]
@@ -1291,6 +1314,98 @@ class VoiceChat:
         except Exception as e:
             print(f"Claude CLI error: {e}")
             return f"Error: {str(e)[:50]}"
+
+    def _build_system_context(self) -> str:
+        """Build the system context string for Claude prompts."""
+        sys_status = self._sys_status_fn()
+        bat = sys_status.get("battery", {})
+        diagnostics = [d for d in sys_status.get("diagnostics", []) if isinstance(d, dict)]
+
+        ctx = (
+            "You are IronSight, an AI assistant on a TPS railroad truck. "
+            "Keep responses SHORT (2-3 sentences max) for a tiny 3.5 inch screen. "
+            "No markdown, no bullet points, plain text only.\n\n"
+            f"System: PLC {'connected' if sys_status['connected'] else 'disconnected'} "
+            f"({sys_status['plc_ip']}), "
+            f"viam-server {'running' if sys_status['viam_server'] else 'stopped'}, "
+            f"Internet {'connected' if sys_status['internet'] else 'offline'} "
+            f"(WiFi: {sys_status['wifi_ssid']}), "
+            f"eth0 {'linked' if sys_status['eth0_carrier'] else 'NO CARRIER'}, "
+            f"Plates: {sys_status['plate_count']}, "
+            f"Travel: {sys_status['travel_ft']:.1f}ft, "
+            f"Speed: {sys_status['speed_ftpm']:.1f}ft/m, "
+            f"Spacing: last {sys_status['last_spacing_in']:.1f}\" avg {sys_status['avg_spacing_in']:.1f}\", "
+            f"Battery: {'{:.0f}%'.format(bat['percent']) if bat.get('available') else 'N/A'}, "
+            f"CPU: {sys_status['cpu_temp']:.0f}C, Disk: {sys_status['disk_pct']}%, "
+            f"Up: {sys_status['uptime']}"
+        )
+
+        if diagnostics:
+            diag_lines = []
+            for d in diagnostics[:5]:
+                sev = d.get("severity", "info")
+                title = d.get("title", "unknown")
+                action = d.get("action", "")
+                diag_lines.append(f"  [{sev.upper()}] {title}: {action}")
+            ctx += "\n\nACTIVE DIAGNOSTICS:\n" + "\n".join(diag_lines)
+
+        return ctx
+
+    def proactive_diagnosis(self):
+        """If there are active faults, generate a proactive opening diagnosis.
+
+        Called when the user navigates to the chat page. Only fires if:
+        - There are active critical or warning diagnostics
+        - Chat is empty OR last message is >10 minutes old
+        """
+        sys_status = self._sys_status_fn()
+        diagnostics = [d for d in sys_status.get("diagnostics", []) if isinstance(d, dict)]
+        active = [d for d in diagnostics if d.get("severity") in ("critical", "warning")]
+        if not active:
+            return
+
+        # Skip if we already have a recent diagnosis (within 10 min)
+        if self.messages:
+            last = self.messages[-1]
+            try:
+                last_time = time.strptime(last.timestamp, "%H:%M")
+                now_time = time.strptime(time.strftime("%H:%M"), "%H:%M")
+                diff_min = (now_time.tm_hour * 60 + now_time.tm_min) - \
+                           (last_time.tm_hour * 60 + last_time.tm_min)
+                if 0 <= diff_min < 10:
+                    return
+            except Exception:
+                pass
+
+        # Build a fast local diagnosis (no Claude call) from the diagnostic data
+        # This appears instantly — no waiting for API
+        lines = []
+        for d in active[:3]:
+            sev = d.get("severity", "")
+            title = d.get("title", "Issue detected")
+            action = d.get("action", "")
+            icon = "!!" if sev == "critical" else "!"
+            lines.append(f"{icon} {title}")
+            if action:
+                # Take just the first action step
+                first_step = action.split("\n")[0].strip()
+                if first_step:
+                    lines.append(f"  -> {first_step}")
+
+        if len(active) > 3:
+            lines.append(f"  (+{len(active) - 3} more)")
+
+        lines.append("")
+        lines.append("Talk or ask me for more detail.")
+
+        msg = ChatMessage(
+            role="assistant",
+            text="\n".join(lines),
+            timestamp=time.strftime("%H:%M"),
+        )
+        self.messages.append(msg)
+        self.scroll_offset = 0
+        self._save_history()
 
     def clear_history(self):
         """Clear chat history."""
@@ -1412,6 +1527,10 @@ def _draw_alert_bar(draw, sys_status: dict, y_start: int) -> int:
     diagnostics = sys_status.get("diagnostics", [])
     if not diagnostics:
         return y_start
+    # Ensure each entry is a dict (data pipeline may serialize as strings)
+    diagnostics = [d for d in diagnostics if isinstance(d, dict)]
+    if not diagnostics:
+        return y_start
 
     # Find the highest severity
     has_critical = any(d.get("severity") == "critical" for d in diagnostics)
@@ -1497,7 +1616,7 @@ def render_home(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
 
     # --- Derive system status ---
     tps_power = sys_status.get("tps_power_loop", False)
-    diagnostics = sys_status.get("diagnostics", [])
+    diagnostics = [d for d in sys_status.get("diagnostics", []) if isinstance(d, dict)]
     has_critical = any(d.get("severity") == "critical" for d in diagnostics)
     has_warning = any(d.get("severity") == "warning" for d in diagnostics)
     connected = sys_status.get("connected", False)
@@ -1529,12 +1648,20 @@ def render_home(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
     draw.text((col_plates, y), "PLATES", fill=WHITE, font=font_unit)
     draw.text((col_plates, y + 13), str(plate_count), fill=WHITE, font=font_huge)
 
-    # SPEED
+    # SPEED + direction arrow
     speed = sys_status.get("speed_ftpm", 0.0)
+    direction = sys_status.get("encoder_direction", "forward")
+    is_reverse = direction == "reverse"
     draw.text((col_speed, y), "SPEED", fill=WHITE, font=font_unit)
     draw.text((col_speed, y + 13), f"{speed:.1f}", fill=WHITE, font=font_big)
-    # Unit below speed number
-    draw.text((col_speed, y + 45), "ft/min", fill=LIGHT_GRAY, font=font_unit)
+    # Direction arrow next to speed number (▲ forward green, ▼ reverse red)
+    speed_w = draw.textlength(f"{speed:.1f}", font=font_big)
+    if is_reverse:
+        draw.text((col_speed + speed_w + 4, y + 18), "▼", fill=RED, font=font_med)
+        draw.text((col_speed, y + 45), "ft/min  REV", fill=RED, font=font_unit)
+    else:
+        draw.text((col_speed + speed_w + 4, y + 18), "▲", fill=GREEN, font=font_med)
+        draw.text((col_speed, y + 45), "ft/min", fill=LIGHT_GRAY, font=font_unit)
 
     # STATUS (colored dot + text — bold colors for sunlight)
     draw.text((col_status, y), "STATUS", fill=WHITE, font=font_unit)
@@ -1577,9 +1704,9 @@ def render_home(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
     mode_str = f"Mode: {mode}" if mode else "Mode: --"
     draw.text((MARGIN, y), mode_str, fill=WHITE, font=font_sm)
 
-    camera_rate = sys_status.get("camera_rate", 0.0)
+    camera_rate = sys_status.get("camera_rate", 0.0)  # X3 = plate flipper
     cam_color = GREEN if camera_rate > 5 else (YELLOW if camera_rate > 0 else LIGHT_GRAY)
-    cam_str = f"Camera: {camera_rate:.0f}/min" if camera_rate > 0 else "Camera: --"
+    cam_str = f"Flipper: {camera_rate:.0f}/min" if camera_rate > 0 else "Flipper: --"
     draw.text((eff_x, y), cam_str, fill=cam_color, font=font_sm)
 
     # --- Travel distance (compact, bright) ---
@@ -1729,8 +1856,56 @@ def render_commands(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
     return img, buttons
 
 
-def render_logs(sys_status: dict, scroll_offset: int = 0) -> Tuple["Image.Image", List[Button]]:
-    """LOGS — scrollable event history."""
+def _get_truck_errors(sys_status: dict) -> list:
+    """Build truck/equipment error entries from active diagnostics.
+
+    Returns list of dicts matching the activity history format:
+      {"time": "HH:MM", "component": "...", "message": "...", "level": "...", "source": "truck"}
+    """
+    entries = []
+    diags = sys_status.get("diagnostics", [])
+    now_str = time.strftime("%H:%M")
+    for d in diags:
+        if not isinstance(d, dict):
+            continue
+        sev = d.get("severity", "warning")
+        level = "error" if sev == "critical" else sev
+        cat = d.get("category", "")[:6] or "diag"
+        title = d.get("title", d.get("rule", "unknown"))
+        entries.append({
+            "time": now_str,
+            "component": cat,
+            "message": title,
+            "level": level,
+            "source": "truck",
+        })
+
+    # Also add TPS-specific status entries
+    if not sys_status.get("tps_power_loop") and sys_status.get("plc_reachable"):
+        entries.append({
+            "time": now_str, "component": "TPS", "message": "TPS power OFF",
+            "level": "warning", "source": "truck",
+        })
+    if sys_status.get("plc_reachable") and not sys_status.get("connected"):
+        entries.append({
+            "time": now_str, "component": "PLC", "message": "PLC reachable but sensor disconnected",
+            "level": "warning", "source": "truck",
+        })
+    if not sys_status.get("eth0_carrier"):
+        entries.append({
+            "time": now_str, "component": "ETH", "message": "Ethernet NO CARRIER (cable/PLC off)",
+            "level": "error", "source": "truck",
+        })
+    return entries
+
+
+# Log filter modes: "all", "software", "truck"
+LOG_FILTERS = ["ALL", "SOFTWARE", "TRUCK"]
+
+
+def render_logs(sys_status: dict, scroll_offset: int = 0,
+                log_filter: str = "all") -> Tuple["Image.Image", List[Button]]:
+    """LOGS — scrollable event history with filter tabs (All / Software / Truck)."""
     img = Image.new("RGB", (W, H), DARK_GRAY)
     draw = ImageDraw.Draw(img)
     _draw_status_bar(draw, sys_status)
@@ -1738,16 +1913,48 @@ def render_logs(sys_status: dict, scroll_offset: int = 0) -> Tuple["Image.Image"
     font = find_font(10)
     font_sm = find_font(9)
     font_title = find_font(12)
+    font_tab = find_font(10)
 
     y = HEADER_H
     y = _draw_alert_bar(draw, sys_status, y)
-    y += 6
-    draw.text((MARGIN, y), "RECENT EVENTS", fill=LIGHT_GRAY, font=font_title)
-    y += 20
+    y += 4
 
-    history = get_activity_history()
-    # Show newest first
-    history = list(reversed(history))
+    buttons = []
+
+    # Filter tabs
+    tab_w = (W - MARGIN * 2 - 8) // 3  # 3 tabs with small gaps
+    tab_h = 22
+    tab_x = MARGIN
+    for i, label in enumerate(LOG_FILTERS):
+        active = label.lower() == log_filter.lower()
+        color = BLUE if active else MID_GRAY
+        text_color = WHITE if active else LIGHT_GRAY
+        tab_btn = Button(
+            tab_x, y, tab_w, tab_h,
+            label, f"log_filter_{label.lower()}",
+            color=color, text_color=text_color
+        )
+        buttons.append(tab_btn)
+        draw_button(draw, tab_btn, font_tab)
+        tab_x += tab_w + 4
+    y += tab_h + 6
+
+    # Gather entries based on filter
+    software_history = get_activity_history()
+    # Tag software entries
+    for entry in software_history:
+        entry.setdefault("source", "software")
+
+    truck_errors = _get_truck_errors(sys_status)
+
+    if log_filter.lower() == "software":
+        history = list(reversed(software_history))
+    elif log_filter.lower() == "truck":
+        history = list(reversed(truck_errors))
+    else:
+        # All: merge and show newest first
+        combined = software_history + truck_errors
+        history = list(reversed(combined))
 
     row_h = 18
     max_visible = (H - y - BACK_BTN_H - 15) // row_h
@@ -1760,18 +1967,24 @@ def render_logs(sys_status: dict, scroll_offset: int = 0) -> Tuple["Image.Image"
         comp = entry.get("component", "?")[:6]
         msg = entry.get("message", "")
         level = entry.get("level", "info")
+        source = entry.get("source", "software")
 
         text_color = LEVEL_COLORS.get(level, LIGHT_GRAY)
+        # Source indicator
+        src_color = ORANGE if source == "truck" else CYAN
+        src_label = comp[:4].upper()
+
         # Truncate message to fit
         max_chars = 42
         display_msg = msg[:max_chars] + ("..." if len(msg) > max_chars else "")
 
         draw.text((MARGIN, y), t, fill=MID_GRAY, font=font_sm)
-        draw.text((MARGIN + 50, y), comp[:4].upper(), fill=CYAN, font=font_sm)
+        draw.text((MARGIN + 50, y), src_label, fill=src_color, font=font_sm)
         draw.text((MARGIN + 85, y), display_msg, fill=text_color, font=font_sm)
         y += row_h
 
-    buttons = []
+    if not visible:
+        draw.text((MARGIN, y + 10), "No events to show", fill=MID_GRAY, font=font)
 
     # Scroll buttons on the right
     scroll_btn_w = 50
@@ -1803,8 +2016,119 @@ def render_logs(sys_status: dict, scroll_offset: int = 0) -> Tuple["Image.Image"
     return img, buttons
 
 
-def render_system(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
-    """SYSTEM — health dashboard."""
+def _get_service_statuses(sys_status: dict) -> list:
+    """Build the full list of health rows for the system page.
+
+    Each entry: (label, ok_bool, detail_str)
+    """
+    rows = []
+
+    # -- Core services --
+    rows.append(("viam-server", sys_status["viam_server"],
+                 "active" if sys_status["viam_server"] else "STOPPED"))
+
+    rows.append(("PLC", sys_status["plc_reachable"], sys_status["plc_ip"]))
+
+    # plc-sensor module — check if the module process is running
+    plc_sensor_ok = False
+    try:
+        r = subprocess.run(["pgrep", "-f", "plc_sensor"], capture_output=True, timeout=3)
+        plc_sensor_ok = r.returncode == 0
+    except Exception:
+        pass
+    rows.append(("plc-sensor", plc_sensor_ok,
+                 "running" if plc_sensor_ok else "STOPPED"))
+
+    # TPS power
+    tps_on = sys_status.get("tps_power_loop", False)
+    tps_mode = sys_status.get("tps_mode", "")
+    tps_detail = tps_mode if tps_on and tps_mode else ("ON" if tps_on else "OFF")
+    rows.append(("TPS Power", tps_on, tps_detail))
+
+    # -- Network --
+    rows.append(("Ethernet", sys_status["eth0_carrier"],
+                 sys_status.get("eth0_ip", "") or ("linked" if sys_status["eth0_carrier"] else "NO CARRIER")))
+
+    rows.append(("WiFi", bool(sys_status["wifi_ssid"]),
+                 sys_status["wifi_ssid"] or "disconnected"))
+
+    signal = sys_status.get("wifi_signal_dbm", 0)
+    if signal and signal < 0:
+        rows.append(("  Signal", signal > -70, f"{signal} dBm"))
+
+    rows.append(("Internet", sys_status["internet"],
+                 "connected" if sys_status["internet"] else "OFFLINE"))
+
+    tailscale = sys_status.get("tailscale_ip", "")
+    ts_ok = bool(tailscale)
+    rows.append(("Tailscale", ts_ok, tailscale if ts_ok else "not connected"))
+
+    iphone = sys_status.get("iphone_connected", False)
+    if iphone:
+        rows.append(("iPhone", True, "tethered"))
+
+    # -- Data pipeline --
+    # Cloud sync: check if .prog capture files exist (active capture)
+    capture_ok = False
+    capture_detail = "no data"
+    try:
+        capture_dir = Path("/home/andrew/.viam/capture")
+        if capture_dir.exists():
+            prog_files = list(capture_dir.rglob("*.prog"))
+            if prog_files:
+                # Check if the newest .prog is growing
+                newest = max(prog_files, key=lambda p: p.stat().st_mtime)
+                age = time.time() - newest.stat().st_mtime
+                if age < 10:
+                    capture_ok = True
+                    capture_detail = "capturing"
+                else:
+                    capture_detail = f"stale ({int(age)}s)"
+    except Exception:
+        pass
+    rows.append(("Data Capture", capture_ok, capture_detail))
+
+    # Offline buffer
+    try:
+        buf_dir = Path("/home/andrew/.viam/offline-buffer")
+        if buf_dir.exists():
+            jsonl_files = list(buf_dir.glob("readings_*.jsonl"))
+            if jsonl_files:
+                total_kb = sum(f.stat().st_size for f in jsonl_files) // 1024
+                rows.append(("Offline Buf", True, f"{len(jsonl_files)} files, {total_kb}KB"))
+    except Exception:
+        pass
+
+    # Discovery daemon
+    disc_ok = False
+    try:
+        r = subprocess.run(["pgrep", "-f", "ironsight-discovery"], capture_output=True, timeout=3)
+        disc_ok = r.returncode == 0
+    except Exception:
+        pass
+    rows.append(("Discovery", disc_ok, "running" if disc_ok else "stopped"))
+
+    # Watchdog
+    wd_ok = False
+    wd_detail = "unknown"
+    try:
+        r = subprocess.run(
+            ["crontab", "-l"], capture_output=True, text=True, timeout=3
+        )
+        if "watchdog" in r.stdout.lower():
+            wd_ok = True
+            wd_detail = "active (cron)"
+        else:
+            wd_detail = "no cron entry"
+    except Exception:
+        pass
+    rows.append(("Watchdog", wd_ok, wd_detail))
+
+    return rows
+
+
+def render_system(sys_status: dict, scroll_offset: int = 0) -> Tuple["Image.Image", List[Button]]:
+    """SYSTEM — scrollable health dashboard with full component status."""
     img = Image.new("RGB", (W, H), DARK_GRAY)
     draw = ImageDraw.Draw(img)
     _draw_status_bar(draw, sys_status)
@@ -1813,41 +2137,24 @@ def render_system(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
     font_sm = find_font(10)
     font_title = find_font(12)
 
-    y = HEADER_H
-    y = _draw_alert_bar(draw, sys_status, y)
-    y += 6
-    draw.text((MARGIN, y), "SYSTEM HEALTH", fill=LIGHT_GRAY, font=font_title)
-    y += 20
+    y_top = HEADER_H
+    y_top = _draw_alert_bar(draw, sys_status, y_top)
+    y_top += 6
+    draw.text((MARGIN, y_top), "SYSTEM HEALTH", fill=LIGHT_GRAY, font=font_title)
+    y_top += 20
 
-    # Service/connection status rows
-    health_rows = [
-        ("viam-server", sys_status["viam_server"],
-         "active" if sys_status["viam_server"] else "STOPPED"),
-        ("PLC", sys_status["plc_reachable"], sys_status["plc_ip"]),
-        ("Internet", sys_status["internet"],
-         "connected" if sys_status["internet"] else "OFFLINE"),
-        ("Ethernet", sys_status["eth0_carrier"],
-         sys_status.get("eth0_ip", "") or ("linked" if sys_status["eth0_carrier"] else "NO CARRIER")),
-        ("WiFi", bool(sys_status["wifi_ssid"]),
-         sys_status["wifi_ssid"] or "disconnected"),
-    ]
+    # Build all content rows (we'll slice them for scrolling)
+    # Each row: ("section"|"status"|"gauge"|"info", ...)
+    all_rows = []
 
-    row_h = 20
+    # -- Service/connection status --
+    health_rows = _get_service_statuses(sys_status)
     for label, ok, detail in health_rows:
-        color = GREEN if ok else RED
-        sq = 10
-        draw.rectangle([MARGIN, y + 3, MARGIN + sq, y + 3 + sq], fill=color)
-        draw.text((MARGIN + sq + 6, y), label, fill=WHITE, font=font)
-        dw = draw.textlength(detail, font=font_sm)
-        draw.text((W - MARGIN - dw, y + 2), detail, fill=LIGHT_GRAY, font=font_sm)
-        y += row_h
+        all_rows.append(("status", label, ok, detail))
 
-    y += 6
-    draw.line([(MARGIN, y), (W - MARGIN, y)], fill=MID_GRAY, width=1)
-    y += 8
+    all_rows.append(("divider",))
 
-    # Resource gauges
-    bar_w = W - MARGIN * 2
+    # -- Resource gauges --
     gauges = [
         ("CPU", sys_status["cpu_temp"], f"{sys_status['cpu_temp']:.0f}C",
          GREEN if sys_status["cpu_temp"] < 70 else YELLOW if sys_status["cpu_temp"] < 80 else RED),
@@ -1856,8 +2163,6 @@ def render_system(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
         ("DISK", sys_status["disk_pct"], f"{sys_status['disk_pct']}%",
          GREEN if sys_status["disk_pct"] < 80 else YELLOW if sys_status["disk_pct"] < 90 else RED),
     ]
-
-    # Add battery gauge if available
     bat = sys_status.get("battery", {})
     if bat.get("available"):
         pct = bat.get("percent", 0)
@@ -1866,38 +2171,124 @@ def render_system(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
         bat_label = f"{pct:.0f}% {v:.2f}V" + (" CHG" if charging else "")
         bat_color = CYAN if charging else (GREEN if pct > 30 else YELLOW if pct > 15 else RED)
         gauges.append(("BAT", pct, bat_label, bat_color))
+    for g in gauges:
+        all_rows.append(("gauge",) + g)
 
-    for label, value, text, color in gauges:
-        draw.text((MARGIN, y), label, fill=LIGHT_GRAY, font=font_sm)
-        y += 14
-        bar_h = 10
-        draw.rectangle([MARGIN, y, MARGIN + bar_w, y + bar_h], fill=MID_GRAY)
-        fill_pct = min(100, max(0, value if isinstance(value, (int, float)) else 0))
-        if label == "CPU":
-            fill_pct = min(100, max(0, (value - 30) / 60 * 100))
-        fill_w = int(bar_w * fill_pct / 100)
-        if fill_w > 0:
-            draw.rectangle([MARGIN, y, MARGIN + fill_w, y + bar_h], fill=color)
-        tw = draw.textlength(text, font=font_sm)
-        draw.text((W - MARGIN - tw, y - 1), text, fill=WHITE, font=font_sm)
-        y += bar_h + 6
+    all_rows.append(("divider",))
 
-    # Info row at bottom
-    y += 4
-    tailscale = sys_status.get("tailscale_ip", "")
+    # -- Info rows --
     uptime = sys_status["uptime"]
     truck = sys_status["truck_id"]
-    draw.text((MARGIN, y), f"Up: {uptime}", fill=LIGHT_GRAY, font=font_sm)
-    draw.text((W // 2, y), f"Truck: {truck}", fill=LIGHT_GRAY, font=font_sm)
-    y += 14
-    if tailscale:
-        draw.text((MARGIN, y), f"Tailscale: {tailscale}", fill=LIGHT_GRAY, font=font_sm)
+    all_rows.append(("info", f"Uptime: {uptime}   Truck: {truck}"))
+
+    # Diagnostics summary
+    diags = sys_status.get("diagnostics", [])
+    if diags:
+        crits = sum(1 for d in diags if isinstance(d, dict) and d.get("severity") == "critical")
+        warns = sum(1 for d in diags if isinstance(d, dict) and d.get("severity") == "warning")
+        all_rows.append(("info", f"Diagnostics: {crits} critical, {warns} warning"))
+    else:
+        all_rows.append(("info", "Diagnostics: all clear"))
+
+    # -- Calculate row heights and apply scroll --
+    row_heights = []
+    for row in all_rows:
+        if row[0] == "status":
+            row_heights.append(18)
+        elif row[0] == "gauge":
+            row_heights.append(28)  # label + bar
+        elif row[0] == "divider":
+            row_heights.append(12)
+        elif row[0] == "info":
+            row_heights.append(16)
+        else:
+            row_heights.append(18)
+
+    content_h = H - y_top - BACK_BTN_H - 15
+    total_content_h = sum(row_heights)
+    needs_scroll = total_content_h > content_h
+
+    # Clamp scroll offset
+    max_scroll = max(0, len(all_rows) - 1)
+    scroll_offset = min(scroll_offset, max_scroll)
+
+    # Skip rows based on scroll offset
+    y = y_top
+    bar_w = W - MARGIN * 2
+    visible_start = scroll_offset
+    for i, row in enumerate(all_rows):
+        if i < visible_start:
+            continue
+        if y > H - BACK_BTN_H - 15:
+            break
+
+        if row[0] == "status":
+            _, label, ok, detail = row
+            color = GREEN if ok else RED
+            sq = 8
+            draw.rectangle([MARGIN, y + 4, MARGIN + sq, y + 4 + sq], fill=color)
+            draw.text((MARGIN + sq + 6, y), label, fill=WHITE, font=font_sm)
+            dw = draw.textlength(detail, font=font_sm)
+            draw.text((W - MARGIN - dw, y + 1), detail, fill=LIGHT_GRAY, font=font_sm)
+            y += row_heights[i]
+
+        elif row[0] == "gauge":
+            _, label, value, text, color = row
+            draw.text((MARGIN, y), label, fill=LIGHT_GRAY, font=font_sm)
+            gy = y + 14
+            bar_h = 10
+            draw.rectangle([MARGIN, gy, MARGIN + bar_w, gy + bar_h], fill=MID_GRAY)
+            fill_pct = min(100, max(0, value if isinstance(value, (int, float)) else 0))
+            if label == "CPU":
+                fill_pct = min(100, max(0, (value - 30) / 60 * 100))
+            fill_w = int(bar_w * fill_pct / 100)
+            if fill_w > 0:
+                draw.rectangle([MARGIN, gy, MARGIN + fill_w, gy + bar_h], fill=color)
+            tw = draw.textlength(text, font=font_sm)
+            draw.text((W - MARGIN - tw, gy - 1), text, fill=WHITE, font=font_sm)
+            y += row_heights[i]
+
+        elif row[0] == "divider":
+            dy = y + 5
+            draw.line([(MARGIN, dy), (W - MARGIN, dy)], fill=MID_GRAY, width=1)
+            y += row_heights[i]
+
+        elif row[0] == "info":
+            _, text = row
+            draw.text((MARGIN, y), text, fill=LIGHT_GRAY, font=font_sm)
+            y += row_heights[i]
+
+    buttons = []
+
+    # Scroll buttons (same pattern as logs page)
+    if needs_scroll:
+        scroll_btn_w = 50
+        scroll_btn_h = 35
+
+        if scroll_offset > 0:
+            up_btn = Button(
+                W - scroll_btn_w - MARGIN, y_top,
+                scroll_btn_w, scroll_btn_h,
+                "UP", "scroll_up", color=MID_GRAY
+            )
+            buttons.append(up_btn)
+            draw_button(draw, up_btn, find_font(12))
+
+        if y > H - BACK_BTN_H - 15:
+            dn_btn = Button(
+                W - scroll_btn_w - MARGIN, H - BACK_BTN_H - scroll_btn_h - 15,
+                scroll_btn_w, scroll_btn_h,
+                "DN", "scroll_down", color=MID_GRAY
+            )
+            buttons.append(dn_btn)
+            draw_button(draw, dn_btn, find_font(12))
 
     # Back button
     back = _back_button()
     draw_button(draw, back, find_font(14))
+    buttons.append(back)
 
-    return img, [back]
+    return img, buttons
 
 
 def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image", List[Button]]:
@@ -2299,6 +2690,7 @@ def main():
     current_page = "home"
     pending_dialog = None  # action string for confirm dialog
     scroll_offset = 0
+    log_filter = "all"  # "all", "software", "truck"
     sys_status = {}
     last_data_refresh = 0
     needs_redraw = True
@@ -2372,7 +2764,7 @@ def main():
 
                 if pending_dialog:
                     base_img, _ = _render_current_page(
-                        current_page, sys_status, scroll_offset, voice_chat)
+                        current_page, sys_status, scroll_offset, voice_chat, log_filter)
                     _, dialog_buttons = render_confirm_dialog(base_img, pending_dialog)
                     hit = find_hit(dialog_buttons, tx, ty)
                     if hit:
@@ -2385,13 +2777,16 @@ def main():
                             pending_dialog = None
                 else:
                     _, buttons = _render_current_page(
-                        current_page, sys_status, scroll_offset, voice_chat)
+                        current_page, sys_status, scroll_offset, voice_chat, log_filter)
                     hit = find_hit(buttons, tx, ty)
                     if hit:
                         _beep()
                         action = hit.action
                         if action.startswith("nav_"):
-                            current_page = action.replace("nav_", "")
+                            new_page = action.replace("nav_", "")
+                            if new_page == "chat" and current_page != "chat":
+                                voice_chat.proactive_diagnosis()
+                            current_page = new_page
                             scroll_offset = 0
                         elif action.startswith("confirm_"):
                             pending_dialog = action
@@ -2399,6 +2794,9 @@ def main():
                             scroll_offset = max(0, scroll_offset - 5)
                         elif action == "scroll_down":
                             scroll_offset += 5
+                        elif action.startswith("log_filter_"):
+                            log_filter = action.replace("log_filter_", "")
+                            scroll_offset = 0
                         elif action.startswith("cmd_"):
                             executor.execute(action)
                         # Chat actions
@@ -2443,7 +2841,8 @@ def main():
 
 def _render_current_page(page: str, sys_status: dict,
                          scroll_offset: int,
-                         voice_chat: "VoiceChat" = None) -> Tuple["Image.Image", List[Button]]:
+                         voice_chat: "VoiceChat" = None,
+                         log_filter: str = "all") -> Tuple["Image.Image", List[Button]]:
     """Render the current page and return (image, buttons)."""
     if page == "home":
         return render_home(sys_status)
@@ -2454,9 +2853,9 @@ def _render_current_page(page: str, sys_status: dict,
     elif page == "chat" and voice_chat:
         return render_chat(sys_status, voice_chat)
     elif page == "logs":
-        return render_logs(sys_status, scroll_offset)
+        return render_logs(sys_status, scroll_offset, log_filter)
     elif page == "system":
-        return render_system(sys_status)
+        return render_system(sys_status, scroll_offset)
     else:
         return render_home(sys_status)
 
