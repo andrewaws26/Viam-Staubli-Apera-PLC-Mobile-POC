@@ -2817,6 +2817,83 @@ def render_system(sys_status: dict, scroll_offset: int = 0) -> Tuple["Image.Imag
     return img, buttons
 
 
+def render_expanded_message(msg: "ChatMessage", explanation: str = "") -> Tuple["Image.Image", List[Button]]:
+    """Full-screen popup showing an AI message in larger text for readability.
+
+    If explanation is provided, shows that instead of the original message.
+    """
+    img = Image.new("RGB", (W, H), (20, 20, 25))
+    draw = ImageDraw.Draw(img)
+    buttons = []
+
+    font_title = find_font(14)
+    font_body = find_font(15)
+    font_close = find_font(16)
+    font_btn = find_font(13)
+
+    # Header bar
+    draw.rectangle([0, 0, W, 30], fill=(30, 30, 40))
+    header_text = "AI EXPLANATION" if explanation else "AI DIAGNOSIS"
+    draw.text((MARGIN, 6), header_text, fill=PURPLE, font=font_title)
+
+    # Close button (X) in top right
+    draw.text((W - 28, 5), "X", fill=WHITE, font=font_close)
+    close_btn = Button(W - 40, 0, 40, 30, "", "chat_close_expand")
+    buttons.append(close_btn)
+
+    # Determine text color by severity
+    if msg.severity == "critical":
+        text_color = RED
+    elif msg.severity == "warning":
+        text_color = YELLOW
+    elif msg.severity == "ok":
+        text_color = GREEN
+    else:
+        text_color = GREEN
+
+    # Display text: explanation if available, otherwise original message
+    display_text = explanation if explanation else msg.text
+
+    # Reserve space for bottom button
+    btn_area_h = 44 if not explanation else 0
+
+    # Word-wrap and draw the message in larger font
+    y = 40
+    max_chars = 38  # fewer chars per line = bigger text
+    line_h = 20
+    max_y = H - btn_area_h - 24  # leave room for timestamp and button
+    words = display_text.split()
+    line = ""
+    for word in words:
+        test = (line + " " + word).strip()
+        if len(test) > max_chars:
+            if line:
+                if y < max_y:
+                    draw.text((MARGIN, y), line, fill=text_color, font=font_body)
+                y += line_h
+            line = word
+        else:
+            line = test
+    if line and y < max_y:
+        draw.text((MARGIN, y), line, fill=text_color, font=font_body)
+
+    # Timestamp
+    draw.text((MARGIN, H - 22), msg.timestamp, fill=MID_GRAY, font=find_font(11))
+
+    # "Explain" button at the bottom (only when showing the original message)
+    if not explanation:
+        explain_btn = Button(
+            MARGIN, H - btn_area_h - 4,
+            W - MARGIN * 2, 40,
+            "EXPLAIN REASONING", "chat_explain",
+            color=DARK_PURPLE, text_color=WHITE
+        )
+        buttons.append(explain_btn)
+        draw_button(draw, explain_btn, font_btn)
+
+    return img, buttons
+
+
 def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image", List[Button]]:
     """DIAGNOSE — AI diagnosis with double-tap-to-talk and TRY AGAIN button.
 
@@ -2854,6 +2931,10 @@ def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image
     elif state == "error":
         draw.rectangle([0, sl_y, W, sl_y + status_h], fill=DARK_RED)
         draw.text((MARGIN, sl_y + 3), voice_chat.state_message, fill=RED, font=font_sm)
+        # Dismiss button on error bar
+        draw.text((W - 25, sl_y + 3), "X", fill=WHITE, font=font_sm)
+        dismiss_btn = Button(W - 30, sl_y, 30, status_h, "", "chat_dismiss_error")
+        buttons.append(dismiss_btn)
     else:
         draw.rectangle([0, sl_y, W, sl_y + status_h], fill=(15, 15, 20))
         draw.text((MARGIN, sl_y + 3), "DIAGNOSE", fill=PURPLE, font=font_sm)
@@ -2892,8 +2973,9 @@ def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image
     max_chars = 48
 
     # Word-wrap messages into display lines
+    # Each entry: (text, color, msg_index) where msg_index links back to messages[]
     display_lines = []
-    for msg in messages:
+    for msg_idx, msg in enumerate(messages):
         prefix = "You: " if msg.role == "user" else "AI: "
         if msg.role == "user":
             color = CYAN
@@ -2912,13 +2994,13 @@ def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image
             test = (line + " " + word).strip()
             if len(test) > max_chars:
                 if line:
-                    display_lines.append((line, color))
+                    display_lines.append((line, color, msg_idx))
                 line = word
             else:
                 line = test
         if line:
-            display_lines.append((line, color))
-        display_lines.append(("", BLACK))  # spacer between messages
+            display_lines.append((line, color, msg_idx))
+        display_lines.append(("", BLACK, -1))  # spacer between messages
 
     # Calculate visible window
     visible_lines = chat_h // line_h
@@ -2929,11 +3011,19 @@ def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image
     end = start + visible_lines
     visible = display_lines[start:end]
 
-    # Draw messages
+    # Draw messages and add tap targets for AI messages
     y = chat_top
-    for text, color in visible:
+    seen_msg_indices = set()
+    for text, color, msg_idx in visible:
         if text:
             draw.text((MARGIN, y), text, fill=color, font=font)
+            # Add tap target for first line of each AI message (to expand it)
+            if msg_idx >= 0 and msg_idx not in seen_msg_indices:
+                if messages[msg_idx].role == "assistant":
+                    # Make the entire message region tappable
+                    expand_btn = Button(0, y, W, line_h, str(msg_idx), "chat_expand")
+                    buttons.append(expand_btn)
+                seen_msg_indices.add(msg_idx)
         y += line_h
 
     # Empty state — prompt to diagnose
@@ -3246,6 +3336,9 @@ def main():
     last_data_refresh = 0
     needs_redraw = True
     chat_recording = False  # double-tap toggle state
+    expanded_msg_idx = -1   # -1 = no expanded message, 0+ = index into voice_chat.messages
+    expanded_explanation = ""  # explanation text from Claude for the expanded message
+    error_start_time = 0.0  # when error state started (for auto-clear)
 
     print("IronSight Touch Display started")
     print(f"Touch: {'enabled' if not args.no_touch and touch.device else 'disabled'}")
@@ -3292,6 +3385,18 @@ def main():
             if chat_recording and voice_chat.state not in ("recording", "idle"):
                 chat_recording = False
 
+            # Auto-clear error state after 5 seconds
+            if voice_chat.state == "error":
+                if error_start_time == 0:
+                    error_start_time = now
+                elif now - error_start_time > 5.0:
+                    voice_chat.state = "idle"
+                    voice_chat.state_message = ""
+                    error_start_time = 0
+                    needs_redraw = True
+            else:
+                error_start_time = 0
+
             # Poll for swipe (smooth scrolling on scrollable pages)
             swipe = touch.get_swipe()
             if swipe and current_page in ("logs", "system"):
@@ -3313,7 +3418,50 @@ def main():
                 needs_redraw = True
                 tx, ty = tap
 
-                if pending_dialog:
+                if expanded_msg_idx >= 0:
+                    # Expanded message popup is showing — check for button hits
+                    exp_msg = voice_chat.messages[expanded_msg_idx] if expanded_msg_idx < len(voice_chat.messages) else None
+                    if exp_msg:
+                        _, exp_buttons = render_expanded_message(exp_msg, expanded_explanation)
+                        exp_hit = find_hit(exp_buttons, tx, ty)
+                        _beep()
+                        if exp_hit and exp_hit.action == "chat_explain":
+                            # Ask Claude to explain the diagnosis reasoning
+                            expanded_explanation = "Asking Claude to explain..."
+                            needs_redraw = True
+                            # Run in background thread to not block UI
+                            def _explain():
+                                nonlocal expanded_explanation, needs_redraw
+                                try:
+                                    context = voice_chat._build_system_context()
+                                    prompt = (
+                                        f"{context}\n\n"
+                                        f"You previously gave this diagnosis:\n\"{exp_msg.text}\"\n\n"
+                                        "Explain your reasoning in detail. What specific data points "
+                                        "led you to this conclusion? What did you check? "
+                                        "Keep it to 4-6 sentences for a small screen. Plain text only."
+                                    )
+                                    result = subprocess.run(
+                                        ["claude", "-p", "--model", "sonnet"],
+                                        input=prompt,
+                                        capture_output=True, text=True, timeout=60
+                                    )
+                                    if result.returncode == 0 and result.stdout.strip():
+                                        expanded_explanation = result.stdout.strip()
+                                    else:
+                                        expanded_explanation = "Could not get explanation — try again."
+                                except Exception:
+                                    expanded_explanation = "Error getting explanation."
+                                needs_redraw = True
+                            threading.Thread(target=_explain, daemon=True).start()
+                        else:
+                            # Any other tap closes the popup
+                            expanded_msg_idx = -1
+                            expanded_explanation = ""
+                    else:
+                        expanded_msg_idx = -1
+                        expanded_explanation = ""
+                elif pending_dialog:
                     base_img, _ = _render_current_page(
                         current_page, sys_status, scroll_offset, voice_chat, log_filter)
                     _, dialog_buttons = render_confirm_dialog(base_img, pending_dialog)
@@ -3338,6 +3486,8 @@ def main():
                             if new_page == "chat" and current_page != "chat":
                                 voice_chat.proactive_diagnosis()
                             current_page = new_page
+                            expanded_msg_idx = -1  # close popup on page change
+                            expanded_explanation = ""
                             scroll_offset = 0
                         elif action.startswith("confirm_"):
                             pending_dialog = action
@@ -3358,6 +3508,14 @@ def main():
                         elif action == "chat_retry":
                             # TRY AGAIN — re-run diagnosis (implies first didn't fix it)
                             voice_chat.proactive_diagnosis(retry=True)
+                        elif action == "chat_dismiss_error":
+                            voice_chat.state = "idle"
+                            voice_chat.state_message = ""
+                        elif action == "chat_expand":
+                            # Show expanded message popup
+                            expanded_msg_idx = int(hit.label) if hit.label.isdigit() else -1
+                        elif action == "chat_close_expand":
+                            expanded_msg_idx = -1
                         elif action == "chat_clear":
                             voice_chat.clear_history()
 
@@ -3368,6 +3526,11 @@ def main():
             if needs_redraw and fb:
                 img, _ = _render_current_page(
                     current_page, sys_status, scroll_offset, voice_chat, log_filter)
+
+                # Expanded message popup (overlays chat page)
+                if expanded_msg_idx >= 0 and expanded_msg_idx < len(voice_chat.messages):
+                    img, _ = render_expanded_message(
+                        voice_chat.messages[expanded_msg_idx], expanded_explanation)
 
                 if pending_dialog:
                     img, _ = render_confirm_dialog(img, pending_dialog)
