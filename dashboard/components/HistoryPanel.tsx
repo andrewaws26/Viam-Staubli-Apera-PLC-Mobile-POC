@@ -223,7 +223,7 @@ export default function HistoryPanel({ summary, loading, error, onRefresh }: Pro
                   value={String(summary.encoderEjectCount)}
                 />
                 <StatItem
-                  label="Camera Active"
+                  label="Flipper Active"
                   value={`${summary.cameraActivePct}%`}
                   warn={summary.cameraActivePct < 50 && summary.tpsPowerOnPct > 10}
                 />

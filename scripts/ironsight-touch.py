@@ -1187,13 +1187,18 @@ class ChatMessage:
     role: str       # "user" or "assistant"
     text: str
     timestamp: str
+    severity: str = ""  # "ok", "warning", "critical", or "" (unset)
 
     def to_dict(self):
-        return {"role": self.role, "text": self.text, "timestamp": self.timestamp}
+        d = {"role": self.role, "text": self.text, "timestamp": self.timestamp}
+        if self.severity:
+            d["severity"] = self.severity
+        return d
 
     @classmethod
     def from_dict(cls, d):
-        return cls(role=d["role"], text=d["text"], timestamp=d.get("timestamp", ""))
+        return cls(role=d["role"], text=d["text"], timestamp=d.get("timestamp", ""),
+                   severity=d.get("severity", ""))
 
 
 class VoiceChat:
@@ -1403,45 +1408,249 @@ class VoiceChat:
             return f"Error: {str(e)[:50]}"
 
     def _build_system_context(self) -> str:
-        """Build the system context string for Claude prompts."""
+        """Build comprehensive system context for Claude prompts.
+
+        Pulls from: sys_status (live checks), offline buffer (full sensor
+        readings including PLC registers, signal metrics, Viam internals),
+        and Viam capture status.
+        """
         sys_status = self._sys_status_fn()
         bat = sys_status.get("battery", {})
         diagnostics = [d for d in sys_status.get("diagnostics", []) if isinstance(d, dict)]
 
+        # Read the full latest sensor reading from offline buffer
+        sensor = {}
+        try:
+            buf_dir = Path("/home/andrew/.viam/offline-buffer")
+            if buf_dir.exists():
+                jsonl_files = sorted(buf_dir.glob("readings_*.jsonl"))
+                if jsonl_files:
+                    with open(jsonl_files[-1], "rb") as f:
+                        f.seek(0, 2)
+                        size = f.tell()
+                        f.seek(max(0, size - 4096))
+                        chunk = f.read()
+                        lines = chunk.strip().split(b"\n")
+                        for line in reversed(lines):
+                            try:
+                                sensor = json.loads(line)
+                                break
+                            except (json.JSONDecodeError, ValueError):
+                                continue
+        except Exception:
+            pass
+
+        # Check Viam capture status
+        capture_status = "unknown"
+        try:
+            import glob as _glob
+            cap_dir = Path("/home/andrew/.viam/capture/rdk_component_sensor/plc-monitor/Readings")
+            if cap_dir.exists():
+                prog_files = sorted(cap_dir.glob("*.prog"))
+                if prog_files:
+                    latest = prog_files[-1]
+                    cap_size = latest.stat().st_size
+                    cap_age = time.time() - latest.stat().st_mtime
+                    if cap_age < 30 and cap_size > 100:
+                        capture_status = f"active ({cap_size}B, {cap_age:.0f}s ago)"
+                    elif cap_age < 300:
+                        capture_status = f"recent ({cap_age:.0f}s ago)"
+                    else:
+                        capture_status = f"stale ({cap_age / 60:.0f}min ago)"
+                cap_files = list(cap_dir.glob("*.capture"))
+                capture_status += f", {len(cap_files)} completed files"
+        except Exception:
+            pass
+
         ctx = (
-            "You are IronSight, an AI assistant on a TPS railroad truck. "
+            "You are IronSight, an AI assistant on a TPS (Tie Plate System) railroad truck. "
             "Keep responses SHORT (2-3 sentences max) for a tiny 3.5 inch screen. "
             "No markdown, no bullet points, plain text only.\n\n"
-            f"System: PLC {'connected' if sys_status['connected'] else 'disconnected'} "
-            f"({sys_status['plc_ip']}), "
-            f"viam-server {'running' if sys_status['viam_server'] else 'stopped'}, "
-            f"Internet {'connected' if sys_status['internet'] else 'offline'} "
-            f"(WiFi: {sys_status['wifi_ssid']}), "
-            f"eth0 {'linked' if sys_status['eth0_carrier'] else 'NO CARRIER'}, "
-            f"Plates: {sys_status['plate_count']}, "
-            f"Travel: {sys_status['travel_ft']:.1f}ft, "
-            f"Speed: {sys_status['speed_ftpm']:.1f}ft/m, "
-            f"Spacing: last {sys_status['last_spacing_in']:.1f}\" avg {sys_status['avg_spacing_in']:.1f}\", "
-            f"Battery: {'{:.0f}%'.format(bat['percent']) if bat.get('available') else 'N/A'}, "
-            f"CPU: {sys_status['cpu_temp'] * 9/5 + 32:.0f}F, Disk: {sys_status['disk_pct']}%, "
-            f"Up: {sys_status['uptime']}"
         )
 
+        # --- Connection & Infrastructure ---
+        ctx += "CONNECTION:\n"
+        ctx += f"  PLC: {'CONNECTED' if sys_status['connected'] else 'DISCONNECTED'} ({sys_status['plc_ip']}:502)\n"
+        ctx += f"  eth0: {'linked' if sys_status['eth0_carrier'] else 'NO CARRIER'}"
+        if sensor.get("eth0_status"):
+            ctx += f" | {sensor['eth0_status']}"
+            if sensor.get("eth0_diagnosis"):
+                ctx += f" ({sensor['eth0_diagnosis']})"
+        ctx += "\n"
+        if sensor.get("eth0_link_speed_mbps"):
+            ctx += f"  eth0 link: {sensor['eth0_link_speed_mbps']}Mbps"
+            if sensor.get("eth0_link_uptime_seconds"):
+                ctx += f", up {sensor['eth0_link_uptime_seconds']:.0f}s"
+            if sensor.get("eth0_crc_errors", 0) > 0:
+                ctx += f", CRC errors: {sensor['eth0_crc_errors']}"
+            if sensor.get("eth0_link_flaps", 0) > 0:
+                ctx += f", flaps: {sensor['eth0_link_flaps']}"
+            ctx += "\n"
+        ctx += f"  viam-server: {'RUNNING' if sys_status['viam_server'] else 'STOPPED'}\n"
+        ctx += f"  Viam capture: {capture_status}\n"
+        ctx += f"  Internet: {'connected' if sys_status['internet'] else 'OFFLINE'}"
+        ctx += f" (WiFi: {sys_status['wifi_ssid'] or 'none'})"
+        if sys_status.get("wifi_signal_dbm"):
+            ctx += f" signal: {sys_status['wifi_signal_dbm']}dBm"
+        if sys_status.get("active_interface"):
+            ctx += f" via {sys_status['active_interface']}"
+        ctx += "\n"
+        if sys_status.get("tailscale_ip"):
+            ctx += f"  Tailscale: {sys_status['tailscale_ip']}\n"
+        if sensor.get("modbus_response_time_ms") is not None:
+            ctx += f"  Modbus latency: {sensor['modbus_response_time_ms']:.1f}ms\n"
+        if sensor.get("total_reads"):
+            err_rate = ""
+            if sensor.get("total_errors", 0) > 0 and sensor["total_reads"] > 0:
+                err_rate = f" ({sensor['total_errors'] / sensor['total_reads'] * 100:.2f}% error rate)"
+            ctx += f"  Sensor reads: {sensor['total_reads']} total, {sensor.get('total_errors', 0)} errors{err_rate}\n"
+        data_age = sys_status.get("data_age_seconds", float("inf"))
+        if data_age < float("inf"):
+            ctx += f"  Data age: {data_age:.0f}s\n"
+
+        # --- Production State ---
+        ctx += "\nPRODUCTION:\n"
+        ctx += f"  TPS Power: {'ON' if sys_status.get('tps_power_loop') else 'OFF'}\n"
+        ctx += f"  Operating Mode: {sensor.get('operating_mode', sys_status.get('tps_mode', 'unknown'))}\n"
+        ctx += f"  Plates dropped: {sys_status['plate_count']}\n"
+        ctx += f"  Speed: {sys_status['speed_ftpm']:.1f} ft/min\n"
+        ctx += f"  Distance: {sys_status['travel_ft']:.1f} ft\n"
+        ctx += f"  Direction: {sys_status.get('encoder_direction', 'unknown')}\n"
+        if sys_status.get('last_spacing_in', 0) > 0 or sys_status.get('avg_spacing_in', 0) > 0:
+            ctx += f"  Spacing: last {sys_status['last_spacing_in']:.1f}\" avg {sys_status['avg_spacing_in']:.1f}\""
+            if sensor.get("min_drop_spacing_in", 0) > 0:
+                ctx += f" (min {sensor['min_drop_spacing_in']:.1f}\" max {sensor['max_drop_spacing_in']:.1f}\")"
+            ctx += "\n"
+        if sensor.get("distance_since_last_drop_in", 0) > 0:
+            ctx += f"  Distance since last drop: {sensor['distance_since_last_drop_in']:.1f}\"\n"
+
+        # --- PLC Registers ---
+        ds_regs = sys_status.get("ds_registers", {})
+        if ds_regs:
+            ctx += "\nPLC REGISTERS (DS1-DS25):\n"
+            ds_labels = {
+                "ds1": "Encoder Ignore", "ds2": "Tie Spacing (x0.5\")",
+                "ds3": "Tie Spacing (x0.1\")", "ds4": "Tenths Mile Laying",
+                "ds5": "Detector Offset Bits", "ds6": "Detector Offset (x0.1\")",
+                "ds7": "Plate Count", "ds8": "AVG Plates/Min",
+                "ds9": "Detector Next Tie", "ds10": "Encoder Next Tie",
+            }
+            for key in sorted(ds_regs.keys(), key=lambda k: int(k[2:])):
+                val = ds_regs[key]
+                label = ds_labels.get(key, "")
+                label_str = f" ({label})" if label else ""
+                ctx += f"  {key.upper()}={val}{label_str}\n"
+
+        # --- Signal Metrics & Sensor Health ---
+        ctx += "\nSIGNAL METRICS:\n"
+        if sensor.get("camera_detections_per_min") is not None:
+            ctx += f"  Flipper detection rate: {sensor['camera_detections_per_min']}/min\n"
+        if sensor.get("camera_rate_trend"):
+            ctx += f"  Flipper trend: {sensor['camera_rate_trend']}\n"
+        if sensor.get("camera_signal_duration_s") is not None:
+            ctx += f"  Flipper signal state duration: {sensor['camera_signal_duration_s']:.0f}s\n"
+        if sensor.get("eject_rate_per_min") is not None:
+            ctx += f"  Eject rate: {sensor['eject_rate_per_min']}/min\n"
+        if sensor.get("detector_eject_rate_per_min") is not None:
+            ctx += f"  Detector eject rate: {sensor['detector_eject_rate_per_min']}/min\n"
+        if sensor.get("encoder_noise") is not None:
+            ctx += f"  Encoder noise: {sensor['encoder_noise']}\n"
+        if sensor.get("encoder_reversals_per_min") is not None:
+            ctx += f"  Encoder reversals: {sensor['encoder_reversals_per_min']}/min\n"
+        if sensor.get("encoder_count") is not None:
+            ctx += f"  Raw encoder count (DD1): {sensor['encoder_count']}\n"
+        if sensor.get("dd1_frozen") is not None:
+            ctx += f"  DD1 frozen: {sensor['dd1_frozen']}, DS10 frozen: {sensor.get('ds10_frozen', 'unknown')}\n"
+
+        # --- Operating Modes & Control Bits ---
+        ctx += "\nCONTROL STATE:\n"
+        for field, label in [
+            ("drop_enable", "Drop Enable"), ("drop_enable_latch", "Drop Enable Latch"),
+            ("lay_ties_set", "Lay Ties Set"), ("drop_ties", "Drop Ties"),
+            ("first_tie_detected", "First Tie Detected"), ("encoder_mode", "Encoder Mode"),
+            ("backup_alarm", "Backup Alarm"), ("camera_signal", "Camera/Flipper Signal"),
+            ("camera_positive", "Camera Positive"),
+        ]:
+            val = sensor.get(field)
+            if val is not None:
+                ctx += f"  {label}: {'ON' if val else 'OFF'}\n"
+
+        # --- Discrete Inputs ---
+        input_vals = []
+        for i in range(1, 9):
+            key = f"x{i}"
+            val = sensor.get(key)
+            if val is not None:
+                input_vals.append(f"X{i}={'ON' if val else 'OFF'}")
+        if input_vals:
+            ctx += f"\nDISCRETE INPUTS: {', '.join(input_vals)}\n"
+
+        # --- Eject Outputs ---
+        eject_vals = []
+        for field, label in [
+            ("eject_tps_1", "TPS1"), ("eject_left_tps_2", "Left"),
+            ("eject_right_tps_2", "Right"),
+            ("air_eagle_1_feedback", "AirEagle1"), ("air_eagle_2_feedback", "AirEagle2"),
+            ("air_eagle_3_enable", "AirEagle3"),
+        ]:
+            val = sensor.get(field)
+            if val is not None:
+                eject_vals.append(f"{label}={'ON' if val else 'OFF'}")
+        if eject_vals:
+            ctx += f"EJECT OUTPUTS: {', '.join(eject_vals)}\n"
+
+        # --- System Health ---
+        ctx += "\nSYSTEM HEALTH:\n"
+        cpu_f = sys_status['cpu_temp'] * 9 / 5 + 32
+        ctx += f"  CPU: {cpu_f:.0f}F ({sys_status['cpu_temp']:.1f}C)\n"
+        ctx += f"  Memory: {sys_status.get('mem_pct', 0)}%\n"
+        ctx += f"  Disk: {sys_status['disk_pct']}%\n"
+        bat_str = f"{bat['percent']:.0f}%" if bat.get("available") else "N/A"
+        if bat.get("available"):
+            bat_str += f" {'charging' if bat.get('charging') else 'discharging'}"
+            if bat.get("voltage"):
+                bat_str += f" {bat['voltage']:.2f}V"
+        ctx += f"  Battery: {bat_str}\n"
+        ctx += f"  Uptime: {sys_status['uptime']}\n"
+        if sensor.get("uptime_seconds"):
+            ctx += f"  Sensor uptime: {sensor['uptime_seconds']}s ({sensor.get('shift_hours', 0):.1f}h shift)\n"
+
+        # --- Location & Time ---
+        if sensor.get("location_city"):
+            ctx += f"\nLOCATION: {sensor['location_city']}, {sensor.get('location_region', '')}\n"
+        if sensor.get("weather"):
+            ctx += f"WEATHER: {sensor['weather']}\n"
+        if sensor.get("local_time"):
+            ctx += f"LOCAL TIME: {sensor['local_time']}\n"
+
+        # --- Diagnostics Engine Output ---
         if diagnostics:
-            diag_lines = []
-            for d in diagnostics[:5]:
+            ctx += "\nACTIVE DIAGNOSTICS:\n"
+            for d in diagnostics[:8]:
                 sev = d.get("severity", "info")
                 title = d.get("title", "unknown")
                 action = d.get("action", "")
-                diag_lines.append(f"  [{sev.upper()}] {title}: {action}")
-            ctx += "\n\nACTIVE DIAGNOSTICS:\n" + "\n".join(diag_lines)
+                evidence = d.get("evidence", "")
+                ctx += f"  [{sev.upper()}] {title}"
+                if evidence:
+                    ctx += f" | Evidence: {evidence}"
+                ctx += "\n"
+                if action:
+                    ctx += f"    Action: {action}\n"
+        else:
+            ctx += "\nDIAGNOSTICS: All clear — no active warnings or faults.\n"
+
+        # --- Raw metrics summary from sensor ---
+        if sensor.get("diag_metrics"):
+            ctx += f"\nRAW METRICS: {sensor['diag_metrics']}\n"
 
         return ctx
 
     def proactive_diagnosis(self, retry: bool = False):
-        """Generate a diagnosis of current system/truck issues.
+        """Generate an AI diagnosis of current system/truck issues.
 
         Called when the user navigates to the DIAGNOSE page, or taps TRY AGAIN.
+        Sends the full system context to Claude for a real AI-generated diagnosis.
 
         Args:
             retry: If True, bypasses cooldown and notes that previous fix didn't work.
@@ -1451,21 +1660,6 @@ class VoiceChat:
         active = [d for d in diagnostics if d.get("severity") in ("critical", "warning")]
 
         if not retry:
-            # Skip if no active issues
-            if not active:
-                # Still show a quick all-clear
-                if not self.messages:
-                    msg = ChatMessage(
-                        role="assistant",
-                        text="All systems normal. No issues detected.\n\n"
-                             "Double-tap to ask me a question.",
-                        timestamp=time.strftime("%H:%M"),
-                    )
-                    self.messages.append(msg)
-                    self.scroll_offset = 0
-                    self._save_history()
-                return
-
             # Skip if we already have a recent diagnosis (within 10 min)
             if self.messages:
                 last = self.messages[-1]
@@ -1479,24 +1673,91 @@ class VoiceChat:
                 except Exception:
                     pass
 
-        # Build diagnosis from current system state
-        lines = []
+        # Show loading state
+        self.state = "loading"
+        self.state_message = "Analyzing system..."
 
+        # Build the diagnosis prompt
+        context = self._build_system_context()
+        if retry:
+            prompt = (
+                "RE-CHECKING: The operator tried your previous fix and it didn't work. "
+                "Look at the current system data again and suggest something DIFFERENT. "
+                "What else could be wrong?\n\n"
+                f"{context}\n\n"
+                "Give a short diagnosis (3-5 sentences max) for a tiny screen. "
+                "Plain text only, no markdown. Start with the problem or ALL CLEAR. "
+                "If there are problems, give the most important fix step."
+            )
+        else:
+            prompt = (
+                "Diagnose this TPS truck right now. Look at ALL the data — "
+                "PLC registers, signal metrics, control bits, network, encoder, "
+                "eject system, everything.\n\n"
+                f"{context}\n\n"
+                "Give a short diagnosis (3-5 sentences max) for a tiny screen. "
+                "Plain text only, no markdown. "
+                "If everything is fine, say so and give a quick status summary. "
+                "If there are problems, name the most critical one and the fix. "
+                "Be specific — reference actual register values or metrics if relevant."
+            )
+
+        # Determine severity for display coloring (before Claude call, based on rules)
+        has_critical = any(d.get("severity") == "critical" for d in active)
+        has_warning = any(d.get("severity") == "warning" for d in active)
+        if has_critical:
+            msg_severity = "critical"
+        elif has_warning:
+            msg_severity = "warning"
+        else:
+            msg_severity = "ok"
+
+        # Call Claude for the actual diagnosis
+        try:
+            result = subprocess.run(
+                ["claude", "-p", "--model", "sonnet"],
+                input=prompt,
+                capture_output=True, text=True, timeout=60
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                diagnosis_text = result.stdout.strip()
+            else:
+                # Fall back to local diagnosis
+                diagnosis_text = self._local_diagnosis(sys_status, active, retry)
+        except (subprocess.TimeoutExpired, Exception):
+            # Fall back to local diagnosis if Claude is unavailable
+            diagnosis_text = self._local_diagnosis(sys_status, active, retry)
+
+        self.state = "idle"
+        self.state_message = ""
+
+        msg = ChatMessage(
+            role="assistant",
+            text=diagnosis_text,
+            timestamp=time.strftime("%H:%M"),
+            severity=msg_severity,
+        )
+        self.messages.append(msg)
+        self.scroll_offset = 0
+        self._save_history()
+
+    def _local_diagnosis(self, sys_status: dict, active: list, retry: bool) -> str:
+        """Fallback local diagnosis when Claude is unavailable."""
+        lines = []
         if retry:
             lines.append("RE-CHECKING (previous fix may not have worked)...")
             lines.append("")
 
         if not active:
-            lines.append("All systems normal now. Previous issue may be resolved.")
+            lines.append("All systems normal. No issues detected.")
             lines.append("")
-            # Still show key stats
             speed = sys_status.get("speed_ftpm", 0.0)
             plates = sys_status.get("plate_count", 0)
             connected = sys_status.get("connected", False)
             if connected:
                 lines.append(f"PLC connected | {plates} plates | {speed:.1f} ft/min")
             else:
-                lines.append("PLC not connected — check Ethernet cable or PLC power")
+                lines.append("PLC not connected -- check Ethernet cable or PLC power")
         else:
             for d in active[:5]:
                 sev = d.get("severity", "")
@@ -1505,29 +1766,16 @@ class VoiceChat:
                 icon = "!!" if sev == "critical" else "!"
                 lines.append(f"{icon} {title}")
                 if action_text:
-                    # Show first 2 action steps
                     steps = [s.strip() for s in action_text.split("\n") if s.strip()]
                     for step in steps[:2]:
                         lines.append(f"  -> {step}")
                 lines.append("")
-
             if len(active) > 5:
                 lines.append(f"  (+{len(active) - 5} more issues)")
 
         lines.append("")
-        if retry:
-            lines.append("If still not fixed, double-tap to describe what you see.")
-        else:
-            lines.append("Tap TRY AGAIN if not resolved, or double-tap to ask.")
-
-        msg = ChatMessage(
-            role="assistant",
-            text="\n".join(lines),
-            timestamp=time.strftime("%H:%M"),
-        )
-        self.messages.append(msg)
-        self.scroll_offset = 0
-        self._save_history()
+        lines.append("(AI unavailable -- showing rule-based diagnosis)")
+        return "\n".join(lines)
 
     def clear_history(self):
         """Clear chat history."""
@@ -2647,7 +2895,16 @@ def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image
     display_lines = []
     for msg in messages:
         prefix = "You: " if msg.role == "user" else "AI: "
-        color = CYAN if msg.role == "user" else GREEN
+        if msg.role == "user":
+            color = CYAN
+        elif msg.severity == "critical":
+            color = RED
+        elif msg.severity == "warning":
+            color = YELLOW
+        elif msg.severity == "ok":
+            color = GREEN
+        else:
+            color = GREEN  # default for general AI responses
         full_text = prefix + msg.text
         words = full_text.split()
         line = ""

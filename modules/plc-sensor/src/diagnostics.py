@@ -52,7 +52,12 @@ def evaluate(readings: Dict[str, Any]) -> List[Diagnostic]:
     return results
 
 
-# ── Camera rules ────────────────────────────────────────────────────
+# ── Plate flipper rules ─────────────────────────────────────────────
+# X3 is labeled "Camera" in the PLC project file but is actually a plate
+# flipper — a needle on a bearing that detects plate orientation (whether
+# a plate needs to be flipped before laying). Wired on blue/white wires
+# of a 5-pin connector. Internal field names still use "camera_*" for
+# Viam Cloud data compatibility.
 
 def _check_camera(r: Dict[str, Any]) -> List[Diagnostic]:
     out: List[Diagnostic] = []
@@ -70,11 +75,11 @@ def _check_camera(r: Dict[str, Any]) -> List[Diagnostic]:
             "rule": "camera_dead_gradual",
             "severity": "critical",
             "category": "camera",
-            "title": "Camera detection degrading \u2014 clean lens",
+            "title": "Plate flipper detection degrading",
             "action": (
                 "1. Stop the truck safely. "
-                "2. Clean the camera lens with a dry cloth. "
-                "3. Check the camera mounting \u2014 vibration may have shifted it. "
+                "2. Check the flipper needle moves freely on its bearing. "
+                "3. Clear any debris around the flipper. "
                 "4. Resume and verify detections return."
             ),
             "evidence": (
@@ -90,9 +95,9 @@ def _check_camera(r: Dict[str, Any]) -> List[Diagnostic]:
             "rule": "camera_dead_sudden",
             "severity": "critical",
             "category": "camera",
-            "title": "Camera lost \u2014 check power and cable",
+            "title": "Plate flipper lost \u2014 check wiring",
             "action": (
-                "1. Check camera power cable at the junction box. "
+                "1. Check the flipper cable at the 5-pin connector (blue/white wires). "
                 "2. Check the signal cable at PLC terminal X3. "
                 "3. Look for a damaged or pinched cable along the run. "
                 "4. If no fix found, switch to Encoder Mode at the HMI "
@@ -111,9 +116,9 @@ def _check_camera(r: Dict[str, Any]) -> List[Diagnostic]:
             "rule": "camera_intermittent",
             "severity": "warning",
             "category": "camera",
-            "title": "Camera connection intermittent",
+            "title": "Plate flipper connection intermittent",
             "action": (
-                "1. Check cable connector at the camera \u2014 push in firmly. "
+                "1. Check the 5-pin connector at the flipper \u2014 push in firmly. "
                 "2. Check terminal X3 at the PLC \u2014 tighten the screw. "
                 "3. Look for a cable that may be getting pinched when "
                 "the truck moves."
@@ -124,7 +129,7 @@ def _check_camera(r: Dict[str, Any]) -> List[Diagnostic]:
             ),
         })
 
-    # no_ties_present: camera sees nothing but truck is moving and ejecting
+    # no_ties_present: flipper sees nothing but truck is moving and ejecting
     if cam_rate == 0 and speed > 5 and eject_rate > 0:  # TUNE: speed threshold
         out.append({
             "rule": "no_ties_present",
@@ -134,7 +139,7 @@ def _check_camera(r: Dict[str, Any]) -> List[Diagnostic]:
             "action": (
                 "If the truck is on a crossing, switch, or bare track "
                 "section, this is expected. The system is dropping by "
-                "encoder distance. Camera detection will resume when "
+                "encoder distance. Flipper detection will resume when "
                 "ties are present."
             ),
             "evidence": (

@@ -64,7 +64,7 @@ export const TPS_STATUS_FIELDS: {
   type?: "bool" | "number" | "string";
 }[] = [
   { key: "tps_power_loop", label: "TPS Power Loop", type: "bool" },
-  { key: "camera_signal", label: "Camera Signal", type: "bool" },
+  { key: "camera_signal", label: "Plate Flipper (X3)", type: "bool" },
   { key: "encoder_enabled", label: "Encoder", type: "bool" },
   { key: "floating_zero", label: "Floating Zero", type: "bool" },
   { key: "encoder_reset", label: "Encoder Reset", type: "bool" },
@@ -135,7 +135,7 @@ export const DROP_PIPELINE_FIELDS: {
 ];
 
 // ---------------------------------------------------------------------------
-// Detection & Control fields — encoder mode, camera, alarms
+// Detection & Control fields — encoder mode, plate flipper (X3), alarms
 // ---------------------------------------------------------------------------
 export const DETECTION_FIELDS: {
   key: string;
@@ -143,7 +143,7 @@ export const DETECTION_FIELDS: {
   type: "bool";
 }[] = [
   { key: "encoder_mode", label: "Encoder Mode", type: "bool" },
-  { key: "camera_positive", label: "Camera Detection", type: "bool" },
+  { key: "camera_positive", label: "Flipper Detection", type: "bool" },
   { key: "backup_alarm", label: "Backup Alarm", type: "bool" },
   { key: "lay_ties_set", label: "Lay Ties", type: "bool" },
   { key: "drop_ties", label: "Drop Ties", type: "bool" },

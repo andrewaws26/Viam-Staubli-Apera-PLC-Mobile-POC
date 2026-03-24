@@ -93,7 +93,7 @@ PLC: Click C0-10DD2E-D, CPU ID 209, Firmware v3.80.
 |-------|--------|-------------|
 | X1 | 10 (High-speed counter) | Encoder A channel |
 | X2 | 10 (High-speed counter) | Encoder B channel |
-| X3 | 1 (Standard) | Camera signal |
+| X3 | 1 (Standard) | Plate flipper signal (labeled "Camera" in PLC project) — needle on bearing, detects plate orientation via 5-pin connector (blue/white wires) |
 | X4 | 1 (Standard) | TPS power loop |
 | X5 | 1 (Standard) | Air Eagle 1 feedback |
 | X6 | 1 (Standard) | Air Eagle 2 feedback |
