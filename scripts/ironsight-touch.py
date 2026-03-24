@@ -1421,7 +1421,7 @@ class VoiceChat:
             f"Speed: {sys_status['speed_ftpm']:.1f}ft/m, "
             f"Spacing: last {sys_status['last_spacing_in']:.1f}\" avg {sys_status['avg_spacing_in']:.1f}\", "
             f"Battery: {'{:.0f}%'.format(bat['percent']) if bat.get('available') else 'N/A'}, "
-            f"CPU: {sys_status['cpu_temp']:.0f}C, Disk: {sys_status['disk_pct']}%, "
+            f"CPU: {sys_status['cpu_temp'] * 9/5 + 32:.0f}F, Disk: {sys_status['disk_pct']}%, "
             f"Up: {sys_status['uptime']}"
         )
 
@@ -1757,8 +1757,8 @@ def _system_subtitle(sys_status: dict) -> str:
         pct = bat.get("percent", 0)
         charging = bat.get("charging", False)
         chg = " CHG" if charging else ""
-        return f"BAT {pct:.0f}%{chg} | CPU {sys_status['cpu_temp']:.0f}C"
-    return f"CPU {sys_status['cpu_temp']:.0f}C | Disk {sys_status['disk_pct']}%"
+        return f"BAT {pct:.0f}%{chg} | CPU {sys_status['cpu_temp'] * 9/5 + 32:.0f}F"
+    return f"CPU {sys_status['cpu_temp'] * 9/5 + 32:.0f}F | Disk {sys_status['disk_pct']}%"
 
 
 def render_home(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
@@ -2419,7 +2419,7 @@ def render_system(sys_status: dict, scroll_offset: int = 0) -> Tuple["Image.Imag
 
     # -- Resource gauges --
     gauges = [
-        ("CPU", sys_status["cpu_temp"], f"{sys_status['cpu_temp']:.0f}C",
+        ("CPU", sys_status["cpu_temp"], f"{sys_status['cpu_temp'] * 9/5 + 32:.0f}F",
          GREEN if sys_status["cpu_temp"] < 70 else YELLOW if sys_status["cpu_temp"] < 80 else RED),
         ("MEM", sys_status["mem_pct"], f"{sys_status['mem_pct']}%",
          GREEN if sys_status["mem_pct"] < 70 else YELLOW if sys_status["mem_pct"] < 85 else RED),
