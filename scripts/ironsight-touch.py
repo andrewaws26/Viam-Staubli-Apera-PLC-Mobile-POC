@@ -1389,10 +1389,14 @@ class VoiceChat:
 
             full_prompt = "\n".join(prompt_parts)
 
+            # Run as andrew's HOME so claude CLI finds its credentials
+            # (this script runs as root for framebuffer access)
+            claude_env = {**os.environ, "HOME": "/home/andrew"}
             result = subprocess.run(
                 ["claude", "-p", "--model", "sonnet"],
                 input=full_prompt,
-                capture_output=True, text=True, timeout=60
+                capture_output=True, text=True, timeout=60,
+                env=claude_env,
             )
 
             if result.returncode == 0 and result.stdout.strip():
@@ -1713,11 +1717,15 @@ class VoiceChat:
             msg_severity = "ok"
 
         # Call Claude for the actual diagnosis
+        # Run as andrew's HOME so claude CLI finds its credentials
+        # (this script runs as root for framebuffer access)
+        claude_env = {**os.environ, "HOME": "/home/andrew"}
         try:
             result = subprocess.run(
                 ["claude", "-p", "--model", "sonnet"],
                 input=prompt,
-                capture_output=True, text=True, timeout=60
+                capture_output=True, text=True, timeout=60,
+                env=claude_env,
             )
             if result.returncode == 0 and result.stdout.strip():
                 diagnosis_text = result.stdout.strip()
@@ -3441,10 +3449,12 @@ def main():
                                         "led you to this conclusion? What did you check? "
                                         "Keep it to 4-6 sentences for a small screen. Plain text only."
                                     )
+                                    claude_env = {**os.environ, "HOME": "/home/andrew"}
                                     result = subprocess.run(
                                         ["claude", "-p", "--model", "sonnet"],
                                         input=prompt,
-                                        capture_output=True, text=True, timeout=60
+                                        capture_output=True, text=True, timeout=60,
+                                        env=claude_env,
                                     )
                                     if result.returncode == 0 and result.stdout.strip():
                                         expanded_explanation = result.stdout.strip()
