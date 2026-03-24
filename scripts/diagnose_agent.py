@@ -23,11 +23,12 @@ import json
 import os
 import socket
 import subprocess
-import struct
 import sys
 import time
-from datetime import datetime, timezone
 from pathlib import Path
+
+# Add scripts/ to path so lib/ imports work
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 try:
     import anthropic
@@ -40,60 +41,22 @@ try:
 except ImportError:
     ModbusTcpClient = None
 
+from lib.plc_constants import (
+    PLC_HOST, PLC_PORT, OFFLINE_BUFFER_DIR, CAPTURE_DIR,
+    DS_LABELS, COIL_LABELS, INPUT_LABELS, OUTPUT_LABELS,
+    DD1_ADDR, DD1_COUNT, TIMER_ADDR, TIMER_COUNT,
+    COIL_APP_ADDR, COIL_APP_COUNT, COIL_OUTPUT_ADDR, COIL_OUTPUT_COUNT,
+    COIL_ENCODER_ADDR, COIL_ENCODER_COUNT,
+)
+from lib.buffer_reader import read_latest_entry, read_history
+
 # ─────────────────────────────────────────────────────────────
 #  Config
 # ─────────────────────────────────────────────────────────────
 
-PLC_HOST = "169.168.10.21"
-PLC_PORT = 502
 PROGRESS_FILE = Path("/tmp/ironsight-diagnose-progress.txt")
-OFFLINE_BUFFER_DIR = Path("/home/andrew/.viam/offline-buffer")
-CAPTURE_DIR = Path("/home/andrew/.viam/capture/rdk_component_sensor/plc-monitor/Readings")
 MAX_TOOL_CALLS = 12  # safety limit — don't let it loop forever
 MODEL = "claude-sonnet-4-20250514"
-
-# PLC register labels (decoded from .ckp ladder logic)
-DS_LABELS = {
-    0: "DS1 Encoder Ignore", 1: "DS2 Tie Spacing (x0.5in)",
-    2: "DS3 Tie Spacing (x0.1in)", 3: "DS4 Tenths Mile Laying",
-    4: "DS5 Detector Offset Bits", 5: "DS6 Detector Offset (x0.1in)",
-    6: "DS7 Plate Count", 7: "DS8 AVG Plates/Min",
-    8: "DS9 Detector Next Tie", 9: "DS10 Encoder Next Tie",
-    10: "DS11 Detector Bits", 11: "DS12 Last Detector Laid Inch",
-    12: "DS13 2nd Pass Double Lay", 13: "DS14 Tie Team Skips",
-    14: "DS15 Tie Team Lays", 15: "DS16 Skip Plus Lay Less 1",
-    16: "DS17", 17: "DS18", 18: "DS19 HMI Screen",
-    19: "DS20", 20: "DS21", 21: "DS22", 22: "DS23", 23: "DS24", 24: "DS25",
-}
-
-COIL_LABELS = {
-    0: "C1", 1: "C2", 2: "C3 Camera Positive",
-    3: "C4", 4: "C5", 5: "C6",
-    6: "C7 First Tie Detected", 7: "C8", 8: "C9", 9: "C10",
-    10: "C11", 11: "C12 Lay Ties Set", 12: "C13 Drop Ties",
-    13: "C14 Drop Enable", 14: "C15 Drop Enable Latch",
-    15: "C16 Software Eject", 16: "C17 Detector Eject",
-    17: "C18", 18: "C19",
-    19: "C20 TPS 1 Single", 20: "C21 TPS 1 Double",
-    21: "C22 TPS 2 Left", 22: "C23 TPS 2 Right",
-    23: "C24 TPS 2 Both", 24: "C25 TPS 2 Left Double",
-    25: "C26 TPS 2 Right Double", 26: "C27 2nd Pass",
-    27: "C28 Encoder Eject", 28: "C29 Encoder Mode",
-    29: "C30 Detector Drop", 30: "C31 Backup Alarm",
-    31: "C32 Double Lay Trigger", 32: "C33", 33: "C34",
-}
-
-INPUT_LABELS = {
-    0: "X1 Encoder A", 1: "X2 Encoder B",
-    2: "X3 Camera/Flipper", 3: "X4 TPS Power Loop",
-    4: "X5 Air Eagle 1 Feedback", 5: "X6 Air Eagle 2 Feedback",
-    6: "X7 Air Eagle 3 Enable", 7: "X8",
-}
-
-OUTPUT_LABELS = {
-    0: "Y1 Eject TPS 1 Center", 1: "Y2 Eject Left TPS 2",
-    2: "Y3 Eject Right TPS 2",
-}
 
 
 def _progress(msg: str):
@@ -157,7 +120,7 @@ def tool_read_plc_encoder() -> dict:
     try:
         client = ModbusTcpClient(PLC_HOST, port=PLC_PORT, timeout=2)
         client.connect()
-        r = client.read_holding_registers(address=16384, count=2)
+        r = client.read_holding_registers(address=DD1_ADDR, count=DD1_COUNT)
         client.close()
         if r.isError():
             return {"error": f"Read error: {r}"}
@@ -189,21 +152,21 @@ def tool_read_plc_coils() -> dict:
         result = {}
 
         # C1-C34 (application coils)
-        r = client.read_coils(address=0, count=34)
+        r = client.read_coils(address=COIL_APP_ADDR, count=COIL_APP_COUNT)
         if not r.isError():
-            for i in range(34):
+            for i in range(COIL_APP_COUNT):
                 label = COIL_LABELS.get(i, f"C{i+1}")
                 result[label] = bool(r.bits[i])
 
         # Y1-Y3 (output coils)
-        r2 = client.read_coils(address=8192, count=3)
+        r2 = client.read_coils(address=COIL_OUTPUT_ADDR, count=COIL_OUTPUT_COUNT)
         if not r2.isError():
-            for i in range(3):
+            for i in range(COIL_OUTPUT_COUNT):
                 label = OUTPUT_LABELS.get(i, f"Y{i+1}")
                 result[label] = bool(r2.bits[i])
 
         # C1999-C2000 (encoder control)
-        r3 = client.read_coils(address=1998, count=2)
+        r3 = client.read_coils(address=COIL_ENCODER_ADDR, count=COIL_ENCODER_COUNT)
         if not r3.isError() and len(r3.bits) >= 2:
             result["C1999 Encoder Reset"] = bool(r3.bits[0])
             result["C2000 Floating Zero"] = bool(r3.bits[1])
@@ -241,53 +204,33 @@ def tool_get_sensor_history(minutes: int = 5) -> dict:
     """Get recent sensor readings from the offline buffer. Returns last N minutes of data."""
     minutes = min(minutes, 30)  # cap at 30 min to avoid huge responses
     try:
-        if not OFFLINE_BUFFER_DIR.exists():
-            return {"error": "Offline buffer directory not found"}
-        jsonl_files = sorted(OFFLINE_BUFFER_DIR.glob("readings_*.jsonl"))
-        if not jsonl_files:
-            return {"error": "No buffer files found"}
+        raw_readings = read_history(minutes=minutes)
+        if not raw_readings:
+            return {"error": f"No readings in the last {minutes} minutes"}
 
-        cutoff = time.time() - (minutes * 60)
+        # Extract key fields only (not the full 100+ field record)
         readings = []
-
-        # Read from the latest file(s), going backwards
-        for fpath in reversed(jsonl_files[-2:]):  # last 2 files max
-            with open(fpath, "rb") as f:
-                # Read last chunk (enough for the time window)
-                f.seek(0, 2)
-                size = f.tell()
-                chunk_size = min(size, minutes * 60 * 500)  # ~500 bytes per reading at 1Hz
-                f.seek(max(0, size - chunk_size))
-                chunk = f.read()
-
-            for line in chunk.strip().split(b"\n"):
-                try:
-                    data = json.loads(line)
-                    epoch = data.get("epoch", 0)
-                    if epoch >= cutoff:
-                        # Return key fields only (not the full 100+ field record)
-                        readings.append({
-                            "ts": data.get("ts", ""),
-                            "connected": data.get("connected"),
-                            "speed_ftpm": data.get("encoder_speed_ftpm", 0),
-                            "distance_ft": data.get("encoder_distance_ft", 0),
-                            "plate_count": data.get("plate_drop_count", 0),
-                            "ds10": data.get("ds10", 0),
-                            "dd1": data.get("encoder_count", 0),
-                            "camera_signal": data.get("camera_signal"),
-                            "tps_power": data.get("tps_power_loop"),
-                            "direction": data.get("encoder_direction"),
-                            "eject_tps1": data.get("eject_tps_1"),
-                            "spacing_in": data.get("last_drop_spacing_in", 0),
-                            "modbus_ms": data.get("modbus_response_time_ms", 0),
-                            "cam_rate": data.get("camera_detections_per_min", 0),
-                            "cam_trend": data.get("camera_rate_trend", ""),
-                            "eject_rate": data.get("eject_rate_per_min", 0),
-                            "enc_noise": data.get("encoder_noise", 0),
-                            "diagnostics_count": data.get("diagnostics_count", 0),
-                        })
-                except (json.JSONDecodeError, ValueError):
-                    continue
+        for data in raw_readings:
+            readings.append({
+                "ts": data.get("ts", ""),
+                "connected": data.get("connected"),
+                "speed_ftpm": data.get("encoder_speed_ftpm", 0),
+                "distance_ft": data.get("encoder_distance_ft", 0),
+                "plate_count": data.get("plate_drop_count", 0),
+                "ds10": data.get("ds10", 0),
+                "dd1": data.get("encoder_count", 0),
+                "camera_signal": data.get("camera_signal"),
+                "tps_power": data.get("tps_power_loop"),
+                "direction": data.get("encoder_direction"),
+                "eject_tps1": data.get("eject_tps_1"),
+                "spacing_in": data.get("last_drop_spacing_in", 0),
+                "modbus_ms": data.get("modbus_response_time_ms", 0),
+                "cam_rate": data.get("camera_detections_per_min", 0),
+                "cam_trend": data.get("camera_rate_trend", ""),
+                "eject_rate": data.get("eject_rate_per_min", 0),
+                "enc_noise": data.get("encoder_noise", 0),
+                "diagnostics_count": data.get("diagnostics_count", 0),
+            })
 
         if not readings:
             return {"error": f"No readings in the last {minutes} minutes"}
@@ -540,7 +483,7 @@ def tool_read_plc_timers() -> dict:
     try:
         client = ModbusTcpClient(PLC_HOST, port=PLC_PORT, timeout=2)
         client.connect()
-        r = client.read_holding_registers(address=24576, count=12)
+        r = client.read_holding_registers(address=TIMER_ADDR, count=TIMER_COUNT)
         client.close()
         if r.isError():
             return {"error": f"Read error: {r}"}
@@ -573,7 +516,7 @@ def tool_sample_plc_fast(register: str = "ds10", samples: int = 5,
     reg_map["dd1"] = ("holding", 16384, 2)
     reg_map["x3"] = ("discrete", 2, 1)
     reg_map["x4"] = ("discrete", 3, 1)
-    reg_map["y1"] = ("coil", 8192, 1)
+    reg_map["y1"] = ("coil", COIL_OUTPUT_ADDR, 1)
 
     register = register.lower()
     if register not in reg_map:
@@ -957,45 +900,31 @@ def build_initial_context() -> str:
         parts.append("viam-server: unknown")
 
     # Latest sensor reading summary
-    try:
-        buf_dir = OFFLINE_BUFFER_DIR
-        if buf_dir.exists():
-            jsonl_files = sorted(buf_dir.glob("readings_*.jsonl"))
-            if jsonl_files:
-                with open(jsonl_files[-1], "rb") as f:
-                    f.seek(0, 2)
-                    size = f.tell()
-                    f.seek(max(0, size - 4096))
-                    chunk = f.read()
-                for line in reversed(chunk.strip().split(b"\n")):
-                    try:
-                        data = json.loads(line)
-                        ts = data.get("ts", "?")
-                        parts.append(f"\nLatest sensor reading ({ts}):")
-                        parts.append(f"  Speed: {data.get('encoder_speed_ftpm', 0):.1f} ft/min")
-                        parts.append(f"  Plates: {data.get('plate_drop_count', 0)}")
-                        parts.append(f"  Direction: {data.get('encoder_direction', '?')}")
-                        parts.append(f"  TPS Power: {'ON' if data.get('tps_power_loop') else 'OFF'}")
-                        parts.append(f"  Camera signal: {'ON' if data.get('camera_signal') else 'OFF'}")
-                        parts.append(f"  Modbus latency: {data.get('modbus_response_time_ms', 0):.1f}ms")
-                        parts.append(f"  Diagnostics active: {data.get('diagnostics_count', 0)}")
+    data = read_latest_entry()
+    if data:
+        ts = data.get("ts", "?")
+        parts.append(f"\nLatest sensor reading ({ts}):")
+        parts.append(f"  Speed: {data.get('encoder_speed_ftpm', 0):.1f} ft/min")
+        parts.append(f"  Plates: {data.get('plate_drop_count', 0)}")
+        parts.append(f"  Direction: {data.get('encoder_direction', '?')}")
+        parts.append(f"  TPS Power: {'ON' if data.get('tps_power_loop') else 'OFF'}")
+        parts.append(f"  Camera signal: {'ON' if data.get('camera_signal') else 'OFF'}")
+        parts.append(f"  Modbus latency: {data.get('modbus_response_time_ms', 0):.1f}ms")
+        parts.append(f"  Diagnostics active: {data.get('diagnostics_count', 0)}")
 
-                        # Include active diagnostics
-                        diags = data.get("diagnostics", [])
-                        if isinstance(diags, str):
-                            try:
-                                diags = json.loads(diags)
-                            except Exception:
-                                diags = []
-                        if diags:
-                            parts.append("  Active diagnostics:")
-                            for d in diags[:5]:
-                                if isinstance(d, dict):
-                                    parts.append(f"    [{d.get('severity', '?')}] {d.get('title', '?')}")
-                        break
-                    except (json.JSONDecodeError, ValueError):
-                        continue
-    except Exception:
+        # Include active diagnostics
+        diags = data.get("diagnostics", [])
+        if isinstance(diags, str):
+            try:
+                diags = json.loads(diags)
+            except Exception:
+                diags = []
+        if diags:
+            parts.append("  Active diagnostics:")
+            for d in diags[:5]:
+                if isinstance(d, dict):
+                    parts.append(f"    [{d.get('severity', '?')}] {d.get('title', '?')}")
+    else:
         parts.append("\nNo sensor data available")
 
     return "\n".join(parts)
