@@ -2841,16 +2841,24 @@ def render_expanded_message(msg: "ChatMessage", explanation: str = "") -> Tuple[
 
     # Header bar
     draw.rectangle([0, 0, W, 30], fill=(30, 30, 40))
-    header_text = "AI EXPLANATION" if explanation else "AI DIAGNOSIS"
-    draw.text((MARGIN, 6), header_text, fill=PURPLE, font=font_title)
+    if explanation:
+        header_text = "AI EXPLANATION"
+    elif msg.role == "user":
+        header_text = "YOUR MESSAGE"
+    else:
+        header_text = "AI DIAGNOSIS"
+    header_color = CYAN if msg.role == "user" else PURPLE
+    draw.text((MARGIN, 6), header_text, fill=header_color, font=font_title)
 
     # Close button (X) in top right
     draw.text((W - 28, 5), "X", fill=WHITE, font=font_close)
     close_btn = Button(W - 40, 0, 40, 30, "", "chat_close_expand")
     buttons.append(close_btn)
 
-    # Determine text color by severity
-    if msg.severity == "critical":
+    # Determine text color
+    if msg.role == "user":
+        text_color = CYAN
+    elif msg.severity == "critical":
         text_color = RED
     elif msg.severity == "warning":
         text_color = YELLOW
@@ -2862,8 +2870,9 @@ def render_expanded_message(msg: "ChatMessage", explanation: str = "") -> Tuple[
     # Display text: explanation if available, otherwise original message
     display_text = explanation if explanation else msg.text
 
-    # Reserve space for bottom button
-    btn_area_h = 44 if not explanation else 0
+    # Reserve space for bottom button (only for AI messages, not user or explanation)
+    show_explain_btn = not explanation and msg.role == "assistant"
+    btn_area_h = 44 if show_explain_btn else 0
 
     # Word-wrap and draw the message in larger font
     y = 40
@@ -2888,8 +2897,8 @@ def render_expanded_message(msg: "ChatMessage", explanation: str = "") -> Tuple[
     # Timestamp
     draw.text((MARGIN, H - 22), msg.timestamp, fill=MID_GRAY, font=find_font(11))
 
-    # "Explain" button at the bottom (only when showing the original message)
-    if not explanation:
+    # "Explain" button at the bottom (only for AI messages, not user or explanation)
+    if show_explain_btn:
         explain_btn = Button(
             MARGIN, H - btn_area_h - 4,
             W - MARGIN * 2, 40,
@@ -3019,19 +3028,15 @@ def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image
     end = start + visible_lines
     visible = display_lines[start:end]
 
-    # Draw messages and add tap targets for AI messages
+    # Draw messages and add tap targets for ALL message lines (tap to expand)
     y = chat_top
-    seen_msg_indices = set()
     for text, color, msg_idx in visible:
         if text:
             draw.text((MARGIN, y), text, fill=color, font=font)
-            # Add tap target for first line of each AI message (to expand it)
-            if msg_idx >= 0 and msg_idx not in seen_msg_indices:
-                if messages[msg_idx].role == "assistant":
-                    # Make the entire message region tappable
-                    expand_btn = Button(0, y, W, line_h, str(msg_idx), "chat_expand")
-                    buttons.append(expand_btn)
-                seen_msg_indices.add(msg_idx)
+            # Every line of every message is tappable (expand on tap)
+            if msg_idx >= 0:
+                expand_btn = Button(0, y, W, line_h, str(msg_idx), "chat_expand")
+                buttons.append(expand_btn)
         y += line_h
 
     # Empty state — prompt to diagnose
