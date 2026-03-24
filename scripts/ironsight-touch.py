@@ -1692,7 +1692,7 @@ def render_home(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
     font_med = find_font(16)
     font_sm = find_font(13)
     font_unit = find_font(12)
-    font_nav = find_font(18)
+    font_nav = find_font(22)
 
     y = HEADER_H
     y = _draw_alert_bar(draw, sys_status, y)
@@ -1763,7 +1763,7 @@ def render_home(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
     draw.line([(MARGIN, y), (W - MARGIN, y)], fill=MID_GRAY, width=1)
     y += 6
 
-    font_stat = find_font(18)
+    font_stat = find_font(22)
     eff_x = W // 2
 
     # Spacing
@@ -1782,7 +1782,7 @@ def render_home(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
     eff_color = GREEN if efficiency >= 95 else (YELLOW if efficiency >= 85 else LIGHT_GRAY)
     draw.text((eff_x, y), eff_str, fill=eff_color, font=font_stat)
 
-    y += 24
+    y += 28
 
     # Mode + Camera rate (bright text for sunlight)
     mode = sys_status.get("tps_mode", "")
@@ -1795,7 +1795,7 @@ def render_home(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
     draw.text((eff_x, y), cam_str, fill=cam_color, font=font_stat)
 
     # --- Travel distance (compact, bright) ---
-    y += 24
+    y += 28
     travel_str = f"Travel: {travel_ft:.1f} ft"
     draw.text((MARGIN, y), travel_str, fill=WHITE, font=font_stat)
     avg_sp = sys_status.get("avg_spacing_in", 0.0)
@@ -1803,7 +1803,7 @@ def render_home(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
         draw.text((eff_x, y), f"Avg spacing: {avg_sp:.1f}\"", fill=WHITE, font=font_stat)
 
     # --- Bottom navigation bar (4 buttons) ---
-    nav_h = 62
+    nav_h = 74
     nav_y = H - nav_h - 4
     gap = 5
     btn_count = 4
