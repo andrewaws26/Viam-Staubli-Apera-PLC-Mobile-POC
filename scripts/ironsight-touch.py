@@ -1692,7 +1692,7 @@ def render_home(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
     font_med = find_font(16)
     font_sm = find_font(13)
     font_unit = find_font(12)
-    font_nav = find_font(14)
+    font_nav = find_font(18)
 
     y = HEADER_H
     y = _draw_alert_bar(draw, sys_status, y)
@@ -1763,13 +1763,16 @@ def render_home(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
     draw.line([(MARGIN, y), (W - MARGIN, y)], fill=MID_GRAY, width=1)
     y += 6
 
+    font_stat = find_font(18)
+    eff_x = W // 2
+
     # Spacing
     last_sp = sys_status.get("last_spacing_in", 0.0)
     sp_str = f"Spacing: {last_sp:.1f}\"" if last_sp > 0 else "Spacing: --"
     sp_color = GREEN if last_sp > 0 and abs(last_sp - 19.5) < 2 else (
         YELLOW if last_sp > 0 and abs(last_sp - 19.5) < 5 else (
             RED if last_sp > 0 else LIGHT_GRAY))
-    draw.text((MARGIN, y), sp_str, fill=sp_color, font=font_sm)
+    draw.text((MARGIN, y), sp_str, fill=sp_color, font=font_stat)
 
     # Efficiency: plates / expected_plates * 100
     travel_ft = sys_status.get("travel_ft", 0.0)
@@ -1777,31 +1780,30 @@ def render_home(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
     efficiency = (plate_count / expected * 100) if expected > 0 else 0
     eff_str = f"Efficiency: {efficiency:.0f}%" if expected > 0 else "Efficiency: --"
     eff_color = GREEN if efficiency >= 95 else (YELLOW if efficiency >= 85 else LIGHT_GRAY)
-    eff_x = W // 2
-    draw.text((eff_x, y), eff_str, fill=eff_color, font=font_sm)
+    draw.text((eff_x, y), eff_str, fill=eff_color, font=font_stat)
 
-    y += 18
+    y += 24
 
     # Mode + Camera rate (bright text for sunlight)
     mode = sys_status.get("tps_mode", "")
     mode_str = f"Mode: {mode}" if mode else "Mode: --"
-    draw.text((MARGIN, y), mode_str, fill=WHITE, font=font_sm)
+    draw.text((MARGIN, y), mode_str, fill=WHITE, font=font_stat)
 
     camera_rate = sys_status.get("camera_rate", 0.0)  # X3 = plate flipper
     cam_color = GREEN if camera_rate > 5 else (YELLOW if camera_rate > 0 else LIGHT_GRAY)
     cam_str = f"Flipper: {camera_rate:.0f}/min" if camera_rate > 0 else "Flipper: --"
-    draw.text((eff_x, y), cam_str, fill=cam_color, font=font_sm)
+    draw.text((eff_x, y), cam_str, fill=cam_color, font=font_stat)
 
     # --- Travel distance (compact, bright) ---
-    y += 18
+    y += 24
     travel_str = f"Travel: {travel_ft:.1f} ft"
-    draw.text((MARGIN, y), travel_str, fill=WHITE, font=font_sm)
+    draw.text((MARGIN, y), travel_str, fill=WHITE, font=font_stat)
     avg_sp = sys_status.get("avg_spacing_in", 0.0)
     if avg_sp > 0:
-        draw.text((eff_x, y), f"Avg spacing: {avg_sp:.1f}\"", fill=WHITE, font=font_sm)
+        draw.text((eff_x, y), f"Avg spacing: {avg_sp:.1f}\"", fill=WHITE, font=font_stat)
 
     # --- Bottom navigation bar (4 buttons) ---
-    nav_h = 48
+    nav_h = 62
     nav_y = H - nav_h - 4
     gap = 5
     btn_count = 4
