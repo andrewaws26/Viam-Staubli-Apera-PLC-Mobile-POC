@@ -8,7 +8,10 @@ C0-10DD2E-D.
 Register map — everything the Click PLC ladder logic exposes:
   DS1-DS25 (addr 0-24):   TPS holding registers (config + status)
   DD1 (addr 16384-16385): Encoder pulse count (32-bit signed, quadrature x1)
-  X1-X8 (discrete):       TPS discrete inputs (power loop, camera, air eagles)
+  X1-X8 (discrete):       TPS discrete inputs (power loop, plate flipper, air eagles)
+  Note: X3 is labeled "Camera" in the PLC project file but is actually a
+  plate flipper — a needle on a bearing that detects plate orientation.
+  Internal field names still use "camera_*" for Viam Cloud compatibility.
   Y1-Y3 (coils 8192+):    TPS eject output coils
   C1999-C2000 (coils):    Encoder reset, floating zero
 
@@ -492,9 +495,16 @@ class SignalMetrics:
 
 class _LocationWeatherCache:
     """Fetches location + weather from free APIs every 15 minutes.
-    Non-blocking: runs in a background thread, never delays readings."""
+    Non-blocking: runs in a background thread, never delays readings.
+
+    Location override: if ~/.ironsight/location.json exists, uses that
+    instead of IP geolocation (which often returns the ISP hub city, not
+    the truck's actual location). File format:
+        {"city": "Shepherdsville", "region": "Kentucky", "timezone": "America/New_York"}
+    """
 
     REFRESH_SECONDS = 900  # 15 minutes
+    LOCATION_OVERRIDE = os.path.expanduser("~/.ironsight/location.json")
 
     def __init__(self):
         self.city = ""
@@ -509,6 +519,7 @@ class _LocationWeatherCache:
         self.local_time = ""
         self._last_fetch = 0.0
         self._lock = threading.Lock()
+        self._location_source = "ip"  # "override" or "ip"
 
     def get(self) -> Dict[str, str]:
         """Return cached location/weather data. Triggers background refresh if stale."""
@@ -529,20 +540,49 @@ class _LocationWeatherCache:
                 "local_time": time.strftime("%I:%M %p"),
             }
 
-    def _fetch(self):
-        import urllib.request
+    def _load_location_override(self) -> bool:
+        """Load location from ~/.ironsight/location.json if it exists.
+        Returns True if override was loaded."""
         try:
-            # IP geolocation
-            with urllib.request.urlopen("http://ip-api.com/json/?fields=city,regionName,lat,lon,timezone", timeout=5) as resp:
-                data = json.loads(resp.read())
-                city = data.get("city", "")
+            with open(self.LOCATION_OVERRIDE, "r") as f:
+                data = json.load(f)
+            city = data.get("city", "")
+            if city:
                 with self._lock:
                     self.city = city
-                    self.region = data.get("regionName", "")
+                    self.region = data.get("region", "")
                     self.lat = data.get("lat", 0)
                     self.lon = data.get("lon", 0)
                     self.timezone = data.get("timezone", "")
-            # Weather
+                    self._location_source = "override"
+                LOGGER.info("Location override: %s, %s", city, data.get("region", ""))
+                return True
+        except FileNotFoundError:
+            pass
+        except Exception as e:
+            LOGGER.warning("Bad location override file: %s", e)
+        return False
+
+    def _fetch(self):
+        import urllib.request
+        try:
+            # Try local override first (physical location of truck)
+            if not self._load_location_override():
+                # Fall back to IP geolocation
+                with urllib.request.urlopen("http://ip-api.com/json/?fields=city,regionName,lat,lon,timezone", timeout=5) as resp:
+                    data = json.loads(resp.read())
+                    city = data.get("city", "")
+                    with self._lock:
+                        self.city = city
+                        self.region = data.get("regionName", "")
+                        self.lat = data.get("lat", 0)
+                        self.lon = data.get("lon", 0)
+                        self.timezone = data.get("timezone", "")
+                        self._location_source = "ip"
+
+            # Weather — use whatever city we have
+            with self._lock:
+                city = self.city
             if city:
                 url = f"http://wttr.in/{city}?format=%c+%t+%h+%w&u"
                 with urllib.request.urlopen(url, timeout=5) as resp:
@@ -610,6 +650,12 @@ class PlcSensor(Sensor):
         # Encoder hardware health — track if DD1 and DS10 are changing
         self._dd1_history: collections.deque = collections.deque(maxlen=30)
         self._ds10_history: collections.deque = collections.deque(maxlen=30)
+        # DD1-based direction detection (DS10 freezes during reverse)
+        self._prev_dd1: Optional[int] = None
+        # Rolling window of DD1 deltas to determine direction.
+        # DD1 stays negative long after reversing, so sign alone is useless.
+        # Delta sign is the real signal: negative delta = reverse, positive = forward.
+        self._dd1_deltas: collections.deque = collections.deque(maxlen=5)
         # TPS plate drop counter — tracks OFF→ON transitions on Y1 (Eject TPS_1)
         self._prev_eject_tps1: Optional[bool] = None
         self._plate_drop_count: int = 0
@@ -920,18 +966,41 @@ class PlcSensor(Sensor):
             ds10_encoder_next = ds[9]  # DS10: Encoder Next Tie (0.1" units)
             ds3_tie_spacing = ds[2]    # DS3: Tie Spacing (0.1" units)
             now_ts = time.time()
-            encoder_direction = 0  # default forward
+            encoder_direction = 0  # 0 = forward, 1 = reverse
 
+            # ── Direction detection from DD1 delta ──
+            # DS10 freezes during reverse — can't use it for direction.
+            # DD1 sign is unreliable — it stays negative long after reversing.
+            # DD1 DELTA sign is the real signal (verified 2026-03-23):
+            #   Δdd1 negative = reverse, Δdd1 positive = forward
+            # We use a rolling window of recent deltas and check if majority
+            # are negative (reverse) or positive (forward).
+            if self._prev_dd1 is not None:
+                dd1_delta = encoder_count - self._prev_dd1
+                # Only track significant deltas (ignore noise/stall)
+                if abs(dd1_delta) > 5:
+                    self._dd1_deltas.append(dd1_delta)
+            self._prev_dd1 = encoder_count
+
+            if len(self._dd1_deltas) >= 2:
+                neg_count = sum(1 for d in self._dd1_deltas if d < 0)
+                if neg_count > len(self._dd1_deltas) / 2:
+                    encoder_direction = 1  # majority negative = reverse
+
+            # ── Distance from DS10 (Encoder Next Tie) ──
+            # DS10 counts down from DS3 to 0, then resets. Only moves forward.
             if self._prev_ds10 is not None and ds3_tie_spacing > 0:
                 delta_ds10 = self._prev_ds10 - ds10_encoder_next  # countdown: prev > current = forward
                 if delta_ds10 < 0:
-                    # DS10 reset (rolled over from near 0 back to ~195)
-                    # Distance traveled = remaining from prev + amount used in new cycle
-                    delta_ds10 = self._prev_ds10 + (ds3_tie_spacing - ds10_encoder_next)
-                if delta_ds10 < 0:
-                    # Reverse travel
-                    encoder_direction = 1
-                    delta_ds10 = abs(delta_ds10)
+                    # DS10 jumped up — either rollover or reverse (DS10 frozen).
+                    # Rollover: prev was near 0, current jumped to near DS3.
+                    # Use threshold: large jump = rollover, small = noise/reverse.
+                    if abs(delta_ds10) > ds3_tie_spacing * 0.5:
+                        # Rollover — distance = remaining prev + new cycle used
+                        delta_ds10 = self._prev_ds10 + (ds3_tie_spacing - ds10_encoder_next)
+                    else:
+                        # Small negative = DS10 noise or reverse, ignore
+                        delta_ds10 = 0
                 if delta_ds10 > 0 and delta_ds10 < ds3_tie_spacing * 2:
                     # Convert 0.1" units to mm (1 unit = 0.1" = 2.54mm)
                     self._accumulated_distance_mm += delta_ds10 * 2.54
@@ -963,7 +1032,7 @@ class PlcSensor(Sensor):
                 LOGGER.warning("Error reading discrete inputs: %s", exc)
 
             tps_power_loop = bool(discrete_bits[3])       # X4
-            camera_signal = bool(discrete_bits[2])         # X3
+            camera_signal = bool(discrete_bits[2])         # X3 — plate flipper (labeled "Camera" in PLC)
             air_eagle_1_feedback = bool(discrete_bits[4])  # X5
             air_eagle_2_feedback = bool(discrete_bits[5])  # X6
             air_eagle_3_enable = bool(discrete_bits[6])    # X7

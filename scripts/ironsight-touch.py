@@ -760,48 +760,70 @@ _weather_cache = {"location": "", "temp_f": "", "last_fetch": 0.0}
 def _get_location_weather() -> Tuple[str, str]:
     """Get geographical location and temperature. Cached for 15 minutes.
 
-    Uses ip-api.com for location and wttr.in for temperature.
-    Returns (location_str, temp_str) e.g. ("Houston, TX", "72F")
+    Checks ~/.ironsight/location.json first (manual override for accurate
+    truck location), falls back to ip-api.com (often wrong — returns ISP city).
+    Returns (location_str, temp_str) e.g. ("Shepherdsville, KY", "72F")
     """
     now = time.time()
     if now - _weather_cache["last_fetch"] < 900 and _weather_cache["location"]:
         return _weather_cache["location"], _weather_cache["temp_f"]
 
     location = ""
+    city = ""
     temp_f = ""
+
+    # State abbreviation lookup
+    state_abbrevs = {
+        "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR",
+        "California": "CA", "Colorado": "CO", "Connecticut": "CT", "Delaware": "DE",
+        "Florida": "FL", "Georgia": "GA", "Hawaii": "HI", "Idaho": "ID",
+        "Illinois": "IL", "Indiana": "IN", "Iowa": "IA", "Kansas": "KS",
+        "Kentucky": "KY", "Louisiana": "LA", "Maine": "ME", "Maryland": "MD",
+        "Massachusetts": "MA", "Michigan": "MI", "Minnesota": "MN", "Mississippi": "MS",
+        "Missouri": "MO", "Montana": "MT", "Nebraska": "NE", "Nevada": "NV",
+        "New Hampshire": "NH", "New Jersey": "NJ", "New Mexico": "NM", "New York": "NY",
+        "North Carolina": "NC", "North Dakota": "ND", "Ohio": "OH", "Oklahoma": "OK",
+        "Oregon": "OR", "Pennsylvania": "PA", "Rhode Island": "RI", "South Carolina": "SC",
+        "South Dakota": "SD", "Tennessee": "TN", "Texas": "TX", "Utah": "UT",
+        "Vermont": "VT", "Virginia": "VA", "Washington": "WA", "West Virginia": "WV",
+        "Wisconsin": "WI", "Wyoming": "WY",
+    }
+
+    # Try manual override first (IP geolocation returns ISP city, not truck location)
+    override_path = os.path.expanduser("~/.ironsight/location.json")
     try:
-        import urllib.request
-        # Get location from IP
-        with urllib.request.urlopen("http://ip-api.com/json/?fields=city,regionName", timeout=3) as r:
-            data = json.loads(r.read())
-            city = data.get("city", "")
-            region = data.get("regionName", "")
-            if city:
-                # Abbreviate state name to 2-letter code
-                state_abbrevs = {
-                    "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR",
-                    "California": "CA", "Colorado": "CO", "Connecticut": "CT", "Delaware": "DE",
-                    "Florida": "FL", "Georgia": "GA", "Hawaii": "HI", "Idaho": "ID",
-                    "Illinois": "IL", "Indiana": "IN", "Iowa": "IA", "Kansas": "KS",
-                    "Kentucky": "KY", "Louisiana": "LA", "Maine": "ME", "Maryland": "MD",
-                    "Massachusetts": "MA", "Michigan": "MI", "Minnesota": "MN", "Mississippi": "MS",
-                    "Missouri": "MO", "Montana": "MT", "Nebraska": "NE", "Nevada": "NV",
-                    "New Hampshire": "NH", "New Jersey": "NJ", "New Mexico": "NM", "New York": "NY",
-                    "North Carolina": "NC", "North Dakota": "ND", "Ohio": "OH", "Oklahoma": "OK",
-                    "Oregon": "OR", "Pennsylvania": "PA", "Rhode Island": "RI", "South Carolina": "SC",
-                    "South Dakota": "SD", "Tennessee": "TN", "Texas": "TX", "Utah": "UT",
-                    "Vermont": "VT", "Virginia": "VA", "Washington": "WA", "West Virginia": "WV",
-                    "Wisconsin": "WI", "Wyoming": "WY",
-                }
-                state = state_abbrevs.get(region, region[:2].upper()) if region else ""
-                location = f"{city}, {state}" if state else city
+        with open(override_path, "r") as f:
+            data = json.load(f)
+        city = data.get("city", "")
+        region = data.get("region", "")
+        if city:
+            state = state_abbrevs.get(region, region[:2].upper()) if region else ""
+            location = f"{city}, {state}" if state else city
+    except FileNotFoundError:
+        pass
     except Exception:
         pass
 
+    # Fall back to IP geolocation if no override
+    if not location:
+        try:
+            import urllib.request
+            with urllib.request.urlopen("http://ip-api.com/json/?fields=city,regionName", timeout=3) as r:
+                data = json.loads(r.read())
+                city = data.get("city", "")
+                region = data.get("regionName", "")
+                if city:
+                    state = state_abbrevs.get(region, region[:2].upper()) if region else ""
+                    location = f"{city}, {state}" if state else city
+        except Exception:
+            pass
+
     try:
         import urllib.request
-        # Get temperature from wttr.in (single line, Fahrenheit)
-        with urllib.request.urlopen("https://wttr.in/?format=%t&u", timeout=3) as r:
+        # Get temperature from wttr.in using actual city for accuracy
+        weather_query = city if city else ""
+        url = f"https://wttr.in/{weather_query}?format=%t&u"
+        with urllib.request.urlopen(url, timeout=3) as r:
             raw = r.read().decode().strip()
             # Returns like "+72°F" — clean it up
             temp_f = raw.replace("+", "").replace("°", "")
