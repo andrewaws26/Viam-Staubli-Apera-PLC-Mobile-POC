@@ -495,16 +495,9 @@ class SignalMetrics:
 
 class _LocationWeatherCache:
     """Fetches location + weather from free APIs every 15 minutes.
-    Non-blocking: runs in a background thread, never delays readings.
-
-    Location override: if ~/.ironsight/location.json exists, uses that
-    instead of IP geolocation (which often returns the ISP hub city, not
-    the truck's actual location). File format:
-        {"city": "Shepherdsville", "region": "Kentucky", "timezone": "America/New_York"}
-    """
+    Non-blocking: runs in a background thread, never delays readings."""
 
     REFRESH_SECONDS = 900  # 15 minutes
-    LOCATION_OVERRIDE = os.path.expanduser("~/.ironsight/location.json")
 
     def __init__(self):
         self.city = ""
@@ -519,7 +512,6 @@ class _LocationWeatherCache:
         self.local_time = ""
         self._last_fetch = 0.0
         self._lock = threading.Lock()
-        self._location_source = "ip"  # "override" or "ip"
 
     def get(self) -> Dict[str, str]:
         """Return cached location/weather data. Triggers background refresh if stale."""
@@ -540,49 +532,20 @@ class _LocationWeatherCache:
                 "local_time": time.strftime("%I:%M %p"),
             }
 
-    def _load_location_override(self) -> bool:
-        """Load location from ~/.ironsight/location.json if it exists.
-        Returns True if override was loaded."""
-        try:
-            with open(self.LOCATION_OVERRIDE, "r") as f:
-                data = json.load(f)
-            city = data.get("city", "")
-            if city:
-                with self._lock:
-                    self.city = city
-                    self.region = data.get("region", "")
-                    self.lat = data.get("lat", 0)
-                    self.lon = data.get("lon", 0)
-                    self.timezone = data.get("timezone", "")
-                    self._location_source = "override"
-                LOGGER.info("Location override: %s, %s", city, data.get("region", ""))
-                return True
-        except FileNotFoundError:
-            pass
-        except Exception as e:
-            LOGGER.warning("Bad location override file: %s", e)
-        return False
-
     def _fetch(self):
         import urllib.request
         try:
-            # Try local override first (physical location of truck)
-            if not self._load_location_override():
-                # Fall back to IP geolocation
-                with urllib.request.urlopen("http://ip-api.com/json/?fields=city,regionName,lat,lon,timezone", timeout=5) as resp:
-                    data = json.loads(resp.read())
-                    city = data.get("city", "")
-                    with self._lock:
-                        self.city = city
-                        self.region = data.get("regionName", "")
-                        self.lat = data.get("lat", 0)
-                        self.lon = data.get("lon", 0)
-                        self.timezone = data.get("timezone", "")
-                        self._location_source = "ip"
-
-            # Weather — use whatever city we have
-            with self._lock:
-                city = self.city
+            # IP geolocation
+            with urllib.request.urlopen("http://ip-api.com/json/?fields=city,regionName,lat,lon,timezone", timeout=5) as resp:
+                data = json.loads(resp.read())
+                city = data.get("city", "")
+                with self._lock:
+                    self.city = city
+                    self.region = data.get("regionName", "")
+                    self.lat = data.get("lat", 0)
+                    self.lon = data.get("lon", 0)
+                    self.timezone = data.get("timezone", "")
+            # Weather
             if city:
                 url = f"http://wttr.in/{city}?format=%c+%t+%h+%w&u"
                 with urllib.request.urlopen(url, timeout=5) as resp:
