@@ -165,7 +165,7 @@ const SEVERITY_BG: Record<string, string> = {
 };
 
 const CATEGORY_LABEL: Record<string, string> = {
-  camera: "Camera",
+  camera: "Plate Flipper",
   encoder: "Encoder",
   eject: "Eject System",
   plc: "PLC Connection",
@@ -235,7 +235,7 @@ export default function DiagnosticsPanel({ readings }: Props) {
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 mb-3 pb-3 border-b border-gray-800">
           {cameraRate !== null && (
             <span>
-              Camera: <span className={cameraRate > 0 ? "text-green-500" : "text-gray-600"}>{cameraRate.toFixed(1)}/min</span>
+              Flipper: <span className={cameraRate > 0 ? "text-green-500" : "text-gray-600"}>{cameraRate.toFixed(1)}/min</span>
               {cameraTrend && cameraTrend !== "stable" && (
                 <span className={cameraTrend === "dead" ? "text-red-400 ml-1" : "text-yellow-500 ml-1"}>
                   ({cameraTrend})

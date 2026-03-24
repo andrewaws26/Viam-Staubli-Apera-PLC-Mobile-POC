@@ -753,65 +753,6 @@ def get_activity_history() -> list:
         return []
 
 
-# Cached location + weather (refreshed every 15 min)
-_weather_cache = {"location": "", "temp_f": "", "last_fetch": 0.0}
-
-
-def _get_location_weather() -> Tuple[str, str]:
-    """Get geographical location and temperature. Cached for 15 minutes.
-
-    Uses ip-api.com for location and wttr.in for temperature.
-    Returns (location_str, temp_str) e.g. ("Houston, TX", "72F")
-    """
-    now = time.time()
-    if now - _weather_cache["last_fetch"] < 900 and _weather_cache["location"]:
-        return _weather_cache["location"], _weather_cache["temp_f"]
-
-    location = ""
-    temp_f = ""
-    try:
-        import urllib.request
-        # Get location from IP
-        with urllib.request.urlopen("http://ip-api.com/json/?fields=city,regionName", timeout=3) as r:
-            data = json.loads(r.read())
-            city = data.get("city", "")
-            region = data.get("regionName", "")
-            if city:
-                # Abbreviate state name to 2-letter code
-                state_abbrevs = {
-                    "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR",
-                    "California": "CA", "Colorado": "CO", "Connecticut": "CT", "Delaware": "DE",
-                    "Florida": "FL", "Georgia": "GA", "Hawaii": "HI", "Idaho": "ID",
-                    "Illinois": "IL", "Indiana": "IN", "Iowa": "IA", "Kansas": "KS",
-                    "Kentucky": "KY", "Louisiana": "LA", "Maine": "ME", "Maryland": "MD",
-                    "Massachusetts": "MA", "Michigan": "MI", "Minnesota": "MN", "Mississippi": "MS",
-                    "Missouri": "MO", "Montana": "MT", "Nebraska": "NE", "Nevada": "NV",
-                    "New Hampshire": "NH", "New Jersey": "NJ", "New Mexico": "NM", "New York": "NY",
-                    "North Carolina": "NC", "North Dakota": "ND", "Ohio": "OH", "Oklahoma": "OK",
-                    "Oregon": "OR", "Pennsylvania": "PA", "Rhode Island": "RI", "South Carolina": "SC",
-                    "South Dakota": "SD", "Tennessee": "TN", "Texas": "TX", "Utah": "UT",
-                    "Vermont": "VT", "Virginia": "VA", "Washington": "WA", "West Virginia": "WV",
-                    "Wisconsin": "WI", "Wyoming": "WY",
-                }
-                state = state_abbrevs.get(region, region[:2].upper()) if region else ""
-                location = f"{city}, {state}" if state else city
-    except Exception:
-        pass
-
-    try:
-        import urllib.request
-        # Get temperature from wttr.in (single line, Fahrenheit)
-        with urllib.request.urlopen("https://wttr.in/?format=%t&u", timeout=3) as r:
-            raw = r.read().decode().strip()
-            # Returns like "+72°F" — clean it up
-            temp_f = raw.replace("+", "").replace("°", "")
-    except Exception:
-        pass
-
-    _weather_cache["location"] = location
-    _weather_cache["temp_f"] = temp_f
-    _weather_cache["last_fetch"] = now
-    return location, temp_f
 
 
 def get_system_status() -> dict:
@@ -847,8 +788,6 @@ def get_system_status() -> dict:
         "camera_rate": 0.0,
         "tps_mode": "",
         "encoder_direction": "forward",
-        "location": "",
-        "temp_f": "",
     }
 
     # viam-server
@@ -987,7 +926,7 @@ def get_system_status() -> dict:
     except Exception:
         pass
 
-    # PLC reachability
+    # PLC reachability (live TCP check — ground truth for connection state)
     try:
         import socket
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -999,7 +938,12 @@ def get_system_status() -> dict:
     except Exception:
         pass
 
-    # Latest reading from offline buffer
+    # Save live check results — offline buffer must NOT overwrite these
+    live_plc_reachable = status["plc_reachable"]
+    live_connected = status["connected"]
+
+    # Latest reading from offline buffer (production data, may be stale)
+    data_age_seconds = float("inf")
     try:
         buf_dir = Path("/home/andrew/.viam/offline-buffer")
         if buf_dir.exists():
@@ -1021,6 +965,20 @@ def get_system_status() -> dict:
                         except (json.JSONDecodeError, ValueError):
                             continue
                     if data:
+                        # Check how old this cached reading is
+                        ts_str = data.get("ts", "")
+                        if ts_str:
+                            try:
+                                from datetime import datetime, timezone
+                                reading_time = datetime.fromisoformat(
+                                    ts_str.replace("Z", "+00:00")
+                                )
+                                data_age_seconds = (
+                                    datetime.now(timezone.utc) - reading_time
+                                ).total_seconds()
+                            except Exception:
+                                pass
+
                         status["travel_ft"] = data.get("encoder_distance_ft", 0)
                         status["speed_ftpm"] = data.get("encoder_speed_ftpm", 0)
                         status["plate_count"] = data.get("plate_drop_count", 0)
@@ -1028,7 +986,8 @@ def get_system_status() -> dict:
                         status["system_state"] = data.get("system_state", "unknown")
                         status["last_spacing_in"] = data.get("last_drop_spacing_in", 0)
                         status["avg_spacing_in"] = data.get("avg_drop_spacing_in", 0)
-                        status["connected"] = data.get("connected", False)
+                        # NOTE: do NOT set status["connected"] from buffer —
+                        # the live TCP check above is authoritative
                         raw_diag = data.get("diagnostics", [])
                         if isinstance(raw_diag, str):
                             try:
@@ -1047,14 +1006,57 @@ def get_system_status() -> dict:
     except Exception:
         pass
 
-    # Location + weather (cached, non-blocking)
-    if status["internet"]:
-        try:
-            loc, temp = _get_location_weather()
-            status["location"] = loc
-            status["temp_f"] = temp
-        except Exception:
-            pass
+    # Restore live PLC connection state (authoritative over cached buffer)
+    status["plc_reachable"] = live_plc_reachable
+    status["connected"] = live_connected
+    status["data_age_seconds"] = data_age_seconds
+
+    # ── Live diagnostic injection ─────────────────────────────
+    # The sensor's diagnostics list from the buffer may be empty or stale.
+    # Inject real-time checks here, equivalent to the web dashboard's
+    # runSnapshotChecks() in DiagnosticsPanel.tsx.
+    live_diags = list(status["diagnostics"])  # start with sensor diags
+
+    if not status["eth0_carrier"]:
+        live_diags.append({
+            "id": "eth0-no-carrier",
+            "severity": "critical",
+            "title": "Ethernet Cable Disconnected",
+            "action": "No carrier on eth0 — check the Ethernet cable between Pi and PLC.",
+        })
+    elif not live_connected:
+        live_diags.append({
+            "id": "plc-unreachable",
+            "severity": "critical",
+            "title": "PLC Not Responding",
+            "action": "Ethernet link up but PLC not responding on port 502. "
+                      "Check PLC power and Modbus TCP settings.",
+        })
+
+    if data_age_seconds > 30:
+        if data_age_seconds > 3600:
+            age_str = f"{data_age_seconds / 3600:.1f} hours"
+        elif data_age_seconds > 60:
+            age_str = f"{data_age_seconds / 60:.0f} minutes"
+        else:
+            age_str = f"{data_age_seconds:.0f} seconds"
+        live_diags.append({
+            "id": "stale-data",
+            "severity": "warning",
+            "title": f"Sensor Data Stale ({age_str} old)",
+            "action": "No fresh readings from plc-sensor. "
+                      "Check if viam-server is running and PLC is connected.",
+        })
+
+    if not status["viam_server"]:
+        live_diags.append({
+            "id": "viam-down",
+            "severity": "critical",
+            "title": "viam-server Not Running",
+            "action": "viam-server is not active. Go to Commands and tap Restart Viam.",
+        })
+
+    status["diagnostics"] = live_diags
 
     return status
 
@@ -1185,13 +1187,18 @@ class ChatMessage:
     role: str       # "user" or "assistant"
     text: str
     timestamp: str
+    severity: str = ""  # "ok", "warning", "critical", or "" (unset)
 
     def to_dict(self):
-        return {"role": self.role, "text": self.text, "timestamp": self.timestamp}
+        d = {"role": self.role, "text": self.text, "timestamp": self.timestamp}
+        if self.severity:
+            d["severity"] = self.severity
+        return d
 
     @classmethod
     def from_dict(cls, d):
-        return cls(role=d["role"], text=d["text"], timestamp=d.get("timestamp", ""))
+        return cls(role=d["role"], text=d["text"], timestamp=d.get("timestamp", ""),
+                   severity=d.get("severity", ""))
 
 
 class VoiceChat:
@@ -1401,45 +1408,249 @@ class VoiceChat:
             return f"Error: {str(e)[:50]}"
 
     def _build_system_context(self) -> str:
-        """Build the system context string for Claude prompts."""
+        """Build comprehensive system context for Claude prompts.
+
+        Pulls from: sys_status (live checks), offline buffer (full sensor
+        readings including PLC registers, signal metrics, Viam internals),
+        and Viam capture status.
+        """
         sys_status = self._sys_status_fn()
         bat = sys_status.get("battery", {})
         diagnostics = [d for d in sys_status.get("diagnostics", []) if isinstance(d, dict)]
 
+        # Read the full latest sensor reading from offline buffer
+        sensor = {}
+        try:
+            buf_dir = Path("/home/andrew/.viam/offline-buffer")
+            if buf_dir.exists():
+                jsonl_files = sorted(buf_dir.glob("readings_*.jsonl"))
+                if jsonl_files:
+                    with open(jsonl_files[-1], "rb") as f:
+                        f.seek(0, 2)
+                        size = f.tell()
+                        f.seek(max(0, size - 4096))
+                        chunk = f.read()
+                        lines = chunk.strip().split(b"\n")
+                        for line in reversed(lines):
+                            try:
+                                sensor = json.loads(line)
+                                break
+                            except (json.JSONDecodeError, ValueError):
+                                continue
+        except Exception:
+            pass
+
+        # Check Viam capture status
+        capture_status = "unknown"
+        try:
+            import glob as _glob
+            cap_dir = Path("/home/andrew/.viam/capture/rdk_component_sensor/plc-monitor/Readings")
+            if cap_dir.exists():
+                prog_files = sorted(cap_dir.glob("*.prog"))
+                if prog_files:
+                    latest = prog_files[-1]
+                    cap_size = latest.stat().st_size
+                    cap_age = time.time() - latest.stat().st_mtime
+                    if cap_age < 30 and cap_size > 100:
+                        capture_status = f"active ({cap_size}B, {cap_age:.0f}s ago)"
+                    elif cap_age < 300:
+                        capture_status = f"recent ({cap_age:.0f}s ago)"
+                    else:
+                        capture_status = f"stale ({cap_age / 60:.0f}min ago)"
+                cap_files = list(cap_dir.glob("*.capture"))
+                capture_status += f", {len(cap_files)} completed files"
+        except Exception:
+            pass
+
         ctx = (
-            "You are IronSight, an AI assistant on a TPS railroad truck. "
+            "You are IronSight, an AI assistant on a TPS (Tie Plate System) railroad truck. "
             "Keep responses SHORT (2-3 sentences max) for a tiny 3.5 inch screen. "
             "No markdown, no bullet points, plain text only.\n\n"
-            f"System: PLC {'connected' if sys_status['connected'] else 'disconnected'} "
-            f"({sys_status['plc_ip']}), "
-            f"viam-server {'running' if sys_status['viam_server'] else 'stopped'}, "
-            f"Internet {'connected' if sys_status['internet'] else 'offline'} "
-            f"(WiFi: {sys_status['wifi_ssid']}), "
-            f"eth0 {'linked' if sys_status['eth0_carrier'] else 'NO CARRIER'}, "
-            f"Plates: {sys_status['plate_count']}, "
-            f"Travel: {sys_status['travel_ft']:.1f}ft, "
-            f"Speed: {sys_status['speed_ftpm']:.1f}ft/m, "
-            f"Spacing: last {sys_status['last_spacing_in']:.1f}\" avg {sys_status['avg_spacing_in']:.1f}\", "
-            f"Battery: {'{:.0f}%'.format(bat['percent']) if bat.get('available') else 'N/A'}, "
-            f"CPU: {sys_status['cpu_temp'] * 9/5 + 32:.0f}F, Disk: {sys_status['disk_pct']}%, "
-            f"Up: {sys_status['uptime']}"
         )
 
+        # --- Connection & Infrastructure ---
+        ctx += "CONNECTION:\n"
+        ctx += f"  PLC: {'CONNECTED' if sys_status['connected'] else 'DISCONNECTED'} ({sys_status['plc_ip']}:502)\n"
+        ctx += f"  eth0: {'linked' if sys_status['eth0_carrier'] else 'NO CARRIER'}"
+        if sensor.get("eth0_status"):
+            ctx += f" | {sensor['eth0_status']}"
+            if sensor.get("eth0_diagnosis"):
+                ctx += f" ({sensor['eth0_diagnosis']})"
+        ctx += "\n"
+        if sensor.get("eth0_link_speed_mbps"):
+            ctx += f"  eth0 link: {sensor['eth0_link_speed_mbps']}Mbps"
+            if sensor.get("eth0_link_uptime_seconds"):
+                ctx += f", up {sensor['eth0_link_uptime_seconds']:.0f}s"
+            if sensor.get("eth0_crc_errors", 0) > 0:
+                ctx += f", CRC errors: {sensor['eth0_crc_errors']}"
+            if sensor.get("eth0_link_flaps", 0) > 0:
+                ctx += f", flaps: {sensor['eth0_link_flaps']}"
+            ctx += "\n"
+        ctx += f"  viam-server: {'RUNNING' if sys_status['viam_server'] else 'STOPPED'}\n"
+        ctx += f"  Viam capture: {capture_status}\n"
+        ctx += f"  Internet: {'connected' if sys_status['internet'] else 'OFFLINE'}"
+        ctx += f" (WiFi: {sys_status['wifi_ssid'] or 'none'})"
+        if sys_status.get("wifi_signal_dbm"):
+            ctx += f" signal: {sys_status['wifi_signal_dbm']}dBm"
+        if sys_status.get("active_interface"):
+            ctx += f" via {sys_status['active_interface']}"
+        ctx += "\n"
+        if sys_status.get("tailscale_ip"):
+            ctx += f"  Tailscale: {sys_status['tailscale_ip']}\n"
+        if sensor.get("modbus_response_time_ms") is not None:
+            ctx += f"  Modbus latency: {sensor['modbus_response_time_ms']:.1f}ms\n"
+        if sensor.get("total_reads"):
+            err_rate = ""
+            if sensor.get("total_errors", 0) > 0 and sensor["total_reads"] > 0:
+                err_rate = f" ({sensor['total_errors'] / sensor['total_reads'] * 100:.2f}% error rate)"
+            ctx += f"  Sensor reads: {sensor['total_reads']} total, {sensor.get('total_errors', 0)} errors{err_rate}\n"
+        data_age = sys_status.get("data_age_seconds", float("inf"))
+        if data_age < float("inf"):
+            ctx += f"  Data age: {data_age:.0f}s\n"
+
+        # --- Production State ---
+        ctx += "\nPRODUCTION:\n"
+        ctx += f"  TPS Power: {'ON' if sys_status.get('tps_power_loop') else 'OFF'}\n"
+        ctx += f"  Operating Mode: {sensor.get('operating_mode', sys_status.get('tps_mode', 'unknown'))}\n"
+        ctx += f"  Plates dropped: {sys_status['plate_count']}\n"
+        ctx += f"  Speed: {sys_status['speed_ftpm']:.1f} ft/min\n"
+        ctx += f"  Distance: {sys_status['travel_ft']:.1f} ft\n"
+        ctx += f"  Direction: {sys_status.get('encoder_direction', 'unknown')}\n"
+        if sys_status.get('last_spacing_in', 0) > 0 or sys_status.get('avg_spacing_in', 0) > 0:
+            ctx += f"  Spacing: last {sys_status['last_spacing_in']:.1f}\" avg {sys_status['avg_spacing_in']:.1f}\""
+            if sensor.get("min_drop_spacing_in", 0) > 0:
+                ctx += f" (min {sensor['min_drop_spacing_in']:.1f}\" max {sensor['max_drop_spacing_in']:.1f}\")"
+            ctx += "\n"
+        if sensor.get("distance_since_last_drop_in", 0) > 0:
+            ctx += f"  Distance since last drop: {sensor['distance_since_last_drop_in']:.1f}\"\n"
+
+        # --- PLC Registers ---
+        ds_regs = sys_status.get("ds_registers", {})
+        if ds_regs:
+            ctx += "\nPLC REGISTERS (DS1-DS25):\n"
+            ds_labels = {
+                "ds1": "Encoder Ignore", "ds2": "Tie Spacing (x0.5\")",
+                "ds3": "Tie Spacing (x0.1\")", "ds4": "Tenths Mile Laying",
+                "ds5": "Detector Offset Bits", "ds6": "Detector Offset (x0.1\")",
+                "ds7": "Plate Count", "ds8": "AVG Plates/Min",
+                "ds9": "Detector Next Tie", "ds10": "Encoder Next Tie",
+            }
+            for key in sorted(ds_regs.keys(), key=lambda k: int(k[2:])):
+                val = ds_regs[key]
+                label = ds_labels.get(key, "")
+                label_str = f" ({label})" if label else ""
+                ctx += f"  {key.upper()}={val}{label_str}\n"
+
+        # --- Signal Metrics & Sensor Health ---
+        ctx += "\nSIGNAL METRICS:\n"
+        if sensor.get("camera_detections_per_min") is not None:
+            ctx += f"  Flipper detection rate: {sensor['camera_detections_per_min']}/min\n"
+        if sensor.get("camera_rate_trend"):
+            ctx += f"  Flipper trend: {sensor['camera_rate_trend']}\n"
+        if sensor.get("camera_signal_duration_s") is not None:
+            ctx += f"  Flipper signal state duration: {sensor['camera_signal_duration_s']:.0f}s\n"
+        if sensor.get("eject_rate_per_min") is not None:
+            ctx += f"  Eject rate: {sensor['eject_rate_per_min']}/min\n"
+        if sensor.get("detector_eject_rate_per_min") is not None:
+            ctx += f"  Detector eject rate: {sensor['detector_eject_rate_per_min']}/min\n"
+        if sensor.get("encoder_noise") is not None:
+            ctx += f"  Encoder noise: {sensor['encoder_noise']}\n"
+        if sensor.get("encoder_reversals_per_min") is not None:
+            ctx += f"  Encoder reversals: {sensor['encoder_reversals_per_min']}/min\n"
+        if sensor.get("encoder_count") is not None:
+            ctx += f"  Raw encoder count (DD1): {sensor['encoder_count']}\n"
+        if sensor.get("dd1_frozen") is not None:
+            ctx += f"  DD1 frozen: {sensor['dd1_frozen']}, DS10 frozen: {sensor.get('ds10_frozen', 'unknown')}\n"
+
+        # --- Operating Modes & Control Bits ---
+        ctx += "\nCONTROL STATE:\n"
+        for field, label in [
+            ("drop_enable", "Drop Enable"), ("drop_enable_latch", "Drop Enable Latch"),
+            ("lay_ties_set", "Lay Ties Set"), ("drop_ties", "Drop Ties"),
+            ("first_tie_detected", "First Tie Detected"), ("encoder_mode", "Encoder Mode"),
+            ("backup_alarm", "Backup Alarm"), ("camera_signal", "Camera/Flipper Signal"),
+            ("camera_positive", "Camera Positive"),
+        ]:
+            val = sensor.get(field)
+            if val is not None:
+                ctx += f"  {label}: {'ON' if val else 'OFF'}\n"
+
+        # --- Discrete Inputs ---
+        input_vals = []
+        for i in range(1, 9):
+            key = f"x{i}"
+            val = sensor.get(key)
+            if val is not None:
+                input_vals.append(f"X{i}={'ON' if val else 'OFF'}")
+        if input_vals:
+            ctx += f"\nDISCRETE INPUTS: {', '.join(input_vals)}\n"
+
+        # --- Eject Outputs ---
+        eject_vals = []
+        for field, label in [
+            ("eject_tps_1", "TPS1"), ("eject_left_tps_2", "Left"),
+            ("eject_right_tps_2", "Right"),
+            ("air_eagle_1_feedback", "AirEagle1"), ("air_eagle_2_feedback", "AirEagle2"),
+            ("air_eagle_3_enable", "AirEagle3"),
+        ]:
+            val = sensor.get(field)
+            if val is not None:
+                eject_vals.append(f"{label}={'ON' if val else 'OFF'}")
+        if eject_vals:
+            ctx += f"EJECT OUTPUTS: {', '.join(eject_vals)}\n"
+
+        # --- System Health ---
+        ctx += "\nSYSTEM HEALTH:\n"
+        cpu_f = sys_status['cpu_temp'] * 9 / 5 + 32
+        ctx += f"  CPU: {cpu_f:.0f}F ({sys_status['cpu_temp']:.1f}C)\n"
+        ctx += f"  Memory: {sys_status.get('mem_pct', 0)}%\n"
+        ctx += f"  Disk: {sys_status['disk_pct']}%\n"
+        bat_str = f"{bat['percent']:.0f}%" if bat.get("available") else "N/A"
+        if bat.get("available"):
+            bat_str += f" {'charging' if bat.get('charging') else 'discharging'}"
+            if bat.get("voltage"):
+                bat_str += f" {bat['voltage']:.2f}V"
+        ctx += f"  Battery: {bat_str}\n"
+        ctx += f"  Uptime: {sys_status['uptime']}\n"
+        if sensor.get("uptime_seconds"):
+            ctx += f"  Sensor uptime: {sensor['uptime_seconds']}s ({sensor.get('shift_hours', 0):.1f}h shift)\n"
+
+        # --- Location & Time ---
+        if sensor.get("location_city"):
+            ctx += f"\nLOCATION: {sensor['location_city']}, {sensor.get('location_region', '')}\n"
+        if sensor.get("weather"):
+            ctx += f"WEATHER: {sensor['weather']}\n"
+        if sensor.get("local_time"):
+            ctx += f"LOCAL TIME: {sensor['local_time']}\n"
+
+        # --- Diagnostics Engine Output ---
         if diagnostics:
-            diag_lines = []
-            for d in diagnostics[:5]:
+            ctx += "\nACTIVE DIAGNOSTICS:\n"
+            for d in diagnostics[:8]:
                 sev = d.get("severity", "info")
                 title = d.get("title", "unknown")
                 action = d.get("action", "")
-                diag_lines.append(f"  [{sev.upper()}] {title}: {action}")
-            ctx += "\n\nACTIVE DIAGNOSTICS:\n" + "\n".join(diag_lines)
+                evidence = d.get("evidence", "")
+                ctx += f"  [{sev.upper()}] {title}"
+                if evidence:
+                    ctx += f" | Evidence: {evidence}"
+                ctx += "\n"
+                if action:
+                    ctx += f"    Action: {action}\n"
+        else:
+            ctx += "\nDIAGNOSTICS: All clear — no active warnings or faults.\n"
+
+        # --- Raw metrics summary from sensor ---
+        if sensor.get("diag_metrics"):
+            ctx += f"\nRAW METRICS: {sensor['diag_metrics']}\n"
 
         return ctx
 
     def proactive_diagnosis(self, retry: bool = False):
-        """Generate a diagnosis of current system/truck issues.
+        """Generate an AI diagnosis of current system/truck issues.
 
         Called when the user navigates to the DIAGNOSE page, or taps TRY AGAIN.
+        Sends the full system context to Claude for a real AI-generated diagnosis.
 
         Args:
             retry: If True, bypasses cooldown and notes that previous fix didn't work.
@@ -1449,21 +1660,6 @@ class VoiceChat:
         active = [d for d in diagnostics if d.get("severity") in ("critical", "warning")]
 
         if not retry:
-            # Skip if no active issues
-            if not active:
-                # Still show a quick all-clear
-                if not self.messages:
-                    msg = ChatMessage(
-                        role="assistant",
-                        text="All systems normal. No issues detected.\n\n"
-                             "Double-tap to ask me a question.",
-                        timestamp=time.strftime("%H:%M"),
-                    )
-                    self.messages.append(msg)
-                    self.scroll_offset = 0
-                    self._save_history()
-                return
-
             # Skip if we already have a recent diagnosis (within 10 min)
             if self.messages:
                 last = self.messages[-1]
@@ -1477,24 +1673,91 @@ class VoiceChat:
                 except Exception:
                     pass
 
-        # Build diagnosis from current system state
-        lines = []
+        # Show loading state
+        self.state = "loading"
+        self.state_message = "Analyzing system..."
 
+        # Build the diagnosis prompt
+        context = self._build_system_context()
+        if retry:
+            prompt = (
+                "RE-CHECKING: The operator tried your previous fix and it didn't work. "
+                "Look at the current system data again and suggest something DIFFERENT. "
+                "What else could be wrong?\n\n"
+                f"{context}\n\n"
+                "Give a short diagnosis (3-5 sentences max) for a tiny screen. "
+                "Plain text only, no markdown. Start with the problem or ALL CLEAR. "
+                "If there are problems, give the most important fix step."
+            )
+        else:
+            prompt = (
+                "Diagnose this TPS truck right now. Look at ALL the data — "
+                "PLC registers, signal metrics, control bits, network, encoder, "
+                "eject system, everything.\n\n"
+                f"{context}\n\n"
+                "Give a short diagnosis (3-5 sentences max) for a tiny screen. "
+                "Plain text only, no markdown. "
+                "If everything is fine, say so and give a quick status summary. "
+                "If there are problems, name the most critical one and the fix. "
+                "Be specific — reference actual register values or metrics if relevant."
+            )
+
+        # Determine severity for display coloring (before Claude call, based on rules)
+        has_critical = any(d.get("severity") == "critical" for d in active)
+        has_warning = any(d.get("severity") == "warning" for d in active)
+        if has_critical:
+            msg_severity = "critical"
+        elif has_warning:
+            msg_severity = "warning"
+        else:
+            msg_severity = "ok"
+
+        # Call Claude for the actual diagnosis
+        try:
+            result = subprocess.run(
+                ["claude", "-p", "--model", "sonnet"],
+                input=prompt,
+                capture_output=True, text=True, timeout=60
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                diagnosis_text = result.stdout.strip()
+            else:
+                # Fall back to local diagnosis
+                diagnosis_text = self._local_diagnosis(sys_status, active, retry)
+        except (subprocess.TimeoutExpired, Exception):
+            # Fall back to local diagnosis if Claude is unavailable
+            diagnosis_text = self._local_diagnosis(sys_status, active, retry)
+
+        self.state = "idle"
+        self.state_message = ""
+
+        msg = ChatMessage(
+            role="assistant",
+            text=diagnosis_text,
+            timestamp=time.strftime("%H:%M"),
+            severity=msg_severity,
+        )
+        self.messages.append(msg)
+        self.scroll_offset = 0
+        self._save_history()
+
+    def _local_diagnosis(self, sys_status: dict, active: list, retry: bool) -> str:
+        """Fallback local diagnosis when Claude is unavailable."""
+        lines = []
         if retry:
             lines.append("RE-CHECKING (previous fix may not have worked)...")
             lines.append("")
 
         if not active:
-            lines.append("All systems normal now. Previous issue may be resolved.")
+            lines.append("All systems normal. No issues detected.")
             lines.append("")
-            # Still show key stats
             speed = sys_status.get("speed_ftpm", 0.0)
             plates = sys_status.get("plate_count", 0)
             connected = sys_status.get("connected", False)
             if connected:
                 lines.append(f"PLC connected | {plates} plates | {speed:.1f} ft/min")
             else:
-                lines.append("PLC not connected — check Ethernet cable or PLC power")
+                lines.append("PLC not connected -- check Ethernet cable or PLC power")
         else:
             for d in active[:5]:
                 sev = d.get("severity", "")
@@ -1503,29 +1766,16 @@ class VoiceChat:
                 icon = "!!" if sev == "critical" else "!"
                 lines.append(f"{icon} {title}")
                 if action_text:
-                    # Show first 2 action steps
                     steps = [s.strip() for s in action_text.split("\n") if s.strip()]
                     for step in steps[:2]:
                         lines.append(f"  -> {step}")
                 lines.append("")
-
             if len(active) > 5:
                 lines.append(f"  (+{len(active) - 5} more issues)")
 
         lines.append("")
-        if retry:
-            lines.append("If still not fixed, double-tap to describe what you see.")
-        else:
-            lines.append("Tap TRY AGAIN if not resolved, or double-tap to ask.")
-
-        msg = ChatMessage(
-            role="assistant",
-            text="\n".join(lines),
-            timestamp=time.strftime("%H:%M"),
-        )
-        self.messages.append(msg)
-        self.scroll_offset = 0
-        self._save_history()
+        lines.append("(AI unavailable -- showing rule-based diagnosis)")
+        return "\n".join(lines)
 
     def clear_history(self):
         """Clear chat history."""
@@ -1656,17 +1906,6 @@ def _draw_status_bar(draw, sys_status):
         x -= nw + 8
         draw.text((x, 9), nw_str, fill=RED, font=font_sm)
 
-    # Location + temperature (left of time)
-    loc = sys_status.get("location", "")
-    temp = sys_status.get("temp_f", "")
-    if loc or temp:
-        loc_str = loc
-        if temp:
-            loc_str = f"{loc}  {temp}" if loc else temp
-        lw = draw.textlength(loc_str, font=font_sm)
-        x -= lw + 8
-        draw.text((x, 9), loc_str, fill=LIGHT_GRAY, font=font_sm)
-
     # Time
     now_str = time.strftime("%I:%M %p")
     tw = draw.textlength(now_str, font=font_sm)
@@ -1773,7 +2012,7 @@ def render_home(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
     font_med = find_font(16)
     font_sm = find_font(13)
     font_unit = find_font(12)
-    font_nav = find_font(14)
+    font_nav = find_font(22)
 
     y = HEADER_H
     y = _draw_alert_bar(draw, sys_status, y)
@@ -1844,13 +2083,16 @@ def render_home(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
     draw.line([(MARGIN, y), (W - MARGIN, y)], fill=MID_GRAY, width=1)
     y += 6
 
+    font_stat = find_font(22)
+    eff_x = W // 2
+
     # Spacing
     last_sp = sys_status.get("last_spacing_in", 0.0)
     sp_str = f"Spacing: {last_sp:.1f}\"" if last_sp > 0 else "Spacing: --"
     sp_color = GREEN if last_sp > 0 and abs(last_sp - 19.5) < 2 else (
         YELLOW if last_sp > 0 and abs(last_sp - 19.5) < 5 else (
             RED if last_sp > 0 else LIGHT_GRAY))
-    draw.text((MARGIN, y), sp_str, fill=sp_color, font=font_sm)
+    draw.text((MARGIN, y), sp_str, fill=sp_color, font=font_stat)
 
     # Efficiency: plates / expected_plates * 100
     travel_ft = sys_status.get("travel_ft", 0.0)
@@ -1858,31 +2100,30 @@ def render_home(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
     efficiency = (plate_count / expected * 100) if expected > 0 else 0
     eff_str = f"Efficiency: {efficiency:.0f}%" if expected > 0 else "Efficiency: --"
     eff_color = GREEN if efficiency >= 95 else (YELLOW if efficiency >= 85 else LIGHT_GRAY)
-    eff_x = W // 2
-    draw.text((eff_x, y), eff_str, fill=eff_color, font=font_sm)
+    draw.text((eff_x, y), eff_str, fill=eff_color, font=font_stat)
 
-    y += 18
+    y += 28
 
     # Mode + Camera rate (bright text for sunlight)
     mode = sys_status.get("tps_mode", "")
     mode_str = f"Mode: {mode}" if mode else "Mode: --"
-    draw.text((MARGIN, y), mode_str, fill=WHITE, font=font_sm)
+    draw.text((MARGIN, y), mode_str, fill=WHITE, font=font_stat)
 
     camera_rate = sys_status.get("camera_rate", 0.0)  # X3 = plate flipper
     cam_color = GREEN if camera_rate > 5 else (YELLOW if camera_rate > 0 else LIGHT_GRAY)
     cam_str = f"Flipper: {camera_rate:.0f}/min" if camera_rate > 0 else "Flipper: --"
-    draw.text((eff_x, y), cam_str, fill=cam_color, font=font_sm)
+    draw.text((eff_x, y), cam_str, fill=cam_color, font=font_stat)
 
     # --- Travel distance (compact, bright) ---
-    y += 18
+    y += 28
     travel_str = f"Travel: {travel_ft:.1f} ft"
-    draw.text((MARGIN, y), travel_str, fill=WHITE, font=font_sm)
+    draw.text((MARGIN, y), travel_str, fill=WHITE, font=font_stat)
     avg_sp = sys_status.get("avg_spacing_in", 0.0)
     if avg_sp > 0:
-        draw.text((eff_x, y), f"Avg spacing: {avg_sp:.1f}\"", fill=WHITE, font=font_sm)
+        draw.text((eff_x, y), f"Avg spacing: {avg_sp:.1f}\"", fill=WHITE, font=font_stat)
 
     # --- Bottom navigation bar (4 buttons) ---
-    nav_h = 48
+    nav_h = 74
     nav_y = H - nav_h - 4
     gap = 5
     btn_count = 4
@@ -2576,6 +2817,83 @@ def render_system(sys_status: dict, scroll_offset: int = 0) -> Tuple["Image.Imag
     return img, buttons
 
 
+def render_expanded_message(msg: "ChatMessage", explanation: str = "") -> Tuple["Image.Image", List[Button]]:
+    """Full-screen popup showing an AI message in larger text for readability.
+
+    If explanation is provided, shows that instead of the original message.
+    """
+    img = Image.new("RGB", (W, H), (20, 20, 25))
+    draw = ImageDraw.Draw(img)
+    buttons = []
+
+    font_title = find_font(14)
+    font_body = find_font(15)
+    font_close = find_font(16)
+    font_btn = find_font(13)
+
+    # Header bar
+    draw.rectangle([0, 0, W, 30], fill=(30, 30, 40))
+    header_text = "AI EXPLANATION" if explanation else "AI DIAGNOSIS"
+    draw.text((MARGIN, 6), header_text, fill=PURPLE, font=font_title)
+
+    # Close button (X) in top right
+    draw.text((W - 28, 5), "X", fill=WHITE, font=font_close)
+    close_btn = Button(W - 40, 0, 40, 30, "", "chat_close_expand")
+    buttons.append(close_btn)
+
+    # Determine text color by severity
+    if msg.severity == "critical":
+        text_color = RED
+    elif msg.severity == "warning":
+        text_color = YELLOW
+    elif msg.severity == "ok":
+        text_color = GREEN
+    else:
+        text_color = GREEN
+
+    # Display text: explanation if available, otherwise original message
+    display_text = explanation if explanation else msg.text
+
+    # Reserve space for bottom button
+    btn_area_h = 44 if not explanation else 0
+
+    # Word-wrap and draw the message in larger font
+    y = 40
+    max_chars = 38  # fewer chars per line = bigger text
+    line_h = 20
+    max_y = H - btn_area_h - 24  # leave room for timestamp and button
+    words = display_text.split()
+    line = ""
+    for word in words:
+        test = (line + " " + word).strip()
+        if len(test) > max_chars:
+            if line:
+                if y < max_y:
+                    draw.text((MARGIN, y), line, fill=text_color, font=font_body)
+                y += line_h
+            line = word
+        else:
+            line = test
+    if line and y < max_y:
+        draw.text((MARGIN, y), line, fill=text_color, font=font_body)
+
+    # Timestamp
+    draw.text((MARGIN, H - 22), msg.timestamp, fill=MID_GRAY, font=find_font(11))
+
+    # "Explain" button at the bottom (only when showing the original message)
+    if not explanation:
+        explain_btn = Button(
+            MARGIN, H - btn_area_h - 4,
+            W - MARGIN * 2, 40,
+            "EXPLAIN REASONING", "chat_explain",
+            color=DARK_PURPLE, text_color=WHITE
+        )
+        buttons.append(explain_btn)
+        draw_button(draw, explain_btn, font_btn)
+
+    return img, buttons
+
+
 def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image", List[Button]]:
     """DIAGNOSE — AI diagnosis with double-tap-to-talk and TRY AGAIN button.
 
@@ -2613,6 +2931,10 @@ def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image
     elif state == "error":
         draw.rectangle([0, sl_y, W, sl_y + status_h], fill=DARK_RED)
         draw.text((MARGIN, sl_y + 3), voice_chat.state_message, fill=RED, font=font_sm)
+        # Dismiss button on error bar
+        draw.text((W - 25, sl_y + 3), "X", fill=WHITE, font=font_sm)
+        dismiss_btn = Button(W - 30, sl_y, 30, status_h, "", "chat_dismiss_error")
+        buttons.append(dismiss_btn)
     else:
         draw.rectangle([0, sl_y, W, sl_y + status_h], fill=(15, 15, 20))
         draw.text((MARGIN, sl_y + 3), "DIAGNOSE", fill=PURPLE, font=font_sm)
@@ -2651,10 +2973,20 @@ def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image
     max_chars = 48
 
     # Word-wrap messages into display lines
+    # Each entry: (text, color, msg_index) where msg_index links back to messages[]
     display_lines = []
-    for msg in messages:
+    for msg_idx, msg in enumerate(messages):
         prefix = "You: " if msg.role == "user" else "AI: "
-        color = CYAN if msg.role == "user" else GREEN
+        if msg.role == "user":
+            color = CYAN
+        elif msg.severity == "critical":
+            color = RED
+        elif msg.severity == "warning":
+            color = YELLOW
+        elif msg.severity == "ok":
+            color = GREEN
+        else:
+            color = GREEN  # default for general AI responses
         full_text = prefix + msg.text
         words = full_text.split()
         line = ""
@@ -2662,13 +2994,13 @@ def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image
             test = (line + " " + word).strip()
             if len(test) > max_chars:
                 if line:
-                    display_lines.append((line, color))
+                    display_lines.append((line, color, msg_idx))
                 line = word
             else:
                 line = test
         if line:
-            display_lines.append((line, color))
-        display_lines.append(("", BLACK))  # spacer between messages
+            display_lines.append((line, color, msg_idx))
+        display_lines.append(("", BLACK, -1))  # spacer between messages
 
     # Calculate visible window
     visible_lines = chat_h // line_h
@@ -2679,11 +3011,19 @@ def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image
     end = start + visible_lines
     visible = display_lines[start:end]
 
-    # Draw messages
+    # Draw messages and add tap targets for AI messages
     y = chat_top
-    for text, color in visible:
+    seen_msg_indices = set()
+    for text, color, msg_idx in visible:
         if text:
             draw.text((MARGIN, y), text, fill=color, font=font)
+            # Add tap target for first line of each AI message (to expand it)
+            if msg_idx >= 0 and msg_idx not in seen_msg_indices:
+                if messages[msg_idx].role == "assistant":
+                    # Make the entire message region tappable
+                    expand_btn = Button(0, y, W, line_h, str(msg_idx), "chat_expand")
+                    buttons.append(expand_btn)
+                seen_msg_indices.add(msg_idx)
         y += line_h
 
     # Empty state — prompt to diagnose
@@ -2996,6 +3336,9 @@ def main():
     last_data_refresh = 0
     needs_redraw = True
     chat_recording = False  # double-tap toggle state
+    expanded_msg_idx = -1   # -1 = no expanded message, 0+ = index into voice_chat.messages
+    expanded_explanation = ""  # explanation text from Claude for the expanded message
+    error_start_time = 0.0  # when error state started (for auto-clear)
 
     print("IronSight Touch Display started")
     print(f"Touch: {'enabled' if not args.no_touch and touch.device else 'disabled'}")
@@ -3042,6 +3385,18 @@ def main():
             if chat_recording and voice_chat.state not in ("recording", "idle"):
                 chat_recording = False
 
+            # Auto-clear error state after 5 seconds
+            if voice_chat.state == "error":
+                if error_start_time == 0:
+                    error_start_time = now
+                elif now - error_start_time > 5.0:
+                    voice_chat.state = "idle"
+                    voice_chat.state_message = ""
+                    error_start_time = 0
+                    needs_redraw = True
+            else:
+                error_start_time = 0
+
             # Poll for swipe (smooth scrolling on scrollable pages)
             swipe = touch.get_swipe()
             if swipe and current_page in ("logs", "system"):
@@ -3063,7 +3418,50 @@ def main():
                 needs_redraw = True
                 tx, ty = tap
 
-                if pending_dialog:
+                if expanded_msg_idx >= 0:
+                    # Expanded message popup is showing — check for button hits
+                    exp_msg = voice_chat.messages[expanded_msg_idx] if expanded_msg_idx < len(voice_chat.messages) else None
+                    if exp_msg:
+                        _, exp_buttons = render_expanded_message(exp_msg, expanded_explanation)
+                        exp_hit = find_hit(exp_buttons, tx, ty)
+                        _beep()
+                        if exp_hit and exp_hit.action == "chat_explain":
+                            # Ask Claude to explain the diagnosis reasoning
+                            expanded_explanation = "Asking Claude to explain..."
+                            needs_redraw = True
+                            # Run in background thread to not block UI
+                            def _explain():
+                                nonlocal expanded_explanation, needs_redraw
+                                try:
+                                    context = voice_chat._build_system_context()
+                                    prompt = (
+                                        f"{context}\n\n"
+                                        f"You previously gave this diagnosis:\n\"{exp_msg.text}\"\n\n"
+                                        "Explain your reasoning in detail. What specific data points "
+                                        "led you to this conclusion? What did you check? "
+                                        "Keep it to 4-6 sentences for a small screen. Plain text only."
+                                    )
+                                    result = subprocess.run(
+                                        ["claude", "-p", "--model", "sonnet"],
+                                        input=prompt,
+                                        capture_output=True, text=True, timeout=60
+                                    )
+                                    if result.returncode == 0 and result.stdout.strip():
+                                        expanded_explanation = result.stdout.strip()
+                                    else:
+                                        expanded_explanation = "Could not get explanation — try again."
+                                except Exception:
+                                    expanded_explanation = "Error getting explanation."
+                                needs_redraw = True
+                            threading.Thread(target=_explain, daemon=True).start()
+                        else:
+                            # Any other tap closes the popup
+                            expanded_msg_idx = -1
+                            expanded_explanation = ""
+                    else:
+                        expanded_msg_idx = -1
+                        expanded_explanation = ""
+                elif pending_dialog:
                     base_img, _ = _render_current_page(
                         current_page, sys_status, scroll_offset, voice_chat, log_filter)
                     _, dialog_buttons = render_confirm_dialog(base_img, pending_dialog)
@@ -3088,6 +3486,8 @@ def main():
                             if new_page == "chat" and current_page != "chat":
                                 voice_chat.proactive_diagnosis()
                             current_page = new_page
+                            expanded_msg_idx = -1  # close popup on page change
+                            expanded_explanation = ""
                             scroll_offset = 0
                         elif action.startswith("confirm_"):
                             pending_dialog = action
@@ -3108,6 +3508,14 @@ def main():
                         elif action == "chat_retry":
                             # TRY AGAIN — re-run diagnosis (implies first didn't fix it)
                             voice_chat.proactive_diagnosis(retry=True)
+                        elif action == "chat_dismiss_error":
+                            voice_chat.state = "idle"
+                            voice_chat.state_message = ""
+                        elif action == "chat_expand":
+                            # Show expanded message popup
+                            expanded_msg_idx = int(hit.label) if hit.label.isdigit() else -1
+                        elif action == "chat_close_expand":
+                            expanded_msg_idx = -1
                         elif action == "chat_clear":
                             voice_chat.clear_history()
 
@@ -3118,6 +3526,11 @@ def main():
             if needs_redraw and fb:
                 img, _ = _render_current_page(
                     current_page, sys_status, scroll_offset, voice_chat, log_filter)
+
+                # Expanded message popup (overlays chat page)
+                if expanded_msg_idx >= 0 and expanded_msg_idx < len(voice_chat.messages):
+                    img, _ = render_expanded_message(
+                        voice_chat.messages[expanded_msg_idx], expanded_explanation)
 
                 if pending_dialog:
                     img, _ = render_confirm_dialog(img, pending_dialog)

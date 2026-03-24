@@ -51,15 +51,15 @@ Core system inputs. These tell you whether the TPS is ready to operate.
 | Field | PLC Register | What It Means |
 |-------|-------------|---------------|
 | **TPS Power Loop** | X4 | The main power circuit for the tie plate system. OFF = system is not running. This is the #1 thing to check — nothing works without it. |
-| **Camera Signal** | X3 | The tie detection camera. Pulses ON when it sees a tie passing under it. |
+| **Plate Flipper (X3)** | X3 | The plate flipper — a needle on a bearing that detects plate orientation. Pulses ON when it detects a tie passing under it. (Labeled "Camera" in PLC project file.) |
 | **Encoder** | C2000 related | Encoder is active and counting. |
 | **Floating Zero** | C2000 | The encoder zero reference. Used for calibration. |
 | **Encoder Reset** | C1999 | PLC is resetting the encoder count (momentary). |
 
 ### What to look for:
 - **TPS Power Loop OFF during operation** → Power circuit tripped, E-stop hit, or main switch off
-- **Camera Signal never fires while truck is on ties** → Camera misaligned, dirty lens, bad cable, or camera power issue
-- **Camera Signal stuck ON** → Camera fault or wiring short
+- **Plate Flipper signal never fires while truck is on ties** → Flipper needle stuck, debris blocking it, bad cable, or 5-pin connector loose
+- **Plate Flipper signal stuck ON** → Flipper jammed or wiring short on X3
 
 ---
 
@@ -130,26 +130,26 @@ The chain of signals that must be active for a plate to drop. Think of it as a c
 |--------|----------|------|
 | **Drop Enable** | C16 | Master enable. Must be ON for any drops. Controlled by TPS Power + HMI. |
 | **Drop Latch** | C17 | Latched enable. Stays ON once enabled until manually cleared. |
-| **Detector Eject** | C30 | Camera detected a tie at the right position — fire the solenoid now. |
+| **Detector Eject** | C30 | Plate flipper detected a tie at the right position — fire the solenoid now. |
 | **Encoder Eject** | C32 | Encoder counted 19.5" since last drop — fire the solenoid now. |
 | **SW Eject** | C29 | Software/HMI triggered a manual eject. |
-| **1st Tie Found** | C34 | Camera has detected at least one tie since system started. The PLC waits for this before allowing encoder drops. |
+| **1st Tie Found** | C34 | Plate flipper has detected at least one tie since system started. The PLC waits for this before allowing encoder drops. |
 
 ### How a normal plate drop works:
 1. Drop Enable = ON (TPS powered, mode selected)
 2. Drop Latch = ON
 3. Truck moves forward, encoder counts distance
-4. Either: Camera detects tie → Detector Eject fires → Y1 fires → plate drops
+4. Either: Flipper detects tie → Detector Eject fires → Y1 fires → plate drops
 5. Or: Encoder hits 19.5" → Encoder Eject fires → Y1 fires → plate drops
 6. If both would fire within 2", encoder yields to detector (Rung 4-5 in ladder)
 
 ### What to look for:
 - **Drop Enable OFF while TPS is powered** → HMI Enable Drop (C5) not pressed, or a safety condition isn't met
 - **Drop Latch OFF** → System was stopped and needs to be re-enabled
-- **Detector Eject never fires but Encoder Eject does** → Camera not detecting ties. System is running on encoder-only (blind dropping by distance). Plates may not align with ties.
-- **Encoder Eject never fires but Detector fires** → Normal if camera is working well — detector drops are preferred over encoder drops
+- **Detector Eject never fires but Encoder Eject does** → Flipper not detecting ties. System is running on encoder-only (blind dropping by distance). Plates may not align with ties.
+- **Encoder Eject never fires but Detector fires** → Normal if flipper is working well — detector drops are preferred over encoder drops
 - **Neither eject fires while truck is moving** → Drop Enable is probably OFF, or 1st Tie not found yet
-- **1st Tie Found stays OFF for a long time** → Camera not seeing any ties. Check camera alignment, cleanliness, and X3 signal.
+- **1st Tie Found stays OFF for a long time** → Flipper not seeing any ties. Check flipper needle, debris, and X3 signal.
 
 ---
 
@@ -159,18 +159,18 @@ Real-time detection and control flags.
 
 | Field | PLC Coil | What It Means |
 |-------|----------|---------------|
-| **Encoder Mode** | C3 | Encoder-only mode — camera is bypassed, plates drop purely by distance (every 19.5"). Use when camera is not working. |
-| **Camera Detection** | C12 | Camera currently sees a tie right now. Flashes as ties pass under the camera. |
+| **Encoder Mode** | C3 | Encoder-only mode — plate flipper is bypassed, plates drop purely by distance (every 19.5"). Use when flipper is not working. |
+| **Flipper Detection** | C12 | Plate flipper currently detects a tie right now. Flashes as ties pass under the flipper. |
 | **Backup Alarm** | C7 | Truck is moving backward. **Plates will NOT drop in reverse.** |
 | **Lay Ties** | C13 | System is in lay mode — plates should be dropping. |
 | **Drop Ties** | C14 | Drop command is active (similar to Lay Ties but more immediate). |
 
 ### What to look for:
-- **Encoder Mode ON when you expect camera detection** → Someone switched to encoder-only. Plates drop blind by distance — they won't skip rocks or adjust for actual tie positions.
-- **Camera Detection never flashes while on ties** → Camera problem (see Section 3)
+- **Encoder Mode ON when you expect flipper detection** → Someone switched to encoder-only. Plates drop blind by distance — they won't skip rocks or adjust for actual tie positions.
+- **Flipper Detection never flashes while on ties** → Flipper problem (see Section 3)
 - **Backup Alarm ON** → Truck is going backwards. Stop and go forward. Plates won't drop and the encoder may behave erratically in reverse.
 - **Lay Ties OFF during production** → System paused. Check HMI.
-- **Camera Detection flashing but no plates dropping** → Drop pipeline issue. Check Drop Enable, mode selection.
+- **Flipper Detection flashing but no plates dropping** → Drop pipeline issue. Check Drop Enable, mode selection.
 
 ---
 
@@ -223,13 +223,13 @@ All 25 DS holding registers from the PLC with decoded labels. Expand this for de
 **Dashboard clues:**
 1. Check DS2 Tie Spacing → Is it 39 (19.5")? If different, someone changed it.
 2. Check Encoder Mode → ON means camera is bypassed, drops are purely distance-based (won't adjust for actual tie positions).
-3. Check Camera Detection → Not flashing? Camera is dead, all drops are encoder-based.
+3. Check Flipper Detection → Not flashing? Flipper is dead, all drops are encoder-based.
 4. Check DS13 Last Det Laid → What was the actual spacing of the last detector drop?
 
 ### Problem: Plates dropping but skipping ties
 **Dashboard clues:**
-1. Check Camera Detection → Flashing? Camera sees ties but something else is wrong.
-2. Check Detection section → Encoder Mode ON means no camera-based detection.
+1. Check Flipper Detection → Flashing? Flipper sees ties but something else is wrong.
+2. Check Detection section → Encoder Mode ON means no flipper-based detection.
 3. Check DS15 Tie Team Skips → Growing? System is in tie team mode and intentionally skipping.
 4. Check Speed → Too fast? At high speeds the camera may miss ties.
 
@@ -239,12 +239,12 @@ All 25 DS holding registers from the PLC with decoded labels. Expand this for de
 2. Check Y1 Eject → Chattering? Y1 bounce issue causing double fires.
 3. Check DS14 2nd Pass Dbl Lay → Non-zero means double lay logic is active.
 
-### Problem: Camera not detecting ties
+### Problem: Plate flipper not detecting ties
 **Dashboard clues:**
-1. X3 Camera Signal → Always OFF? Camera isn't sending signal.
-2. Camera Detection (C12) → Never ON? Camera sees nothing.
-3. 1st Tie Found (C34) → Still OFF after moving over ties? Camera completely dead.
-4. **Physical check:** Clean lens, check alignment, verify camera power, check cable to PLC X3 terminal.
+1. X3 Plate Flipper signal → Always OFF? Flipper isn't sending signal.
+2. Flipper Detection (C12) → Never ON? Flipper sees nothing.
+3. 1st Tie Found (C34) → Still OFF after moving over ties? Flipper completely dead.
+4. **Physical check:** Check the flipper needle moves freely on its bearing. Clear any debris around the flipper. Check the 5-pin connector (blue/white wires). Check cable to PLC terminal X3.
 
 ### Problem: System shows "Backup Alarm"
 **What happened:** Truck moved backwards. C7 fires.
@@ -271,20 +271,88 @@ All 25 DS holding registers from the PLC with decoded labels. Expand this for de
 - TPS Power Loop: ON
 - Operating Mode: TPS-1 Single (or whatever's intended)
 - Drop Enable + Drop Latch: both ON
-- Camera Detection: flashing regularly as ties pass
+- Flipper Detection: flashing regularly as ties pass
 - Plate Rate: steady, matching truck speed
 - Speed: consistent (not stop-and-go)
 - Both Detector and Encoder ejects firing (detector preferred, encoder as backup)
 - Backup Alarm: OFF
 
 ### Signs of an efficient run:
-- High ratio of Detector Eject to Encoder Eject → camera is working well, plates align with actual ties
-- DS13 (last detector spacing) close to 19.5" → ties are evenly spaced, camera is detecting them accurately
+- High ratio of Detector Eject to Encoder Eject → plate flipper is working well, plates align with actual ties
+- DS13 (last detector spacing) close to 19.5" → ties are evenly spaced, flipper is detecting them accurately
 - Low or zero Tie Team Skips (DS15) when not in tie team mode
 - Steady plate rate matching truck speed ÷ 19.5"
 
 ### Signs of inefficiency:
-- All Encoder Ejects, zero Detector Ejects → camera is down, running blind
+- All Encoder Ejects, zero Detector Ejects → plate flipper is down, running blind
 - Plate Rate varies widely → stop-and-go driving, or detection issues causing drops to cluster
 - DS7 (PLC plate count) doesn't match Pi plate count → missed eject pulses or Y1 bounce
 - DS2 not set to expected 39 → wrong spacing, wasting plates or leaving gaps
+
+---
+
+## System Diagnostics
+
+The dashboard includes an automated diagnostics engine that evaluates 19 rules across 5 categories every second. The diagnostics panel appears below the PLC detail section.
+
+### Severity Levels
+
+| Severity | Color | Meaning |
+|----------|-------|---------|
+| **Critical** | Red | Stop and fix now — something is broken or production is at risk |
+| **Warning** | Yellow | Monitor closely — something may be degrading or misconfigured |
+| **Info** | Blue | FYI — usually normal but worth noting |
+
+### Diagnostic Categories
+
+| Category | What It Covers |
+|----------|----------------|
+| **Plate Flipper** | Flipper detection rate declining, flipper dead, intermittent connection, no ties present |
+| **Encoder** | Encoder stopped, encoder noise excessive, plate spacing drifting from target |
+| **Eject** | No eject confirmations from Air Eagle, eject not firing despite being enabled |
+| **PLC** | Modbus communication slowing, high error rate |
+| **Operation** | Non-standard tie spacing, truck moving backward, drops disabled while TPS is powered |
+
+### Signal Metrics Strip
+
+When available, a metrics strip shows at the top of the diagnostics panel:
+- **Flipper Det/min** — How many ties the plate flipper detects per minute (0 = flipper isn't seeing anything)
+- **Eject Rate/min** — How many plates are being dropped per minute
+- **PLC Latency** — Modbus TCP response time in milliseconds (normal <5ms, warning >5ms)
+
+### What to do when diagnostics fire:
+Each diagnostic includes a "What to do" section with step-by-step operator actions. Follow these first. If the issue persists, use the AI Diagnosis feature on the touch screen or contact the technician.
+
+### Warmup Period
+Diagnostics are disabled for the first 60 seconds after the sensor module starts. This prevents false alarms during the startup sequence.
+
+---
+
+## Touch Screen (IronSight Touch)
+
+Each truck has a 3.5" touchscreen on the Pi that provides a glove-friendly interface. The touch screen has 6 pages:
+
+| Page | What It Shows |
+|------|---------------|
+| **HOME** | Live production dashboard — plates dropped, speed, status, alerts |
+| **LIVE** | Real-time PLC register data — encoder, plates, speed, spacing |
+| **COMMANDS** | Actionable buttons — restart viam-server, test PLC, check WiFi |
+| **DIAGNOSE** | AI-powered diagnosis — analyzes all system data and gives plain-English assessment |
+| **LOGS** | Recent activity, incidents, state changes |
+| **SYSTEM** | System health — disk, CPU, memory, network, services |
+
+### AI Diagnosis (DIAGNOSE page)
+
+When you tap the DIAGNOSE nav button:
+1. The system automatically collects data from the PLC (all registers, signal metrics, control bits), Viam internals (capture status, sensor uptime, error rates), network health (eth0, WiFi, Modbus latency), and system health (CPU, memory, disk, battery).
+2. This data is sent to Claude AI for analysis.
+3. The AI response is color-coded:
+   - **Green text** = everything looks fine
+   - **Yellow text** = warnings detected, monitor closely
+   - **Red text** = critical problems found, needs attention
+4. If the AI's suggestion doesn't fix it, tap **TRY AGAIN** — the AI knows the previous fix didn't work and will suggest something different.
+5. You can also **double-tap** anywhere on the DIAGNOSE page to ask a voice question about the system.
+
+### Alert Bar
+
+If there are active diagnostics (critical or warning), a persistent alert bar appears at the top of every page showing the most important issue. Critical issues show in red, warnings in yellow.

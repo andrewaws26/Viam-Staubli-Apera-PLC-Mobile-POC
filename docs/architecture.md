@@ -227,6 +227,10 @@ All core components are deployed and working on the bench prototype:
 4. **Next.js dashboard on Vercel** — mobile-responsive, single TPS Controller card, fault alerting with klaxon
 5. **Encoder integration** — track distance, speed, direction derived from SICK DBS60E via PLC HSC
 6. **Production analytics** — plates per minute and plate drop count derived from Y1 eject coil transitions
+7. **Diagnostics engine** (`diagnostics.py`) — 19 rules across 5 categories (plate flipper, encoder, eject, PLC, operation), evaluates every 1Hz reading after 60s warmup, provides severity-tagged alerts with step-by-step operator actions
+8. **Touch screen UI** (`ironsight-touch.py`) — 3.5" glove-friendly display on Pi framebuffer with 6 pages: HOME (live production), LIVE (PLC registers), COMMANDS (system actions), DIAGNOSE (AI-powered diagnosis via Claude), LOGS (activity), SYSTEM (health)
+9. **AI diagnosis** — DIAGNOSE page sends full system context (PLC registers, signal metrics, control bits, eth0 health, Viam capture status, encoder state) to Claude for plain-English diagnosis, color-coded by severity (green=ok, yellow=warning, red=critical)
+10. **IronSight watchdog** — cron-based health monitor with auto-healing, alert deduplication, and incident reporting
 
 ### Next — Fleet Rollout
 
