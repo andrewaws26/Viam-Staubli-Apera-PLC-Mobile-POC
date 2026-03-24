@@ -753,6 +753,67 @@ def get_activity_history() -> list:
         return []
 
 
+# Cached location + weather (refreshed every 15 min)
+_weather_cache = {"location": "", "temp_f": "", "last_fetch": 0.0}
+
+
+def _get_location_weather() -> Tuple[str, str]:
+    """Get geographical location and temperature. Cached for 15 minutes.
+
+    Uses ip-api.com for location and wttr.in for temperature.
+    Returns (location_str, temp_str) e.g. ("Houston, TX", "72F")
+    """
+    now = time.time()
+    if now - _weather_cache["last_fetch"] < 900 and _weather_cache["location"]:
+        return _weather_cache["location"], _weather_cache["temp_f"]
+
+    location = ""
+    temp_f = ""
+    try:
+        import urllib.request
+        # Get location from IP
+        with urllib.request.urlopen("http://ip-api.com/json/?fields=city,regionName", timeout=3) as r:
+            data = json.loads(r.read())
+            city = data.get("city", "")
+            region = data.get("regionName", "")
+            if city:
+                # Abbreviate state name to 2-letter code
+                state_abbrevs = {
+                    "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR",
+                    "California": "CA", "Colorado": "CO", "Connecticut": "CT", "Delaware": "DE",
+                    "Florida": "FL", "Georgia": "GA", "Hawaii": "HI", "Idaho": "ID",
+                    "Illinois": "IL", "Indiana": "IN", "Iowa": "IA", "Kansas": "KS",
+                    "Kentucky": "KY", "Louisiana": "LA", "Maine": "ME", "Maryland": "MD",
+                    "Massachusetts": "MA", "Michigan": "MI", "Minnesota": "MN", "Mississippi": "MS",
+                    "Missouri": "MO", "Montana": "MT", "Nebraska": "NE", "Nevada": "NV",
+                    "New Hampshire": "NH", "New Jersey": "NJ", "New Mexico": "NM", "New York": "NY",
+                    "North Carolina": "NC", "North Dakota": "ND", "Ohio": "OH", "Oklahoma": "OK",
+                    "Oregon": "OR", "Pennsylvania": "PA", "Rhode Island": "RI", "South Carolina": "SC",
+                    "South Dakota": "SD", "Tennessee": "TN", "Texas": "TX", "Utah": "UT",
+                    "Vermont": "VT", "Virginia": "VA", "Washington": "WA", "West Virginia": "WV",
+                    "Wisconsin": "WI", "Wyoming": "WY",
+                }
+                state = state_abbrevs.get(region, region[:2].upper()) if region else ""
+                location = f"{city}, {state}" if state else city
+    except Exception:
+        pass
+
+    try:
+        import urllib.request
+        # Get temperature from wttr.in (single line, Fahrenheit)
+        with urllib.request.urlopen("https://wttr.in/?format=%t&u", timeout=3) as r:
+            raw = r.read().decode().strip()
+            # Returns like "+72°F" — clean it up
+            temp_f = raw.replace("+", "").replace("°", "")
+    except Exception:
+        pass
+
+    _weather_cache["location"] = location
+    _weather_cache["temp_f"] = temp_f
+    _weather_cache["last_fetch"] = now
+    return location, temp_f
+
+
 def get_system_status() -> dict:
     """Gather live system health."""
     status = {
@@ -786,6 +847,8 @@ def get_system_status() -> dict:
         "camera_rate": 0.0,
         "tps_mode": "",
         "encoder_direction": "forward",
+        "location": "",
+        "temp_f": "",
     }
 
     # viam-server
@@ -850,11 +913,24 @@ def get_system_status() -> dict:
         )
         for line in r.splitlines():
             if "Signal level" in line:
-                # Format: "Signal level=-52 dBm" or "Signal level=48/100"
                 import re
                 m = re.search(r"Signal level[=:]?\s*(-?\d+)", line)
                 if m:
                     status["wifi_signal_dbm"] = int(m.group(1))
+    except Exception:
+        pass
+
+    # Determine which interface is actually routing internet traffic
+    # (default route tells us which connection is in use)
+    try:
+        r = subprocess.check_output(
+            ["ip", "route", "show", "default"], text=True, timeout=5
+        )
+        default_line = r.strip().split("\n")[0] if r.strip() else ""
+        status["active_interface"] = ""
+        if "dev " in default_line:
+            iface = default_line.split("dev ")[1].split()[0]
+            status["active_interface"] = iface
     except Exception:
         pass
 
@@ -970,6 +1046,15 @@ def get_system_status() -> dict:
                                 status["ds_registers"][key] = data[key]
     except Exception:
         pass
+
+    # Location + weather (cached, non-blocking)
+    if status["internet"]:
+        try:
+            loc, temp = _get_location_weather()
+            status["location"] = loc
+            status["temp_f"] = temp
+        except Exception:
+            pass
 
     return status
 
@@ -1351,52 +1436,87 @@ class VoiceChat:
 
         return ctx
 
-    def proactive_diagnosis(self):
-        """If there are active faults, generate a proactive opening diagnosis.
+    def proactive_diagnosis(self, retry: bool = False):
+        """Generate a diagnosis of current system/truck issues.
 
-        Called when the user navigates to the chat page. Only fires if:
-        - There are active critical or warning diagnostics
-        - Chat is empty OR last message is >10 minutes old
+        Called when the user navigates to the DIAGNOSE page, or taps TRY AGAIN.
+
+        Args:
+            retry: If True, bypasses cooldown and notes that previous fix didn't work.
         """
         sys_status = self._sys_status_fn()
         diagnostics = [d for d in sys_status.get("diagnostics", []) if isinstance(d, dict)]
         active = [d for d in diagnostics if d.get("severity") in ("critical", "warning")]
-        if not active:
-            return
 
-        # Skip if we already have a recent diagnosis (within 10 min)
-        if self.messages:
-            last = self.messages[-1]
-            try:
-                last_time = time.strptime(last.timestamp, "%H:%M")
-                now_time = time.strptime(time.strftime("%H:%M"), "%H:%M")
-                diff_min = (now_time.tm_hour * 60 + now_time.tm_min) - \
-                           (last_time.tm_hour * 60 + last_time.tm_min)
-                if 0 <= diff_min < 10:
-                    return
-            except Exception:
-                pass
+        if not retry:
+            # Skip if no active issues
+            if not active:
+                # Still show a quick all-clear
+                if not self.messages:
+                    msg = ChatMessage(
+                        role="assistant",
+                        text="All systems normal. No issues detected.\n\n"
+                             "Double-tap to ask me a question.",
+                        timestamp=time.strftime("%H:%M"),
+                    )
+                    self.messages.append(msg)
+                    self.scroll_offset = 0
+                    self._save_history()
+                return
 
-        # Build a fast local diagnosis (no Claude call) from the diagnostic data
-        # This appears instantly — no waiting for API
+            # Skip if we already have a recent diagnosis (within 10 min)
+            if self.messages:
+                last = self.messages[-1]
+                try:
+                    last_time = time.strptime(last.timestamp, "%H:%M")
+                    now_time = time.strptime(time.strftime("%H:%M"), "%H:%M")
+                    diff_min = (now_time.tm_hour * 60 + now_time.tm_min) - \
+                               (last_time.tm_hour * 60 + last_time.tm_min)
+                    if 0 <= diff_min < 10:
+                        return
+                except Exception:
+                    pass
+
+        # Build diagnosis from current system state
         lines = []
-        for d in active[:3]:
-            sev = d.get("severity", "")
-            title = d.get("title", "Issue detected")
-            action = d.get("action", "")
-            icon = "!!" if sev == "critical" else "!"
-            lines.append(f"{icon} {title}")
-            if action:
-                # Take just the first action step
-                first_step = action.split("\n")[0].strip()
-                if first_step:
-                    lines.append(f"  -> {first_step}")
 
-        if len(active) > 3:
-            lines.append(f"  (+{len(active) - 3} more)")
+        if retry:
+            lines.append("RE-CHECKING (previous fix may not have worked)...")
+            lines.append("")
+
+        if not active:
+            lines.append("All systems normal now. Previous issue may be resolved.")
+            lines.append("")
+            # Still show key stats
+            speed = sys_status.get("speed_ftpm", 0.0)
+            plates = sys_status.get("plate_count", 0)
+            connected = sys_status.get("connected", False)
+            if connected:
+                lines.append(f"PLC connected | {plates} plates | {speed:.1f} ft/min")
+            else:
+                lines.append("PLC not connected — check Ethernet cable or PLC power")
+        else:
+            for d in active[:5]:
+                sev = d.get("severity", "")
+                title = d.get("title", "Issue detected")
+                action_text = d.get("action", "")
+                icon = "!!" if sev == "critical" else "!"
+                lines.append(f"{icon} {title}")
+                if action_text:
+                    # Show first 2 action steps
+                    steps = [s.strip() for s in action_text.split("\n") if s.strip()]
+                    for step in steps[:2]:
+                        lines.append(f"  -> {step}")
+                lines.append("")
+
+            if len(active) > 5:
+                lines.append(f"  (+{len(active) - 5} more issues)")
 
         lines.append("")
-        lines.append("Talk or ask me for more detail.")
+        if retry:
+            lines.append("If still not fixed, double-tap to describe what you see.")
+        else:
+            lines.append("Tap TRY AGAIN if not resolved, or double-tap to ask.")
 
         msg = ChatMessage(
             role="assistant",
@@ -1419,11 +1539,12 @@ class VoiceChat:
 # ─────────────────────────────────────────────────────────────
 
 # Screen is 480x320. All rendering is at native resolution.
+# Font & button sizes are tuned for glove use and sunlight readability.
 W, H = 480, 320
-MARGIN = 10
+MARGIN = 12
 HEADER_H = 32
-BACK_BTN_H = 40
-BACK_BTN_W = 80
+BACK_BTN_H = 48
+BACK_BTN_W = 90
 
 
 def _draw_status_bar(draw, sys_status):
@@ -1433,8 +1554,8 @@ def _draw_status_bar(draw, sys_status):
 
     draw.rectangle([0, 0, W, HEADER_H], fill=(15, 15, 20))
 
-    # IRONSIGHT brand
-    draw.text((MARGIN, 8), "IRONSIGHT", fill=BLUE, font=font)
+    # IRONSIGHT - B&B brand
+    draw.text((MARGIN, 8), "IRONSIGHT - B&B", fill=BLUE, font=font)
 
     # Battery indicator (right side)
     bat = sys_status.get("battery", {})
@@ -1476,32 +1597,75 @@ def _draw_status_bar(draw, sys_status):
         x -= iw + 6
         draw.text((x, 9), iph_str, fill=CYAN, font=font_sm)
 
-    # WiFi SSID + signal strength
+    # Active internet connection — show what's actually routing traffic
+    active_iface = sys_status.get("active_interface", "")
     ssid = sys_status.get("wifi_ssid", "")
     signal_dbm = sys_status.get("wifi_signal_dbm", 0)
-    if ssid:
-        if signal_dbm >= -40:
-            sig_label, sig_color = "Strong", GREEN
-        elif signal_dbm >= -55:
-            sig_label, sig_color = "Good", GREEN
-        elif signal_dbm >= -70:
-            sig_label, sig_color = "Fair", YELLOW
-        elif signal_dbm >= -80:
-            sig_label, sig_color = "Weak", ORANGE
-        elif signal_dbm < -80:
-            sig_label, sig_color = "Poor", RED
+
+    if active_iface.startswith("wlan"):
+        # WiFi is the active route — show SSID + signal
+        if ssid:
+            if signal_dbm >= -40:
+                sig_label, sig_color = "Strong", GREEN
+            elif signal_dbm >= -55:
+                sig_label, sig_color = "Good", GREEN
+            elif signal_dbm >= -70:
+                sig_label, sig_color = "Fair", YELLOW
+            elif signal_dbm >= -80:
+                sig_label, sig_color = "Weak", ORANGE
+            elif signal_dbm < -80:
+                sig_label, sig_color = "Poor", RED
+            else:
+                sig_label, sig_color = "", LIGHT_GRAY
+            wifi_str = f"{ssid} ({sig_label})" if sig_label else ssid
+            ww = draw.textlength(wifi_str, font=font_sm)
+            x -= ww + 8
+            draw.text((x, 9), wifi_str, fill=sig_color, font=font_sm)
         else:
-            sig_label, sig_color = "", LIGHT_GRAY
-        wifi_str = f"{ssid} ({sig_label})" if sig_label else ssid
-        ww = draw.textlength(wifi_str, font=font_sm)
-        x -= ww + 8
-        draw.text((x, 9), wifi_str, fill=sig_color, font=font_sm)
+            net_str = "WiFi (no SSID)"
+            nw = draw.textlength(net_str, font=font_sm)
+            x -= nw + 8
+            draw.text((x, 9), net_str, fill=YELLOW, font=font_sm)
+    elif active_iface.startswith("eth"):
+        # Ethernet is the active route — show "Ethernet" or NM connection name
+        try:
+            r = subprocess.check_output(
+                ["nmcli", "-t", "-f", "NAME,DEVICE", "connection", "show", "--active"],
+                text=True, timeout=3
+            )
+            eth_name = ""
+            for line in r.strip().splitlines():
+                if active_iface in line:
+                    eth_name = line.split(":")[0]
+                    break
+            net_str = eth_name if eth_name else f"Ethernet ({active_iface})"
+        except Exception:
+            net_str = f"Ethernet ({active_iface})"
+        nw = draw.textlength(net_str, font=font_sm)
+        x -= nw + 8
+        draw.text((x, 9), net_str, fill=GREEN, font=font_sm)
+    elif active_iface:
+        # Some other interface (USB tethering, tailscale, etc.)
+        net_str = active_iface
+        nw = draw.textlength(net_str, font=font_sm)
+        x -= nw + 8
+        draw.text((x, 9), net_str, fill=CYAN, font=font_sm)
     elif not sys_status.get("iphone_connected"):
-        # No WiFi and no iPhone — show "No Network"
         nw_str = "No Network"
         nw = draw.textlength(nw_str, font=font_sm)
         x -= nw + 8
         draw.text((x, 9), nw_str, fill=RED, font=font_sm)
+
+    # Location + temperature (left of time)
+    loc = sys_status.get("location", "")
+    temp = sys_status.get("temp_f", "")
+    if loc or temp:
+        loc_str = loc
+        if temp:
+            loc_str = f"{loc}  {temp}" if loc else temp
+        lw = draw.textlength(loc_str, font=font_sm)
+        x -= lw + 8
+        draw.text((x, 9), loc_str, fill=LIGHT_GRAY, font=font_sm)
 
     # Time
     now_str = time.strftime("%I:%M %p")
@@ -1604,12 +1768,12 @@ def render_home(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
     _draw_status_bar(draw, sys_status)
 
     buttons = []
-    font_huge = find_font(42)
-    font_big = find_font(28)
-    font_med = find_font(14)
-    font_sm = find_font(11)
-    font_unit = find_font(10)
-    font_nav = find_font(12)
+    font_huge = find_font(44)
+    font_big = find_font(30)
+    font_med = find_font(16)
+    font_sm = find_font(13)
+    font_unit = find_font(12)
+    font_nav = find_font(14)
 
     y = HEADER_H
     y = _draw_alert_bar(draw, sys_status, y)
@@ -1718,7 +1882,7 @@ def render_home(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
         draw.text((eff_x, y), f"Avg spacing: {avg_sp:.1f}\"", fill=WHITE, font=font_sm)
 
     # --- Bottom navigation bar (4 buttons) ---
-    nav_h = 40
+    nav_h = 48
     nav_y = H - nav_h - 4
     gap = 5
     btn_count = 4
@@ -1727,7 +1891,7 @@ def render_home(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
     nav_items = [
         ("SYSTEM", "nav_system", DARK_CYAN),
         ("COMMANDS", "nav_commands", DARK_ORANGE),
-        ("CHAT", "nav_chat", PURPLE),
+        ("DIAGNOSE", "nav_chat", PURPLE),
         ("LOGS", "nav_logs", DARK_BLUE),
     ]
 
@@ -1746,10 +1910,10 @@ def render_live(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
     draw = ImageDraw.Draw(img)
     _draw_status_bar(draw, sys_status)
 
-    font_big = find_font(28)
-    font_lg = find_font(18)
-    font_med = find_font(14)
-    font_sm = find_font(11)
+    font_big = find_font(30)
+    font_lg = find_font(20)
+    font_med = find_font(16)
+    font_sm = find_font(13)
 
     y = HEADER_H
     y = _draw_alert_bar(draw, sys_status, y)
@@ -1805,7 +1969,7 @@ def render_live(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
 
     # Back button
     back = _back_button()
-    draw_button(draw, back, find_font(14))
+    draw_button(draw, back, find_font(16))
 
     return img, [back]
 
@@ -1816,14 +1980,14 @@ def render_commands(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
     draw = ImageDraw.Draw(img)
     _draw_status_bar(draw, sys_status)
 
-    font = find_font(14)
-    font_title = find_font(12)
+    font = find_font(16)
+    font_title = find_font(14)
 
     y = HEADER_H
     y = _draw_alert_bar(draw, sys_status, y)
-    y += 6
+    y += 4
     draw.text((MARGIN, y), "COMMANDS", fill=LIGHT_GRAY, font=font_title)
-    y += 20
+    y += 22
 
     commands = [
         ("Fix Connection", "cmd_restart_viam", DARK_ORANGE, True),
@@ -1839,7 +2003,7 @@ def render_commands(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
     back_top = H - BACK_BTN_H - 5
     available_h = back_top - y - 10  # 10px gap above back button
     gap = 6
-    btn_h = min(42, (available_h - gap * (len(commands) - 1)) // len(commands))
+    btn_h = min(48, (available_h - gap * (len(commands) - 1)) // len(commands))
 
     for label, action, color, needs_confirm in commands:
         btn_action = f"confirm_{action}" if needs_confirm else action
@@ -1850,7 +2014,7 @@ def render_commands(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
 
     # Back button (appended last so it draws on top)
     back = _back_button()
-    draw_button(draw, back, find_font(14))
+    draw_button(draw, back, find_font(16))
     buttons.append(back)
 
     return img, buttons
@@ -1910,10 +2074,10 @@ def render_logs(sys_status: dict, scroll_offset: int = 0,
     draw = ImageDraw.Draw(img)
     _draw_status_bar(draw, sys_status)
 
-    font = find_font(10)
-    font_sm = find_font(9)
-    font_title = find_font(12)
-    font_tab = find_font(10)
+    font = find_font(12)
+    font_sm = find_font(11)
+    font_title = find_font(14)
+    font_tab = find_font(13)
 
     y = HEADER_H
     y = _draw_alert_bar(draw, sys_status, y)
@@ -1921,9 +2085,9 @@ def render_logs(sys_status: dict, scroll_offset: int = 0,
 
     buttons = []
 
-    # Filter tabs
+    # Filter tabs — big enough to hit with gloves
     tab_w = (W - MARGIN * 2 - 8) // 3  # 3 tabs with small gaps
-    tab_h = 22
+    tab_h = 30
     tab_x = MARGIN
     for i, label in enumerate(LOG_FILTERS):
         active = label.lower() == log_filter.lower()
@@ -1956,7 +2120,7 @@ def render_logs(sys_status: dict, scroll_offset: int = 0,
         combined = software_history + truck_errors
         history = list(reversed(combined))
 
-    row_h = 18
+    row_h = 22
     max_visible = (H - y - BACK_BTN_H - 15) // row_h
     visible = history[scroll_offset:scroll_offset + max_visible]
 
@@ -1975,24 +2139,24 @@ def render_logs(sys_status: dict, scroll_offset: int = 0,
         src_label = comp[:4].upper()
 
         # Truncate message to fit
-        max_chars = 42
+        max_chars = 38
         display_msg = msg[:max_chars] + ("..." if len(msg) > max_chars else "")
 
         draw.text((MARGIN, y), t, fill=MID_GRAY, font=font_sm)
-        draw.text((MARGIN + 50, y), src_label, fill=src_color, font=font_sm)
-        draw.text((MARGIN + 85, y), display_msg, fill=text_color, font=font_sm)
+        draw.text((MARGIN + 55, y), src_label, fill=src_color, font=font_sm)
+        draw.text((MARGIN + 95, y), display_msg, fill=text_color, font=font_sm)
         y += row_h
 
     if not visible:
         draw.text((MARGIN, y + 10), "No events to show", fill=MID_GRAY, font=font)
 
-    # Scroll buttons on the right
-    scroll_btn_w = 50
-    scroll_btn_h = 40
+    # Scroll buttons on the right — big for glove use
+    scroll_btn_w = 60
+    scroll_btn_h = 44
 
     if scroll_offset > 0:
         up_btn = Button(
-            W - scroll_btn_w - MARGIN, HEADER_H + 30,
+            W - scroll_btn_w - MARGIN, HEADER_H + 38,
             scroll_btn_w, scroll_btn_h,
             "UP", "scroll_up", color=MID_GRAY
         )
@@ -2010,7 +2174,7 @@ def render_logs(sys_status: dict, scroll_offset: int = 0,
 
     # Back button
     back = _back_button()
-    draw_button(draw, back, find_font(14))
+    draw_button(draw, back, find_font(16))
     buttons.append(back)
 
     return img, buttons
@@ -2211,9 +2375,9 @@ def render_system(sys_status: dict, scroll_offset: int = 0) -> Tuple["Image.Imag
     draw = ImageDraw.Draw(img)
     _draw_status_bar(draw, sys_status)
 
-    font = find_font(12)
-    font_sm = find_font(10)
-    font_title = find_font(12)
+    font = find_font(13)
+    font_sm = find_font(12)
+    font_title = find_font(14)
 
     y_top = HEADER_H
     y_top = _draw_alert_bar(draw, sys_status, y_top)
@@ -2293,19 +2457,19 @@ def render_system(sys_status: dict, scroll_offset: int = 0) -> Tuple["Image.Imag
     row_heights = []
     for row in all_rows:
         if row[0] == "section":
-            row_heights.append(20)
+            row_heights.append(22)
         elif row[0] == "status":
-            row_heights.append(18)
+            row_heights.append(20)
         elif row[0] == "alert":
-            row_heights.append(18)
+            row_heights.append(20)
         elif row[0] == "gauge":
-            row_heights.append(28)  # label + bar
+            row_heights.append(30)  # label + bar
         elif row[0] == "divider":
-            row_heights.append(12)
+            row_heights.append(10)
         elif row[0] == "info":
-            row_heights.append(16)
-        else:
             row_heights.append(18)
+        else:
+            row_heights.append(20)
 
     content_h = H - y_top - BACK_BTN_H - 15
     total_content_h = sum(row_heights)
@@ -2381,10 +2545,10 @@ def render_system(sys_status: dict, scroll_offset: int = 0) -> Tuple["Image.Imag
 
     buttons = []
 
-    # Scroll buttons (same pattern as logs page)
+    # Scroll buttons — big for glove use
     if needs_scroll:
-        scroll_btn_w = 50
-        scroll_btn_h = 35
+        scroll_btn_w = 60
+        scroll_btn_h = 44
 
         if scroll_offset > 0:
             up_btn = Button(
@@ -2406,45 +2570,44 @@ def render_system(sys_status: dict, scroll_offset: int = 0) -> Tuple["Image.Imag
 
     # Back button
     back = _back_button()
-    draw_button(draw, back, find_font(14))
+    draw_button(draw, back, find_font(16))
     buttons.append(back)
 
     return img, buttons
 
 
 def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image", List[Button]]:
-    """CHAT — full-screen chat with double-tap-to-talk.
+    """DIAGNOSE — AI diagnosis with double-tap-to-talk and TRY AGAIN button.
 
-    Double-tap anywhere to start recording, double-tap again to stop and send.
-    Swipe/scroll with UP/DN only when history overflows. No button bar — all
-    screen space goes to the conversation.
+    When user taps DIAGNOSE, proactive_diagnosis() runs automatically.
+    TRY AGAIN re-runs diagnosis (implies first attempt didn't fix it).
+    Double-tap anywhere to ask a voice question.
     """
     img = Image.new("RGB", (W, H), DARK_GRAY)
     draw = ImageDraw.Draw(img)
 
-    font = find_font(10)
-    font_sm = find_font(9)
-    font_hint = find_font(8)
+    font = find_font(12)
+    font_sm = find_font(11)
+    font_hint = find_font(10)
+    font_btn = find_font(14)
 
     buttons = []
     state = voice_chat.state
 
-    # Alert bar first (before chat status line)
+    # Alert bar first (before status line)
     alert_y = _draw_alert_bar(draw, sys_status, 0)
 
-    # Thin status line at top (below alert bar if present)
-    status_h = 18
-    sl_y = alert_y  # status line Y start
+    # Status line at top
+    status_h = 22
+    sl_y = alert_y
     if state == "recording":
         draw.rectangle([0, sl_y, W, sl_y + status_h], fill=DARK_RED)
         draw.text((MARGIN, sl_y + 3), "RECORDING  -- double-tap to send", fill=RED, font=font_sm)
-        # Show a pulsing dot
         dot_color = RED if int(time.time() * 2) % 2 == 0 else DARK_RED
-        draw.ellipse([W - 20, sl_y + 5, W - 12, sl_y + 13], fill=dot_color)
+        draw.ellipse([W - 22, sl_y + 5, W - 12, sl_y + 15], fill=dot_color)
     elif state in ("transcribing", "thinking", "loading"):
         draw.rectangle([0, sl_y, W, sl_y + status_h], fill=DARK_BLUE)
         draw.text((MARGIN, sl_y + 3), voice_chat.state_message, fill=CYAN, font=font_sm)
-        # Spinner dots
         dots = "." * (int(time.time() * 3) % 4)
         draw.text((W - 30, sl_y + 3), dots, fill=CYAN, font=font_sm)
     elif state == "error":
@@ -2452,28 +2615,40 @@ def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image
         draw.text((MARGIN, sl_y + 3), voice_chat.state_message, fill=RED, font=font_sm)
     else:
         draw.rectangle([0, sl_y, W, sl_y + status_h], fill=(15, 15, 20))
-        # Show hint + back/clear as text links
-        draw.text((MARGIN, sl_y + 3), "CHAT", fill=BLUE, font=font_sm)
-        hint = "double-tap to talk"
+        draw.text((MARGIN, sl_y + 3), "DIAGNOSE", fill=PURPLE, font=font_sm)
+        hint = "double-tap to ask a question"
         hw = draw.textlength(hint, font=font_hint)
-        draw.text(((W - hw) // 2, sl_y + 4), hint, fill=MID_GRAY, font=font_hint)
-        # Back and Clear as small text buttons (top corners)
+        draw.text(((W - hw) // 2, sl_y + 5), hint, fill=MID_GRAY, font=font_hint)
+        # Back and Clear buttons in top bar
         draw.text((W - 60, sl_y + 3), "BACK", fill=LIGHT_GRAY, font=font_sm)
-        back_btn = Button(W - 65, sl_y, 55, status_h, "", "nav_home")
+        back_btn = Button(W - 65, sl_y, 60, status_h, "", "nav_home")
         buttons.append(back_btn)
-        draw.text((W - 100, sl_y + 3), "CLR", fill=MID_GRAY, font=font_sm)
-        clr_btn = Button(W - 105, sl_y, 40, status_h, "", "chat_clear")
+        draw.text((W - 105, sl_y + 3), "CLR", fill=MID_GRAY, font=font_sm)
+        clr_btn = Button(W - 112, sl_y, 45, status_h, "", "chat_clear")
         buttons.append(clr_btn)
 
-    # Chat area — full screen below status line
+    # Bottom button area — TRY AGAIN button (always visible when idle + has messages)
+    btn_area_h = 0
+    if voice_chat.messages and state == "idle":
+        btn_area_h = 50
+        retry_btn = Button(
+            MARGIN, H - btn_area_h,
+            W - MARGIN * 2, 44,
+            "TRY AGAIN", "chat_retry",
+            color=DARK_ORANGE, text_color=WHITE
+        )
+        buttons.append(retry_btn)
+        draw_button(draw, retry_btn, font_btn)
+
+    # Chat area
     chat_top = sl_y + status_h + 2
-    chat_bottom = H - 2
+    chat_bottom = H - btn_area_h - 2
     chat_h = chat_bottom - chat_top
 
     # Render chat messages
     messages = voice_chat.messages
-    line_h = 14
-    max_chars = 55  # more chars now with full width
+    line_h = 16
+    max_chars = 48
 
     # Word-wrap messages into display lines
     display_lines = []
@@ -2511,28 +2686,33 @@ def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image
             draw.text((MARGIN, y), text, fill=color, font=font)
         y += line_h
 
-    # Empty state
+    # Empty state — prompt to diagnose
     if not messages and state == "idle":
-        empty_msgs = [
-            "Double-tap anywhere to start talking.",
-            "I can see PLC status, plates, speed,",
-            "battery, network — ask me anything.",
+        y = chat_top + 30
+        title = "AI DIAGNOSIS"
+        tw = draw.textlength(title, font=find_font(18))
+        draw.text(((W - tw) // 2, y), title, fill=PURPLE, font=find_font(18))
+        y += 35
+        hints = [
+            "Analyzing system status...",
+            "Diagnosis runs automatically when you",
+            "open this page. Double-tap to ask a",
+            "question, or wait for the report.",
         ]
-        y = chat_top + 40
-        for line in empty_msgs:
+        for line in hints:
             lw = draw.textlength(line, font=font)
             draw.text(((W - lw) // 2, y), line, fill=MID_GRAY, font=font)
-            y += 20
+            y += 22
 
-    # Scroll indicators (small, unobtrusive)
+    # Scroll indicators
     if start > 0:
         draw.text((W - 20, chat_top + 2), "^", fill=LIGHT_GRAY, font=font)
-        up_btn = Button(W - 30, chat_top, 30, 25, "", "chat_scroll_up")
+        up_btn = Button(W - 35, chat_top, 35, 30, "", "chat_scroll_up")
         buttons.append(up_btn)
 
     if end < total_lines:
-        draw.text((W - 20, chat_bottom - 14), "v", fill=LIGHT_GRAY, font=font)
-        dn_btn = Button(W - 30, chat_bottom - 20, 30, 25, "", "chat_scroll_down")
+        draw.text((W - 20, chat_bottom - 16), "v", fill=LIGHT_GRAY, font=font)
+        dn_btn = Button(W - 35, chat_bottom - 22, 35, 30, "", "chat_scroll_down")
         buttons.append(dn_btn)
 
     return img, buttons
@@ -2543,8 +2723,8 @@ def render_confirm_dialog(base_img: "Image.Image", action: str) -> Tuple["Image.
     img = base_img.copy()
     draw = ImageDraw.Draw(img)
 
-    font = find_font(14)
-    font_sm = find_font(11)
+    font = find_font(16)
+    font_sm = find_font(13)
 
     # Darken background
     overlay = Image.new("RGBA", (W, H), (0, 0, 0, 160))
@@ -2925,6 +3105,9 @@ def main():
                             voice_chat.scroll_offset += 5
                         elif action == "chat_scroll_down":
                             voice_chat.scroll_offset = max(0, voice_chat.scroll_offset - 5)
+                        elif action == "chat_retry":
+                            # TRY AGAIN — re-run diagnosis (implies first didn't fix it)
+                            voice_chat.proactive_diagnosis(retry=True)
                         elif action == "chat_clear":
                             voice_chat.clear_history()
 
@@ -2934,7 +3117,7 @@ def main():
 
             if needs_redraw and fb:
                 img, _ = _render_current_page(
-                    current_page, sys_status, scroll_offset, voice_chat)
+                    current_page, sys_status, scroll_offset, voice_chat, log_filter)
 
                 if pending_dialog:
                     img, _ = render_confirm_dialog(img, pending_dialog)
