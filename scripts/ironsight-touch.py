@@ -1704,81 +1704,94 @@ class VoiceChat:
 
     def _run_diagnosis(self, retry: bool, sys_status: dict,
                        active: list, msg_severity: str):
-        """Background thread: call Claude for AI diagnosis.
+        """Background thread: run the diagnostic agent.
 
-        The local diagnosis is already displayed. This adds (or replaces
-        with) the AI-powered analysis when it arrives.
+        The agent has tools to independently investigate the system —
+        reading PLC registers, checking logs, analyzing trends, etc.
+        It decides what to look at based on what it finds.
+
+        The local diagnosis is already displayed. This replaces it with
+        the agent's findings when done.
         """
-        context = self._build_diagnosis_context(sys_status)
+        # Build args for the agent subprocess
+        agent_script = Path(__file__).resolve().parent / "diagnose_agent.py"
+        cmd = [sys.executable, str(agent_script)]
 
         if retry:
-            # Include the previous diagnosis so Claude can suggest something different
+            cmd.append("--retry")
+            # Find the previous diagnosis to pass along
             prev_text = ""
-            for msg in reversed(self.messages[:-1]):  # skip the local msg we just added
+            for msg in reversed(self.messages[:-1]):
                 if msg.role == "assistant":
                     prev_text = msg.text
                     break
-            prompt = (
-                "RE-CHECKING: The operator tried your previous fix and it didn't work. "
-                f"Previous diagnosis was: \"{prev_text}\"\n"
-                "Look at the current system data and suggest something DIFFERENT.\n\n"
-                f"{context}\n\n"
-                "Format: Start with the problem. Then give 1-2 PRACTICAL things to try "
-                "at the truck. Then on a new line write REASON: and a 1-sentence explanation "
-                "of what data points led to this conclusion.\n"
-                "3-5 sentences total. Plain text, no markdown, no bullet points. "
-                "Advice for a railroad worker, not an engineer."
-            )
-        else:
-            prompt = (
-                "Diagnose this TPS (Tie Plate System) truck right now.\n\n"
-                f"{context}\n\n"
-                "Format: Start with ALL CLEAR or the problem name. Then give status summary "
-                "or 1-2 PRACTICAL things to check/fix at the truck. Then on a new line write "
-                "REASON: and a 1-sentence explanation of what data drove your conclusion.\n"
-                "3-5 sentences total. Plain text, no markdown, no bullet points. "
-                "Advice for a railroad worker, not an engineer."
-            )
+            if prev_text:
+                cmd.extend(["--prev-diagnosis", prev_text])
 
-        # Call Claude (Haiku for speed — 3-5x faster than Sonnet, good enough
-        # for short structured diagnostic text on a tiny screen)
-        claude_env = {**os.environ, "HOME": "/home/andrew"}
+        progress_file = Path("/tmp/ironsight-diagnose-progress.txt")
+
         try:
-            result = subprocess.run(
-                ["claude", "-p", "--model", "haiku"],
-                input=prompt,
-                capture_output=True, text=True, timeout=30,
-                env=claude_env,
+            # Start agent as subprocess
+            proc = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                text=True, env={**os.environ, "HOME": "/home/andrew"},
             )
-            if result.returncode == 0 and result.stdout.strip():
-                ai_text = result.stdout.strip()
 
-                # Parse out reasoning if Claude included it
-                reasoning = ""
-                if "REASON:" in ai_text:
-                    parts = ai_text.split("REASON:", 1)
-                    ai_text = parts[0].strip()
-                    reasoning = parts[1].strip()
+            # Poll for progress updates while agent runs
+            while proc.poll() is None:
+                try:
+                    if progress_file.exists():
+                        progress = progress_file.read_text().strip()
+                        if progress:
+                            self.state_message = progress
+                except Exception:
+                    pass
+                time.sleep(0.5)
 
-                # Replace the local diagnosis with the AI one
+            stdout = proc.stdout.read()
+            stderr = proc.stderr.read()
+
+            if proc.returncode == 0 and stdout.strip():
+                try:
+                    result = json.loads(stdout.strip())
+                    ai_text = result.get("diagnosis", "")
+                    reasoning = result.get("reasoning", "")
+                    tool_calls = result.get("tool_calls", 0)
+
+                    if ai_text and self.messages:
+                        self.messages[-1] = ChatMessage(
+                            role="assistant",
+                            text=ai_text,
+                            timestamp=time.strftime("%H:%M"),
+                            severity=msg_severity,
+                        )
+                        self.messages[-1]._reasoning = reasoning
+                        if tool_calls > 0:
+                            self.messages[-1]._tool_calls = tool_calls
+                except (json.JSONDecodeError, KeyError):
+                    if self.messages:
+                        self.messages[-1].text += "\n(AI response error)"
+            else:
                 if self.messages:
-                    self.messages[-1] = ChatMessage(
-                        role="assistant",
-                        text=ai_text,
-                        timestamp=time.strftime("%H:%M"),
-                        severity=msg_severity,
-                    )
-                    # Store reasoning for the explain feature (no second API call needed)
-                    self.messages[-1]._reasoning = reasoning
-        except subprocess.TimeoutExpired:
-            # Local diagnosis already showing — just add a note
-            if self.messages:
-                self.messages[-1].text += "\n(AI timed out -- check internet)"
+                    err_hint = ""
+                    if stderr and "anthropic" in stderr.lower():
+                        err_hint = " -- check API key"
+                    elif stderr and "timeout" in stderr.lower():
+                        err_hint = " -- check internet"
+                    self.messages[-1].text += f"\n(AI agent failed{err_hint})"
+
         except FileNotFoundError:
             if self.messages:
-                self.messages[-1].text += "\n(Claude CLI not found)"
-        except Exception:
-            pass  # Local diagnosis is already displayed, no action needed
+                self.messages[-1].text += "\n(Agent script not found)"
+        except Exception as e:
+            if self.messages:
+                self.messages[-1].text += f"\n(Agent error: {str(e)[:50]})"
+        finally:
+            # Clean up
+            try:
+                progress_file.unlink(missing_ok=True)
+            except Exception:
+                pass
 
         self.state = "idle"
         self.state_message = ""
@@ -2978,8 +2991,12 @@ def render_expanded_message(msg: "ChatMessage", explanation: str = "") -> Tuple[
     if line and y < max_y:
         draw.text((MARGIN, y), line, fill=text_color, font=font_body)
 
-    # Timestamp
-    draw.text((MARGIN, H - 22), msg.timestamp, fill=MID_GRAY, font=find_font(11))
+    # Timestamp + investigation depth indicator
+    ts_text = msg.timestamp
+    tool_calls = getattr(msg, '_tool_calls', 0)
+    if tool_calls > 0:
+        ts_text += f"  ({tool_calls} checks performed)"
+    draw.text((MARGIN, H - 22), ts_text, fill=MID_GRAY, font=find_font(11))
 
     # "Explain" button at the bottom (only when showing the original message)
     if not explanation:
