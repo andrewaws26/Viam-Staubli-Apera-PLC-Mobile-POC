@@ -1396,9 +1396,9 @@ class VoiceChat:
 
             claude_env = {**os.environ, "HOME": "/home/andrew"}
             result = subprocess.run(
-                ["claude", "-p", "--model", "sonnet"],
+                ["claude", "-p", "--model", "haiku"],
                 input=full_prompt,
-                capture_output=True, text=True, timeout=60,
+                capture_output=True, text=True, timeout=30,
                 env=claude_env,
             )
 
@@ -1657,11 +1657,11 @@ class VoiceChat:
         """Generate an AI diagnosis of current system/truck issues.
 
         Called when the user navigates to the DIAGNOSE page, or taps TRY AGAIN.
-        Sends the full system context to Claude for a real AI-generated diagnosis.
-        Runs in a background thread so the UI stays responsive immediately.
+        Shows an instant local diagnosis first, then upgrades with AI analysis.
+        Runs Claude in a background thread so the UI stays responsive.
 
         Args:
-            retry: If True, bypasses cooldown and notes that previous fix didn't work.
+            retry: If True, notes that previous fix didn't work.
         """
         # Don't start a new diagnosis if one is already running
         if self.state in ("loading", "thinking"):
@@ -1671,73 +1671,7 @@ class VoiceChat:
         diagnostics = [d for d in sys_status.get("diagnostics", []) if isinstance(d, dict)]
         active = [d for d in diagnostics if d.get("severity") in ("critical", "warning")]
 
-        if not retry:
-            # Skip if we already have a recent diagnosis (within 10 min)
-            if self.messages:
-                last = self.messages[-1]
-                try:
-                    last_time = time.strptime(last.timestamp, "%H:%M")
-                    now_time = time.strptime(time.strftime("%H:%M"), "%H:%M")
-                    diff_min = (now_time.tm_hour * 60 + now_time.tm_min) - \
-                               (last_time.tm_hour * 60 + last_time.tm_min)
-                    if 0 <= diff_min < 10:
-                        return
-                except Exception:
-                    pass
-
-        # Show thinking state immediately — the render loop will paint this
-        # on the next frame (within 50ms) while Claude works in the background
-        self.state = "thinking"
-        self.state_message = "Analyzing system..."
-
-        # Run the actual Claude call in a background thread
-        threading.Thread(
-            target=self._run_diagnosis,
-            args=(retry, sys_status, diagnostics, active),
-            daemon=True
-        ).start()
-
-    def _run_diagnosis(self, retry: bool, sys_status: dict,
-                       diagnostics: list, active: list):
-        """Background thread: build prompt, call Claude, store result.
-
-        Updates self.state/messages when done — the render loop picks up
-        the changes on its next frame.
-        """
-        # Build the diagnosis prompt
-        context = self._build_system_context()
-        if retry:
-            prompt = (
-                "RE-CHECKING: The operator tried your previous fix and it didn't work. "
-                "Look at the current system data again and suggest something DIFFERENT. "
-                "What else could be wrong?\n\n"
-                f"{context}\n\n"
-                "Give a short diagnosis (3-5 sentences max) for a tiny 3.5-inch screen. "
-                "Plain text only, no markdown. Start with the problem or ALL CLEAR. "
-                "Give PRACTICAL advice the operator can do right now at the truck — "
-                "check cables, power cycle, look at indicator lights, listen for sounds. "
-                "Do NOT suggest checking PLC registers, running SSH commands, or "
-                "software debugging — this is a railroad worker in the field."
-            )
-        else:
-            prompt = (
-                "Diagnose this TPS (Tie Plate System) truck right now. "
-                "You have the full system data below — PLC registers, signal metrics, "
-                "control bits, network, encoder, eject system.\n\n"
-                f"{context}\n\n"
-                "Give a short diagnosis (3-5 sentences max) for a tiny 3.5-inch screen. "
-                "Plain text only, no markdown. "
-                "If everything is fine, say ALL CLEAR and summarize: plates laid, speed, "
-                "connection status. "
-                "If there are problems, name the most critical one and give a PRACTICAL fix "
-                "the operator can do right now at the truck — things like: check the Ethernet "
-                "cable to the PLC, power cycle the PLC, check if the machine is running, look "
-                "at indicator lights, verify plates are loaded. "
-                "Do NOT tell them to check PLC registers, run SSH commands, or do software "
-                "debugging — they are railroad workers in the field, not engineers."
-            )
-
-        # Determine severity for display coloring (before Claude call, based on rules)
+        # Determine severity for display coloring (based on diagnostic rules)
         has_critical = any(d.get("severity") == "critical" for d in active)
         has_warning = any(d.get("severity") == "warning" for d in active)
         if has_critical:
@@ -1747,38 +1681,168 @@ class VoiceChat:
         else:
             msg_severity = "ok"
 
-        # Call Claude for the actual diagnosis
-        # Run as andrew's HOME so claude CLI finds its credentials
-        # (this script runs as root for framebuffer access)
-        claude_env = {**os.environ, "HOME": "/home/andrew"}
-        try:
-            result = subprocess.run(
-                ["claude", "-p", "--model", "sonnet"],
-                input=prompt,
-                capture_output=True, text=True, timeout=60,
-                env=claude_env,
-            )
-            if result.returncode == 0 and result.stdout.strip():
-                diagnosis_text = result.stdout.strip()
-            else:
-                # Fall back to local diagnosis
-                diagnosis_text = self._local_diagnosis(sys_status, active, retry)
-        except (subprocess.TimeoutExpired, Exception):
-            # Fall back to local diagnosis if Claude is unavailable
-            diagnosis_text = self._local_diagnosis(sys_status, active, retry)
-
-        self.state = "idle"
-        self.state_message = ""
-
-        msg = ChatMessage(
+        # Show instant local diagnosis immediately (< 1 second)
+        local_text = self._local_diagnosis(sys_status, active, retry)
+        local_msg = ChatMessage(
             role="assistant",
-            text=diagnosis_text,
+            text=local_text,
             timestamp=time.strftime("%H:%M"),
             severity=msg_severity,
         )
-        self.messages.append(msg)
+        self.messages.append(local_msg)
+        self.scroll_offset = 0
+
+        # Now launch AI analysis in background
+        self.state = "thinking"
+        self.state_message = "Getting AI analysis..."
+
+        threading.Thread(
+            target=self._run_diagnosis,
+            args=(retry, sys_status, active, msg_severity),
+            daemon=True
+        ).start()
+
+    def _run_diagnosis(self, retry: bool, sys_status: dict,
+                       active: list, msg_severity: str):
+        """Background thread: call Claude for AI diagnosis.
+
+        The local diagnosis is already displayed. This adds (or replaces
+        with) the AI-powered analysis when it arrives.
+        """
+        context = self._build_diagnosis_context(sys_status)
+
+        if retry:
+            # Include the previous diagnosis so Claude can suggest something different
+            prev_text = ""
+            for msg in reversed(self.messages[:-1]):  # skip the local msg we just added
+                if msg.role == "assistant":
+                    prev_text = msg.text
+                    break
+            prompt = (
+                "RE-CHECKING: The operator tried your previous fix and it didn't work. "
+                f"Previous diagnosis was: \"{prev_text}\"\n"
+                "Look at the current system data and suggest something DIFFERENT.\n\n"
+                f"{context}\n\n"
+                "Format: Start with the problem. Then give 1-2 PRACTICAL things to try "
+                "at the truck. Then on a new line write REASON: and a 1-sentence explanation "
+                "of what data points led to this conclusion.\n"
+                "3-5 sentences total. Plain text, no markdown, no bullet points. "
+                "Advice for a railroad worker, not an engineer."
+            )
+        else:
+            prompt = (
+                "Diagnose this TPS (Tie Plate System) truck right now.\n\n"
+                f"{context}\n\n"
+                "Format: Start with ALL CLEAR or the problem name. Then give status summary "
+                "or 1-2 PRACTICAL things to check/fix at the truck. Then on a new line write "
+                "REASON: and a 1-sentence explanation of what data drove your conclusion.\n"
+                "3-5 sentences total. Plain text, no markdown, no bullet points. "
+                "Advice for a railroad worker, not an engineer."
+            )
+
+        # Call Claude (Haiku for speed — 3-5x faster than Sonnet, good enough
+        # for short structured diagnostic text on a tiny screen)
+        claude_env = {**os.environ, "HOME": "/home/andrew"}
+        try:
+            result = subprocess.run(
+                ["claude", "-p", "--model", "haiku"],
+                input=prompt,
+                capture_output=True, text=True, timeout=30,
+                env=claude_env,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                ai_text = result.stdout.strip()
+
+                # Parse out reasoning if Claude included it
+                reasoning = ""
+                if "REASON:" in ai_text:
+                    parts = ai_text.split("REASON:", 1)
+                    ai_text = parts[0].strip()
+                    reasoning = parts[1].strip()
+
+                # Replace the local diagnosis with the AI one
+                if self.messages:
+                    self.messages[-1] = ChatMessage(
+                        role="assistant",
+                        text=ai_text,
+                        timestamp=time.strftime("%H:%M"),
+                        severity=msg_severity,
+                    )
+                    # Store reasoning for the explain feature (no second API call needed)
+                    self.messages[-1]._reasoning = reasoning
+        except subprocess.TimeoutExpired:
+            # Local diagnosis already showing — just add a note
+            if self.messages:
+                self.messages[-1].text += "\n(AI timed out -- check internet)"
+        except FileNotFoundError:
+            if self.messages:
+                self.messages[-1].text += "\n(Claude CLI not found)"
+        except Exception:
+            pass  # Local diagnosis is already displayed, no action needed
+
+        self.state = "idle"
+        self.state_message = ""
         self.scroll_offset = 0
         self._save_history()
+
+    def _build_diagnosis_context(self, sys_status: dict) -> str:
+        """Build a focused context for diagnosis prompts.
+
+        Lighter than _build_system_context — omits raw register dumps and
+        focuses on derived status that's useful for diagnosis. Faster to
+        send, fewer tokens, better signal-to-noise for the AI.
+        """
+        bat = sys_status.get("battery", {})
+        diagnostics = [d for d in sys_status.get("diagnostics", []) if isinstance(d, dict)]
+
+        ctx = "TPS TRUCK STATUS:\n"
+
+        # Connection
+        ctx += f"PLC: {'CONNECTED' if sys_status['connected'] else 'DISCONNECTED'}\n"
+        ctx += f"eth0: {'linked' if sys_status['eth0_carrier'] else 'NO CARRIER'}\n"
+        ctx += f"Internet: {'connected' if sys_status['internet'] else 'OFFLINE'}"
+        ctx += f" (WiFi: {sys_status['wifi_ssid'] or 'none'})\n"
+        ctx += f"viam-server: {'RUNNING' if sys_status['viam_server'] else 'STOPPED'}\n"
+
+        # Production
+        ctx += f"\nPlates: {sys_status['plate_count']} | "
+        ctx += f"Speed: {sys_status['speed_ftpm']:.1f} ft/min | "
+        ctx += f"Distance: {sys_status['travel_ft']:.1f} ft\n"
+        ctx += f"Direction: {sys_status.get('encoder_direction', 'unknown')}\n"
+        if sys_status.get('last_spacing_in', 0) > 0:
+            ctx += f"Spacing: last {sys_status['last_spacing_in']:.1f}\" avg {sys_status['avg_spacing_in']:.1f}\"\n"
+        ctx += f"TPS Power: {'ON' if sys_status.get('tps_power_loop') else 'OFF'}\n"
+
+        # System health
+        cpu_f = sys_status['cpu_temp'] * 9 / 5 + 32
+        ctx += f"\nCPU: {cpu_f:.0f}F | Disk: {sys_status['disk_pct']}%"
+        if bat.get("available"):
+            ctx += f" | Battery: {bat['percent']:.0f}% {'charging' if bat.get('charging') else 'discharging'}"
+        ctx += "\n"
+
+        # Active diagnostics (the most important part)
+        if diagnostics:
+            ctx += "\nACTIVE DIAGNOSTICS:\n"
+            for d in diagnostics[:8]:
+                sev = d.get("severity", "info")
+                title = d.get("title", "unknown")
+                evidence = d.get("evidence", "")
+                action = d.get("action", "")
+                ctx += f"  [{sev.upper()}] {title}"
+                if evidence:
+                    ctx += f" | {evidence}"
+                ctx += "\n"
+                if action:
+                    ctx += f"    Suggested: {action}\n"
+        else:
+            ctx += "\nDIAGNOSTICS: All clear.\n"
+
+        # Data age
+        data_age = sys_status.get("data_age_seconds", float("inf"))
+        if data_age < float("inf"):
+            ctx += f"\nData age: {data_age:.0f}s\n"
+
+        return ctx
 
     def clear_history(self):
         """Clear all chat messages and saved history."""
@@ -1790,24 +1854,22 @@ class VoiceChat:
             pass
 
     def _local_diagnosis(self, sys_status: dict, active: list, retry: bool) -> str:
-        """Fallback local diagnosis when Claude is unavailable."""
+        """Instant local diagnosis from diagnostic rules engine (no API call)."""
         lines = []
         if retry:
-            lines.append("RE-CHECKING (previous fix may not have worked)...")
+            lines.append("RE-CHECKING...")
             lines.append("")
 
         if not active:
-            lines.append("All systems normal. No issues detected.")
-            lines.append("")
             speed = sys_status.get("speed_ftpm", 0.0)
             plates = sys_status.get("plate_count", 0)
             connected = sys_status.get("connected", False)
             if connected:
-                lines.append(f"PLC connected | {plates} plates | {speed:.1f} ft/min")
+                lines.append(f"ALL CLEAR. PLC connected, {plates} plates, {speed:.1f} ft/min.")
             else:
-                lines.append("PLC not connected -- check Ethernet cable or PLC power")
+                lines.append("PLC not connected. Check Ethernet cable to PLC or verify PLC has power.")
         else:
-            for d in active[:5]:
+            for d in active[:3]:
                 sev = d.get("severity", "")
                 title = d.get("title", "Issue detected")
                 action_text = d.get("action", "")
@@ -1817,19 +1879,10 @@ class VoiceChat:
                     steps = [s.strip() for s in action_text.split("\n") if s.strip()]
                     for step in steps[:2]:
                         lines.append(f"  -> {step}")
-                lines.append("")
-            if len(active) > 5:
-                lines.append(f"  (+{len(active) - 5} more issues)")
+            if len(active) > 3:
+                lines.append(f"(+{len(active) - 3} more)")
 
-        lines.append("")
-        lines.append("(AI unavailable -- showing rule-based diagnosis)")
         return "\n".join(lines)
-
-    def clear_history(self):
-        """Clear chat history."""
-        self.messages = []
-        self.scroll_offset = 0
-        self._save_history()
 
 
 # ─────────────────────────────────────────────────────────────
@@ -2943,18 +2996,16 @@ def render_expanded_message(msg: "ChatMessage", explanation: str = "") -> Tuple[
 
 
 def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image", List[Button]]:
-    """DIAGNOSE — AI diagnosis with double-tap-to-talk and TRY AGAIN button.
+    """DIAGNOSE page — instant local check + AI analysis.
 
-    When user taps DIAGNOSE, proactive_diagnosis() runs automatically.
-    TRY AGAIN re-runs diagnosis (implies first attempt didn't fix it).
-    Double-tap anywhere to ask a voice question.
+    Shows local diagnosis immediately, then upgrades with AI when ready.
+    Bottom bar: BACK | TRY AGAIN | ASK (voice). Tap any AI message to enlarge.
     """
     img = Image.new("RGB", (W, H), DARK_GRAY)
     draw = ImageDraw.Draw(img)
 
-    font = find_font(12)
-    font_sm = find_font(11)
-    font_hint = find_font(10)
+    font = find_font(14)
+    font_sm = find_font(12)
     font_btn = find_font(14)
 
     buttons = []
@@ -2963,68 +3014,81 @@ def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image
     # Alert bar first (before status line)
     alert_y = _draw_alert_bar(draw, sys_status, 0)
 
-    # Status line at top
-    status_h = 22
+    # Status line at top — slim, just shows state
+    status_h = 24
     sl_y = alert_y
     if state == "recording":
         draw.rectangle([0, sl_y, W, sl_y + status_h], fill=DARK_RED)
-        draw.text((MARGIN, sl_y + 3), "RECORDING  -- double-tap to send", fill=RED, font=font_sm)
+        draw.text((MARGIN, sl_y + 4), "RECORDING -- tap STOP to send", fill=RED, font=font_sm)
         dot_color = RED if int(time.time() * 2) % 2 == 0 else DARK_RED
-        draw.ellipse([W - 22, sl_y + 5, W - 12, sl_y + 15], fill=dot_color)
+        draw.ellipse([W - 22, sl_y + 6, W - 12, sl_y + 16], fill=dot_color)
     elif state in ("transcribing", "thinking", "loading"):
         draw.rectangle([0, sl_y, W, sl_y + status_h], fill=DARK_BLUE)
-        draw.text((MARGIN, sl_y + 3), voice_chat.state_message, fill=CYAN, font=font_sm)
+        draw.text((MARGIN, sl_y + 4), voice_chat.state_message, fill=CYAN, font=font_sm)
         dots = "." * (int(time.time() * 3) % 4)
-        draw.text((W - 30, sl_y + 3), dots, fill=CYAN, font=font_sm)
+        draw.text((W - 30, sl_y + 4), dots, fill=CYAN, font=font_sm)
     elif state == "error":
         draw.rectangle([0, sl_y, W, sl_y + status_h], fill=DARK_RED)
-        draw.text((MARGIN, sl_y + 3), voice_chat.state_message, fill=RED, font=font_sm)
-        # Dismiss button on error bar
-        draw.text((W - 25, sl_y + 3), "X", fill=WHITE, font=font_sm)
-        dismiss_btn = Button(W - 30, sl_y, 30, status_h, "", "chat_dismiss_error")
+        draw.text((MARGIN, sl_y + 4), voice_chat.state_message, fill=RED, font=font_sm)
+        draw.text((W - 25, sl_y + 4), "X", fill=WHITE, font=font_sm)
+        dismiss_btn = Button(W - 40, sl_y, 40, status_h, "", "chat_dismiss_error")
         buttons.append(dismiss_btn)
     else:
         draw.rectangle([0, sl_y, W, sl_y + status_h], fill=(15, 15, 20))
-        draw.text((MARGIN, sl_y + 3), "DIAGNOSE", fill=PURPLE, font=font_sm)
-        hint = "double-tap to ask a question"
-        hw = draw.textlength(hint, font=font_hint)
-        draw.text(((W - hw) // 2, sl_y + 5), hint, fill=MID_GRAY, font=font_hint)
-        # Back and Clear buttons in top bar
-        draw.text((W - 60, sl_y + 3), "BACK", fill=LIGHT_GRAY, font=font_sm)
-        back_btn = Button(W - 65, sl_y, 60, status_h, "", "nav_home")
-        buttons.append(back_btn)
-        draw.text((W - 105, sl_y + 3), "CLR", fill=MID_GRAY, font=font_sm)
-        clr_btn = Button(W - 112, sl_y, 45, status_h, "", "chat_clear")
-        buttons.append(clr_btn)
+        draw.text((MARGIN, sl_y + 4), "DIAGNOSE", fill=PURPLE, font=font_sm)
+        # Tap to enlarge hint
+        hint = "tap message to enlarge"
+        hw = draw.textlength(hint, font=find_font(10))
+        draw.text((W - hw - MARGIN, sl_y + 6), hint, fill=MID_GRAY, font=find_font(10))
 
-    # Bottom button area — TRY AGAIN button (always visible when idle + has messages)
-    btn_area_h = 0
-    if voice_chat.messages and state == "idle":
-        btn_area_h = 50
-        retry_btn = Button(
-            MARGIN, H - btn_area_h,
-            W - MARGIN * 2, 44,
-            "TRY AGAIN", "chat_retry",
-            color=DARK_ORANGE, text_color=WHITE
-        )
+    # Bottom button bar — always visible, glove-friendly (50px tall)
+    btn_bar_h = 54
+    btn_y = H - btn_bar_h
+    draw.rectangle([0, btn_y, W, H], fill=(20, 20, 25))
+
+    if state == "recording":
+        # While recording: full-width STOP button
+        stop_btn = Button(MARGIN, btn_y + 4, W - MARGIN * 2, 46, "STOP", "chat_stop_recording",
+                          color=DARK_RED, text_color=WHITE)
+        buttons.append(stop_btn)
+        draw_button(draw, stop_btn, font_btn)
+    else:
+        # Three buttons: BACK | TRY AGAIN | ASK
+        btn_w = (W - MARGIN * 4) // 3
+        gap = MARGIN
+
+        back_btn = Button(gap, btn_y + 4, btn_w, 46, "BACK", "nav_home",
+                          color=MID_GRAY, text_color=WHITE)
+        buttons.append(back_btn)
+        draw_button(draw, back_btn, font_btn)
+
+        retry_btn = Button(gap + btn_w + gap, btn_y + 4, btn_w, 46,
+                           "TRY AGAIN", "chat_retry",
+                           color=DARK_ORANGE, text_color=WHITE)
         buttons.append(retry_btn)
         draw_button(draw, retry_btn, font_btn)
 
+        ask_btn = Button(gap + (btn_w + gap) * 2, btn_y + 4, btn_w, 46,
+                         "ASK", "chat_start_voice",
+                         color=DARK_PURPLE, text_color=WHITE)
+        buttons.append(ask_btn)
+        draw_button(draw, ask_btn, font_btn)
+
     # Chat area
     chat_top = sl_y + status_h + 2
-    chat_bottom = H - btn_area_h - 2
+    chat_bottom = btn_y - 2
     chat_h = chat_bottom - chat_top
 
     # Render chat messages
     messages = voice_chat.messages
-    line_h = 16
-    max_chars = 48
+    line_h = 20
+    max_chars = 40
 
     # Word-wrap messages into display lines
     # Each entry: (text, color, msg_index) where msg_index links back to messages[]
     display_lines = []
     for msg_idx, msg in enumerate(messages):
-        prefix = "You: " if msg.role == "user" else "AI: "
+        prefix = "You: " if msg.role == "user" else ""
         if msg.role == "user":
             color = CYAN
         elif msg.severity == "critical":
@@ -3034,7 +3098,7 @@ def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image
         elif msg.severity == "ok":
             color = GREEN
         else:
-            color = GREEN  # default for general AI responses
+            color = GREEN
         full_text = prefix + msg.text
         words = full_text.split()
         line = ""
@@ -3048,7 +3112,7 @@ def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image
                 line = test
         if line:
             display_lines.append((line, color, msg_idx))
-        display_lines.append(("", BLACK, -1))  # spacer between messages
+        display_lines.append(("", BLACK, -1))  # spacer
 
     # Calculate visible window
     visible_lines = chat_h // line_h
@@ -3061,9 +3125,8 @@ def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image
 
     # Draw messages and track Y spans for AI message tap targets
     y = chat_top
-    # Track start Y for each AI message so we can make the full area tappable
-    msg_start_y = {}   # msg_idx -> first y
-    msg_end_y = {}     # msg_idx -> last y + line_h
+    msg_start_y = {}
+    msg_end_y = {}
     for text, color, msg_idx in visible:
         if text:
             draw.text((MARGIN, y), text, fill=color, font=font)
@@ -3073,44 +3136,41 @@ def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image
                 msg_end_y[msg_idx] = y + line_h
         y += line_h
 
-    # Add tap targets and magnifying glass icon for each AI message
-    font_icon = find_font(13)
+    # Add tap targets and "+" icon for each AI message
+    font_icon = find_font(14)
     for msg_idx in msg_start_y:
         top_y = msg_start_y[msg_idx]
         bot_y = msg_end_y[msg_idx]
-        tap_h = max(bot_y - top_y, 40)  # minimum 40px tap target
+        tap_h = max(bot_y - top_y, 44)  # minimum 44px tap target
         expand_btn = Button(0, top_y, W, tap_h, str(msg_idx), "chat_expand")
         buttons.append(expand_btn)
-        # Draw magnifying glass hint on first line, right side
-        draw.text((W - 22, top_y), "+", fill=MID_GRAY, font=font_icon)
+        draw.text((W - 24, top_y), "+", fill=MID_GRAY, font=font_icon)
 
-    # Empty state — prompt to diagnose
-    if not messages and state == "idle":
-        y = chat_top + 30
-        title = "AI DIAGNOSIS"
-        tw = draw.textlength(title, font=find_font(18))
-        draw.text(((W - tw) // 2, y), title, fill=PURPLE, font=find_font(18))
-        y += 35
+    # Empty state — waiting for first diagnosis
+    if not messages and state not in ("thinking", "loading"):
+        y = chat_top + 40
+        title = "DIAGNOSE"
+        tw = draw.textlength(title, font=find_font(20))
+        draw.text(((W - tw) // 2, y), title, fill=PURPLE, font=find_font(20))
+        y += 40
         hints = [
-            "Analyzing system status...",
-            "Diagnosis runs automatically when you",
-            "open this page. Double-tap to ask a",
-            "question, or wait for the report.",
+            "Running system check...",
+            "Results appear here automatically.",
         ]
         for line in hints:
             lw = draw.textlength(line, font=font)
             draw.text(((W - lw) // 2, y), line, fill=MID_GRAY, font=font)
-            y += 22
+            y += 26
 
-    # Scroll indicators
+    # Scroll indicators (bigger tap targets)
     if start > 0:
-        draw.text((W - 20, chat_top + 2), "^", fill=LIGHT_GRAY, font=font)
-        up_btn = Button(W - 35, chat_top, 35, 30, "", "chat_scroll_up")
+        draw.text((W - 22, chat_top + 2), "^", fill=LIGHT_GRAY, font=font)
+        up_btn = Button(W - 50, chat_top, 50, 40, "", "chat_scroll_up")
         buttons.append(up_btn)
 
     if end < total_lines:
-        draw.text((W - 20, chat_bottom - 16), "v", fill=LIGHT_GRAY, font=font)
-        dn_btn = Button(W - 35, chat_bottom - 22, 35, 30, "", "chat_scroll_down")
+        draw.text((W - 22, chat_bottom - 20), "v", fill=LIGHT_GRAY, font=font)
+        dn_btn = Button(W - 50, chat_bottom - 30, 50, 40, "", "chat_scroll_down")
         buttons.append(dn_btn)
 
     return img, buttons
@@ -3484,38 +3544,44 @@ def main():
                         exp_hit = find_hit(exp_buttons, tx, ty)
                         _beep()
                         if exp_hit and exp_hit.action == "chat_explain":
-                            # Ask Claude to explain the diagnosis reasoning
-                            expanded_explanation = "Asking Claude to explain..."
-                            needs_redraw = True
-                            # Run in background thread to not block UI
-                            def _explain():
-                                nonlocal expanded_explanation, needs_redraw
-                                try:
-                                    context = voice_chat._build_system_context()
-                                    prompt = (
-                                        f"{context}\n\n"
-                                        f"You previously gave this diagnosis:\n\"{exp_msg.text}\"\n\n"
-                                        "Explain your reasoning in plain language. What data told you "
-                                        "this? What would you tell the operator to look for? "
-                                        "Keep it to 4-6 sentences for a small screen. Plain text only, "
-                                        "no markdown. Explain in terms of what they can see and do at "
-                                        "the truck, not PLC register values."
-                                    )
-                                    claude_env = {**os.environ, "HOME": "/home/andrew"}
-                                    result = subprocess.run(
-                                        ["claude", "-p", "--model", "sonnet"],
-                                        input=prompt,
-                                        capture_output=True, text=True, timeout=60,
-                                        env=claude_env,
-                                    )
-                                    if result.returncode == 0 and result.stdout.strip():
-                                        expanded_explanation = result.stdout.strip()
-                                    else:
-                                        expanded_explanation = "Could not get explanation — try again."
-                                except Exception:
-                                    expanded_explanation = "Error getting explanation."
+                            # Show cached reasoning if available (no API call needed)
+                            cached = getattr(exp_msg, '_reasoning', '')
+                            if cached:
+                                expanded_explanation = cached
                                 needs_redraw = True
-                            threading.Thread(target=_explain, daemon=True).start()
+                            else:
+                                # Fallback: ask Claude (Haiku for speed)
+                                expanded_explanation = "Getting explanation..."
+                                needs_redraw = True
+                                def _explain():
+                                    nonlocal expanded_explanation, needs_redraw
+                                    try:
+                                        sys_status = voice_chat._sys_status_fn()
+                                        context = voice_chat._build_diagnosis_context(sys_status)
+                                        prompt = (
+                                            f"{context}\n\n"
+                                            f"You previously gave this diagnosis:\n\"{exp_msg.text}\"\n\n"
+                                            "Explain in 3-4 sentences: what data led to this conclusion? "
+                                            "What should the operator look for at the truck? "
+                                            "Plain text only, no markdown."
+                                        )
+                                        claude_env = {**os.environ, "HOME": "/home/andrew"}
+                                        result = subprocess.run(
+                                            ["claude", "-p", "--model", "haiku"],
+                                            input=prompt,
+                                            capture_output=True, text=True, timeout=30,
+                                            env=claude_env,
+                                        )
+                                        if result.returncode == 0 and result.stdout.strip():
+                                            expanded_explanation = result.stdout.strip()
+                                            # Cache it for next time
+                                            exp_msg._reasoning = expanded_explanation
+                                        else:
+                                            expanded_explanation = "Could not get explanation."
+                                    except Exception:
+                                        expanded_explanation = "Error getting explanation."
+                                    needs_redraw = True
+                                threading.Thread(target=_explain, daemon=True).start()
                         else:
                             # Any other tap closes the popup
                             expanded_msg_idx = -1
@@ -3574,15 +3640,28 @@ def main():
                             # TRY AGAIN — re-run diagnosis (implies first didn't fix it)
                             voice_chat.proactive_diagnosis(retry=True)
                         elif action == "chat_dismiss_error":
+                            # Persist error as a message so user can see it
+                            if voice_chat.state_message:
+                                err_msg = ChatMessage(
+                                    role="assistant",
+                                    text=f"Error: {voice_chat.state_message}",
+                                    timestamp=time.strftime("%H:%M"),
+                                    severity="critical",
+                                )
+                                voice_chat.messages.append(err_msg)
                             voice_chat.state = "idle"
                             voice_chat.state_message = ""
+                        elif action == "chat_start_voice":
+                            # ASK button — start voice recording
+                            voice_chat.start_recording()
+                        elif action == "chat_stop_recording":
+                            # STOP button — end recording and send
+                            voice_chat.stop_recording()
                         elif action == "chat_expand":
                             # Show expanded message popup
                             expanded_msg_idx = int(hit.label) if hit.label.isdigit() else -1
                         elif action == "chat_close_expand":
                             expanded_msg_idx = -1
-                        elif action == "chat_clear":
-                            voice_chat.clear_history()
 
             # Redraw if needed, or if chat state is active (recording/thinking)
             if current_page == "chat" and voice_chat.state in ("recording", "transcribing", "thinking", "loading"):
