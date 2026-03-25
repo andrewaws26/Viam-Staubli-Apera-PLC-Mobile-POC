@@ -252,7 +252,97 @@ All core components are deployed and working on the bench prototype:
 
 ---
 
-## 6. Privacy Architecture — Surveillance Prevention by Design
+## 6. IronSight AI — Learning Architecture
+
+IronSight is the AI layer that monitors, diagnoses, and learns from the TPS system. It operates at three levels with distinct memory scopes.
+
+### Learning Layers
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  LAYER 1: Persistent Memory (~/.ironsight/memory/)              │
+│  Scope: Per-truck, survives reboots, read on every session      │
+│                                                                 │
+│  learnings.md — Technical discoveries (PLC registers, encoder   │
+│                 math, networking, audio, operator terminology)   │
+│  preferences.md — Code style, system policies, behavior rules   │
+│  andrew.md — User profile and communication style               │
+│  projects.md — Active initiatives and pending items             │
+│                                                                 │
+│  Written by: IronSight watchdog, voice chat "remember" feature, │
+│              manual updates during debugging sessions            │
+│  Read by: Every IronSight session (watchdog, CLI, voice chat)   │
+├─────────────────────────────────────────────────────────────────┤
+│  LAYER 2: Incident History (scripts/incidents/)                 │
+│  Scope: Per-truck, persistent, informs future auto-fixes        │
+│                                                                 │
+│  SUMMARY.md — Cataloged problems with root causes and fixes     │
+│  archive/incident-*.md — Individual incident reports            │
+│                                                                 │
+│  Written by: IronSight watchdog after each auto-fix attempt     │
+│  Read by: Watchdog system prompt (pattern recognition)          │
+│  Example: 450 duplicate PLC-offline alerts taught the system    │
+│           to stop restarting viam-server for physical issues    │
+├─────────────────────────────────────────────────────────────────┤
+│  LAYER 3: Conversation Context (in-memory, session only)        │
+│  Scope: Single chat session, 10-message window                  │
+│                                                                 │
+│  Voice chat maintains conversation history for follow-ups       │
+│  Lost when operator leaves the DIAGNOSE page                    │
+│  Chat exchanges are synced to Viam Cloud for fleet analysis     │
+│  (chat_events field in sensor readings, query with MQL)         │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### How Learning Happens
+
+| Trigger | What gets learned | Where it's stored | Who benefits |
+|---------|-------------------|-------------------|--------------|
+| Watchdog auto-fix | Root cause, what worked, what didn't | incidents/ + SUMMARY.md | Future watchdog runs on this truck |
+| Debugging session (CLI) | PLC register corrections, encoder math, networking quirks | memory/learnings.md | All future sessions on this truck |
+| Operator says "remember this" | Terminology, truck-specific notes | memory/learnings.md | Voice chat AI on this truck |
+| Voice chat exchange | User question + AI response | Viam Cloud (chat_events) | Fleet-wide analysis (read-only) |
+
+### Operator Memory Interface
+
+Operators can teach the system by saying phrases like:
+- "Remember that we call the TPS a buggy"
+- "Save to memory that truck 12 has a bad ethernet cable"
+- "Don't forget the fuse is behind the control panel"
+
+The system detects trigger phrases ("remember", "save to memory", "don't forget"), uses Claude Haiku to extract the key fact, and appends it to `learnings.md`. The voice AI confirms honestly — it only says "saved" when the write succeeded.
+
+### Current Limitations
+
+- **No fleet-wide knowledge sharing.** Each truck learns independently. If an operator teaches truck 5 that "buggy" means TPS, truck 12 doesn't know. Future: sync learnings via Viam Cloud data pipeline.
+- **Voice AI has no session persistence.** Conversation context is lost when the operator leaves the DIAGNOSE page. The operator can explicitly save important facts via "remember this."
+- **No learning from patterns across incidents.** The watchdog catalogs incidents but doesn't automatically detect cross-truck patterns. Future: fleet-level incident aggregation.
+
+### AI Model Split
+
+| Context | Model | Why |
+|---------|-------|-----|
+| Voice chat responses | Claude Haiku (via CLI) | Speed — <5s response on Pi 5 |
+| AI diagnosis (DIAGNOSE button) | Claude Haiku (via CLI) | Pre-gathered evidence, single call, ~20s |
+| Watchdog auto-fix | Claude (via CLI, headless) | Full context, can write files/run commands |
+| Memory fact extraction | Claude Haiku (via CLI) | Fast single-shot extraction |
+
+### Data Flow: Voice Chat → Cloud
+
+```
+Operator speaks → USB mic → arecord (plughw:0,0, 16kHz)
+  → WAV header fix → Whisper tiny (no VAD, beam=5)
+  → hallucination filter → Claude Haiku (10-msg context)
+  → response shown on 3.5" screen
+  → exchange queued to /tmp/ironsight-chat-queue.jsonl
+  → plc_sensor reads queue on next 1Hz cycle
+  → included in Viam Cloud capture as chat_events
+  → queryable via MQL: {"data.readings.chat_event_count": {"$gt": 0}}
+```
+
+---
+
+## 7. Privacy Architecture — Surveillance Prevention by Design
 
 ### Data Flow Boundaries (enforced by architecture, not policy)
 
@@ -276,7 +366,7 @@ COLLECTED:                          NEVER COLLECTED:
 
 ---
 
-## 7. Work Split
+## 8. Work Split
 
 | Task | Software Lead | Hardware Lead | Together |
 |---|---|---|---|
@@ -293,7 +383,7 @@ COLLECTED:                          NEVER COLLECTED:
 
 ---
 
-## 8. Resolved and Open Questions
+## 9. Resolved and Open Questions
 
 ### Resolved
 
@@ -316,7 +406,7 @@ COLLECTED:                          NEVER COLLECTED:
 
 ---
 
-## 9. Current Implementation State
+## 10. Current Implementation State
 
 Last updated: March 20, 2026. This section maps every component in the architecture diagram above to its actual current state.
 
@@ -363,7 +453,7 @@ Module files are symlinked from `/opt/viam-modules/` to the git repo, so pulling
 
 ---
 
-## 10. Data Management Architecture
+## 11. Data Management Architecture
 
 Last updated: March 18, 2026. See `docs/data-management.md` for the full operational guide and `docs/fleet-deployment-plan.md` for the rollout plan.
 
