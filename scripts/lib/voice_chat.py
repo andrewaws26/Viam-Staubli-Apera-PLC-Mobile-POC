@@ -1,6 +1,20 @@
 """
 Voice chat and AI diagnosis system for IronSight touch interface.
 
+Records audio via USB mic (arecord), transcribes with faster_whisper (Whisper
+tiny model, int8 quantized), and sends to Claude CLI for response. Also
+supports proactive AI diagnosis via the diagnostic agent subprocess.
+
+IMPORTANT: The ironsight-touch service runs as root (for /dev/fb0 and
+/dev/input access). All Python packages used here (faster_whisper, etc.)
+must be installed system-wide, not with pip --user.
+
+Audio pipeline:
+  USB mic (44100Hz) -> arecord via plughw:0,0 (resamples to 16kHz)
+  -> WAV header fix (plughw doesn't update on SIGTERM)
+  -> Whisper tiny (beam=5, no VAD/speech filters for noisy shop)
+  -> hallucination filter -> Claude CLI (haiku)
+
 ChatMessage: Dataclass for chat messages (user/assistant, severity, timestamp).
 VoiceChat: Push-to-talk voice chat with Claude, plus diagnostic agent integration.
 
@@ -13,6 +27,7 @@ Usage:
 
 import json
 import os
+import struct
 import subprocess
 import sys
 import threading
@@ -26,16 +41,30 @@ from lib.buffer_reader import read_latest_entry
 
 try:
     from faster_whisper import WhisperModel
-    HAS_WHISPER = True
+    _HAS_WHISPER = True
 except ImportError:
-    HAS_WHISPER = False
+    _HAS_WHISPER = False
 
-# Voice chat config
+# ── Audio / Whisper config ──────────────────────────────────────────────
 CHAT_HISTORY_FILE = Path("/tmp/ironsight-chat.json")
-WHISPER_MODEL = "tiny"
-MAX_RECORD_SECONDS = 30
-SAMPLE_RATE = 16000
-AUDIO_DEVICE = "plughw:0,0"
+WHISPER_MODEL = "tiny"          # ~39MB, fast on Pi 5 (~3s for 10s audio)
+MAX_RECORD_SECONDS = 30         # arecord -d value (max before auto-stop)
+SAMPLE_RATE = 16000             # Whisper expects 16kHz
+AUDIO_DEVICE = "plughw:0,0"    # ALSA plugin device — auto-resamples from
+                                # USB mic's native 44100Hz to 16kHz.
+                                # Do NOT use "hw:0,0" (no resampling) or
+                                # "default" (no rate conversion either).
+_WAV_HEADER_SIZE = 44           # Standard PCM WAV header (verified via arecord)
+_MIN_AUDIO_BYTES = 1000         # < this = no audio captured (just WAV header)
+
+# Whisper tiny hallucinates these on silence/ambient noise. Filter them out
+# so noise-only recordings correctly show "Could not understand audio" rather
+# than sending garbage to Claude.
+_HALLUCINATIONS = frozenset({
+    "thank you", "thanks for watching", "thanks for listening",
+    "please subscribe", "like and subscribe", "see you next time",
+    "bye", "goodbye", "you", "the end",
+})
 
 
 @dataclass
@@ -58,29 +87,39 @@ class ChatMessage:
 
 
 class VoiceChat:
-    """Push-to-talk voice chat with Claude via whisper + diagnostic agent."""
+    """Push-to-talk voice chat with Claude via Whisper + diagnostic agent."""
 
     def __init__(self, sys_status_fn):
         self.messages: List[ChatMessage] = []
         self.scroll_offset = 0
-        self.state = "idle"
+        self.state = "idle"             # idle|recording|transcribing|thinking|loading|error
         self.state_message = ""
         self._recording = False
-        self._audio_data = []
         self._record_thread = None
+        self._record_proc = None
+        self._audio_file = None
         self._process_thread = None
         self._whisper_model = None
         self._sys_status_fn = sys_status_fn
         self._init_mic_volume()
         self._load_history()
 
-    def _init_mic_volume(self):
+        if not _HAS_WHISPER:
+            print("WARNING: faster_whisper not installed — voice chat disabled. "
+                  "Install with: sudo pip3 install faster-whisper --break-system-packages")
+
+    # ── Mic / audio setup ───────────────────────────────────────────────
+
+    @staticmethod
+    def _init_mic_volume():
         """Set USB mic capture volume to 100% (defaults to 0% on boot)."""
         try:
             subprocess.run(["amixer", "-c", "0", "set", "Mic", "100%"],
                            capture_output=True, timeout=3)
         except Exception:
             pass
+
+    # ── Chat history ────────────────────────────────────────────────────
 
     def _load_history(self):
         try:
@@ -96,8 +135,11 @@ class VoiceChat:
         except Exception:
             pass
 
+    # ── Whisper model (lazy load) ───────────────────────────────────────
+
     def _get_whisper(self):
-        if self._whisper_model is None and HAS_WHISPER:
+        """Load Whisper model on first use. Returns None if unavailable."""
+        if self._whisper_model is None and _HAS_WHISPER:
             self.state = "loading"
             self.state_message = "Loading whisper model..."
             try:
@@ -105,21 +147,22 @@ class VoiceChat:
                     WHISPER_MODEL, device="cpu", compute_type="int8")
             except Exception as e:
                 print(f"Whisper load error: {e}")
-                self.state = "error"
-                self.state_message = f"Whisper failed: {str(e)[:30]}"
         return self._whisper_model
 
+    # ── Recording ───────────────────────────────────────────────────────
+
     def start_recording(self):
+        """Begin recording from USB mic. Call stop_recording() when done."""
         if self._recording or self.state in ("transcribing", "thinking"):
             return
         self._recording = True
-        self._audio_data = []
         self.state = "recording"
         self.state_message = "Recording... release to send"
         self._record_thread = threading.Thread(target=self._record_loop, daemon=True)
         self._record_thread.start()
 
     def _record_loop(self):
+        """Background thread: run arecord until stopped or MAX_RECORD_SECONDS."""
         try:
             self._audio_file = f"/tmp/ironsight-voice-{int(time.time())}.wav"
             self._record_proc = subprocess.Popen(
@@ -135,11 +178,12 @@ class VoiceChat:
             self._recording = False
 
     def stop_recording(self):
+        """Stop recording and begin transcription pipeline."""
         if not self._recording:
             return
         self._recording = False
         try:
-            if hasattr(self, '_record_proc') and self._record_proc.poll() is None:
+            if self._record_proc and self._record_proc.poll() is None:
                 self._record_proc.terminate()
                 self._record_proc.wait(timeout=2)
         except Exception:
@@ -147,52 +191,78 @@ class VoiceChat:
         self._process_thread = threading.Thread(target=self._process_audio, daemon=True)
         self._process_thread.start()
 
+    # ── Audio processing pipeline ───────────────────────────────────────
+
+    @staticmethod
+    def _fix_wav_header(filepath):
+        """Patch WAV header to match actual file size.
+
+        When arecord is killed (SIGTERM/SIGINT) while recording through the
+        plughw ALSA plugin, it exits without updating the RIFF/data chunk
+        sizes — they still reflect the original -d max duration (e.g. 30s).
+        This is harmless for ffmpeg-based readers (faster_whisper uses PyAV)
+        but wrong for anything that trusts the header. Fix defensively.
+        """
+        try:
+            file_size = os.path.getsize(filepath)
+            if file_size < _WAV_HEADER_SIZE:
+                return
+            with open(filepath, 'r+b') as f:
+                f.seek(4)
+                f.write(struct.pack('<I', file_size - 8))           # RIFF chunk
+                f.seek(_WAV_HEADER_SIZE - 4)
+                f.write(struct.pack('<I', file_size - _WAV_HEADER_SIZE))  # data chunk
+        except Exception:
+            pass
+
     def _process_audio(self):
-        audio_file = getattr(self, '_audio_file', None)
+        """Transcribe recorded audio, send to Claude, update chat."""
+        audio_file = self._audio_file
         if not audio_file or not os.path.exists(audio_file):
             self.state = "error"
             self.state_message = "No audio recorded"
             return
 
         file_size = os.path.getsize(audio_file)
-        if file_size < 1000:
+        if file_size < _MIN_AUDIO_BYTES:
             self.state = "error"
             self.state_message = "No audio detected — check mic"
-            try:
-                os.unlink(audio_file)
-            except Exception:
-                pass
+            self._cleanup_audio(audio_file)
             return
 
+        self._fix_wav_header(audio_file)
+
+        # Transcribe
         self.state = "transcribing"
         self.state_message = "Transcribing..."
         transcript = self._transcribe(audio_file)
 
-        try:
-            os.unlink(audio_file)
-        except Exception:
-            pass
-
         if not transcript or not transcript.strip():
+            # Keep file for debugging: inspect with
+            #   python3 -c "from faster_whisper import WhisperModel; ..."
+            print(f"Transcription empty, audio kept: {audio_file} ({file_size}B)")
             self.state = "error"
             self.state_message = "Could not understand audio"
             return
 
+        self._cleanup_audio(audio_file)
+
+        # Add user message
         user_msg = ChatMessage(
             role="user", text=transcript.strip(),
             timestamp=time.strftime("%H:%M"))
         self.messages.append(user_msg)
         self.scroll_offset = 0
 
+        # Get Claude response
         self.state = "thinking"
         self.state_message = "Claude is thinking..."
         response = self._ask_claude(transcript.strip())
 
         if response:
-            assistant_msg = ChatMessage(
+            self.messages.append(ChatMessage(
                 role="assistant", text=response,
-                timestamp=time.strftime("%H:%M"))
-            self.messages.append(assistant_msg)
+                timestamp=time.strftime("%H:%M")))
         else:
             self.state = "error"
             self.state_message = "Claude API error"
@@ -202,20 +272,60 @@ class VoiceChat:
         self.state = "idle"
         self.state_message = ""
 
+    @staticmethod
+    def _cleanup_audio(filepath):
+        try:
+            os.unlink(filepath)
+        except Exception:
+            pass
+
+    # ── Transcription ───────────────────────────────────────────────────
+
     def _transcribe(self, audio_file: str) -> str:
+        """Transcribe audio file with Whisper. Returns text or empty string.
+
+        All of Whisper's built-in speech-filtering heuristics are disabled:
+          - vad_filter: Silero VAD's threshold (0.5) rejects speech when shop
+            ambient noise (3-5% RMS) suppresses probability scores.
+          - no_speech_threshold: Model assigns >60% "no speech" probability to
+            noisy audio even when someone is clearly talking.
+          - log_prob_threshold: Low-confidence segments (speech + noise) get
+            silently dropped.
+
+        Since this is push-to-talk (user explicitly pressed a button), we
+        trust speech is present and rely on the hallucination filter to catch
+        noise-only recordings.
+        """
         model = self._get_whisper()
-        if model:
-            try:
-                segments, _ = model.transcribe(
-                    audio_file, beam_size=1, language="en", vad_filter=True)
-                return " ".join(seg.text for seg in segments).strip()
-            except Exception as e:
-                print(f"Transcription error: {e}")
-        self.state = "error"
-        self.state_message = "Whisper not available"
-        return ""
+        if not model:
+            print("Whisper model not available — cannot transcribe")
+            self.state = "error"
+            self.state_message = "Whisper not available"
+            return ""
+
+        try:
+            segments, _ = model.transcribe(
+                audio_file,
+                beam_size=5,
+                language="en",
+                vad_filter=False,
+                no_speech_threshold=0.99,
+                log_prob_threshold=-5.0,
+            )
+            text = " ".join(seg.text for seg in segments).strip()
+
+            if text.lower().rstrip(".!,") in _HALLUCINATIONS:
+                print(f"Whisper hallucination filtered: '{text}'")
+                return ""
+            return text
+        except Exception as e:
+            print(f"Transcription error: {e}")
+            return ""
+
+    # ── Claude CLI ──────────────────────────────────────────────────────
 
     def _ask_claude(self, user_text: str) -> str:
+        """Send transcribed text to Claude CLI (haiku) with system context."""
         try:
             context = self._build_system_context()
             prompt_parts = [context, ""]
@@ -230,31 +340,31 @@ class VoiceChat:
                 "Do NOT suggest checking PLC registers or running software commands:")
 
             full_prompt = "\n".join(prompt_parts)
-            claude_env = {**os.environ, "HOME": "/home/andrew"}
             result = subprocess.run(
                 ["claude", "-p", "--model", "haiku"],
-                input=full_prompt,
-                capture_output=True, text=True, timeout=30, env=claude_env)
+                input=full_prompt, capture_output=True, text=True, timeout=30,
+                env={**os.environ, "HOME": "/home/andrew"})
 
             if result.returncode == 0 and result.stdout.strip():
                 return result.stdout.strip()
-            else:
-                err = result.stderr.strip()[:50] if result.stderr else "no output"
-                return f"Claude error: {err}"
+            err = result.stderr.strip()[:50] if result.stderr else "no output"
+            return f"Claude error: {err}"
         except subprocess.TimeoutExpired:
             return "Claude took too long to respond."
         except Exception as e:
             print(f"Claude CLI error: {e}")
             return f"Error: {str(e)[:50]}"
 
+    # ── System context for Claude ───────────────────────────────────────
+
     def _build_system_context(self) -> str:
-        """Build comprehensive system context for voice chat Claude prompts."""
+        """Build live system status string for Claude voice chat prompts."""
         sys_status = self._sys_status_fn()
         bat = sys_status.get("battery", {})
         diagnostics = [d for d in sys_status.get("diagnostics", []) if isinstance(d, dict)]
         sensor = read_latest_entry() or {}
 
-        # Check Viam capture status
+        # Viam capture status
         capture_status = "unknown"
         try:
             if CAPTURE_DIR.exists():
@@ -303,7 +413,7 @@ class VoiceChat:
         if sys_status.get('last_spacing_in', 0) > 0:
             ctx += f"  Spacing: last {sys_status['last_spacing_in']:.1f}\" avg {sys_status['avg_spacing_in']:.1f}\"\n"
 
-        # PLC Registers
+        # PLC registers
         ds_regs = sys_status.get("ds_registers", {})
         if ds_regs:
             ctx += "\nPLC REGISTERS:\n"
@@ -341,17 +451,17 @@ class VoiceChat:
         if bat.get("available"):
             ctx += f"  Battery: {bat['percent']:.0f}% {'charging' if bat.get('charging') else 'discharging'}\n"
 
-        # Diagnostics
+        # Active diagnostics
         if diagnostics:
             ctx += "\nACTIVE DIAGNOSTICS:\n"
             for d in diagnostics[:8]:
-                sev = d.get("severity", "info")
-                title = d.get("title", "unknown")
-                ctx += f"  [{sev.upper()}] {title}\n"
+                ctx += f"  [{d.get('severity', 'info').upper()}] {d.get('title', 'unknown')}\n"
         else:
             ctx += "\nDIAGNOSTICS: All clear.\n"
 
         return ctx
+
+    # ── AI Diagnosis ────────────────────────────────────────────────────
 
     def proactive_diagnosis(self, retry: bool = False):
         """Run AI diagnosis. Falls back to local-only if no internet."""
@@ -366,9 +476,8 @@ class VoiceChat:
         has_warning = any(d.get("severity") == "warning" for d in active)
         msg_severity = "critical" if has_critical else "warning" if has_warning else "ok"
 
-        # Check internet — if offline, show local diagnosis only
-        has_internet = sys_status.get("internet", False)
-        if not has_internet:
+        # Offline: local diagnosis only (instant)
+        if not sys_status.get("internet", False):
             local_text = self._local_diagnosis(sys_status, active, retry)
             local_text += "\n\n(Offline — local diagnosis only)"
             self.messages.append(ChatMessage(
@@ -378,7 +487,7 @@ class VoiceChat:
             self._save_history()
             return
 
-        # Online — show placeholder, run AI agent
+        # Online: show placeholder, run AI agent in background
         self.messages.append(ChatMessage(
             role="assistant", text="Analyzing...",
             timestamp=time.strftime("%H:%M"), severity=msg_severity))
@@ -393,7 +502,7 @@ class VoiceChat:
 
     def _run_diagnosis(self, retry: bool, sys_status: dict,
                        active: list, msg_severity: str):
-        """Background thread: run the diagnostic agent."""
+        """Background thread: run the diagnostic agent subprocess."""
         agent_script = Path(__file__).resolve().parent.parent / "diagnose_agent.py"
         cmd = [sys.executable, str(agent_script)]
 
@@ -414,6 +523,7 @@ class VoiceChat:
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 text=True, env={**os.environ, "HOME": "/home/andrew"})
 
+            # Poll for progress updates while agent runs
             while proc.poll() is None:
                 try:
                     if progress_file.exists():
@@ -467,39 +577,7 @@ class VoiceChat:
         self.scroll_offset = 0
         self._save_history()
 
-    def _build_diagnosis_context(self, sys_status: dict) -> str:
-        """Build focused context for diagnosis prompts."""
-        bat = sys_status.get("battery", {})
-        diagnostics = [d for d in sys_status.get("diagnostics", []) if isinstance(d, dict)]
-
-        ctx = "TPS TRUCK STATUS:\n"
-        ctx += f"PLC: {'CONNECTED' if sys_status['connected'] else 'DISCONNECTED'}\n"
-        ctx += f"eth0: {'linked' if sys_status['eth0_carrier'] else 'NO CARRIER'}\n"
-        ctx += f"Internet: {'connected' if sys_status['internet'] else 'OFFLINE'}"
-        ctx += f" (WiFi: {sys_status['wifi_ssid'] or 'none'})\n"
-        ctx += f"viam-server: {'RUNNING' if sys_status['viam_server'] else 'STOPPED'}\n"
-
-        ctx += f"\nPlates: {sys_status['plate_count']} | "
-        ctx += f"Speed: {sys_status['speed_ftpm']:.1f} ft/min | "
-        ctx += f"Distance: {sys_status['travel_ft']:.1f} ft\n"
-        ctx += f"TPS Power: {'ON' if sys_status.get('tps_power_loop') else 'OFF'}\n"
-
-        cpu_f = sys_status['cpu_temp'] * 9 / 5 + 32
-        ctx += f"\nCPU: {cpu_f:.0f}F | Disk: {sys_status['disk_pct']}%\n"
-
-        if diagnostics:
-            ctx += "\nACTIVE DIAGNOSTICS:\n"
-            for d in diagnostics[:8]:
-                sev = d.get("severity", "info")
-                title = d.get("title", "unknown")
-                action = d.get("action", "")
-                ctx += f"  [{sev.upper()}] {title}\n"
-                if action:
-                    ctx += f"    Suggested: {action}\n"
-        else:
-            ctx += "\nDIAGNOSTICS: All clear.\n"
-
-        return ctx
+    # ── Utilities ───────────────────────────────────────────────────────
 
     def clear_history(self):
         self.messages.clear()
@@ -509,7 +587,9 @@ class VoiceChat:
         except Exception:
             pass
 
-    def _local_diagnosis(self, sys_status: dict, active: list, retry: bool) -> str:
+    @staticmethod
+    def _local_diagnosis(sys_status: dict, active: list, retry: bool) -> str:
+        """Generate local-only diagnosis text (no AI, instant)."""
         lines = []
         if retry:
             lines.append("RE-CHECKING...")
@@ -518,21 +598,17 @@ class VoiceChat:
         if not active:
             speed = sys_status.get("speed_ftpm", 0.0)
             plates = sys_status.get("plate_count", 0)
-            connected = sys_status.get("connected", False)
-            if connected:
+            if sys_status.get("connected", False):
                 lines.append(f"ALL CLEAR. PLC connected, {plates} plates, {speed:.1f} ft/min.")
             else:
                 lines.append("PLC not connected. Check Ethernet cable to PLC or verify PLC has power.")
         else:
             for d in active[:3]:
-                sev = d.get("severity", "")
-                title = d.get("title", "Issue detected")
+                icon = "!!" if d.get("severity") == "critical" else "!"
+                lines.append(f"{icon} {d.get('title', 'Issue detected')}")
                 action_text = d.get("action", "")
-                icon = "!!" if sev == "critical" else "!"
-                lines.append(f"{icon} {title}")
                 if action_text:
-                    steps = [s.strip() for s in action_text.split("\n") if s.strip()]
-                    for step in steps[:2]:
+                    for step in [s.strip() for s in action_text.split("\n") if s.strip()][:2]:
                         lines.append(f"  -> {step}")
             if len(active) > 3:
                 lines.append(f"(+{len(active) - 3} more)")
