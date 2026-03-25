@@ -1281,55 +1281,71 @@ def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image
             draw.text((W - ew - MARGIN, 6), err_text, fill=RED, font=find_font(10))
 
     # ── Bottom button bar ──
-    btn_bar_h = 54
-    btn_y = H - btn_bar_h
-    draw.rectangle([0, btn_y, W, H], fill=(20, 20, 25))
-
     if state == "recording":
-        stop_btn = Button(MARGIN, btn_y + 4, W - MARGIN * 2, 46, "STOP", "chat_stop_recording",
+        # Big STOP button — takes full bottom area
+        btn_bar_h = 70
+        btn_y = H - btn_bar_h
+        draw.rectangle([0, btn_y, W, H], fill=(20, 20, 25))
+        stop_btn = Button(MARGIN, btn_y + 4, W - MARGIN * 2, 62, "STOP", "chat_stop_recording",
                           color=DARK_RED, text_color=WHITE)
         buttons.append(stop_btn)
-        draw_button(draw, stop_btn, font_btn)
-    elif not messages and state == "idle":
-        # Landing menu — two big buttons
-        btn_w = (W - MARGIN * 3) // 2
-        diag_btn = Button(MARGIN, btn_y + 4, btn_w, 46, "DIAGNOSE", "chat_auto_diagnose",
-                          color=DARK_ORANGE, text_color=WHITE)
-        buttons.append(diag_btn)
-        draw_button(draw, diag_btn, font_btn)
-
-        talk_btn = Button(MARGIN * 2 + btn_w, btn_y + 4, btn_w, 46, "TALK TO AI", "chat_start_voice",
-                          color=DARK_PURPLE, text_color=WHITE)
-        buttons.append(talk_btn)
-        draw_button(draw, talk_btn, font_btn)
+        draw_button(draw, stop_btn, find_font(20))
     else:
-        # In-conversation: BACK | DIAGNOSE | ASK
-        btn_w = (W - MARGIN * 4) // 3
-        gap = MARGIN
+        btn_bar_h = 54
+        btn_y = H - btn_bar_h
+        draw.rectangle([0, btn_y, W, H], fill=(20, 20, 25))
 
-        back_btn = Button(gap, btn_y + 4, btn_w, 46, "BACK", "nav_home",
-                          color=MID_GRAY, text_color=WHITE)
-        buttons.append(back_btn)
-        draw_button(draw, back_btn, font_btn)
+        if not messages and state == "idle":
+            # Landing — full-width TALK TO AI
+            talk_btn = Button(MARGIN, btn_y + 4, W - MARGIN * 2, 46, "TALK TO AI", "chat_start_voice",
+                              color=DARK_RED, text_color=WHITE)
+            buttons.append(talk_btn)
+            draw_button(draw, talk_btn, font_btn)
+        else:
+            # In-conversation: BACK | ASK
+            btn_w = (W - MARGIN * 3) // 2
+            back_btn = Button(MARGIN, btn_y + 4, btn_w, 46, "BACK", "nav_home",
+                              color=MID_GRAY, text_color=WHITE)
+            buttons.append(back_btn)
+            draw_button(draw, back_btn, font_btn)
 
-        retry_btn = Button(gap + btn_w + gap, btn_y + 4, btn_w, 46,
-                           "DIAGNOSE", "chat_auto_diagnose",
-                           color=DARK_ORANGE, text_color=WHITE)
-        buttons.append(retry_btn)
-        draw_button(draw, retry_btn, font_btn)
+            ask_btn = Button(MARGIN * 2 + btn_w, btn_y + 4, btn_w, 46,
+                             "ASK", "chat_start_voice",
+                             color=DARK_RED, text_color=WHITE)
+            buttons.append(ask_btn)
+            draw_button(draw, ask_btn, font_btn)
 
-        ask_btn = Button(gap + (btn_w + gap) * 2, btn_y + 4, btn_w, 46,
-                         "ASK", "chat_start_voice",
-                         color=DARK_PURPLE, text_color=WHITE)
-        buttons.append(ask_btn)
-        draw_button(draw, ask_btn, font_btn)
+    # ── Scroll buttons (right edge, big glove-friendly targets) ──
+    scroll_btn_w = 50
+    scroll_btn_h = (btn_y - status_h - 6) // 2  # split right edge in half
+    scroll_top_y = status_h + 2
+    scroll_mid_y = scroll_top_y + scroll_btn_h + 2
 
-    # ── Chat area ──
+    # UP button (top-right)
+    draw.rectangle([W - scroll_btn_w, scroll_top_y,
+                    W, scroll_top_y + scroll_btn_h], fill=MID_GRAY)
+    up_label = find_font(20)
+    draw.text((W - scroll_btn_w // 2 - 6, scroll_top_y + scroll_btn_h // 2 - 12),
+              "^", fill=WHITE, font=up_label)
+    up_btn = Button(W - scroll_btn_w, scroll_top_y, scroll_btn_w, scroll_btn_h,
+                    "", "chat_scroll_up")
+    buttons.append(up_btn)
+
+    # DOWN button (bottom-right)
+    draw.rectangle([W - scroll_btn_w, scroll_mid_y,
+                    W, scroll_mid_y + scroll_btn_h], fill=MID_GRAY)
+    draw.text((W - scroll_btn_w // 2 - 6, scroll_mid_y + scroll_btn_h // 2 - 12),
+              "v", fill=WHITE, font=up_label)
+    dn_btn = Button(W - scroll_btn_w, scroll_mid_y, scroll_btn_w, scroll_btn_h,
+                    "", "chat_scroll_down")
+    buttons.append(dn_btn)
+
+    # ── Chat area (text area shrunk to leave room for scroll buttons) ──
     chat_top = status_h + 2
     chat_bottom = btn_y - 2
     chat_h = chat_bottom - chat_top
     line_h = 20
-    max_chars = 40
+    max_chars = 36  # narrower to avoid overlapping scroll buttons
 
     # Landing screen (no messages yet, not thinking)
     if not messages and state not in ("thinking", "loading", "transcribing"):
@@ -1339,11 +1355,10 @@ def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image
         draw.text(((W - tw) // 2, y), title, fill=PURPLE, font=find_font(20))
         y += 45
         hints = [
-            "DIAGNOSE: auto system check",
-            "TALK TO AI: ask anything",
+            "Tap TALK TO AI to start.",
             "",
-            "Voice chat is conversational --",
-            "ask follow-up questions anytime.",
+            "Ask questions, get advice,",
+            "and follow up naturally.",
         ]
         for line in hints:
             if line:
@@ -1407,17 +1422,6 @@ def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image
         draw.text((W - 24, top_y), "+", fill=MID_GRAY, font=font_icon)
         expand_btn = Button(W - 44, top_y, 44, 44, str(msg_idx), "chat_expand")
         buttons.append(expand_btn)
-
-    # Scroll indicators
-    if start > 0:
-        draw.text((W - 22, chat_top + 2), "^", fill=LIGHT_GRAY, font=font)
-        up_btn = Button(W - 50, chat_top, 50, 40, "", "chat_scroll_up")
-        buttons.append(up_btn)
-
-    if end < total_lines:
-        draw.text((W - 22, chat_bottom - 20), "v", fill=LIGHT_GRAY, font=font)
-        dn_btn = Button(W - 50, chat_bottom - 30, 50, 40, "", "chat_scroll_down")
-        buttons.append(dn_btn)
 
     return img, buttons
 
@@ -1699,7 +1703,6 @@ def main():
     sys_status = {}
     last_data_refresh = 0
     needs_redraw = True
-    chat_recording = False  # double-tap toggle state
     expanded_msg_idx = -1   # -1 = no expanded message, 0+ = index into voice_chat.messages
     error_start_time = 0.0  # when error state started (for auto-clear)
 
@@ -1730,23 +1733,8 @@ def main():
                 voice_chat.stop_recording()
                 needs_redraw = True
 
-            # Check for double-tap (toggle recording in chat mode)
-            dtap = touch.get_double_tap()
-            if dtap and current_page == "chat":
-                if not chat_recording and voice_chat.state == "idle":
-                    # Start recording
-                    chat_recording = True
-                    voice_chat.start_recording()
-                    needs_redraw = True
-                elif chat_recording and voice_chat.state == "recording":
-                    # Stop recording and send
-                    chat_recording = False
-                    voice_chat.stop_recording()
-                    needs_redraw = True
-
-            # Reset recording flag when processing finishes
-            if chat_recording and voice_chat.state not in ("recording", "idle"):
-                chat_recording = False
+            # Drain double-tap queue (not used for recording — ASK button only)
+            touch.get_double_tap()
 
             # Auto-clear error state after 5 seconds
             if voice_chat.state == "error":
@@ -1837,12 +1825,6 @@ def main():
                             voice_chat.scroll_offset += 5
                         elif action == "chat_scroll_down":
                             voice_chat.scroll_offset = max(0, voice_chat.scroll_offset - 5)
-                        elif action == "chat_auto_diagnose":
-                            # Run AI diagnosis (or re-run if conversation already going)
-                            has_prev = len(voice_chat.messages) > 0
-                            voice_chat.proactive_diagnosis(retry=has_prev)
-                        elif action == "chat_retry":
-                            voice_chat.proactive_diagnosis(retry=True)
                         elif action == "chat_dismiss_error":
                             # Persist error as a message so user can see it
                             if voice_chat.state_message:
