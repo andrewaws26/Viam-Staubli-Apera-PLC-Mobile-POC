@@ -4,8 +4,8 @@ Touch and button input handlers for IronSight touchscreen.
 TouchInput: Reads ADS7846/XPT2046 resistive touchscreen via evdev.
             Handles tap, double-tap, and swipe gesture detection.
 
-PTTButton:  Reads USB HID buttons (presenter clickers, arcade buttons)
-            for push-to-talk functionality.
+PTTButton:  Reads any USB HID key device (excludes touchscreen/vc4).
+            Currently detects the SugarPi power button as PTT.
 
 Usage:
     from lib.touch_input import TouchInput, PTTButton

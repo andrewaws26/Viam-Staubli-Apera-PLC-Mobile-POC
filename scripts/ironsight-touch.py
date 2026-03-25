@@ -1713,7 +1713,7 @@ def main():
     # Set up voice chat
     voice_chat = VoiceChat(sys_status_fn=get_system_status)
 
-    # Set up PTT button (USB presenter clicker / any USB HID button)
+    # Set up PTT button (any USB HID key device — currently the SugarPi power button)
     ptt_button = PTTButton()
     ptt_button.start()
 
@@ -1828,8 +1828,7 @@ def main():
                                 def _explain():
                                     nonlocal expanded_explanation, needs_redraw
                                     try:
-                                        sys_status = voice_chat._sys_status_fn()
-                                        context = voice_chat._build_diagnosis_context(sys_status)
+                                        context = voice_chat._build_system_context()
                                         prompt = (
                                             f"{context}\n\n"
                                             f"You previously gave this diagnosis:\n\"{exp_msg.text}\"\n\n"
