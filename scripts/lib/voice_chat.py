@@ -358,15 +358,20 @@ class VoiceChat:
         try:
             context = self._build_system_context()
             prompt_parts = [context, ""]
-            for msg in self.messages[-6:]:
+            # Include conversation history for follow-up context
+            for msg in self.messages[-10:]:
                 role = "User" if msg.role == "user" else "Assistant"
                 prompt_parts.append(f"{role}: {msg.text}")
             prompt_parts.append(f"User: {user_text}")
             prompt_parts.append(
-                "Respond in 2-3 short sentences. Plain text, no markdown. "
-                "Give practical advice for a railroad operator in the field — "
-                "things they can physically check or do at the truck. "
-                "Do NOT suggest checking PLC registers or running software commands:")
+                "You are having a conversation with a railroad operator at a TPS truck. "
+                "Be natural and conversational — they may ask follow-up questions, "
+                "respond to your advice, or change topics. Keep responses SHORT "
+                "(2-3 sentences for the 3.5 inch screen). Plain text, no markdown. "
+                "Give practical advice — things to physically check or do at the truck. "
+                "Do NOT suggest checking PLC registers or running software commands. "
+                "If they say something worked or ask what else to try, build on "
+                "the conversation naturally:")
 
             full_prompt = "\n".join(prompt_parts)
             result = subprocess.run(

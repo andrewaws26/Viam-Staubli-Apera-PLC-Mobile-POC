@@ -73,7 +73,7 @@ class TouchInput:
         self._touch_start_y: int = 0
         self._touch_current_y: int = 0
         self._is_dragging: bool = False
-        self.SWIPE_THRESHOLD_PX = 20
+        self.SWIPE_THRESHOLD_PX = 35  # 20 was too sensitive on 3.5" screen
 
     def _load_calibration(self):
         try:
