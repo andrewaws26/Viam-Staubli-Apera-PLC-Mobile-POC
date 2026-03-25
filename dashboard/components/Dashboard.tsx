@@ -311,7 +311,7 @@ export default function Dashboard() {
         {/* ---------------------------------------------------------------- */}
         {/* Header                                                           */}
         {/* ---------------------------------------------------------------- */}
-        <header className="border-b border-gray-800 px-3 sm:px-5 py-3 sm:py-4 flex items-center justify-between gap-3 sm:gap-4 shrink-0">
+        <header className="border-b border-gray-800 px-2 sm:px-5 py-2 sm:py-4 flex items-center justify-between gap-2 sm:gap-4 shrink-0">
           <div className="min-w-0">
             <h1 className="text-lg sm:text-2xl font-black tracking-widest uppercase text-gray-100 leading-none">
               TPS Monitor
@@ -328,7 +328,7 @@ export default function Dashboard() {
                 }
                 setSimMode(!simMode);
               }}
-              className={`text-[10px] sm:text-xs px-2 sm:px-3 py-1 rounded-lg font-bold transition-colors ${
+              className={`text-[10px] sm:text-xs min-h-[44px] px-3 sm:px-3 py-2 rounded-lg font-bold transition-colors ${
                 simMode
                   ? "bg-purple-700 text-white"
                   : "border border-gray-700 text-gray-500 hover:text-gray-300"
@@ -358,8 +358,8 @@ export default function Dashboard() {
         {/* ---------------------------------------------------------------- */}
         {/* Status Grid                                                      */}
         {/* ---------------------------------------------------------------- */}
-        <main className="flex-1 px-3 sm:px-5 py-4 sm:py-8 flex flex-col gap-4 sm:gap-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+        <main className="flex-1 px-2 sm:px-5 py-2 sm:py-8 flex flex-col gap-2 sm:gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-6">
             {components.map((comp) => (
               <StatusCard key={comp.id} component={comp} />
             ))}

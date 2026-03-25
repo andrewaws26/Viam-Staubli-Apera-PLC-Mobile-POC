@@ -1,4 +1,8 @@
+"use client";
+
+import { useState } from "react";
 import { SensorReadings } from "../lib/types";
+import FullScreenModal from "./FullScreenModal";
 
 interface Props {
   readings: SensorReadings | null;
@@ -164,6 +168,15 @@ const SEVERITY_BG: Record<string, string> = {
   info: "bg-blue-950/20",
 };
 
+const SEVERITY_MODAL_COLOR: Record<string, string> = {
+  ok: "text-green-400",
+  warn: "text-yellow-400",
+  error: "text-red-400",
+  critical: "text-red-400",
+  warning: "text-yellow-400",
+  info: "text-blue-400",
+};
+
 const CATEGORY_LABEL: Record<string, string> = {
   camera: "Plate Flipper",
   encoder: "Encoder",
@@ -172,10 +185,23 @@ const CATEGORY_LABEL: Record<string, string> = {
   operation: "Operation",
 };
 
+// Unified type for modal display
+interface DiagnosticItem {
+  key: string;
+  severity: string;
+  title: string;
+  message?: string;
+  action?: string;
+  evidence?: string;
+  category?: string;
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 export default function DiagnosticsPanel({ readings }: Props) {
+  const [selectedDiag, setSelectedDiag] = useState<DiagnosticItem | null>(null);
+
   if (!readings) return null;
 
   // Prefer sensor-side diagnostics (from diagnostics.py), fall back to snapshot checks
@@ -203,151 +229,241 @@ export default function DiagnosticsPanel({ readings }: Props) {
   const modbusTime = typeof readings.modbus_response_time_ms === "number" ? readings.modbus_response_time_ms : null;
 
   return (
-    <div
-      className={[
-        "border rounded-2xl p-4 sm:p-6",
-        hasIssues ? "border-yellow-900/40 bg-yellow-950/5" : "border-gray-800",
-      ].join(" ")}
-    >
-      <h3
+    <>
+      <div
         className={[
-          "text-xs font-bold uppercase tracking-widest mb-3 sm:mb-4",
-          hasIssues ? "text-yellow-500" : "text-gray-500",
+          "border rounded-2xl p-3 sm:p-6",
+          hasIssues ? "border-yellow-900/40 bg-yellow-950/5" : "border-gray-800",
         ].join(" ")}
       >
-        System Diagnostics
-        {hasIssues && (
-          <span className="ml-2 text-yellow-600 normal-case tracking-normal font-normal">
-            — {criticalCount > 0 && `${criticalCount} critical`}
-            {criticalCount > 0 && warningCount > 0 && ", "}
-            {warningCount > 0 && `${warningCount} warning${warningCount > 1 ? "s" : ""}`}
-          </span>
-        )}
-        {!hasIssues && (
-          <span className="ml-2 text-green-600 normal-case tracking-normal font-normal">
-            — all clear
-          </span>
-        )}
-      </h3>
+        <h3
+          className={[
+            "text-xs font-bold uppercase tracking-widest mb-2 sm:mb-4",
+            hasIssues ? "text-yellow-500" : "text-gray-500",
+          ].join(" ")}
+        >
+          System Diagnostics
+          {hasIssues && (
+            <span className="ml-2 text-yellow-600 normal-case tracking-normal font-normal">
+              — {criticalCount > 0 && `${criticalCount} critical`}
+              {criticalCount > 0 && warningCount > 0 && ", "}
+              {warningCount > 0 && `${warningCount} warning${warningCount > 1 ? "s" : ""}`}
+            </span>
+          )}
+          {!hasIssues && (
+            <span className="ml-2 text-green-600 normal-case tracking-normal font-normal">
+              — all clear
+            </span>
+          )}
+        </h3>
 
-      {/* Rolling metrics strip */}
-      {(cameraRate !== null || ejectRate !== null) && (
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 mb-3 pb-3 border-b border-gray-800">
-          {cameraRate !== null && (
-            <span>
-              Flipper: <span className={cameraRate > 0 ? "text-green-500" : "text-gray-600"}>{cameraRate.toFixed(1)}/min</span>
-              {cameraTrend && cameraTrend !== "stable" && (
-                <span className={cameraTrend === "dead" ? "text-red-400 ml-1" : "text-yellow-500 ml-1"}>
-                  ({cameraTrend})
-                </span>
-              )}
-            </span>
-          )}
-          {ejectRate !== null && (
-            <span>
-              Ejects: <span className={ejectRate > 0 ? "text-green-500" : "text-gray-600"}>{ejectRate.toFixed(1)}/min</span>
-            </span>
-          )}
-          {modbusTime !== null && (
-            <span>
-              PLC latency: <span className={modbusTime < 5 ? "text-green-500" : "text-yellow-500"}>{modbusTime.toFixed(1)}ms</span>
-            </span>
-          )}
-        </div>
-      )}
+        {/* Rolling metrics strip */}
+        {(cameraRate !== null || ejectRate !== null) && (
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 mb-2 pb-2 sm:mb-3 sm:pb-3 border-b border-gray-800">
+            {cameraRate !== null && (
+              <span>
+                Flipper: <span className={cameraRate > 0 ? "text-green-500" : "text-gray-600"}>{cameraRate.toFixed(1)}/min</span>
+                {cameraTrend && cameraTrend !== "stable" && (
+                  <span className={cameraTrend === "dead" ? "text-red-400 ml-1" : "text-yellow-500 ml-1"}>
+                    ({cameraTrend})
+                  </span>
+                )}
+              </span>
+            )}
+            {ejectRate !== null && (
+              <span>
+                Ejects: <span className={ejectRate > 0 ? "text-green-500" : "text-gray-600"}>{ejectRate.toFixed(1)}/min</span>
+              </span>
+            )}
+            {modbusTime !== null && (
+              <span>
+                PLC latency: <span className={modbusTime < 5 ? "text-green-500" : "text-yellow-500"}>{modbusTime.toFixed(1)}ms</span>
+              </span>
+            )}
+          </div>
+        )}
 
-      <div className="space-y-2">
-        {/* Sensor-side diagnostics (with operator actions) */}
-        {sensorDiags.map((diag, idx) => (
-          <div
-            key={`sensor-${diag.rule}-${idx}`}
-            className={[
-              "py-2 px-3 rounded-lg",
-              SEVERITY_BG[diag.severity] || "",
-            ]
-              .filter(Boolean)
-              .join(" ")}
-          >
-            <div className="flex items-start gap-2">
+        <div className="space-y-1.5">
+          {/* Sensor-side diagnostics — tappable rows */}
+          {sensorDiags.map((diag, idx) => (
+            <button
+              key={`sensor-${diag.rule}-${idx}`}
+              onClick={() =>
+                setSelectedDiag({
+                  key: `sensor-${diag.rule}-${idx}`,
+                  severity: diag.severity,
+                  title: diag.title,
+                  action: diag.action,
+                  evidence: diag.evidence,
+                  category: diag.category,
+                })
+              }
+              className={[
+                "w-full text-left py-3 px-3 rounded-lg flex items-center gap-3 tap-target",
+                SEVERITY_BG[diag.severity] || "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            >
+              {/* Severity icon in circle */}
               <span
                 className={[
-                  "shrink-0 font-bold text-xs mt-0.5 w-4 text-center",
+                  "shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold",
+                  diag.severity === "critical" || diag.severity === "warning"
+                    ? "bg-gray-800"
+                    : "bg-gray-800/50",
                   SEVERITY_COLOR[diag.severity] || "text-gray-400",
                 ].join(" ")}
               >
                 {SEVERITY_ICON[diag.severity] || "?"}
               </span>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-bold text-gray-200 text-sm">{diag.title}</span>
-                  {diag.category && (
-                    <span className="text-[10px] uppercase tracking-wider text-gray-600 bg-gray-800 px-1.5 py-0.5 rounded">
-                      {CATEGORY_LABEL[diag.category] || diag.category}
-                    </span>
-                  )}
-                </div>
-                {diag.action && (
-                  <div className="mt-1.5 text-xs text-gray-400 leading-relaxed bg-gray-900/50 rounded px-2 py-1.5 border-l-2 border-blue-500/40">
-                    <span className="font-semibold text-blue-400 text-[10px] uppercase tracking-wider">What to do: </span>
-                    {diag.action}
-                  </div>
-                )}
-                {diag.evidence && (
-                  <div className="mt-1 text-[11px] text-gray-600 italic">{diag.evidence}</div>
+                <span className="font-bold text-gray-200 text-sm block truncate">
+                  {diag.title}
+                </span>
+                {diag.category && (
+                  <span className="text-[10px] uppercase tracking-wider text-gray-600">
+                    {CATEGORY_LABEL[diag.category] || diag.category}
+                  </span>
                 )}
               </div>
-            </div>
-          </div>
-        ))}
+              {/* Tap hint arrow */}
+              <span className="text-gray-700 text-sm shrink-0">›</span>
+            </button>
+          ))}
 
-        {/* Snapshot checks (system-level, always shown) */}
-        {snapshotChecks
-          .filter((c) => !sensorRules.has(c.id))
-          .map((check) => (
-            <div
-              key={check.id}
-              className={[
-                "flex items-start gap-2 py-1.5 px-2 rounded-lg text-sm",
-                SEVERITY_BG[check.severity] || "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-            >
-              <span
+          {/* Snapshot checks — tappable if they have actions */}
+          {snapshotChecks
+            .filter((c) => !sensorRules.has(c.id))
+            .map((check) => (
+              <button
+                key={check.id}
+                onClick={() =>
+                  check.action && check.severity !== "ok"
+                    ? setSelectedDiag({
+                        key: check.id,
+                        severity: check.severity,
+                        title: check.label,
+                        message: check.message,
+                        action: check.action,
+                      })
+                    : undefined
+                }
                 className={[
-                  "shrink-0 font-bold text-xs mt-0.5 w-4 text-center",
-                  SEVERITY_COLOR[check.severity] || "text-gray-400",
-                ].join(" ")}
+                  "w-full text-left py-3 px-3 rounded-lg flex items-center gap-3",
+                  check.action && check.severity !== "ok" ? "tap-target" : "",
+                  SEVERITY_BG[check.severity] || "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
               >
-                {SEVERITY_ICON[check.severity]}
-              </span>
-              <div className="min-w-0">
-                <span className="font-bold text-gray-300 text-xs sm:text-sm">
-                  {check.label}
-                </span>
-                <span className="text-gray-500 mx-1.5">&mdash;</span>
                 <span
                   className={[
-                    "text-xs sm:text-sm",
-                    check.severity === "ok"
-                      ? "text-gray-600"
-                      : check.severity === "warn"
-                      ? "text-yellow-600"
-                      : "text-red-400",
+                    "shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold",
+                    check.severity !== "ok" ? "bg-gray-800" : "bg-gray-800/50",
+                    SEVERITY_COLOR[check.severity] || "text-gray-400",
                   ].join(" ")}
                 >
-                  {check.message}
+                  {SEVERITY_ICON[check.severity]}
                 </span>
+                <div className="min-w-0 flex-1">
+                  <span className="font-bold text-gray-300 text-sm block truncate">
+                    {check.label}
+                  </span>
+                  <span
+                    className={[
+                      "text-xs block truncate",
+                      check.severity === "ok"
+                        ? "text-gray-600"
+                        : check.severity === "warn"
+                        ? "text-yellow-600"
+                        : "text-red-400",
+                    ].join(" ")}
+                  >
+                    {check.message}
+                  </span>
+                </div>
                 {check.action && check.severity !== "ok" && (
-                  <div className="mt-1 text-xs text-gray-400 bg-gray-900/50 rounded px-2 py-1 border-l-2 border-blue-500/40">
-                    <span className="font-semibold text-blue-400 text-[10px] uppercase tracking-wider">What to do: </span>
-                    {check.action}
-                  </div>
+                  <span className="text-gray-700 text-sm shrink-0">›</span>
+                )}
+              </button>
+            ))}
+        </div>
+      </div>
+
+      {/* Full-screen diagnostic detail modal */}
+      <FullScreenModal
+        open={selectedDiag !== null}
+        onClose={() => setSelectedDiag(null)}
+        title={selectedDiag?.title || ""}
+        titleColor={SEVERITY_MODAL_COLOR[selectedDiag?.severity || "info"]}
+      >
+        {selectedDiag && (
+          <div className="space-y-4">
+            {/* Large severity badge */}
+            <div className="flex items-center gap-3">
+              <span
+                className={[
+                  "w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold bg-gray-800",
+                  SEVERITY_COLOR[selectedDiag.severity] || "text-gray-400",
+                ].join(" ")}
+              >
+                {SEVERITY_ICON[selectedDiag.severity] || "?"}
+              </span>
+              <div>
+                <span
+                  className={[
+                    "text-sm font-bold uppercase tracking-wide",
+                    SEVERITY_MODAL_COLOR[selectedDiag.severity] || "text-gray-400",
+                  ].join(" ")}
+                >
+                  {selectedDiag.severity === "critical" || selectedDiag.severity === "error"
+                    ? "Critical Issue"
+                    : selectedDiag.severity === "warning" || selectedDiag.severity === "warn"
+                    ? "Warning"
+                    : "Info"}
+                </span>
+                {selectedDiag.category && (
+                  <span className="block text-xs text-gray-500 mt-0.5">
+                    {CATEGORY_LABEL[selectedDiag.category] || selectedDiag.category}
+                  </span>
                 )}
               </div>
             </div>
-          ))}
-      </div>
-    </div>
+
+            {/* Description / message */}
+            {selectedDiag.message && (
+              <p className="text-base text-gray-300 leading-relaxed">
+                {selectedDiag.message}
+              </p>
+            )}
+
+            {/* What to do — the key content users need to read */}
+            {selectedDiag.action && (
+              <div className="bg-blue-950/20 border border-blue-500/30 rounded-xl p-4">
+                <h3 className="text-sm font-bold text-blue-400 uppercase tracking-wide mb-2">
+                  What To Do
+                </h3>
+                <p className="text-base text-gray-200 leading-relaxed">
+                  {selectedDiag.action}
+                </p>
+              </div>
+            )}
+
+            {/* Evidence */}
+            {selectedDiag.evidence && (
+              <div className="bg-gray-900 rounded-lg p-3">
+                <span className="text-xs text-gray-600 uppercase tracking-wide block mb-1">
+                  Details
+                </span>
+                <p className="text-sm text-gray-400 leading-relaxed">
+                  {selectedDiag.evidence}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </FullScreenModal>
+    </>
   );
 }
