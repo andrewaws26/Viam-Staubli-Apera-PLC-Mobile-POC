@@ -197,15 +197,19 @@ class VoiceChat:
         self.state_message = "Transcribing..."
         transcript = self._transcribe(audio_file)
 
+        if not transcript or not transcript.strip():
+            # Keep the file for debugging — can inspect with:
+            #   python3 -c "from faster_whisper import WhisperModel; ..."
+            print(f"Transcription empty, audio kept at: {audio_file} "
+                  f"({os.path.getsize(audio_file)} bytes)")
+            self.state = "error"
+            self.state_message = "Could not understand audio"
+            return
+
         try:
             os.unlink(audio_file)
         except Exception:
             pass
-
-        if not transcript or not transcript.strip():
-            self.state = "error"
-            self.state_message = "Could not understand audio"
-            return
 
         user_msg = ChatMessage(
             role="user", text=transcript.strip(),
@@ -242,11 +246,21 @@ class VoiceChat:
         model = self._get_whisper()
         if model:
             try:
-                # No VAD filter — this is push-to-talk, so we know speech is
-                # present. VAD's default threshold (0.5) rejects speech in noisy
-                # environments like a railroad shop where ambient RMS is 3-5%.
+                # Push-to-talk: disable all speech-filtering heuristics.
+                # In a noisy railroad shop (3-5% RMS ambient), Whisper's
+                # built-in filters silently drop segments:
+                #   - vad_filter: Silero VAD threshold rejects speech in noise
+                #   - no_speech_threshold: drops segments where model sees >60%
+                #     chance of non-speech (always triggers in shop noise)
+                #   - log_prob_threshold: drops low-confidence segments (speech
+                #     mixed with noise = low confidence)
+                # Since the user explicitly pressed a button, we trust that
+                # speech is present and rely on hallucination filter instead.
                 segments, info = model.transcribe(
-                    audio_file, beam_size=5, language="en", vad_filter=False)
+                    audio_file, beam_size=5, language="en",
+                    vad_filter=False,
+                    no_speech_threshold=0.99,
+                    log_prob_threshold=-5.0)
                 text = " ".join(seg.text for seg in segments).strip()
                 # Filter out common Whisper hallucinations on noise/silence
                 if text.lower().rstrip(".!,") in self._HALLUCINATIONS:
