@@ -47,6 +47,9 @@ except ImportError:
 
 # ── Audio / Whisper config ──────────────────────────────────────────────
 CHAT_HISTORY_FILE = Path("/tmp/ironsight-chat.json")
+# Queue file for Viam Cloud sync — plc_sensor reads and clears this.
+# Each line is a JSON object: {ts, type, user, response, severity}
+CHAT_QUEUE_FILE = Path("/tmp/ironsight-chat-queue.jsonl")
 WHISPER_MODEL = "tiny"          # ~39MB, fast on Pi 5 (~3s for 10s audio)
 MAX_RECORD_SECONDS = 30         # arecord -d value (max before auto-stop)
 SAMPLE_RATE = 16000             # Whisper expects 16kHz
@@ -132,6 +135,31 @@ class VoiceChat:
         try:
             data = [m.to_dict() for m in self.messages[-50:]]
             CHAT_HISTORY_FILE.write_text(json.dumps(data))
+        except Exception:
+            pass
+
+    @staticmethod
+    def _queue_for_cloud(event_type: str, user_text: str,
+                         response_text: str, severity: str = ""):
+        """Append a chat event to the cloud sync queue.
+
+        plc_sensor picks these up on its next 1Hz reading cycle and includes
+        them in the Viam Cloud capture data. The queue file is then cleared.
+        This lets Andrew analyze operator chat usage across the fleet.
+        """
+        event = {
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "type": event_type,     # "voice" or "diagnosis"
+            "user": user_text,
+            "response": response_text,
+            "severity": severity,
+        }
+        try:
+            with open(CHAT_QUEUE_FILE, "a") as f:
+                f.write(json.dumps(event, separators=(",", ":")) + "\n")
+            # Ensure plc_sensor (runs as andrew) can read and clear this file,
+            # since touch service runs as root.
+            os.chmod(CHAT_QUEUE_FILE, 0o666)
         except Exception:
             pass
 
@@ -269,6 +297,7 @@ class VoiceChat:
             return
 
         self._save_history()
+        self._queue_for_cloud("voice", transcript.strip(), response)
         self.state = "idle"
         self.state_message = ""
 
@@ -548,6 +577,8 @@ class VoiceChat:
                             role="assistant", text=ai_text,
                             timestamp=time.strftime("%H:%M"),
                             severity=ai_severity)
+                        self._queue_for_cloud(
+                            "diagnosis", "(auto)", ai_text, ai_severity)
                 except (json.JSONDecodeError, KeyError):
                     if self.messages:
                         self.messages[-1].text = "AI response error. Tap RETRY."

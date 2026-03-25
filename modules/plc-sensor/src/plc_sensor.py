@@ -71,6 +71,38 @@ _DEFAULT_WHEEL_DIAMETER_MM = 406.4  # 16 in physical wheel, direct-drive encoder
 # Offline buffer defaults
 _DEFAULT_BUFFER_MAX_MB = 50
 
+# Chat cloud sync — voice_chat.py appends JSONL events here, we read & clear
+_CHAT_QUEUE_FILE = "/tmp/ironsight-chat-queue.jsonl"
+
+
+def _read_chat_queue() -> list:
+    """Read and clear pending chat events from the touch UI queue.
+
+    Returns a list of chat event dicts (usually empty). Each event has:
+    ts, type ("voice"|"diagnosis"), user, response, severity.
+    """
+    try:
+        if not os.path.exists(_CHAT_QUEUE_FILE):
+            return []
+        with open(_CHAT_QUEUE_FILE, "r") as f:
+            lines = f.readlines()
+        if not lines:
+            return []
+        # Clear the queue (atomic: truncate, don't delete — avoids race)
+        with open(_CHAT_QUEUE_FILE, "w") as f:
+            pass
+        events = []
+        for line in lines:
+            line = line.strip()
+            if line:
+                try:
+                    events.append(json.loads(line))
+                except json.JSONDecodeError:
+                    pass
+        return events
+    except Exception:
+        return []
+
 
 class OfflineBuffer:
     """Append-only JSONL buffer that persists readings to local disk.
@@ -857,6 +889,13 @@ class PlcSensor(Sensor):
         # Connection quality
         conn_quality = self._conn_monitor.check()
         readings.update(conn_quality)
+        # Chat events sync (even when PLC offline — operators still chat)
+        chat_events = _read_chat_queue()
+        if chat_events:
+            readings["chat_events"] = chat_events
+            readings["chat_event_count"] = len(chat_events)
+        else:
+            readings["chat_event_count"] = 0
         return readings
 
     async def get_readings(
@@ -1263,6 +1302,15 @@ class PlcSensor(Sensor):
                 f"modbus_ms={readings.get('modbus_response_time_ms', 0):.1f} "
                 f"speed={readings.get('encoder_speed_ftpm', 0):.1f}"
             )
+
+            # ── Voice chat events (synced to Viam Cloud for fleet analysis) ──
+            chat_events = _read_chat_queue()
+            if chat_events:
+                readings["chat_events"] = chat_events
+                readings["chat_event_count"] = len(chat_events)
+                LOGGER.info("Chat events synced to cloud: %d", len(chat_events))
+            else:
+                readings["chat_event_count"] = 0
 
             # Persist to local offline buffer (survives reboots + cloud outages)
             if self._offline_buffer is not None:
