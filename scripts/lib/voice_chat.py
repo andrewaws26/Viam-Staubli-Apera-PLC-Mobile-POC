@@ -35,7 +35,7 @@ CHAT_HISTORY_FILE = Path("/tmp/ironsight-chat.json")
 WHISPER_MODEL = "tiny"
 MAX_RECORD_SECONDS = 30
 SAMPLE_RATE = 16000
-AUDIO_DEVICE = "default"
+AUDIO_DEVICE = "plughw:0,0"
 
 
 @dataclass
@@ -71,7 +71,16 @@ class VoiceChat:
         self._process_thread = None
         self._whisper_model = None
         self._sys_status_fn = sys_status_fn
+        self._init_mic_volume()
         self._load_history()
+
+    def _init_mic_volume(self):
+        """Set USB mic capture volume to 100% (defaults to 0% on boot)."""
+        try:
+            subprocess.run(["amixer", "-c", "0", "set", "Mic", "100%"],
+                           capture_output=True, timeout=3)
+        except Exception:
+            pass
 
     def _load_history(self):
         try:
@@ -345,7 +354,7 @@ class VoiceChat:
         return ctx
 
     def proactive_diagnosis(self, retry: bool = False):
-        """Run instant local diagnosis + background AI agent investigation."""
+        """Run AI diagnosis. Falls back to local-only if no internet."""
         if self.state in ("loading", "thinking"):
             return
 
@@ -357,15 +366,26 @@ class VoiceChat:
         has_warning = any(d.get("severity") == "warning" for d in active)
         msg_severity = "critical" if has_critical else "warning" if has_warning else "ok"
 
-        local_text = self._local_diagnosis(sys_status, active, retry)
-        local_msg = ChatMessage(
-            role="assistant", text=local_text,
-            timestamp=time.strftime("%H:%M"), severity=msg_severity)
-        self.messages.append(local_msg)
+        # Check internet — if offline, show local diagnosis only
+        has_internet = sys_status.get("internet", False)
+        if not has_internet:
+            local_text = self._local_diagnosis(sys_status, active, retry)
+            local_text += "\n\n(Offline — local diagnosis only)"
+            self.messages.append(ChatMessage(
+                role="assistant", text=local_text,
+                timestamp=time.strftime("%H:%M"), severity=msg_severity))
+            self.scroll_offset = 0
+            self._save_history()
+            return
+
+        # Online — show placeholder, run AI agent
+        self.messages.append(ChatMessage(
+            role="assistant", text="Analyzing...",
+            timestamp=time.strftime("%H:%M"), severity=msg_severity))
         self.scroll_offset = 0
 
         self.state = "thinking"
-        self.state_message = "Getting AI analysis..."
+        self.state_message = "Gathering evidence..."
         threading.Thread(
             target=self._run_diagnosis,
             args=(retry, sys_status, active, msg_severity),
@@ -411,20 +431,16 @@ class VoiceChat:
                 try:
                     result = json.loads(stdout.strip())
                     ai_text = result.get("diagnosis", "")
-                    reasoning = result.get("reasoning", "")
-                    tool_calls = result.get("tool_calls", 0)
+                    ai_severity = result.get("severity", msg_severity)
 
                     if ai_text and self.messages:
                         self.messages[-1] = ChatMessage(
                             role="assistant", text=ai_text,
                             timestamp=time.strftime("%H:%M"),
-                            severity=msg_severity)
-                        self.messages[-1]._reasoning = reasoning
-                        if tool_calls > 0:
-                            self.messages[-1]._tool_calls = tool_calls
+                            severity=ai_severity)
                 except (json.JSONDecodeError, KeyError):
                     if self.messages:
-                        self.messages[-1].text += "\n(AI response error)"
+                        self.messages[-1].text = "AI response error. Tap RETRY."
             else:
                 if self.messages:
                     err_hint = ""
@@ -432,14 +448,14 @@ class VoiceChat:
                         err_hint = " -- check API key"
                     elif stderr and "timeout" in stderr.lower():
                         err_hint = " -- check internet"
-                    self.messages[-1].text += f"\n(AI agent failed{err_hint})"
+                    self.messages[-1].text = f"AI analysis failed{err_hint}. Tap RETRY."
 
         except FileNotFoundError:
             if self.messages:
-                self.messages[-1].text += "\n(Agent script not found)"
+                self.messages[-1].text = "Agent script not found."
         except Exception as e:
             if self.messages:
-                self.messages[-1].text += f"\n(Agent error: {str(e)[:50]})"
+                self.messages[-1].text = f"Agent error: {str(e)[:50]}"
         finally:
             try:
                 progress_file.unlink(missing_ok=True)
