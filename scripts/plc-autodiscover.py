@@ -275,7 +275,11 @@ def get_configured_plc_ip() -> str:
                 return comp["attributes"]["host"]
     except Exception:
         pass
-    return "169.168.10.21"
+    try:
+        from lib.plc_constants import PLC_HOST
+        return PLC_HOST
+    except ImportError:
+        return "169.168.10.21"
 
 
 def update_viam_config(new_ip: str) -> bool:

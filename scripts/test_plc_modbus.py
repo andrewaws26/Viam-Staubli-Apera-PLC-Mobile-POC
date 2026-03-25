@@ -16,6 +16,10 @@ Requires: pip3 install pymodbus>=3.5
 import argparse
 import sys
 import time
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from lib.plc_constants import PLC_HOST, PLC_PORT
 
 try:
     from pymodbus.client import ModbusTcpClient
@@ -163,8 +167,8 @@ def print_snapshot(snap: dict, highlight_nonzero: bool = True) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Click PLC Modbus TCP connectivity test — TPS")
-    parser.add_argument("--host", default="169.168.10.21", help="PLC IP address (default 169.168.10.21)")
-    parser.add_argument("--port", type=int, default=502, help="Modbus TCP port (default 502)")
+    parser.add_argument("--host", default=PLC_HOST, help=f"PLC IP address (default {PLC_HOST})")
+    parser.add_argument("--port", type=int, default=PLC_PORT, help=f"Modbus TCP port (default {PLC_PORT})")
     parser.add_argument(
         "--watch", action="store_true",
         help="Poll every second and print changes (Ctrl+C to stop)"

@@ -7,12 +7,14 @@ Prints every 200ms so we can see exactly what happens.
 Usage: python3 scripts/test_dd1_reverse.py
 """
 
+import sys
 import time
 import struct
+from pathlib import Path
 from pymodbus.client import ModbusTcpClient
 
-PLC_HOST = "169.168.10.21"
-PLC_PORT = 502
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from lib.plc_constants import PLC_HOST, PLC_PORT
 
 client = ModbusTcpClient(PLC_HOST, port=PLC_PORT, timeout=1)
 if not client.connect():

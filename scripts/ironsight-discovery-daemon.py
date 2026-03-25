@@ -59,8 +59,11 @@ if DISCOVERY_AVAILABLE:
 
 # ─── Constants ────────────────────────────────────────────────
 
-KNOWN_PLC_HOST = "169.168.10.21"
-KNOWN_PLC_PORT = 502
+try:
+    from lib.plc_constants import PLC_HOST as KNOWN_PLC_HOST, PLC_PORT as KNOWN_PLC_PORT
+except ImportError:
+    KNOWN_PLC_HOST = "169.168.10.21"
+    KNOWN_PLC_PORT = 502
 HEARTBEAT_INTERVAL = 300  # 5 minutes
 LINK_SETTLE_TIME = 5      # seconds to wait after eth0 comes up
 USB_SETTLE_TIME = 2        # seconds to wait after USB device appears
