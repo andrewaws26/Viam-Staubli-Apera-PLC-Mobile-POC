@@ -282,10 +282,13 @@ class VoiceChat:
         self.messages.append(user_msg)
         self.scroll_offset = 0
 
+        # Check for memory save requests before sending to Claude
+        memory_saved = self._check_memory_request(transcript.strip())
+
         # Get Claude response
         self.state = "thinking"
         self.state_message = "Claude is thinking..."
-        response = self._ask_claude(transcript.strip())
+        response = self._ask_claude(transcript.strip(), memory_saved=memory_saved)
 
         if response:
             self.messages.append(ChatMessage(
@@ -351,9 +354,69 @@ class VoiceChat:
             print(f"Transcription error: {e}")
             return ""
 
+    # ── Memory ───────────────────────────────────────────────────────────
+
+    _MEMORY_FILE = Path("/home/andrew/.ironsight/memory/learnings.md")
+    _MEMORY_TRIGGERS = ("remember", "save to memory", "write to memory",
+                        "long-term memory", "don't forget", "memorize")
+
+    def _check_memory_request(self, user_text: str) -> str:
+        """Detect 'remember this' requests and write to persistent memory.
+
+        Returns the text that was saved (empty string if no save).
+        """
+        text_lower = user_text.lower()
+        if not any(trigger in text_lower for trigger in self._MEMORY_TRIGGERS):
+            return ""
+
+        # Ask Claude to extract what should be remembered
+        try:
+            result = subprocess.run(
+                ["claude", "-p", "--model", "haiku"],
+                input=(
+                    f"The user said: \"{user_text}\"\n\n"
+                    "Extract ONLY the fact or terminology they want remembered. "
+                    "Write it as a single concise line starting with '- '. "
+                    "Example: '- Buggy = the TPS tie plate system (operator term)'\n"
+                    "If there's nothing specific to remember, respond with just 'NONE'."
+                ),
+                capture_output=True, text=True, timeout=15,
+                env={**os.environ, "HOME": "/home/andrew"})
+
+            if result.returncode != 0:
+                return ""
+
+            extracted = result.stdout.strip()
+            if not extracted or extracted.upper() == "NONE":
+                return ""
+
+            # Append to learnings file
+            if not extracted.startswith("- "):
+                extracted = f"- {extracted}"
+            header = f"\n### Operator Notes ({time.strftime('%Y-%m-%d')})\n"
+
+            # Check if today's header already exists
+            try:
+                existing = self._MEMORY_FILE.read_text()
+                if header.strip() not in existing:
+                    extracted = header + extracted
+                else:
+                    extracted = "\n" + extracted
+            except FileNotFoundError:
+                extracted = header + extracted
+
+            with open(self._MEMORY_FILE, "a") as f:
+                f.write(extracted + "\n")
+
+            print(f"Memory saved: {extracted.strip()}")
+            return extracted.strip()
+        except Exception as e:
+            print(f"Memory save error: {e}")
+            return ""
+
     # ── Claude CLI ──────────────────────────────────────────────────────
 
-    def _ask_claude(self, user_text: str) -> str:
+    def _ask_claude(self, user_text: str, memory_saved: str = "") -> str:
         """Send transcribed text to Claude CLI (haiku) with system context."""
         try:
             context = self._build_system_context()
@@ -363,6 +426,13 @@ class VoiceChat:
                 role = "User" if msg.role == "user" else "Assistant"
                 prompt_parts.append(f"{role}: {msg.text}")
             prompt_parts.append(f"User: {user_text}")
+
+            memory_note = ""
+            if memory_saved:
+                memory_note = (
+                    f"NOTE: The following was just saved to your persistent memory: "
+                    f"\"{memory_saved}\". Confirm to the user that you saved it. ")
+
             prompt_parts.append(
                 "You are having a conversation with a railroad operator at a TPS truck. "
                 "Be natural and conversational — they may ask follow-up questions, "
@@ -371,7 +441,9 @@ class VoiceChat:
                 "Give practical advice — things to physically check or do at the truck. "
                 "Do NOT suggest checking PLC registers or running software commands. "
                 "If they say something worked or ask what else to try, build on "
-                "the conversation naturally:")
+                f"the conversation naturally. {memory_note}"
+                "Do NOT lie about saving to memory — only confirm if the NOTE above "
+                "says something was saved:")
 
             full_prompt = "\n".join(prompt_parts)
             result = subprocess.run(
