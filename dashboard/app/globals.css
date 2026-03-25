@@ -6,6 +6,46 @@
   color-scheme: dark;
 }
 
+/* --- Touch optimizations for 3.5" Sunfounder touchscreen (480×320) --- */
+
+/* Eliminate 300ms tap delay, disable double-tap zoom */
+html {
+  touch-action: manipulation;
+}
+
+/* Remove default blue tap highlight on WebKit browsers */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Instant visual feedback on tap for all interactive elements */
+button,
+summary,
+[role="button"],
+.tap-target {
+  transition: transform 75ms ease, opacity 75ms ease;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+button:active,
+summary:active,
+[role="button"]:active,
+.tap-target:active {
+  transform: scale(0.96);
+  opacity: 0.85;
+}
+
+/* Full-screen modal transitions */
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes modalOut {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.95); }
+}
+
 /* Full-screen red flash when a fault is first detected.
    The flash overlay div is keyed to re-mount on each new fault. */
 @keyframes flashOut {

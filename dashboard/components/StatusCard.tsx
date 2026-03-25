@@ -15,7 +15,7 @@ export default function StatusCard({ component }: Props) {
   return (
     <div
       className={[
-        "rounded-2xl border flex flex-col items-center gap-3 p-4 sm:p-6 transition-all duration-300",
+        "rounded-2xl border flex flex-col items-center gap-2 sm:gap-3 p-3 sm:p-6 transition-colors duration-300 tap-target",
         isHealthy ? "border-green-800 bg-gray-900" : "",
         isFault ? "border-red-700 bg-red-950/40" : "",
         isPending ? "border-yellow-800/50 bg-gray-900/60" : "",
@@ -24,14 +24,14 @@ export default function StatusCard({ component }: Props) {
         .filter(Boolean)
         .join(" ")}
     >
-      {/* Status circle — smaller on mobile */}
-      <div className="relative flex items-center justify-center w-20 h-20 sm:w-36 sm:h-36">
+      {/* Status circle */}
+      <div className="relative flex items-center justify-center w-16 h-16 sm:w-36 sm:h-36">
         {isFault && (
           <span className="absolute inset-0 rounded-full bg-red-500 opacity-25 animate-ping" />
         )}
         <div
           className={[
-            "w-20 h-20 sm:w-36 sm:h-36 rounded-full flex flex-col items-center justify-center shadow-lg select-none",
+            "w-16 h-16 sm:w-36 sm:h-36 rounded-full flex flex-col items-center justify-center shadow-lg select-none",
             isHealthy ? "bg-green-500 shadow-green-900/60" : "",
             isFault ? "bg-red-600 shadow-red-900/60 animate-pulse" : "",
             isPending ? "bg-yellow-700/40 shadow-yellow-900/30" : "",
@@ -44,15 +44,15 @@ export default function StatusCard({ component }: Props) {
             <span className="text-gray-400 text-xl sm:text-3xl">...</span>
           ) : isPending ? (
             <>
-              <span className="text-2xl sm:text-4xl opacity-40">{icon}</span>
+              <span className="text-xl sm:text-4xl opacity-40">{icon}</span>
               <span className="text-yellow-400 font-bold text-[10px] sm:text-xs mt-0.5 sm:mt-1 uppercase tracking-wider">
                 Pending
               </span>
             </>
           ) : (
             <>
-              <span className="text-2xl sm:text-4xl">{icon}</span>
-              <span className="text-white font-black text-sm sm:text-xl mt-0.5 sm:mt-1">
+              <span className="text-xl sm:text-4xl">{icon}</span>
+              <span className="text-white font-black text-base sm:text-xl mt-0.5 sm:mt-1">
                 {isHealthy ? "OK" : "FAULT"}
               </span>
             </>

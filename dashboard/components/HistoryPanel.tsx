@@ -90,7 +90,7 @@ export default function HistoryPanel({ summary, loading, error, onRefresh }: Pro
           </h3>
           <button
             onClick={onRefresh}
-            className="text-[10px] sm:text-xs text-gray-600 hover:text-gray-400 uppercase tracking-wide px-2 py-1 border border-gray-800 rounded-lg transition-colors"
+            className="text-[10px] sm:text-xs text-gray-600 hover:text-gray-400 uppercase tracking-wide min-h-[44px] px-4 py-2 border border-gray-800 rounded-lg transition-colors"
           >
             Retry
           </button>
@@ -123,26 +123,22 @@ export default function HistoryPanel({ summary, loading, error, onRefresh }: Pro
   // Render
   // -------------------------------------------------------------------------
   return (
-    <details className="border border-gray-800 rounded-2xl" open={!noData}>
-      <summary className="p-3 sm:p-4 cursor-pointer select-none flex items-center justify-between gap-2">
-        <span className="text-xs font-bold uppercase tracking-widest text-gray-500 hover:text-gray-400">
+    <div className="border border-gray-800 rounded-2xl">
+      <div className="p-3 sm:p-4 flex items-center justify-between gap-2">
+        <span className="text-xs font-bold uppercase tracking-widest text-gray-500">
           Production History ({summary.totalHours}h)
           {loading && <span className="ml-2 text-gray-700 normal-case">refreshing...</span>}
         </span>
         <button
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onRefresh();
-          }}
+          onClick={onRefresh}
           disabled={loading}
-          className="text-[10px] sm:text-xs text-gray-600 hover:text-gray-400 disabled:text-gray-800 uppercase tracking-wide px-2 py-1 border border-gray-800 rounded-lg transition-colors shrink-0"
+          className="text-[10px] sm:text-xs text-gray-600 hover:text-gray-400 disabled:text-gray-800 uppercase tracking-wide min-h-[44px] px-4 py-2 border border-gray-800 rounded-lg transition-colors shrink-0"
         >
           Refresh
         </button>
-      </summary>
+      </div>
 
-      <div className="px-4 sm:px-6 pb-4 sm:pb-6 space-y-4 sm:space-y-6">
+      <div className="px-3 sm:px-6 pb-3 sm:pb-6 space-y-3 sm:space-y-6">
         {noData ? (
           <p className="text-sm text-gray-600">
             No data captured in the last {summary.totalHours} hours.
@@ -288,7 +284,7 @@ export default function HistoryPanel({ summary, loading, error, onRefresh }: Pro
           </>
         )}
       </div>
-    </details>
+    </div>
   );
 }
 
