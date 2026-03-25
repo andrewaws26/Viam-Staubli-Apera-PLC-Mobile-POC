@@ -13,6 +13,7 @@ Usage:
 
 import json
 import os
+import struct
 import subprocess
 import sys
 import threading
@@ -147,6 +148,31 @@ class VoiceChat:
         self._process_thread = threading.Thread(target=self._process_audio, daemon=True)
         self._process_thread.start()
 
+    @staticmethod
+    def _fix_wav_header(filepath):
+        """Fix WAV header after arecord termination via plughw.
+
+        When arecord is killed (SIGTERM/SIGINT) while recording through the
+        plughw ALSA plugin, it doesn't update the RIFF/data chunk sizes in the
+        WAV header — they still reflect the original -d max duration. This
+        causes audio readers that trust the header to see phantom silence after
+        the real audio data. Fix by patching the header to match actual file
+        size.
+        """
+        try:
+            file_size = os.path.getsize(filepath)
+            if file_size < 44:
+                return
+            with open(filepath, 'r+b') as f:
+                # RIFF chunk size = file_size - 8
+                f.seek(4)
+                f.write(struct.pack('<I', file_size - 8))
+                # data chunk size = file_size - 44 (standard PCM WAV header)
+                f.seek(40)
+                f.write(struct.pack('<I', file_size - 44))
+        except Exception:
+            pass
+
     def _process_audio(self):
         audio_file = getattr(self, '_audio_file', None)
         if not audio_file or not os.path.exists(audio_file):
@@ -163,6 +189,9 @@ class VoiceChat:
             except Exception:
                 pass
             return
+
+        # Fix WAV header — arecord via plughw leaves wrong sizes after kill
+        self._fix_wav_header(audio_file)
 
         self.state = "transcribing"
         self.state_message = "Transcribing..."
@@ -202,13 +231,28 @@ class VoiceChat:
         self.state = "idle"
         self.state_message = ""
 
+    # Common Whisper hallucinations on silence/noise (tiny model)
+    _HALLUCINATIONS = {
+        "thank you", "thanks for watching", "thanks for listening",
+        "please subscribe", "like and subscribe", "see you next time",
+        "bye", "goodbye", "you", "the end",
+    }
+
     def _transcribe(self, audio_file: str) -> str:
         model = self._get_whisper()
         if model:
             try:
-                segments, _ = model.transcribe(
-                    audio_file, beam_size=1, language="en", vad_filter=True)
-                return " ".join(seg.text for seg in segments).strip()
+                # No VAD filter — this is push-to-talk, so we know speech is
+                # present. VAD's default threshold (0.5) rejects speech in noisy
+                # environments like a railroad shop where ambient RMS is 3-5%.
+                segments, info = model.transcribe(
+                    audio_file, beam_size=5, language="en", vad_filter=False)
+                text = " ".join(seg.text for seg in segments).strip()
+                # Filter out common Whisper hallucinations on noise/silence
+                if text.lower().rstrip(".!,") in self._HALLUCINATIONS:
+                    print(f"Whisper hallucination filtered: '{text}'")
+                    return ""
+                return text
             except Exception as e:
                 print(f"Transcription error: {e}")
         self.state = "error"
