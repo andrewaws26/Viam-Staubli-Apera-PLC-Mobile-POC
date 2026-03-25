@@ -35,7 +35,7 @@ CHAT_HISTORY_FILE = Path("/tmp/ironsight-chat.json")
 WHISPER_MODEL = "tiny"
 MAX_RECORD_SECONDS = 30
 SAMPLE_RATE = 16000
-AUDIO_DEVICE = "default"
+AUDIO_DEVICE = "plughw:0,0"
 
 
 @dataclass
@@ -71,7 +71,16 @@ class VoiceChat:
         self._process_thread = None
         self._whisper_model = None
         self._sys_status_fn = sys_status_fn
+        self._init_mic_volume()
         self._load_history()
+
+    def _init_mic_volume(self):
+        """Set USB mic capture volume to 100% (defaults to 0% on boot)."""
+        try:
+            subprocess.run(["amixer", "-c", "0", "set", "Mic", "100%"],
+                           capture_output=True, timeout=3)
+        except Exception:
+            pass
 
     def _load_history(self):
         try:
