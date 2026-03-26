@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 
 interface TruckReadings {
   [key: string]: unknown;
@@ -103,14 +103,61 @@ const LAMP_NAMES: Record<string, string> = {
   protect_lamp: "PROT",
 };
 
-export default function TruckPanel() {
+export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
   const [readings, setReadings] = useState<TruckReadings | null>(null);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [clearing, setClearing] = useState(false);
   const [clearResult, setClearResult] = useState<string | null>(null);
 
+  const simTickRef = React.useRef(0);
+
   const fetchReadings = useCallback(async () => {
+    if (simMode) {
+      simTickRef.current += 1;
+      const t = simTickRef.current;
+      const rpm = 800 + Math.sin(t * 0.1) * 400 + Math.random() * 50;
+      const speed = Math.max(0, 60 + Math.sin(t * 0.05) * 30 + Math.random() * 5);
+      setReadings({
+        engine_rpm: Math.round(rpm),
+        engine_load_pct: 40 + Math.sin(t * 0.08) * 25 + Math.random() * 5,
+        accel_pedal_pos_pct: 30 + Math.sin(t * 0.12) * 20,
+        driver_demand_torque_pct: 35 + Math.sin(t * 0.1) * 20,
+        actual_engine_torque_pct: 33 + Math.sin(t * 0.1) * 20,
+        coolant_temp_c: 85 + Math.sin(t * 0.02) * 8 + Math.random() * 2,
+        oil_temp_c: 95 + Math.sin(t * 0.015) * 10,
+        fuel_temp_c: 42 + Math.sin(t * 0.01) * 5,
+        intake_manifold_temp_c: 55 + Math.sin(t * 0.03) * 10,
+        trans_oil_temp_c: 80 + Math.sin(t * 0.02) * 8,
+        ambient_temp_c: 22 + Math.random() * 2,
+        oil_pressure_kpa: 310 + Math.sin(t * 0.05) * 40 + Math.random() * 10,
+        fuel_pressure_kpa: 380 + Math.random() * 20,
+        boost_pressure_kpa: 160 + Math.sin(t * 0.08) * 40,
+        barometric_pressure_kpa: 101.3 + Math.random() * 0.5,
+        vehicle_speed_kmh: Math.round(speed * 10) / 10,
+        current_gear: speed < 5 ? 0 : Math.min(12, Math.floor(speed / 8) + 1),
+        fuel_rate_lph: 15 + Math.sin(t * 0.06) * 8 + Math.random() * 2,
+        fuel_economy_km_l: 2.5 + Math.sin(t * 0.04) * 0.8,
+        fuel_level_pct: Math.max(10, 72 - t * 0.01),
+        battery_voltage_v: 13.8 + Math.sin(t * 0.03) * 0.3,
+        oil_level_pct: 85 + Math.random() * 3,
+        engine_hours: 4523.5 + t * 0.001,
+        total_fuel_used_l: 125430 + t * 0.05,
+        active_dtc_count: t > 50 && t < 80 ? 1 : 0,
+        ...(t > 50 && t < 80 ? {
+          dtc_0_spn: 100, dtc_0_fmi: 1, dtc_0_occurrence: 3,
+          amber_warning_lamp: 1, malfunction_lamp: 0, red_stop_lamp: 0, protect_lamp: 0,
+        } : {}),
+        _bus_connected: true,
+        _frame_count: t * 47,
+        _seconds_since_last_frame: 0.3 + Math.random() * 0.2,
+        _can_interface: "can0",
+      } as TruckReadings);
+      setConnected(true);
+      setError(null);
+      return;
+    }
+
     try {
       const { getTruckSensorReadings } = await import("../lib/truck-viam");
       const data = await getTruckSensorReadings("truck-engine");
@@ -121,7 +168,7 @@ export default function TruckPanel() {
       setConnected(false);
       setError(err instanceof Error ? err.message : "Connection error");
     }
-  }, []);
+  }, [simMode]);
 
   useEffect(() => {
     fetchReadings();
