@@ -143,9 +143,10 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
         oil_level_pct: 85 + Math.random() * 3,
         engine_hours: 4523.5 + t * 0.001,
         total_fuel_used_l: 125430 + t * 0.05,
-        active_dtc_count: t > 50 && t < 80 ? 1 : 0,
-        ...(t > 50 && t < 80 ? {
-          dtc_0_spn: 100, dtc_0_fmi: 1, dtc_0_occurrence: 3,
+        active_dtc_count: t > 30 ? 2 : 0,
+        ...(t > 30 ? {
+          dtc_0_spn: 3226, dtc_0_fmi: 18, dtc_0_occurrence: 5,
+          dtc_1_spn: 5246, dtc_1_fmi: 0, dtc_1_occurrence: 2,
           amber_warning_lamp: 1, malfunction_lamp: 0, red_stop_lamp: 0, protect_lamp: 0,
         } : {}),
         _bus_connected: true,
@@ -323,13 +324,13 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
           <button
             onClick={handleClearDTCs}
             disabled={clearing}
-            className={`min-h-[44px] px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-colors ${
+            className={`min-h-[56px] px-6 py-3 rounded-xl text-sm sm:text-lg font-black uppercase tracking-wider transition-colors ${
               clearing
                 ? "bg-gray-700 text-gray-400 cursor-not-allowed"
-                : "bg-red-700 hover:bg-red-600 text-white"
+                : "bg-red-700 hover:bg-red-600 text-white shadow-lg shadow-red-900/50"
             }`}
           >
-            {clearing ? "Clearing..." : "Clear DTCs"}
+            {clearing ? "CLEARING..." : "CLEAR DTCs"}
           </button>
         </div>
       )}
@@ -383,7 +384,7 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
           <button
             onClick={handleClearDTCs}
             disabled={clearing}
-            className="text-[10px] px-3 py-1.5 rounded border border-gray-700 text-gray-500 hover:text-gray-300 transition-colors"
+            className="text-xs px-4 py-2 rounded-lg border border-gray-700 text-gray-500 hover:text-gray-300 transition-colors min-h-[44px]"
           >
             {clearing ? "Clearing..." : "Clear DTCs"}
           </button>

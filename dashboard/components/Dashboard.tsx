@@ -100,6 +100,7 @@ export default function Dashboard() {
     // In live mode, readings are fetched via /api/sensor-readings (server-side
     // proxy) so Viam credentials never reach the browser.
     const { getSensorReadings, ComponentNotFoundError } = await import("../lib/viam");
+    const { getTruckSensorReadings } = await import("../lib/truck-viam");
 
     const newStates: ComponentState[] = [];
     const currentFaultIds = new Set<string>();
@@ -160,12 +161,23 @@ export default function Dashboard() {
         status = "healthy";
         setSdkConnected(true);
         setSdkError(null);
+        // Override readings for health cards in sim mode
+        if (cfg.id === "tps-pi") {
+          readings = { connected: true, uptime_seconds: d.tick * 2, total_reads: d.tick * 50 } as unknown as SensorReadings;
+        } else if (cfg.id === "truck-pi") {
+          readings = { _bus_connected: true, _frame_count: d.tick * 47, _seconds_since_last_frame: 0.4 } as unknown as SensorReadings;
+        }
         newStates.push({ id: cfg.id, label: cfg.label, icon: cfg.icon, status, readings, lastUpdated: new Date(), faultMessage: null });
         continue;
       }
 
       try {
-        readings = await getSensorReadings(cfg.componentName);
+        // Use truck Viam client for truck components
+        if (cfg.id === "truck-pi") {
+          readings = await getTruckSensorReadings(cfg.componentName);
+        } else {
+          readings = await getSensorReadings(cfg.componentName);
+        }
 
         const healthy = cfg.isHealthy(readings);
         status = healthy ? "healthy" : "fault";
