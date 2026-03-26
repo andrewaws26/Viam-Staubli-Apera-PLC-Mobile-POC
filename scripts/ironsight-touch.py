@@ -17,6 +17,7 @@ Requires: pip3 install Pillow evdev anthropic faster-whisper
 """
 
 import json
+import glob
 import os
 import subprocess
 import sys
@@ -60,7 +61,8 @@ except ImportError:
 # ─────────────────────────────────────────────────────────────
 
 DATA_REFRESH_INTERVAL = 2.0   # seconds between data fetches
-TOUCH_POLL_HZ = 20            # touch polling rate
+TOUCH_POLL_HZ = 50            # touch polling rate — high for responsive scroll
+SCROLL_REPEAT_MS = 150        # hold-to-scroll repeat interval
 
 
 # Framebuffer imported from lib.framebuffer
@@ -497,7 +499,7 @@ def render_home(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
     # --- Bottom navigation bar (4 buttons) ---
     nav_h = 74
     nav_y = H - nav_h - 4
-    gap = 5
+    gap = 12  # wide gap — gloves on resistive screen need separation
     btn_count = 4
     btn_w = (W - MARGIN * 2 - gap * (btn_count - 1)) // btn_count
 
@@ -603,6 +605,7 @@ def render_commands(sys_status: dict) -> Tuple["Image.Image", List[Button]]:
     y += 22
 
     commands = [
+        ("Provision PLC", "nav_provision", DARK_GREEN, False),
         ("Fix Connection", "cmd_restart_viam", DARK_ORANGE, True),
         ("Test PLC", "cmd_test_plc", DARK_BLUE, False),
         ("Scan WiFi", "cmd_switch_wifi", DARK_CYAN, False),
@@ -763,27 +766,27 @@ def render_logs(sys_status: dict, scroll_offset: int = 0,
     if not visible:
         draw.text((MARGIN, y + 10), "No events to show", fill=MID_GRAY, font=font)
 
-    # Scroll buttons on the right — big for glove use
-    scroll_btn_w = 60
-    scroll_btn_h = 44
+    # Scroll buttons on the right — wide for glove use
+    scroll_btn_w = 80
+    scroll_btn_h = 50
 
     if scroll_offset > 0:
         up_btn = Button(
             W - scroll_btn_w - MARGIN, HEADER_H + 38,
             scroll_btn_w, scroll_btn_h,
-            "UP", "scroll_up", color=MID_GRAY
+            "UP", "scroll_up", color=(50, 50, 60)
         )
         buttons.append(up_btn)
-        draw_button(draw, up_btn, find_font(12))
+        draw_button(draw, up_btn, find_font(14))
 
     if scroll_offset + max_visible < len(history):
         dn_btn = Button(
             W - scroll_btn_w - MARGIN, H - BACK_BTN_H - scroll_btn_h - 15,
             scroll_btn_w, scroll_btn_h,
-            "DN", "scroll_down", color=MID_GRAY
+            "DN", "scroll_down", color=(50, 50, 60)
         )
         buttons.append(dn_btn)
-        draw_button(draw, dn_btn, find_font(12))
+        draw_button(draw, dn_btn, find_font(14))
 
     # Back button
     back = _back_button()
@@ -1158,28 +1161,28 @@ def render_system(sys_status: dict, scroll_offset: int = 0) -> Tuple["Image.Imag
 
     buttons = []
 
-    # Scroll buttons — big for glove use
+    # Scroll buttons — wide for glove use
     if needs_scroll:
-        scroll_btn_w = 60
-        scroll_btn_h = 44
+        scroll_btn_w = 120
+        scroll_btn_h = 50
 
         if scroll_offset > 0:
             up_btn = Button(
                 W - scroll_btn_w - MARGIN, y_top,
                 scroll_btn_w, scroll_btn_h,
-                "UP", "scroll_up", color=MID_GRAY
+                "UP", "scroll_up", color=(50, 50, 60)
             )
             buttons.append(up_btn)
-            draw_button(draw, up_btn, find_font(12))
+            draw_button(draw, up_btn, find_font(14))
 
         if y > H - BACK_BTN_H - 15:
             dn_btn = Button(
                 W - scroll_btn_w - MARGIN, H - BACK_BTN_H - scroll_btn_h - 15,
                 scroll_btn_w, scroll_btn_h,
-                "DN", "scroll_down", color=MID_GRAY
+                "DN", "scroll_down", color=(50, 50, 60)
             )
             buttons.append(dn_btn)
-            draw_button(draw, dn_btn, find_font(12))
+            draw_button(draw, dn_btn, find_font(14))
 
     # Back button
     back = _back_button()
@@ -1315,27 +1318,32 @@ def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image
             buttons.append(ask_btn)
             draw_button(draw, ask_btn, font_btn)
 
-    # ── Scroll buttons (right edge, big glove-friendly targets) ──
-    scroll_btn_w = 50
-    scroll_btn_h = (btn_y - status_h - 6) // 2  # split right edge in half
+    # ── Scroll buttons (right edge) ──
+    # 90px wide based on touch profiling (avg 24-30px offset from center with gloves).
+    # 30px guard gap above the action bar prevents glove taps from sliding off DN
+    # into the ASK button. Buttons are added AFTER action buttons so find_hit()
+    # checks action buttons first (they don't overlap — separated by guard gap).
+    scroll_btn_w = 90
+    scroll_guard = 30
+    scroll_btn_h = (btn_y - status_h - 6 - scroll_guard) // 2
     scroll_top_y = status_h + 2
     scroll_mid_y = scroll_top_y + scroll_btn_h + 2
 
     # UP button (top-right)
     draw.rectangle([W - scroll_btn_w, scroll_top_y,
-                    W, scroll_top_y + scroll_btn_h], fill=MID_GRAY)
-    up_label = find_font(20)
-    draw.text((W - scroll_btn_w // 2 - 6, scroll_top_y + scroll_btn_h // 2 - 12),
-              "^", fill=WHITE, font=up_label)
+                    W, scroll_top_y + scroll_btn_h], fill=(50, 50, 60))
+    up_label = find_font(26)
+    draw.text((W - scroll_btn_w // 2 - 10, scroll_top_y + scroll_btn_h // 2 - 15),
+              "UP", fill=WHITE, font=up_label)
     up_btn = Button(W - scroll_btn_w, scroll_top_y, scroll_btn_w, scroll_btn_h,
                     "", "chat_scroll_up")
     buttons.append(up_btn)
 
     # DOWN button (bottom-right)
     draw.rectangle([W - scroll_btn_w, scroll_mid_y,
-                    W, scroll_mid_y + scroll_btn_h], fill=MID_GRAY)
-    draw.text((W - scroll_btn_w // 2 - 6, scroll_mid_y + scroll_btn_h // 2 - 12),
-              "v", fill=WHITE, font=up_label)
+                    W, scroll_mid_y + scroll_btn_h], fill=(50, 50, 60))
+    draw.text((W - scroll_btn_w // 2 - 14, scroll_mid_y + scroll_btn_h // 2 - 15),
+              "DN", fill=WHITE, font=up_label)
     dn_btn = Button(W - scroll_btn_w, scroll_mid_y, scroll_btn_w, scroll_btn_h,
                     "", "chat_scroll_down")
     buttons.append(dn_btn)
@@ -1345,7 +1353,7 @@ def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image
     chat_bottom = btn_y - 2
     chat_h = chat_bottom - chat_top
     line_h = 20
-    max_chars = 36  # narrower to avoid overlapping scroll buttons
+    max_chars = 44  # fills available space between MARGIN and scroll buttons
 
     # Landing screen (no messages yet, not thinking)
     if not messages and state not in ("thinking", "loading", "transcribing"):
@@ -1414,14 +1422,118 @@ def render_chat(sys_status: dict, voice_chat: "VoiceChat") -> Tuple["Image.Image
                 msg_end_y[msg_idx] = y + line_h
         y += line_h
 
-    # Expand targets: "+" icon on the RIGHT side only (not full width)
-    # Avoids conflict with scroll/swipe gestures across the message area
-    font_icon = find_font(14)
-    for msg_idx in msg_start_y:
-        top_y = msg_start_y[msg_idx]
-        draw.text((W - 24, top_y), "+", fill=MID_GRAY, font=font_icon)
-        expand_btn = Button(W - 44, top_y, 44, 44, str(msg_idx), "chat_expand")
-        buttons.append(expand_btn)
+    # No expand buttons — too small for gloves and too close to scroll buttons.
+    # Messages are readable via scrolling.
+
+    return img, buttons
+
+
+
+def render_provision(sys_status: dict, executor=None) -> tuple:
+    """PROVISION — PLC configuration profile selection."""
+    img = Image.new("RGB", (W, H), DARK_GRAY)
+    draw = ImageDraw.Draw(img)
+    _draw_status_bar(draw, sys_status)
+
+    font = find_font(16)
+    font_sm = find_font(12)
+    font_title = find_font(14)
+
+    y = HEADER_H
+    y = _draw_alert_bar(draw, sys_status, y)
+    y += 4
+    draw.text((MARGIN, y), "PLC PROVISION", fill=LIGHT_GRAY, font=font_title)
+    y += 22
+
+    # Show provision progress if running
+    if executor and hasattr(executor, "provision_steps") and executor.provision_steps:
+        steps = executor.provision_steps
+        done = getattr(executor, "provision_done", False)
+        profile_name = getattr(executor, "provision_profile", "")
+
+        draw.text((MARGIN, y), profile_name, fill=WHITE, font=font)
+        y += 20
+
+        # Progress bar
+        total = len(steps)
+        completed = sum(1 for s in steps if s["status"] in ("ok", "error"))
+        pct = completed / total if total > 0 else 0
+        bar_w = W - MARGIN * 2
+        draw.rectangle([MARGIN, y, MARGIN + bar_w, y + 12], outline=MID_GRAY)
+        bar_color = GREEN if all(s["status"] == "ok" for s in steps if s["status"] != "writing") else YELLOW
+        if any(s["status"] == "error" for s in steps):
+            bar_color = RED
+        draw.rectangle([MARGIN + 1, y + 1, MARGIN + 1 + int(bar_w * pct), y + 11], fill=bar_color)
+        draw.text((MARGIN + bar_w + 4, y - 2), f"{int(pct*100)}%", fill=LIGHT_GRAY, font=font_sm)
+        y += 18
+
+        # Show steps (scrollable area)
+        visible_h = H - y - BACK_BTN_H - 15
+        lines_visible = visible_h // 14
+        for step in steps[-lines_visible:]:
+            icon = "." if step["status"] == "writing" else ("+" if step["status"] == "ok" else "X")
+            color = GREEN if step["status"] == "ok" else (RED if step["status"] == "error" else YELLOW)
+            verified = step.get("verified")
+            if verified is True:
+                icon = "V"
+            elif verified is False:
+                icon = "!"
+                color = RED
+            detail = step.get("detail", "")
+            draw.text((MARGIN, y), f"{icon} {step[label][:25]}", fill=color, font=font_sm)
+            if detail:
+                draw.text((W - MARGIN - 80, y), detail[:12], fill=MID_GRAY, font=font_sm)
+            y += 14
+
+        buttons = []
+        if done:
+            # Show DONE + back
+            back = _back_button()
+            draw_button(draw, back, font)
+            buttons.append(back)
+        else:
+            # Just back button while running
+            back = _back_button()
+            draw_button(draw, back, font)
+            buttons.append(back)
+        return img, buttons
+
+    # Normal state: show profile buttons
+    profile_dir = "/home/andrew/Viam-Staubli-Apera-PLC-Mobile-POC/config/plc-profiles"
+    profiles = []
+    for f_path in sorted(glob.glob(os.path.join(profile_dir, "*.json"))):
+        try:
+            with open(f_path) as fh:
+                p = json.load(fh)
+            profiles.append((p.get("name", "?"), os.path.basename(f_path), p.get("description", "")[:40]))
+        except Exception:
+            pass
+
+    buttons = []
+    btn_w = W - MARGIN * 2
+    back_top = H - BACK_BTN_H - 5
+    available_h = back_top - y - 10
+    gap = 6
+    btn_h = min(48, (available_h - gap * (len(profiles) + 1)) // max(len(profiles) + 1, 1))
+
+    # Read Current Config button
+    btn = Button(MARGIN, y, btn_w, btn_h, "Read Current Config", "cmd_provision_read", color=DARK_CYAN)
+    buttons.append(btn)
+    draw_button(draw, btn, font)
+    y += btn_h + gap
+
+    colors = [DARK_GREEN, DARK_BLUE, DARK_ORANGE, DARK_PURPLE]
+    for i, (name, filename, desc) in enumerate(profiles):
+        color = colors[i % len(colors)]
+        action = f"confirm_cmd_provision_{filename}"
+        btn = Button(MARGIN, y, btn_w, btn_h, name, action, color=color)
+        buttons.append(btn)
+        draw_button(draw, btn, font)
+        y += btn_h + gap
+
+    back = _back_button()
+    draw_button(draw, back, font)
+    buttons.append(back)
 
     return img, buttons
 
@@ -1450,6 +1562,10 @@ def render_confirm_dialog(base_img: "Image.Image", action: str) -> Tuple["Image.
 
     # Title
     titles = {
+        "confirm_cmd_provision_tps-standard.json": "Apply TPS Standard config?",
+        "confirm_cmd_provision_tps-double.json": "Apply TPS Double Drop config?",
+        "confirm_cmd_provision_tps-tie-team.json": "Apply TPS Tie Team config?",
+        "confirm_cmd_provision_tps-encoder-only.json": "Apply Encoder Only config?",
         "confirm_cmd_restart_viam": "Restart viam-server?",
         "confirm_cmd_clear_buffer": "Clear offline buffer?",
         "confirm_cmd_force_sync": "Force cloud sync?",
@@ -1461,6 +1577,10 @@ def render_confirm_dialog(base_img: "Image.Image", action: str) -> Tuple["Image.
 
     # Warning message
     warnings = {
+        "confirm_cmd_provision_tps-standard.json": "Writes registers + coils over Modbus",
+        "confirm_cmd_provision_tps-double.json": "Writes registers + coils over Modbus",
+        "confirm_cmd_provision_tps-tie-team.json": "Writes registers + coils over Modbus",
+        "confirm_cmd_provision_tps-encoder-only.json": "Writes registers + coils over Modbus",
         "confirm_cmd_restart_viam": "PLC monitoring pauses ~10 sec",
         "confirm_cmd_clear_buffer": "Unsent data will be lost!",
         "confirm_cmd_force_sync": "Restarts viam-server briefly",
@@ -1703,7 +1823,11 @@ def main():
     sys_status = {}
     last_data_refresh = 0
     needs_redraw = True
+    cached_buttons = []     # buttons from last render — avoids double-rendering on tap
     expanded_msg_idx = -1   # -1 = no expanded message, 0+ = index into voice_chat.messages
+    last_scroll_action = "" # for hold-to-scroll repeat
+    last_scroll_time = 0.0  # timestamp of last scroll
+    last_page_change = 0.0  # timestamp of last page nav (blocks phantom taps from pressure noise)
     error_start_time = 0.0  # when error state started (for auto-clear)
 
     print("IronSight Touch Display started")
@@ -1792,10 +1916,26 @@ def main():
                             executor.execute(real_action)
                             pending_dialog = None
                 else:
-                    _, buttons = _render_current_page(
-                        current_page, sys_status, scroll_offset, voice_chat, log_filter)
-                    hit = find_hit(buttons, tx, ty)
+                    # Use cached buttons from last render (no double-render)
+                    hit = find_hit(cached_buttons, tx, ty)
+                    # Guard: block taps for 300ms after page navigation.
+                    # Resistive screens can generate phantom taps when pressure
+                    # fluctuates during a press, and the new page's buttons may
+                    # occupy the same screen region as the old nav button.
+                    # Nav actions are exempt so rapid page switching still works.
+                    if hit and (now - last_page_change) < 0.3 and not hit.action.startswith("nav_"):
+                        touch._log("blocked", {
+                            "action": hit.action, "reason": "page_change_guard",
+                            "page": current_page, "tap": [tx, ty],
+                        })
+                        hit = None  # ignore — resistive screen pressure bounce
                     if hit:
+                        touch._log("hit", {
+                            "action": hit.action, "label": hit.label,
+                            "page": current_page,
+                            "btn": [hit.x, hit.y, hit.w, hit.h],
+                            "tap": [tx, ty],
+                        })
                         _beep()
                         action = hit.action
                         if action.startswith("nav_"):
@@ -1807,24 +1947,20 @@ def main():
                                     voice_chat.state = "idle"
                                     voice_chat.state_message = ""
                             current_page = new_page
+                            last_page_change = now  # block phantom taps from pressure noise
                             expanded_msg_idx = -1  # close popup on page change
                             scroll_offset = 0
                         elif action.startswith("confirm_"):
                             pending_dialog = action
-                        elif action == "scroll_up":
-                            scroll_offset = max(0, scroll_offset - 5)
-                        elif action == "scroll_down":
-                            scroll_offset += 5
+                        elif action in ("scroll_up", "scroll_down"):
+                            pass  # handled by hold-to-scroll above
                         elif action.startswith("log_filter_"):
                             log_filter = action.replace("log_filter_", "")
                             scroll_offset = 0
                         elif action.startswith("cmd_"):
                             executor.execute(action)
-                        # Chat actions
-                        elif action == "chat_scroll_up":
-                            voice_chat.scroll_offset += 5
-                        elif action == "chat_scroll_down":
-                            voice_chat.scroll_offset = max(0, voice_chat.scroll_offset - 5)
+                        elif action in ("chat_scroll_up", "chat_scroll_down"):
+                            pass  # handled by hold-to-scroll above
                         elif action == "chat_dismiss_error":
                             # Persist error as a message so user can see it
                             if voice_chat.state_message:
@@ -1838,8 +1974,12 @@ def main():
                             voice_chat.state = "idle"
                             voice_chat.state_message = ""
                         elif action == "chat_start_voice":
-                            # ASK button — start voice recording
-                            voice_chat.start_recording()
+                            # ASK / TALK TO AI — start voice recording.
+                            # 400ms guard: with gloves on a resistive screen, a finger
+                            # can slide off the scroll button and land on ASK. Ignore
+                            # recording triggers that happen within 400ms of scrolling.
+                            if now - last_scroll_time > 0.4:
+                                voice_chat.start_recording()
                         elif action == "chat_stop_recording":
                             # STOP button — end recording and send
                             voice_chat.stop_recording()
@@ -1849,12 +1989,44 @@ def main():
                         elif action == "chat_close_expand":
                             expanded_msg_idx = -1
 
+            # Touch-driven scrolling: fires on touch-DOWN (instant) and repeats while held.
+            # This bypasses the tap system entirely for scroll buttons — no waiting for finger lift.
+            _SCROLL_ACTIONS = frozenset(("chat_scroll_up", "chat_scroll_down", "scroll_up", "scroll_down"))
+            if touch.is_touching():
+                pos = touch.touch_position()
+                if pos and cached_buttons:
+                    held_hit = find_hit(cached_buttons, pos[0], pos[1])
+                    if held_hit and held_hit.action in _SCROLL_ACTIONS:
+                        # First touch or same button held — check timing
+                        if held_hit.action != last_scroll_action:
+                            # New button — scroll immediately
+                            last_scroll_action = held_hit.action
+                            last_scroll_time = 0  # force immediate
+                        elapsed_ms = (now - last_scroll_time) * 1000
+                        if elapsed_ms >= SCROLL_REPEAT_MS:
+                            if last_scroll_action == "chat_scroll_up":
+                                voice_chat.scroll_offset += 3
+                            elif last_scroll_action == "chat_scroll_down":
+                                voice_chat.scroll_offset = max(0, voice_chat.scroll_offset - 3)
+                            elif last_scroll_action == "scroll_up":
+                                scroll_offset = max(0, scroll_offset - 3)
+                            elif last_scroll_action == "scroll_down":
+                                scroll_offset += 3
+                            last_scroll_time = now
+                            needs_redraw = True
+                    else:
+                        last_scroll_action = ""
+                else:
+                    last_scroll_action = ""
+            else:
+                last_scroll_action = ""
+
             # Redraw if needed, or if chat state is active (recording/thinking)
             if current_page == "chat" and voice_chat.state in ("recording", "transcribing", "thinking", "loading"):
                 needs_redraw = True
 
             if needs_redraw and fb:
-                img, _ = _render_current_page(
+                img, cached_buttons = _render_current_page(
                     current_page, sys_status, scroll_offset, voice_chat, log_filter)
 
                 # Expanded message popup (overlays chat page)
@@ -1897,6 +2069,8 @@ def _render_current_page(page: str, sys_status: dict,
         return render_live(sys_status)
     elif page == "commands":
         return render_commands(sys_status)
+    elif page == "provision":
+        return render_provision(sys_status)
     elif page == "chat" and voice_chat:
         return render_chat(sys_status, voice_chat)
     elif page == "logs":

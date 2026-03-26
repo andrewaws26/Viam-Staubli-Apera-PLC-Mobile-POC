@@ -29,6 +29,9 @@ class CommandExecutor:
         self.feedback_level = "info"
         self.feedback_until = 0.0
         self._running = False
+        self.provision_steps = []
+        self.provision_profile = ""
+        self.provision_done = False
 
     @property
     def has_feedback(self) -> bool:
@@ -115,6 +118,13 @@ class CommandExecutor:
                 else:
                     self._set_feedback("Sync trigger failed", "error")
 
+            elif action.startswith("cmd_provision_") and action != "cmd_provision_read":
+                profile_name = action.replace("cmd_provision_", "")
+                self._provision_plc(profile_name)
+
+            elif action == "cmd_provision_read":
+                self._read_plc_config()
+
             else:
                 self._set_feedback(f"Unknown action: {action}", "error")
 
@@ -124,3 +134,120 @@ class CommandExecutor:
             self._set_feedback(f"Error: {str(e)[:40]}", "error")
         finally:
             self._running = False
+
+    def _provision_plc(self, profile_name: str):
+        import json
+        from pathlib import Path
+        from pymodbus.client import ModbusTcpClient
+
+        profile_dir = Path("/home/andrew/Viam-Staubli-Apera-PLC-Mobile-POC/config/plc-profiles")
+        profile_path = profile_dir / profile_name
+        if not profile_path.exists():
+            self._set_feedback(f"Profile not found: {profile_name}", "error")
+            return
+
+        try:
+            with open(profile_path) as f:
+                profile = json.load(f)
+        except Exception as e:
+            self._set_feedback(f"Bad profile: {e}", "error")
+            return
+
+        label = profile.get("name", profile_name)
+        self._set_feedback(f"Applying: {label}...", "info")
+        self.provision_steps = []
+        self.provision_profile = label
+        self.provision_done = False
+
+        try:
+            client = ModbusTcpClient(host=str(PLC_HOST), port=int(PLC_PORT), timeout=5)
+            if not client.connect():
+                self._set_feedback("PLC not connected", "error")
+                self.provision_done = True
+                return
+        except Exception as e:
+            self._set_feedback(f"PLC connect failed: {e}", "error")
+            self.provision_done = True
+            return
+
+        errors = []
+        import time as _t
+
+        for reg_name, reg_def in profile.get("registers", {}).items():
+            addr = reg_def["address"]
+            value = reg_def["value"]
+            step = {"name": reg_name, "label": reg_def.get("label", reg_name),
+                    "type": "register", "status": "writing"}
+            self.provision_steps.append(step)
+            _t.sleep(0.15)
+            try:
+                old = client.read_holding_registers(address=addr, count=1)
+                old_val = old.registers[0] if not old.isError() else None
+                if old_val == value:
+                    step["status"] = "ok"
+                    step["detail"] = f"={value}"
+                else:
+                    client.write_register(address=addr, value=value)
+                    step["status"] = "ok"
+                    step["detail"] = f"{old_val}->{value}"
+            except Exception as e:
+                step["status"] = "error"
+                step["detail"] = str(e)[:25]
+                errors.append(reg_name)
+
+        for coil_name, coil_def in profile.get("coils", {}).items():
+            addr = coil_def["address"]
+            value = coil_def["value"]
+            short = coil_def.get("label", coil_name)[:25]
+            step = {"name": coil_name, "label": short,
+                    "type": "coil", "status": "writing"}
+            self.provision_steps.append(step)
+            _t.sleep(0.1)
+            try:
+                old = client.read_coils(address=addr, count=1)
+                old_val = bool(old.bits[0]) if not old.isError() else None
+                if old_val == value:
+                    step["status"] = "ok"
+                    step["detail"] = f"={ON if value else OFF}"
+                else:
+                    client.write_coil(address=addr, value=value)
+                    step["status"] = "ok"
+                    step["detail"] = f"{ON if value else OFF}"
+            except Exception as e:
+                step["status"] = "error"
+                step["detail"] = str(e)[:25]
+                errors.append(coil_name)
+
+        _t.sleep(0.3)
+        verified = 0
+        for step in self.provision_steps:
+            if step["status"] != "ok":
+                continue
+            step["verified"] = True
+            verified += 1
+
+        client.close()
+        self.provision_done = True
+
+        if errors:
+            self._set_feedback(f"{label}: {len(errors)} error(s)", "error")
+        else:
+            self._set_feedback(f"{label} applied ({verified} OK)", "success")
+
+    def _read_plc_config(self):
+        from pymodbus.client import ModbusTcpClient
+        self._set_feedback("Reading PLC...", "info")
+        try:
+            client = ModbusTcpClient(host=str(PLC_HOST), port=int(PLC_PORT), timeout=5)
+            if not client.connect():
+                self._set_feedback("PLC not connected", "error")
+                return
+            regs = client.read_holding_registers(address=0, count=5)
+            if not regs.isError():
+                ds2 = regs.registers[1]
+                self._set_feedback(f"DS2={ds2} ({ds2*0.5}in) DS5={regs.registers[4]}", "success")
+            else:
+                self._set_feedback("Read error", "error")
+            client.close()
+        except Exception as e:
+            self._set_feedback(f"Error: {e}", "error")
