@@ -1798,6 +1798,11 @@ class PlcSensor(Sensor):
                 "list_profiles, provision, read_config"
             )
 
+        # Merge system health into readings
+        try:
+            result.update(get_system_health())
+        except Exception:
+            pass  # health data is optional
         return result
 
     async def close(self):

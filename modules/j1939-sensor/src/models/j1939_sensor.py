@@ -31,6 +31,12 @@ from viam.resource.registry import Registry, ResourceCreatorRegistration
 from viam.resource.types import Model, ModelFamily
 from viam.utils import SensorReading
 
+import sys
+import os
+# Add parent dir for system_health import
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from system_health import get_system_health
+
 from .pgn_decoder import (
     PGN_REGISTRY,
     decode_can_frame,
@@ -280,6 +286,12 @@ class J1939TruckSensor(Sensor):
             )
         else:
             readings["_seconds_since_last_frame"] = -1
+
+        # Merge system health into readings
+        try:
+            readings.update(get_system_health())
+        except Exception:
+            pass  # health data is optional
 
         return readings
 
