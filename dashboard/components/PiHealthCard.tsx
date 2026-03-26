@@ -136,7 +136,7 @@ export default function PiHealthCard({ label, icon, host, simMode = false }: Pro
   }
 
   const h = health!;
-  const cpuTempF = (h.cpu_temp_c * 9 / 5 + 32).toFixed(0);
+  const cpuTempF = ((h.cpu_temp_c ?? 0) * 9 / 5 + 32).toFixed(0);
 
   return (
     <div className="bg-gray-900/50 rounded-xl border border-gray-800 p-3">
@@ -152,37 +152,37 @@ export default function PiHealthCard({ label, icon, host, simMode = false }: Pro
         <div>
           <div className="flex justify-between text-[10px] text-gray-500 mb-0.5">
             <span>CPU</span>
-            <span className={usageColor(h.cpu_usage_pct)}>{h.cpu_usage_pct.toFixed(0)}%</span>
+            <span className={usageColor(h.cpu_usage_pct ?? 0)}>{(h.cpu_usage_pct ?? 0).toFixed(0)}%</span>
           </div>
-          <ProgressBar value={h.cpu_usage_pct} color={barColor(h.cpu_usage_pct)} />
+          <ProgressBar value={h.cpu_usage_pct ?? 0} color={barColor(h.cpu_usage_pct ?? 0)} />
         </div>
         <div>
           <div className="flex justify-between text-[10px] text-gray-500 mb-0.5">
             <span>Temp</span>
-            <span className={tempColor(h.cpu_temp_c)}>{cpuTempF}°F</span>
+            <span className={tempColor(h.cpu_temp_c ?? 0)}>{cpuTempF}°F</span>
           </div>
-          <ProgressBar value={h.cpu_temp_c} max={100} color={barColor(h.cpu_temp_c)} />
+          <ProgressBar value={h.cpu_temp_c ?? 0} max={100} color={barColor(h.cpu_temp_c ?? 0)} />
         </div>
         <div>
           <div className="flex justify-between text-[10px] text-gray-500 mb-0.5">
             <span>RAM</span>
-            <span className={usageColor(h.memory_used_pct)}>{h.memory_used_pct.toFixed(0)}%</span>
+            <span className={usageColor(h.memory_used_pct ?? 0)}>{(h.memory_used_pct ?? 0).toFixed(0)}%</span>
           </div>
-          <ProgressBar value={h.memory_used_pct} color={barColor(h.memory_used_pct)} />
+          <ProgressBar value={h.memory_used_pct ?? 0} color={barColor(h.memory_used_pct ?? 0)} />
         </div>
         <div>
           <div className="flex justify-between text-[10px] text-gray-500 mb-0.5">
             <span>Disk</span>
-            <span className={usageColor(h.disk_used_pct)}>{h.disk_free_gb}GB free</span>
+            <span className={usageColor(h.disk_used_pct ?? 0)}>{h.disk_free_gb ?? 0}GB free</span>
           </div>
-          <ProgressBar value={h.disk_used_pct} color={barColor(h.disk_used_pct)} />
+          <ProgressBar value={h.disk_used_pct ?? 0} color={barColor(h.disk_used_pct ?? 0)} />
         </div>
       </div>
 
       {/* Network */}
       <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px]">
         <span className="text-gray-500">
-          WiFi: <span className={signalColor(h.wifi_signal_dbm)}>{h.wifi_ssid} ({h.wifi_signal_dbm}dBm)</span>
+          WiFi: <span className={signalColor(h.wifi_signal_dbm ?? 0)}>{h.wifi_ssid ?? 'N/A'} ({h.wifi_signal_dbm}dBm)</span>
         </span>
         <span className="text-gray-500">
           TS: <span className={h.tailscale_online ? "text-green-400" : "text-red-400"}>
@@ -190,10 +190,10 @@ export default function PiHealthCard({ label, icon, host, simMode = false }: Pro
           </span>
         </span>
         <span className="text-gray-500">
-          Up: {h.uptime_hours.toFixed(1)}h
+          Up: {(h.uptime_hours ?? 0).toFixed(1)}h
         </span>
         <span className="text-gray-500">
-          Load: {h.load_1m.toFixed(1)}
+          Load: {(h.load_1m ?? 0).toFixed(1)}
         </span>
       </div>
     </div>
