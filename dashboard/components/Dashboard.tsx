@@ -14,6 +14,7 @@ import PlcDetailPanel from "./PlcDetailPanel";
 import DiagnosticsPanel from "./DiagnosticsPanel";
 import HistoryPanel from "./HistoryPanel";
 import TruckPanel from "./TruckPanel";
+import PiHealthCard from "./PiHealthCard";
 import ConnectionDot from "./ConnectionDot";
 const POLL_INTERVAL_MS = 2000;
 const MAX_FAULT_HISTORY = 10;
@@ -100,7 +101,6 @@ export default function Dashboard() {
     // In live mode, readings are fetched via /api/sensor-readings (server-side
     // proxy) so Viam credentials never reach the browser.
     const { getSensorReadings, ComponentNotFoundError } = await import("../lib/viam");
-    const { getTruckSensorReadings } = await import("../lib/truck-viam");
 
     const newStates: ComponentState[] = [];
     const currentFaultIds = new Set<string>();
@@ -161,23 +161,13 @@ export default function Dashboard() {
         status = "healthy";
         setSdkConnected(true);
         setSdkError(null);
-        // Override readings for health cards in sim mode
-        if (cfg.id === "tps-pi") {
-          readings = { connected: true, uptime_seconds: d.tick * 2, total_reads: d.tick * 50 } as unknown as SensorReadings;
-        } else if (cfg.id === "truck-pi") {
-          readings = { _bus_connected: true, _frame_count: d.tick * 47, _seconds_since_last_frame: 0.4 } as unknown as SensorReadings;
-        }
+
         newStates.push({ id: cfg.id, label: cfg.label, icon: cfg.icon, status, readings, lastUpdated: new Date(), faultMessage: null });
         continue;
       }
 
       try {
-        // Use truck Viam client for truck components
-        if (cfg.id === "truck-pi") {
-          readings = await getTruckSensorReadings(cfg.componentName);
-        } else {
-          readings = await getSensorReadings(cfg.componentName);
-        }
+        readings = await getSensorReadings(cfg.componentName);
 
         const healthy = cfg.isHealthy(readings);
         status = healthy ? "healthy" : "fault";
@@ -376,6 +366,12 @@ export default function Dashboard() {
             {components.map((comp) => (
               <StatusCard key={comp.id} component={comp} />
             ))}
+          </div>
+
+          {/* Pi Health Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
+            <PiHealthCard label="TPS Monitoring" icon="\u{1F4BB}" host="tps" simMode={simMode} />
+            <PiHealthCard label="Truck Monitoring" icon="\u{1F69B}" host="truck" simMode={simMode} />
           </div>
 
           {/* Location & Weather bar */}

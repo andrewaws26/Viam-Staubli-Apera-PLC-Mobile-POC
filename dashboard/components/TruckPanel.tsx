@@ -145,12 +145,12 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
         oil_level_pct: 85 + Math.random() * 3,
         engine_hours: 4523.5 + t * 0.001,
         total_fuel_used_l: 125430 + t * 0.05,
-        active_dtc_count: t > 30 ? 2 : 0,
-        ...(t > 30 ? {
+        active_dtc_count: 2,
+        ...({
           dtc_0_spn: 3226, dtc_0_fmi: 18, dtc_0_occurrence: 5,
           dtc_1_spn: 5246, dtc_1_fmi: 0, dtc_1_occurrence: 2,
           amber_warning_lamp: 1, malfunction_lamp: 0, red_stop_lamp: 0, protect_lamp: 0,
-        } : {}),
+        }),
         _bus_connected: true,
         _frame_count: t * 47,
         _seconds_since_last_frame: 0.3 + Math.random() * 0.2,

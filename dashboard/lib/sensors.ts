@@ -4,7 +4,6 @@ import { SensorReadings } from "./types";
 // Components not yet deployed will be handled gracefully as "pending".
 export const VIAM_COMPONENT_NAMES = {
   plc: "plc-monitor",
-  truckEngine: "truck-engine",
 } as const;
 
 export type ComponentName =
@@ -35,28 +34,6 @@ export const SENSOR_CONFIGS: SensorConfig[] = [
       if (r.connected !== true) return "No Modbus TCP connection to PLC";
       const fault = r.last_fault ?? "unknown";
       return `Fault: ${String(fault).toUpperCase()}`;
-    },
-  },
-  {
-    id: "tps-pi",
-    label: "TPS Monitoring",
-    icon: "\u{1F4BB}",
-    componentName: VIAM_COMPONENT_NAMES.plc,
-    isHealthy: (r) => r.connected === true && r.uptime_seconds !== undefined && (r.uptime_seconds as number) > 0,
-    getFaultMessage: (r) => {
-      if (r.connected !== true) return "Pi offline — no PLC connection";
-      return "System error";
-    },
-  },
-  {
-    id: "truck-pi",
-    label: "Truck Monitoring",
-    icon: "\u{1F69B}",
-    componentName: VIAM_COMPONENT_NAMES.truckEngine,
-    isHealthy: (r) => r._bus_connected === true || r._frame_count !== undefined,
-    getFaultMessage: (r) => {
-      if (r._bus_connected === false) return "CAN bus not connected — check HAT";
-      return "Truck Pi offline";
     },
   },
 ];
