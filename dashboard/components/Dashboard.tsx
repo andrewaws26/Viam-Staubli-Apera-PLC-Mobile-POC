@@ -13,6 +13,7 @@ import FaultHistory from "./FaultHistory";
 import PlcDetailPanel from "./PlcDetailPanel";
 import DiagnosticsPanel from "./DiagnosticsPanel";
 import HistoryPanel from "./HistoryPanel";
+import TruckPanel from "./TruckPanel";
 import ConnectionDot from "./ConnectionDot";
 const POLL_INTERVAL_MS = 2000;
 const MAX_FAULT_HISTORY = 10;
@@ -317,7 +318,7 @@ export default function Dashboard() {
               TPS Monitor
             </h1>
             <p className="text-[10px] sm:text-xs text-gray-600 mt-0.5 tracking-wide truncate">
-              Tie Plate System — Live Production Data
+              IronSight — Live Production & Fleet Data
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -415,6 +416,12 @@ export default function Dashboard() {
             error={historyError}
             onRefresh={fetchHistory}
           />
+
+
+          {/* -------------------------------------------------------------- */}
+          {/* Truck Diagnostics (J1939 CAN Bus)                            */}
+          {/* -------------------------------------------------------------- */}
+          <TruckPanel />
 
           {/* -------------------------------------------------------------- */}
           {/* Fault History                                                  */}
