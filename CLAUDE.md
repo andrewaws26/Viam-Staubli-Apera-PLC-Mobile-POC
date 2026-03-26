@@ -96,3 +96,55 @@ Rolling signal metrics in `SignalMetrics` class: camera detection rate, eject ra
 - Always branch and PR, never push directly to main (docs excepted)
 - Test with: `python3 scripts/test_plc_modbus.py` (reads live PLC)
 - Build dashboard with: `cd dashboard && npm run build`
+
+## Fleet Architecture
+
+This repo serves a fleet of trucks. Each truck has two Raspberry Pis forming one unit:
+
+| Pi | Hostname | Tailscale IP | Role | Module |
+|----|----------|-------------|------|--------|
+| Pi 5 | viam-pi | 100.112.68.52 | TPS monitoring, uploads, touch display | `modules/plc-sensor/` |
+| Pi Zero 2 W | truck-diagnostics | 100.113.196.68 | J1939 CAN bus OBD-II diagnostics | `modules/j1939-sensor/` |
+
+**Repo locations:**
+- Pi 5: `/home/andrew/Viam-Staubli-Apera-PLC-Mobile-POC` (origin)
+- Pi Zero: `/home/andrew/repo` (clone)
+- Both track `origin/main`. Auto-sync runs every 10 min via cron.
+
+**Viam machines** (same org & location `djgpitarpm`):
+- Pi 5 machine: `staubli-pi` → component `plc-monitor`
+- Pi Zero machine: `truck-diagnostic` → component `truck-engine`
+
+**Dashboard** is on Vercel (not the Pis). Push to `main` triggers Vercel auto-deploy.
+
+## Fleet Orchestration Rules
+
+Claude is the fleet orchestrator. When making ANY change:
+
+1. **Code changes go to git first, then deploy.** Never edit files on a Pi without committing.
+2. **Both Pis must stay on the same commit.** After pushing, verify both pulled.
+3. **Service restarts are safe.** Viam-server, CAN service, and all IronSight services auto-recover.
+4. **Dashboard changes** — push to git, Vercel auto-deploys. No action needed on Pis.
+5. **Module changes on Pi 5** — `sudo systemctl restart viam-server` after code change.
+6. **Module changes on Pi Zero** — `cd ~/repo && git pull && sudo systemctl restart viam-server`.
+7. **Health check** — run `/usr/local/bin/fleet-health.sh` to get JSON status of entire fleet.
+8. **Fleet sync** — `/usr/local/bin/fleet-sync.sh` runs on cron; can also be triggered manually.
+9. **If a Pi is unreachable**, check: WiFi (nmcli), Tailscale (tailscale status), power (PiSugar).
+10. **If Viam is down**, check: `sudo journalctl -u viam-server -n 30`. Common fixes: restart service, check credentials, check network.
+
+## J1939 Truck Sensor (modules/j1939-sensor/)
+
+Reads J1939 CAN bus data from heavy-duty trucks (2013+ Mack/Volvo) via Waveshare CAN HAT (B).
+Decodes 15 PGNs: engine RPM, temperatures, pressures, vehicle speed, fuel, battery, transmission, DTCs.
+
+**Key commands (via Viam do_command):**
+- `{"command": "clear_dtcs"}` — Send DM11 to clear dashboard warning lights
+- `{"command": "request_pgn", "pgn": 65262}` — Request specific PGN from ECU
+- `{"command": "get_bus_stats"}` — CAN bus connection stats
+
+**CAN HAT config** (`/boot/firmware/config.txt`):
+- `dtparam=spi=on`
+- `dtoverlay=mcp2515-can0,oscillator=12000000,interrupt=25,spimaxfrequency=2000000`
+- 12MHz crystal (NOT 8MHz), GPIO25 interrupt, 500kbps bitrate
+
+**SSH:** `ssh andrew@100.113.196.68` (password: 1111, test only)
