@@ -1,5 +1,7 @@
 "use client";
 
+import { lookupSPN, lookupFMI } from "../lib/spn-lookup";
+
 import React, { useState, useEffect, useCallback } from "react";
 
 interface TruckReadings {
@@ -37,15 +39,15 @@ function formatValue(key: string, value: unknown): string {
   if (typeof value === "boolean") return value ? "ON" : "OFF";
   if (typeof value === "number") {
     if (key.includes("_pct") || key.includes("_pos")) return `${value.toFixed(1)}%`;
-    if (key.includes("_c") && !key.includes("count")) return `${value.toFixed(1)}°C`;
+    if (key.includes("_c") && !key.includes("count")) return `${(value * 9/5 + 32).toFixed(0)}°F`;
     if (key.includes("_v")) return `${value.toFixed(1)}V`;
-    if (key.includes("_kpa")) return `${value.toFixed(0)} kPa`;
-    if (key.includes("_kmh")) return `${value.toFixed(1)} km/h`;
-    if (key.includes("_lph")) return `${value.toFixed(1)} L/h`;
-    if (key.includes("_km_l")) return `${value.toFixed(2)} km/L`;
+    if (key.includes("_kpa")) return `${(value * 0.14504).toFixed(1)} psi`;
+    if (key.includes("_kmh")) return `${(value * 0.621371).toFixed(0)} mph`;
+    if (key.includes("_lph")) return `${(value * 0.264172).toFixed(1)} gal/h`;
+    if (key.includes("_km_l")) return `${(value * 2.35215).toFixed(1)} mpg`;
     if (key === "engine_rpm") return `${value.toFixed(0)}`;
     if (key === "engine_hours") return `${value.toFixed(1)} hrs`;
-    if (key === "total_fuel_used_l") return `${value.toFixed(0)} L`;
+    if (key === "total_fuel_used_l") return `${(value * 0.264172).toFixed(0)} gal`;
     if (key === "current_gear" || key === "selected_gear") {
       if (value === 0) return "N";
       if (value < 0) return "R";
@@ -66,7 +68,7 @@ const ENGINE_FIELDS = [
 ];
 
 const TEMP_FIELDS = [
-  { key: "coolant_temp_c", label: "Coolant", highlight: true },
+  { key: "coolant_temp_c", label: "Coolant Temp", highlight: true },
   { key: "oil_temp_c", label: "Oil" },
   { key: "fuel_temp_c", label: "Fuel" },
   { key: "intake_manifold_temp_c", label: "Intake" },
@@ -350,26 +352,44 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
 
       {/* DTC Details */}
       {dtcCount > 0 && (
-        <div className="bg-gray-900/50 rounded-xl p-3 sm:p-4 mb-3">
-          <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+        <div className="bg-gray-900/50 rounded-2xl border border-red-800/30 p-4 sm:p-5 mb-3">
+          <h4 className="text-sm sm:text-base font-black text-red-300 uppercase tracking-wider mb-3">
             Diagnostic Trouble Codes
           </h4>
-          <div className="space-y-1">
+          <div className="space-y-3">
             {Array.from({ length: Math.min(dtcCount, 5) }).map((_, i) => {
               const spn = readings?.[`dtc_${i}_spn`] as number;
               const fmi = readings?.[`dtc_${i}_fmi`] as number;
               const occ = readings?.[`dtc_${i}_occurrence`] as number;
               if (spn === undefined) return null;
+              const spnInfo = lookupSPN(spn);
+              const fmiText = lookupFMI(fmi);
               return (
                 <div
                   key={i}
-                  className="flex items-center gap-3 text-xs bg-red-950/30 rounded-lg px-3 py-1.5"
+                  className="bg-red-950/40 border border-red-800/30 rounded-xl p-3 sm:p-4"
                 >
-                  <span className="text-red-400 font-mono font-bold">
-                    SPN {spn}
-                  </span>
-                  <span className="text-gray-400">FMI {fmi}</span>
-                  <span className="text-gray-500">x{occ}</span>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm sm:text-base font-bold text-red-300">
+                      {spnInfo.name}
+                    </span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                      spnInfo.severity === "critical" ? "bg-red-700 text-white" :
+                      spnInfo.severity === "warning" ? "bg-yellow-700 text-white" :
+                      "bg-blue-700 text-white"
+                    }`}>
+                      {spnInfo.severity.toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-400 mb-1">
+                    SPN {spn} / FMI {fmi} — {fmiText}
+                  </div>
+                  <div className="text-xs text-gray-500 mb-2">
+                    {spnInfo.description} (x{occ} occurrences)
+                  </div>
+                  <div className="text-xs sm:text-sm text-green-400 bg-green-950/30 rounded-lg px-3 py-2 border border-green-800/30">
+                    <span className="font-bold">Fix: </span>{spnInfo.fix}
+                  </div>
                 </div>
               );
             })}
