@@ -1,0 +1,19 @@
+{
+    "$schema": "https://dl.viam.dev/module.schema.json",
+    "module_id": "ironsight:j1939-truck-sensor",
+    "visibility": "private",
+    "description": "J1939 CAN bus sensor for heavy-duty truck diagnostics. Reads engine RPM, temperatures, pressures, fuel data, DTCs, and more from the OBD-II port via a CAN HAT. Supports DTC clearing via DM11.",
+    "models": [
+        {
+            "api": "rdk:component:sensor",
+            "model": "ironsight:j1939-truck-sensor:can-sensor"
+        }
+    ],
+    "build": {
+        "setup": "./setup.sh",
+        "build": "tar -czf module.tar.gz src/ setup.sh exec.sh .env requirements.txt",
+        "path": "module.tar.gz",
+        "arch": ["linux/arm64"]
+    },
+    "entrypoint": "exec.sh"
+}
