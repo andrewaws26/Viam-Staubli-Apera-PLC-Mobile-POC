@@ -148,3 +148,37 @@ Decodes 15 PGNs: engine RPM, temperatures, pressures, vehicle speed, fuel, batte
 - 12MHz crystal (NOT 8MHz), GPIO25 interrupt, 500kbps bitrate
 
 **SSH:** `ssh andrew@100.113.196.68` (password: 1111, test only)
+
+## Truck Networking (Field Deployment)
+
+When on a truck (away from shop WiFi), the Pi 5 provides internet for the Pi Zero:
+
+```
+Cellular dongle/HAT → Pi 5 (internet)
+Pi 5 WiFi AP "IronSight-Truck" → Pi Zero (gets internet from Pi 5)
+Both Pis → Tailscale → Viam Cloud → Dashboard
+```
+
+**Pre-configured and ready:**
+- Pi 5 hotspot: SSID `IronSight-Truck`, password `ironsight2026`, subnet `10.42.0.0/24`
+- Pi Zero auto-connects to `IronSight-Truck` at priority 200 (highest)
+- Cellular profile on Pi 5: auto-connects when USB modem/HAT is plugged in
+- Dispatcher script auto-activates hotspot when cellular comes up
+- IP forwarding enabled for NAT
+
+**Manual control:** `hotspot on/off/status` on the Pi 5
+
+**What happens when you plug in the cellular dongle:**
+1. ModemManager detects modem, NetworkManager activates "Cellular" profile
+2. Dispatcher detects cellular up, activates IronSight-Hotspot
+3. Pi Zero sees hotspot, auto-connects (priority 200 > home WiFi 100)
+4. Both Pis get internet through cellular, Tailscale reconnects, Viam syncs
+
+**WiFi priorities (Pi Zero):**
+- IronSight-Truck: 200 (truck/field)
+- Verizon_X6JPH6: 100 (home)
+
+**WiFi priorities (Pi 5):**
+- Andrew-Hotspot: 40
+- BB-Shop: 30 (work)
+- Verizon_X6JPH6: 20 (home)
