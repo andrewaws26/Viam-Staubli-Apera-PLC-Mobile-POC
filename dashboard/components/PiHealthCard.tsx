@@ -93,10 +93,33 @@ export default function PiHealthCard({ label, icon, host, simMode = false }: Pro
     }
 
     try {
-      const res = await fetch(`/api/pi-health?host=${encodeURIComponent(host)}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      setHealth(data);
+      // Use the same Viam WebRTC clients that TPS and Truck panels use
+      let readings: Record<string, unknown>;
+      if (host === "truck") {
+        const { getTruckSensorReadings } = await import("../lib/truck-viam");
+        readings = await getTruckSensorReadings("truck-engine") as Record<string, unknown>;
+      } else {
+        const { getSensorReadings } = await import("../lib/viam");
+        readings = await getSensorReadings("plc-monitor") as Record<string, unknown>;
+      }
+      setHealth({
+        hostname: (readings.hostname as string) ?? (host === "tps" ? "viam-pi" : "truck-diagnostics"),
+        cpu_temp_c: (readings.cpu_temp_c as number) ?? 0,
+        cpu_usage_pct: (readings.cpu_usage_pct as number) ?? 0,
+        memory_used_pct: (readings.memory_used_pct as number) ?? 0,
+        memory_used_mb: (readings.memory_used_mb as number) ?? 0,
+        memory_total_mb: (readings.memory_total_mb as number) ?? 0,
+        disk_used_pct: (readings.disk_used_pct as number) ?? 0,
+        disk_free_gb: (readings.disk_free_gb as number) ?? 0,
+        uptime_hours: ((readings.uptime_seconds as number) ?? 0) / 3600,
+        wifi_ssid: (readings.wifi_ssid as string) ?? "N/A",
+        wifi_signal_dbm: (readings.wifi_signal_dbm as number) ?? -99,
+        tailscale_ip: (readings.tailscale_ip as string) ?? "N/A",
+        tailscale_online: (readings.tailscale_online as boolean) ?? false,
+        internet: (readings.internet as boolean) ?? false,
+        load_1m: (readings.load_1m as number) ?? 0,
+        load_5m: (readings.load_5m as number) ?? 0,
+      });
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Offline");
