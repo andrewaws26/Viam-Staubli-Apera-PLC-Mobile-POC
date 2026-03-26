@@ -370,8 +370,8 @@ export default function Dashboard() {
 
           {/* Pi Health Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
-            <PiHealthCard label="TPS Monitoring" icon="\u{1F4BB}" host="tps" simMode={simMode} />
-            <PiHealthCard label="Truck Monitoring" icon="\u{1F69B}" host="truck" simMode={simMode} />
+            <PiHealthCard label="TPS Monitoring" icon="💻" host="tps" simMode={simMode} />
+            <PiHealthCard label="Truck Monitoring" icon="🚛" host="truck" simMode={simMode} />
           </div>
 
           {/* Location & Weather bar */}

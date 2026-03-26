@@ -124,13 +124,17 @@ export default function PiHealthCard({ label, icon, host, simMode = false }: Pro
 
   if (error) {
     return (
-      <div className="bg-gray-900/50 rounded-xl border border-red-800/30 p-3">
+      <div className="bg-gray-900/50 rounded-xl border border-yellow-800/30 p-3">
         <div className="flex items-center gap-2 mb-2">
           <span>{icon}</span>
           <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">{label}</span>
-          <div className="w-2 h-2 rounded-full bg-red-500 ml-auto" />
+          <div className="w-2 h-2 rounded-full bg-yellow-500 ml-auto animate-pulse" />
         </div>
-        <p className="text-xs text-red-400">{error}</p>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] text-gray-600">
+          <span>CPU: --</span><span>Temp: --</span>
+          <span>RAM: --</span><span>Disk: --</span>
+        </div>
+        <p className="text-[10px] text-yellow-500 mt-1">Waiting for connection...</p>
       </div>
     );
   }

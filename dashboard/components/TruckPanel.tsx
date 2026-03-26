@@ -183,8 +183,24 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
     setClearing(true);
     setClearResult(null);
     try {
-      const { sendTruckCommand } = await import("../lib/truck-viam");
-      const data = await sendTruckCommand("truck-engine", { command: "clear_dtcs" });
+      let data: Record<string, unknown>;
+      if (simMode) {
+        // In sim mode, just clear the local readings
+        await new Promise(r => setTimeout(r, 500));
+        data = { success: true };
+        setReadings(prev => {
+          if (!prev) return prev;
+          const cleaned = { ...prev };
+          Object.keys(cleaned).forEach(k => {
+            if (k.startsWith("dtc_") || k === "active_dtc_count" || k.endsWith("_lamp")) delete cleaned[k];
+          });
+          cleaned.active_dtc_count = 0;
+          return cleaned;
+        });
+      } else {
+        const { sendTruckCommand } = await import("../lib/truck-viam");
+        data = await sendTruckCommand("truck-engine", { command: "clear_dtcs" });
+      }
       if (data.success) {
         setClearResult("DTCs cleared successfully");
       } else {
