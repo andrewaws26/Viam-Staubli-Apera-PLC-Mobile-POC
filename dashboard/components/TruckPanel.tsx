@@ -112,18 +112,9 @@ export default function TruckPanel() {
 
   const fetchReadings = useCallback(async () => {
     try {
-      const res = await fetch("/api/truck-readings?component=truck-engine");
-      if (res.status === 404) {
-        setConnected(false);
-        setError("Truck sensor not configured");
-        return;
-      }
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.message || `HTTP ${res.status}`);
-      }
-      const data = await res.json();
-      setReadings(data);
+      const { getTruckSensorReadings } = await import("../lib/truck-viam");
+      const data = await getTruckSensorReadings("truck-engine");
+      setReadings(data as TruckReadings);
       setConnected(true);
       setError(null);
     } catch (err) {
@@ -142,12 +133,8 @@ export default function TruckPanel() {
     setClearing(true);
     setClearResult(null);
     try {
-      const res = await fetch("/api/truck-command", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command: "clear_dtcs" }),
-      });
-      const data = await res.json();
+      const { sendTruckCommand } = await import("../lib/truck-viam");
+      const data = await sendTruckCommand("truck-engine", { command: "clear_dtcs" });
       if (data.success) {
         setClearResult("DTCs cleared successfully");
       } else {
