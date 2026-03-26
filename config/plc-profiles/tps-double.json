@@ -1,0 +1,24 @@
+{
+  "name": "TPS Double Drop",
+  "description": "TPS-1 Double mode — drops two plates per tie position. Used for double-plate track sections.",
+  "version": "1.0",
+  "registers": {
+    "DS1": {"address": 0, "value": 1310, "label": "Encoder Ignore threshold"},
+    "DS2": {"address": 1, "value": 39, "label": "Tie Spacing (39 × 0.5\" = 19.5\")"},
+    "DS5": {"address": 4, "value": 1314, "label": "Detector Offset Bits"}
+  },
+  "coils": {
+    "C20_TPS1_Single": {"address": 19, "value": false, "label": "TPS-1 Single"},
+    "C21_TPS1_Double": {"address": 20, "value": true, "label": "TPS-1 Double mode"},
+    "C22_TPS2_Both": {"address": 21, "value": false, "label": "TPS-2 Both"},
+    "C23_TPS2_Left": {"address": 22, "value": false, "label": "TPS-2 Left"},
+    "C24_TPS2_Right": {"address": 23, "value": false, "label": "TPS-2 Right"},
+    "C27_TieTeam": {"address": 26, "value": false, "label": "Tie Team"},
+    "C31_2ndPass": {"address": 30, "value": false, "label": "2nd Pass"},
+    "C13_LayTies": {"address": 12, "value": true, "label": "Lay Ties"},
+    "C14_DropTies": {"address": 13, "value": true, "label": "Drop Ties"},
+    "C16_DropEnable": {"address": 15, "value": true, "label": "Drop Enable"},
+    "C28_Encoder": {"address": 27, "value": false, "label": "Encoder Mode (detector primary)"}
+  },
+  "verify_after_write": true
+}

@@ -1569,11 +1569,233 @@ class PlcSensor(Sensor):
             except Exception as e:
                 result["message"] = f"Modbus write failed: {e}"
 
+        elif action == "list_profiles":
+            # List available PLC configuration profiles
+            import glob
+            profile_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+                os.path.abspath(__file__)))), "config", "plc-profiles")
+            profiles = []
+            for f in sorted(glob.glob(os.path.join(profile_dir, "*.json"))):
+                try:
+                    with open(f) as fh:
+                        p = json.load(fh)
+                    profiles.append({
+                        "file": os.path.basename(f),
+                        "name": p.get("name", "?"),
+                        "description": p.get("description", ""),
+                        "version": p.get("version", "?"),
+                    })
+                except Exception as e:
+                    profiles.append({"file": os.path.basename(f), "error": str(e)})
+            result["status"] = "ok"
+            result["profiles"] = profiles
+            result["profile_dir"] = profile_dir
+            result["message"] = f"Found {len(profiles)} profile(s)"
+
+        elif action == "provision":
+            # Apply a PLC configuration profile
+            # Usage: {"action": "provision", "profile": "tps-standard.json"}
+            #    or: {"action": "provision", "profile": "tps-standard.json", "dry_run": true}
+            import glob
+            profile_name = command.get("profile", "")
+            dry_run = command.get("dry_run", False)
+
+            if not profile_name:
+                result["message"] = "Missing 'profile' parameter. Use list_profiles to see available profiles."
+                return result
+
+            profile_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+                os.path.abspath(__file__)))), "config", "plc-profiles")
+            profile_path = os.path.join(profile_dir, profile_name)
+
+            if not os.path.exists(profile_path):
+                result["message"] = f"Profile not found: {profile_name}"
+                return result
+
+            try:
+                with open(profile_path) as f:
+                    profile = json.load(f)
+            except Exception as e:
+                result["message"] = f"Failed to read profile: {e}"
+                return result
+
+            profile_label = profile.get("name", profile_name)
+            verify = profile.get("verify_after_write", True)
+            steps = []
+            errors = []
+
+            LOGGER.warning("PROVISION: Starting profile '%s' (dry_run=%s)", profile_label, dry_run)
+
+            # Write registers
+            for reg_name, reg_def in profile.get("registers", {}).items():
+                addr = reg_def["address"]
+                value = reg_def["value"]
+                label = reg_def.get("label", reg_name)
+                step = {"type": "register", "name": reg_name, "address": addr,
+                        "value": value, "label": label, "status": "pending"}
+
+                if dry_run:
+                    step["status"] = "dry_run"
+                    steps.append(step)
+                    continue
+
+                try:
+                    # Read current value
+                    old = self.client.read_holding_registers(address=addr, count=1)
+                    old_val = old.registers[0] if not old.isError() else None
+                    step["old_value"] = old_val
+
+                    if old_val == value:
+                        step["status"] = "unchanged"
+                        step["message"] = f"Already set to {value}"
+                    else:
+                        self.client.write_register(address=addr, value=value)
+                        step["status"] = "written"
+                        step["message"] = f"Changed {old_val} → {value}"
+                        LOGGER.info("PROVISION: %s (addr %d): %s → %s", reg_name, addr, old_val, value)
+                except Exception as e:
+                    step["status"] = "error"
+                    step["message"] = str(e)
+                    errors.append(f"{reg_name}: {e}")
+                    LOGGER.error("PROVISION: %s write failed: %s", reg_name, e)
+
+                steps.append(step)
+
+            # Write coils
+            for coil_name, coil_def in profile.get("coils", {}).items():
+                addr = coil_def["address"]
+                value = coil_def["value"]
+                label = coil_def.get("label", coil_name)
+                step = {"type": "coil", "name": coil_name, "address": addr,
+                        "value": value, "label": label, "status": "pending"}
+
+                if dry_run:
+                    step["status"] = "dry_run"
+                    steps.append(step)
+                    continue
+
+                try:
+                    # Read current value
+                    old = self.client.read_coils(address=addr, count=1)
+                    old_val = bool(old.bits[0]) if not old.isError() else None
+                    step["old_value"] = old_val
+
+                    if old_val == value:
+                        step["status"] = "unchanged"
+                        step["message"] = f"Already {'ON' if value else 'OFF'}"
+                    else:
+                        self.client.write_coil(address=addr, value=value)
+                        step["status"] = "written"
+                        step["message"] = f"{'OFF' if old_val else 'ON'} → {'ON' if value else 'OFF'}"
+                        LOGGER.info("PROVISION: %s (addr %d): %s → %s", coil_name, addr, old_val, value)
+                except Exception as e:
+                    step["status"] = "error"
+                    step["message"] = str(e)
+                    errors.append(f"{coil_name}: {e}")
+                    LOGGER.error("PROVISION: %s write failed: %s", coil_name, e)
+
+                steps.append(step)
+
+            # Verify if requested
+            if verify and not dry_run and not errors:
+                import asyncio
+                await asyncio.sleep(0.3)  # Let PLC process writes
+                verify_errors = []
+
+                for step in steps:
+                    if step["status"] not in ("written", "unchanged"):
+                        continue
+                    try:
+                        if step["type"] == "register":
+                            check = self.client.read_holding_registers(address=step["address"], count=1)
+                            actual = check.registers[0] if not check.isError() else None
+                            if actual != step["value"]:
+                                verify_errors.append(f"{step['name']}: expected {step['value']}, got {actual}")
+                                step["verify"] = "FAIL"
+                            else:
+                                step["verify"] = "OK"
+                        elif step["type"] == "coil":
+                            check = self.client.read_coils(address=step["address"], count=1)
+                            actual = bool(check.bits[0]) if not check.isError() else None
+                            if actual != step["value"]:
+                                verify_errors.append(f"{step['name']}: expected {step['value']}, got {actual}")
+                                step["verify"] = "FAIL"
+                            else:
+                                step["verify"] = "OK"
+                    except Exception as e:
+                        step["verify"] = f"ERROR: {e}"
+                        verify_errors.append(f"{step['name']}: verify failed: {e}")
+
+                if verify_errors:
+                    result["status"] = "partial"
+                    result["verify_errors"] = verify_errors
+                    LOGGER.error("PROVISION: Verification failed: %s", verify_errors)
+                else:
+                    LOGGER.info("PROVISION: All values verified OK")
+
+            # Summary
+            written = sum(1 for s in steps if s["status"] == "written")
+            unchanged = sum(1 for s in steps if s["status"] == "unchanged")
+            errored = sum(1 for s in steps if s["status"] == "error")
+
+            if not errors:
+                result["status"] = "ok" if not dry_run else "dry_run"
+            result["profile"] = profile_label
+            result["steps"] = steps
+            result["summary"] = {
+                "written": written,
+                "unchanged": unchanged,
+                "errors": errored,
+                "total": len(steps),
+            }
+            if dry_run:
+                result["message"] = f"Dry run: {len(steps)} steps would be applied for '{profile_label}'"
+            elif errors:
+                result["message"] = f"Provisioned with {errored} error(s): {', '.join(errors)}"
+            else:
+                result["message"] = f"'{profile_label}' applied: {written} changed, {unchanged} already set"
+            LOGGER.warning("PROVISION: Complete — %s", result["message"])
+
+        elif action == "read_config":
+            # Read current PLC configuration (all writable registers and mode coils)
+            current = {}
+            try:
+                regs = self.client.read_holding_registers(address=0, count=25)
+                if not regs.isError():
+                    reg_names = ["DS1","DS2","DS3","DS4","DS5","DS6","DS7","DS8",
+                                 "DS9","DS10","DS11","DS12","DS13","DS14","DS15",
+                                 "DS16","DS17","DS18","DS19","DS20","DS21","DS22",
+                                 "DS23","DS24","DS25"]
+                    for i, name in enumerate(reg_names):
+                        current[name] = regs.registers[i]
+
+                coils = self.client.read_coils(address=0, count=32)
+                if not coils.isError():
+                    coil_names = {
+                        12: "C13_LayTies", 13: "C14_DropTies",
+                        14: "C15_ClearData", 15: "C16_DropEnable",
+                        19: "C20_TPS1_Single", 20: "C21_TPS1_Double",
+                        21: "C22_TPS2_Both", 22: "C23_TPS2_Left",
+                        23: "C24_TPS2_Right", 26: "C27_TieTeam",
+                        27: "C28_Encoder", 28: "C29_SoftwareEject",
+                        30: "C31_2ndPass",
+                    }
+                    for addr, name in coil_names.items():
+                        current[name] = bool(coils.bits[addr])
+
+                result["status"] = "ok"
+                result["config"] = current
+                result["message"] = f"Read {len(current)} PLC values"
+            except Exception as e:
+                result["message"] = f"Read failed: {e}"
+
+
         else:
             result["message"] = (
                 f"Unknown action: {action}. Use: software_eject, reset_counters, "
                 "set_mode, set_spacing, toggle_drop_enable, toggle_encoder, "
-                "toggle_lay_ties, toggle_drop_ties, set_detector_offset, clear_data_counts"
+                "toggle_lay_ties, toggle_drop_ties, set_detector_offset, clear_data_counts, "
+                "list_profiles, provision, read_config"
             )
 
         return result
