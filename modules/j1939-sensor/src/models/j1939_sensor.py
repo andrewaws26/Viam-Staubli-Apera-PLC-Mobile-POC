@@ -44,6 +44,7 @@ from .pgn_decoder import (
     extract_source_address,
     get_supported_pgns,
 )
+from .obd2_poller import OBD2Poller
 
 LOGGER = getLogger(__name__)
 
@@ -91,6 +92,8 @@ class J1939TruckSensor(Sensor):
         pgn_filter (list[int]): Optional list of PGNs to capture. Empty = capture all known.
         include_raw (bool): Include raw hex data in readings. Default: false
         bus_type (str): python-can bus type. Default: "socketcan"
+        protocol (str): "j1939" (default) or "obd2". Selects passive J1939 listener
+            or active OBD-II PID polling mode.
     """
 
     MODEL: ClassVar[Model] = Model(
@@ -112,6 +115,8 @@ class J1939TruckSensor(Sensor):
         self._pgn_filter: set[int] = set()
         self._include_raw = False
         self._bus_type = "socketcan"
+        self._protocol = "j1939"
+        self._obd2_poller: OBD2Poller | None = None
 
     @classmethod
     def new(cls, config: ComponentConfig,
@@ -131,12 +136,21 @@ class J1939TruckSensor(Sensor):
                 raise ValueError(
                     f"bitrate must be one of {valid_bitrates}, got {br}"
                 )
+        protocol = fields.get("protocol")
+        if protocol and protocol.string_value:
+            if protocol.string_value not in ("j1939", "obd2"):
+                raise ValueError(
+                    f"protocol must be 'j1939' or 'obd2', got '{protocol.string_value}'"
+                )
         return [], []
 
     def reconfigure(self, config: ComponentConfig,
                     dependencies: Mapping[ResourceName, ResourceBase]) -> None:
-        # Stop existing listener if running
+        # Stop existing listener / poller if running
         self._stop_listener()
+        if self._obd2_poller:
+            self._obd2_poller.stop()
+            self._obd2_poller = None
 
         fields = config.attributes.fields
 
@@ -165,8 +179,13 @@ class J1939TruckSensor(Sensor):
             if "bus_type" in fields and fields["bus_type"].string_value
             else "socketcan"
         )
+        self._protocol = (
+            fields["protocol"].string_value
+            if "protocol" in fields and fields["protocol"].string_value
+            else "j1939"
+        )
 
-        # PGN filter
+        # PGN filter (J1939 only, but parse regardless)
         if "pgn_filter" in fields and fields["pgn_filter"].list_value:
             self._pgn_filter = {
                 int(v.number_value) for v in fields["pgn_filter"].list_value.values
@@ -179,8 +198,18 @@ class J1939TruckSensor(Sensor):
             self._readings = {}
             self._frame_count = 0
 
-        # Start CAN listener
-        self._start_listener()
+        # Start the appropriate protocol handler
+        if self._protocol == "obd2":
+            self._obd2_poller = OBD2Poller(
+                can_interface=self._can_interface,
+                bus_type=self._bus_type,
+                bitrate=self._bitrate,
+            )
+            self._obd2_poller.start()
+            LOGGER.info("Configured in OBD-II polling mode")
+        else:
+            self._start_listener()
+            LOGGER.info("Configured in J1939 passive listener mode")
 
     def _start_listener(self):
         """Start the background CAN bus listener thread."""
@@ -272,20 +301,26 @@ class J1939TruckSensor(Sensor):
           - _bus_connected: whether the CAN bus is active
           - _seconds_since_last_frame: time since last decoded frame
         """
-        with self._readings_lock:
-            readings = dict(self._readings)
-
-        # Add metadata
-        readings["_can_interface"] = self._can_interface
-        readings["_frame_count"] = self._frame_count
-        readings["_bus_connected"] = self._bus is not None and self._running
-
-        if self._last_frame_time > 0:
-            readings["_seconds_since_last_frame"] = round(
-                time.time() - self._last_frame_time, 2
-            )
+        if self._protocol == "obd2" and self._obd2_poller:
+            readings = self._obd2_poller.get_readings()
+            readings["_can_interface"] = self._can_interface
+            readings["_protocol"] = "obd2"
+            readings["_bus_connected"] = self._obd2_poller.bus_connected
         else:
-            readings["_seconds_since_last_frame"] = -1
+            with self._readings_lock:
+                readings = dict(self._readings)
+
+            readings["_can_interface"] = self._can_interface
+            readings["_protocol"] = "j1939"
+            readings["_frame_count"] = self._frame_count
+            readings["_bus_connected"] = self._bus is not None and self._running
+
+            if self._last_frame_time > 0:
+                readings["_seconds_since_last_frame"] = round(
+                    time.time() - self._last_frame_time, 2
+                )
+            else:
+                readings["_seconds_since_last_frame"] = -1
 
         # Merge system health into readings
         try:
@@ -462,3 +497,6 @@ class J1939TruckSensor(Sensor):
         """Clean up CAN bus resources."""
         LOGGER.info(f"Closing J1939 sensor {self.name}")
         self._stop_listener()
+        if self._obd2_poller:
+            self._obd2_poller.stop()
+            self._obd2_poller = None
