@@ -48,6 +48,11 @@ function formatValue(key: string, value: unknown): string {
     if (key === "engine_rpm") return `${value.toFixed(0)}`;
     if (key === "engine_hours") return `${value.toFixed(1)} hrs`;
     if (key === "total_fuel_used_l") return `${(value * 0.264172).toFixed(0)} gal`;
+    if (key === "runtime_seconds") {
+      const mins = Math.floor(value / 60);
+      const secs = Math.floor(value % 60);
+      return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+    }
     if (key === "current_gear" || key === "selected_gear") {
       if (value === 0) return "N";
       if (value < 0) return "R";
@@ -98,6 +103,32 @@ const TOTAL_FIELDS = [
   { key: "total_fuel_used_l", label: "Total Fuel" },
 ];
 
+// Car-specific field overrides — OBD-II returns different fields
+const CAR_ENGINE_FIELDS = [
+  { key: "engine_rpm", label: "Engine RPM", highlight: true },
+  { key: "engine_load_pct", label: "Engine Load" },
+  { key: "throttle_position_pct", label: "Throttle" },
+];
+
+const CAR_TEMP_FIELDS = [
+  { key: "coolant_temp_c", label: "Coolant Temp", highlight: true },
+  { key: "oil_temp_c", label: "Oil Temp" },
+  { key: "intake_air_temp_c", label: "Intake Air" },
+  { key: "ambient_temp_c", label: "Ambient" },
+];
+
+const CAR_PRESSURE_FIELDS = [
+  { key: "boost_pressure_kpa", label: "Manifold Pressure", highlight: true },
+  { key: "fuel_pressure_kpa", label: "Fuel Rail Pressure" },
+];
+
+const CAR_VEHICLE_FIELDS = [
+  { key: "vehicle_speed_kph", label: "Speed", highlight: true },
+  { key: "fuel_level_pct", label: "Fuel Level" },
+  { key: "battery_voltage_v", label: "Battery" },
+  { key: "runtime_seconds", label: "Runtime" },
+];
+
 const LAMP_NAMES: Record<string, string> = {
   malfunction_lamp: "MIL",
   red_stop_lamp: "STOP",
@@ -105,12 +136,16 @@ const LAMP_NAMES: Record<string, string> = {
   protect_lamp: "PROT",
 };
 
+type VehicleMode = "truck" | "car";
+
 export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
   const [readings, setReadings] = useState<TruckReadings | null>(null);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [clearing, setClearing] = useState(false);
   const [clearResult, setClearResult] = useState<string | null>(null);
+  const [vehicleMode, setVehicleMode] = useState<VehicleMode>("truck");
+  const [modeAutoDetected, setModeAutoDetected] = useState(false);
 
   const simTickRef = React.useRef(0);
 
@@ -167,6 +202,11 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
       setReadings(data as TruckReadings);
       setConnected(true);
       setError(null);
+      // Auto-detect vehicle mode from protocol field (only once)
+      if (!modeAutoDetected && data._protocol) {
+        setVehicleMode(data._protocol === "obd2" ? "car" : "truck");
+        setModeAutoDetected(true);
+      }
     } catch (err) {
       setConnected(false);
       setError(err instanceof Error ? err.message : "Connection error");
@@ -271,17 +311,40 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
       {/* Header */}
       <div className="flex items-center justify-between mb-3 sm:mb-4">
         <div className="flex items-center gap-2">
-          <span className="text-lg sm:text-xl">&#x1F69B;</span>
+          <span className="text-lg sm:text-xl">{vehicleMode === "truck" ? "\u{1F69B}" : "\u{1F697}"}</span>
           <div>
             <h3 className="text-sm sm:text-lg font-black tracking-widest uppercase text-gray-100">
-              Truck Diagnostics
+              {vehicleMode === "truck" ? "Truck Diagnostics" : "Vehicle Diagnostics"}
             </h3>
             <p className="text-[10px] sm:text-xs text-gray-600">
-              J1939 CAN Bus — OBD-II Live Data
+              {vehicleMode === "truck" ? "J1939 CAN Bus — Heavy Duty" : "OBD-II CAN Bus — Live Data"}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          {/* Vehicle mode toggle */}
+          <div className="flex rounded-lg overflow-hidden border border-gray-700">
+            <button
+              onClick={() => setVehicleMode("truck")}
+              className={`px-2 sm:px-3 py-1 text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-colors ${
+                vehicleMode === "truck"
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-800 text-gray-500 hover:text-gray-300"
+              }`}
+            >
+              Semi-Truck
+            </button>
+            <button
+              onClick={() => setVehicleMode("car")}
+              className={`px-2 sm:px-3 py-1 text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-colors ${
+                vehicleMode === "car"
+                  ? "bg-green-600 text-white"
+                  : "bg-gray-800 text-gray-500 hover:text-gray-300"
+              }`}
+            >
+              Passenger
+            </button>
+          </div>
           {/* Connection status */}
           <div className="flex items-center gap-1.5">
             <div
@@ -429,11 +492,23 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
 
       {/* Data Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
-        {renderFields(ENGINE_FIELDS, "Engine", "\u2699\uFE0F")}
-        {renderFields(TEMP_FIELDS, "Temperatures", "\u{1F321}\uFE0F")}
-        {renderFields(PRESSURE_FIELDS, "Pressures", "\u{1F4CA}")}
-        {renderFields(VEHICLE_FIELDS, "Vehicle", "\u{1F698}")}
-        {renderFields(TOTAL_FIELDS, "Lifetime", "\u{1F4C8}")}
+        {renderFields(
+          vehicleMode === "car" ? CAR_ENGINE_FIELDS : ENGINE_FIELDS,
+          "Engine", "\u2699\uFE0F"
+        )}
+        {renderFields(
+          vehicleMode === "car" ? CAR_TEMP_FIELDS : TEMP_FIELDS,
+          "Temperatures", "\u{1F321}\uFE0F"
+        )}
+        {renderFields(
+          vehicleMode === "car" ? CAR_PRESSURE_FIELDS : PRESSURE_FIELDS,
+          "Pressures", "\u{1F4CA}"
+        )}
+        {renderFields(
+          vehicleMode === "car" ? CAR_VEHICLE_FIELDS : VEHICLE_FIELDS,
+          "Vehicle", "\u{1F698}"
+        )}
+        {vehicleMode === "truck" && renderFields(TOTAL_FIELDS, "Lifetime", "\u{1F4C8}")}
       </div>
 
       {/* Not connected state */}
