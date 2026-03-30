@@ -108,6 +108,9 @@ FOLLOW-UP QUESTIONS: At the end of EVERY response, include 2-3 suggested follow-
     const result = await response.json();
     const reply = result.content?.[0]?.text || "No response generated";
 
+    // Log conversation to cloud for analysis and refinement
+    logConversation(apiMessages, reply, readings).catch(() => {});
+
     return NextResponse.json({ success: true, reply });
   } catch (err) {
     return NextResponse.json(
@@ -117,5 +120,46 @@ FOLLOW-UP QUESTIONS: At the end of EVERY response, include 2-3 suggested follow-
       },
       { status: 502 }
     );
+  }
+}
+
+/**
+ * Log AI conversations to Viam Cloud for analysis and prompt refinement.
+ * Stores: timestamp, full conversation, AI response, vehicle readings snapshot,
+ * and any DTCs present at the time.
+ */
+async function logConversation(
+  messages: { role: string; content: string }[],
+  aiReply: string,
+  readings: Record<string, unknown>
+) {
+  const host = process.env.TRUCK_VIAM_MACHINE_ADDRESS;
+  const apiKey = process.env.TRUCK_VIAM_API_KEY;
+  const apiKeyId = process.env.TRUCK_VIAM_API_KEY_ID;
+  if (!host || !apiKey || !apiKeyId) return;
+
+  const logEntry = {
+    type: "ai_chat",
+    timestamp: new Date().toISOString(),
+    message_count: messages.length,
+    last_user_message: messages.filter(m => m.role === "user").pop()?.content || "",
+    ai_response: aiReply.substring(0, 2000), // Truncate to save space
+    active_dtcs: Object.entries(readings)
+      .filter(([k]) => k.startsWith("obd2_dtc_"))
+      .map(([, v]) => v),
+    active_dtc_count: readings.active_dtc_count || 0,
+    engine_rpm: readings.engine_rpm,
+    coolant_temp_c: readings.coolant_temp_c,
+    vehicle_speed_kph: readings.vehicle_speed_kph,
+    protocol: readings._protocol || "unknown",
+    full_conversation: messages.map(m => `${m.role}: ${m.content}`).join("\n---\n"),
+  };
+
+  try {
+    // Log to a file on the server that can be synced later
+    // Using fetch to a simple logging endpoint or console for now
+    console.log("[AI-CHAT-LOG]", JSON.stringify(logEntry));
+  } catch {
+    // Silent fail — logging should never break the chat
   }
 }

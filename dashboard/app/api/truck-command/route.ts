@@ -63,6 +63,17 @@ export async function POST(request: NextRequest) {
     const sensor = new SensorClient(client, "truck-engine");
     const result = await sensor.doCommand({ command, ...params });
 
+    // Log DTC clears and diagnostic commands for audit trail
+    if (command === "clear_dtcs" || command === "get_freeze_frame" || command === "get_readiness" || command === "get_vin") {
+      console.log("[COMMAND-LOG]", JSON.stringify({
+        type: "vehicle_command",
+        timestamp: new Date().toISOString(),
+        command,
+        params,
+        result: JSON.stringify(result).substring(0, 1000),
+      }));
+    }
+
     return NextResponse.json(result);
   } catch (err) {
     _client = null;

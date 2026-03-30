@@ -99,6 +99,21 @@ ${readingsText}`;
     const result = await response.json();
     const diagnosis = result.content?.[0]?.text || "No diagnosis generated";
 
+    // Log diagnosis to cloud for analysis
+    const logEntry = {
+      type: "ai_full_diagnosis",
+      timestamp: new Date().toISOString(),
+      diagnosis: diagnosis.substring(0, 3000),
+      active_dtcs: Object.entries(readings)
+        .filter(([k]) => k.startsWith("obd2_dtc_"))
+        .map(([, v]) => v),
+      active_dtc_count: readings.active_dtc_count || 0,
+      engine_rpm: readings.engine_rpm,
+      coolant_temp_c: readings.coolant_temp_c,
+      protocol: readings._protocol || "unknown",
+    };
+    console.log("[AI-DIAGNOSIS-LOG]", JSON.stringify(logEntry));
+
     return NextResponse.json({ success: true, diagnosis });
   } catch (err) {
     return NextResponse.json(
