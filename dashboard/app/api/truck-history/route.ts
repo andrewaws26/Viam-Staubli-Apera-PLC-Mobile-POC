@@ -55,9 +55,9 @@ async function getDataClient(): Promise<CachedViamClient["dataClient"]> {
     throw new Error("Connection in progress");
   }
 
-  // Use truck credentials, fall back to main credentials
-  const apiKey = process.env.TRUCK_VIAM_API_KEY || process.env.VIAM_API_KEY;
-  const apiKeyId = process.env.TRUCK_VIAM_API_KEY_ID || process.env.VIAM_API_KEY_ID;
+  // Use location-level key for data queries (machine-level keys lack data read permissions)
+  const apiKey = process.env.VIAM_API_KEY;
+  const apiKeyId = process.env.VIAM_API_KEY_ID;
 
   if (!apiKey || !apiKeyId) {
     throw new Error("Missing Viam API credentials for truck data query");
