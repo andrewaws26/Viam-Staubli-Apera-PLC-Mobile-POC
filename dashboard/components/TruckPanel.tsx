@@ -210,45 +210,43 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
     } catch { return null; }
   });
 
-  // Background history fetch — runs every 5 minutes when Pi is connected
+  // Background history fetch — runs every 5 minutes, caches to localStorage
   useEffect(() => {
     const fetchHistory = async () => {
-      // Try Viam Cloud first
+      // Primary: client-side SDK do_command (uses existing WebRTC connection)
+      if (!simMode) {
+        try {
+          const { sendTruckCommand } = await import("../lib/truck-viam");
+          const data = await sendTruckCommand("truck-engine", { command: "get_history", days: 7 });
+          if (data && data.totalPoints > 0) {
+            data._cachedAt = new Date().toISOString();
+            try { localStorage.setItem(HISTORY_CACHE_KEY, JSON.stringify(data)); } catch { /* quota */ }
+            setCachedHistory(data);
+            return;
+          }
+        } catch { /* WebRTC not connected */ }
+      }
+
+      // Fallback: Viam Cloud Data API
       try {
         const resp = await fetch("/api/truck-history?hours=168");
         if (resp.ok) {
           const data = await resp.json();
           if (data.totalPoints > 0) {
             data._cachedAt = new Date().toISOString();
-            localStorage.setItem(HISTORY_CACHE_KEY, JSON.stringify(data));
+            try { localStorage.setItem(HISTORY_CACHE_KEY, JSON.stringify(data)); } catch { /* quota */ }
             setCachedHistory(data);
             return;
           }
         }
       } catch { /* cloud unavailable */ }
-
-      // Try Pi via server-side do_command
-      try {
-        const resp = await fetch("/api/truck-command", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ command: "get_history", days: 7 }),
-        });
-        if (resp.ok) {
-          const data = await resp.json();
-          if (data && data.totalPoints > 0) {
-            data._cachedAt = new Date().toISOString();
-            localStorage.setItem(HISTORY_CACHE_KEY, JSON.stringify(data));
-            setCachedHistory(data);
-          }
-        }
-      } catch { /* Pi unreachable */ }
     };
 
-    fetchHistory();
+    // Fetch immediately, then every 5 minutes
+    const timer = setTimeout(fetchHistory, 3000); // delay 3s to let WebRTC connect first
     const id = setInterval(fetchHistory, 5 * 60 * 1000);
-    return () => clearInterval(id);
-  }, []);
+    return () => { clearTimeout(timer); clearInterval(id); };
+  }, [simMode]);
 
   // Advanced diagnostics state
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -457,38 +455,35 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
     const now = new Date().toLocaleString();
     const protocol = (r._protocol === "obd2" ? "OBD-II" : r._protocol === "j1939" ? "J1939" : "OBD-II");
 
-    // Fetch historical data — try Viam Cloud first, fall back to Pi's local HTTP server
+    // Fetch historical data — try client SDK, then cloud, then cache
     let history: { totalPoints: number; totalMinutes: number; periodStart: string; periodEnd: string; source?: string; summary: Record<string, Record<string, number>>; dtcEvents: { timestamp: string; code: string }[] } | null = null;
-    try {
-      const resp = await fetch("/api/truck-history?hours=168");
-      if (resp.ok) {
-        const data = await resp.json();
-        if (data.totalPoints > 0) history = data;
-      }
-    } catch { /* cloud unavailable */ }
 
-    // Fallback: fetch from Pi's offline buffer via server-side do_command
-    if (!history) {
+    // Primary: client-side SDK (same WebRTC connection as live data)
+    if (!simMode) {
       try {
-        const resp = await fetch("/api/truck-command", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ command: "get_history", days: 7 }),
-        });
-        if (resp.ok) {
-          const data = await resp.json();
-          if (data && data.totalPoints > 0) {
-            history = data;
-            // Update cache with fresh data
-            data._cachedAt = new Date().toISOString();
-            localStorage.setItem(HISTORY_CACHE_KEY, JSON.stringify(data));
-            setCachedHistory(data);
-          }
+        const { sendTruckCommand } = await import("../lib/truck-viam");
+        const data = await sendTruckCommand("truck-engine", { command: "get_history", days: 7 });
+        if (data && data.totalPoints > 0) {
+          history = data;
+          data._cachedAt = new Date().toISOString();
+          try { localStorage.setItem(HISTORY_CACHE_KEY, JSON.stringify(data)); } catch { /* quota */ }
+          setCachedHistory(data);
         }
-      } catch { /* Pi unreachable */ }
+      } catch { /* WebRTC not connected */ }
     }
 
-    // Final fallback: use cached historical data from localStorage
+    // Fallback: Viam Cloud Data API
+    if (!history) {
+      try {
+        const resp = await fetch("/api/truck-history?hours=168");
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.totalPoints > 0) history = data;
+        }
+      } catch { /* cloud unavailable */ }
+    }
+
+    // Final fallback: cached historical data from localStorage
     if (!history && cachedHistory && (cachedHistory as Record<string, unknown>).totalPoints) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       history = cachedHistory as any;
