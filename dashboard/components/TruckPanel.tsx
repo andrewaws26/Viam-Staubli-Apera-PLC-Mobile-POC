@@ -60,7 +60,7 @@ function formatValue(key: string, value: unknown): string {
       const mins = Math.floor(value % 60);
       return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
     }
-    if (key === "distance_with_mil_km" || key === "distance_since_clear_km") return `${(value * 0.621371).toFixed(0)} mi`;
+    if (key === "distance_with_mil_mi" || key === "distance_since_clear_mi") return `${value.toFixed(1)} mi`;
     if (key === "timing_advance_deg") return `${value.toFixed(1)}°`;
     if (key === "maf_flow_gps") return `${value.toFixed(1)} g/s`;
     if (key === "commanded_equiv_ratio") return `${value.toFixed(3)}`;
@@ -135,7 +135,7 @@ const CAR_TEMP_FIELDS = [
   { key: "oil_temp_f", label: "Oil" },
   { key: "intake_air_temp_f", label: "Intake Air" },
   { key: "ambient_temp_f", label: "Ambient" },
-  { key: "catalyst_temp_b1s1_c", label: "Catalytic Conv" },
+  { key: "catalyst_temp_b1s1_f", label: "Catalytic Conv" },
 ];
 
 const CAR_PRESSURE_FIELDS = [
@@ -157,8 +157,8 @@ const CAR_VEHICLE_FIELDS = [
 const CAR_FUEL_FIELDS = [
   { key: "short_fuel_trim_b1_pct", label: "Short Fuel Trim B1" },
   { key: "long_fuel_trim_b1_pct", label: "Long Fuel Trim B1" },
-  { key: "distance_with_mil_km", label: "Distance w/ MIL" },
-  { key: "distance_since_clear_km", label: "Distance Since Clear" },
+  { key: "distance_with_mil_mi", label: "Distance w/ MIL" },
+  { key: "distance_since_clear_mi", label: "Distance Since Clear" },
   { key: "time_since_clear_min", label: "Time Since Clear" },
   { key: "runtime_with_mil_min", label: "Runtime w/ MIL" },
   { key: "warmup_cycles_since_clear", label: "Warmups Since Clear" },
@@ -381,12 +381,47 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
     prevReadingsRef.current = readings;
   }, [readings]);
 
-  // Generate PDF report
-  const generateReport = () => {
+  // Generate PDF report with historical data
+  const [reportLoading, setReportLoading] = useState(false);
+  const generateReport = async () => {
     if (!readings) return;
+    setReportLoading(true);
     const r = readings;
     const now = new Date().toLocaleString();
     const protocol = r._protocol === "obd2" ? "OBD-II" : "J1939";
+
+    // Fetch historical data from Viam Cloud
+    let history: { totalPoints: number; totalMinutes: number; periodStart: string; periodEnd: string; summary: Record<string, Record<string, number>>; dtcEvents: { timestamp: string; code: string }[]; timeSeries: Record<string, unknown>[] } | null = null;
+    try {
+      const resp = await fetch("/api/truck-history?hours=4");
+      if (resp.ok) history = await resp.json();
+    } catch { /* history is optional */ }
+    setReportLoading(false);
+
+    const fmtTime = (iso: string) => new Date(iso).toLocaleString();
+    const fmtNum = (v: unknown, decimals = 1) => typeof v === "number" ? v.toFixed(decimals) : "—";
+
+    const historySection = history && history.totalPoints > 0 ? `
+<h2>Historical Data (Last ${history.totalMinutes} minutes — ${history.totalPoints} readings from Viam Cloud)</h2>
+<p style="color:#6b7280;font-size:12px;">Period: ${fmtTime(history.periodStart)} to ${fmtTime(history.periodEnd)}</p>
+
+<table style="width:100%;border-collapse:collapse;font-size:13px;margin:12px 0;">
+  <tr style="background:#f3f4f6;"><th style="text-align:left;padding:6px;">Parameter</th><th style="padding:6px;">Min</th><th style="padding:6px;">Avg</th><th style="padding:6px;">Max</th></tr>
+  ${history.summary?.engine_rpm ? `<tr><td style="padding:4px 6px;">Engine RPM</td><td style="text-align:center;font-family:monospace;">${fmtNum(history.summary.engine_rpm.min, 0)}</td><td style="text-align:center;font-family:monospace;">${fmtNum(history.summary.engine_rpm.avg, 0)}</td><td style="text-align:center;font-family:monospace;">${fmtNum(history.summary.engine_rpm.max, 0)}</td></tr>` : ""}
+  ${history.summary?.coolant_temp_f ? `<tr style="background:#fafafa;"><td style="padding:4px 6px;">Coolant Temp</td><td style="text-align:center;font-family:monospace;">${fmtNum(history.summary.coolant_temp_f.min)}°F</td><td style="text-align:center;font-family:monospace;">${fmtNum(history.summary.coolant_temp_f.avg)}°F</td><td style="text-align:center;font-family:monospace;">${fmtNum(history.summary.coolant_temp_f.max)}°F</td></tr>` : ""}
+  ${history.summary?.oil_temp_f ? `<tr><td style="padding:4px 6px;">Oil Temp</td><td style="text-align:center;font-family:monospace;">—</td><td style="text-align:center;font-family:monospace;">${fmtNum(history.summary.oil_temp_f.avg)}°F</td><td style="text-align:center;font-family:monospace;">${fmtNum(history.summary.oil_temp_f.max)}°F</td></tr>` : ""}
+  ${history.summary?.battery_voltage_v ? `<tr style="background:#fafafa;"><td style="padding:4px 6px;">Battery Voltage</td><td style="text-align:center;font-family:monospace;">${fmtNum(history.summary.battery_voltage_v.min, 2)}V</td><td style="text-align:center;font-family:monospace;">${fmtNum(history.summary.battery_voltage_v.avg, 2)}V</td><td style="text-align:center;font-family:monospace;">${fmtNum(history.summary.battery_voltage_v.max, 2)}V</td></tr>` : ""}
+  ${history.summary?.vehicle_speed_mph ? `<tr><td style="padding:4px 6px;">Vehicle Speed</td><td style="text-align:center;font-family:monospace;">—</td><td style="text-align:center;font-family:monospace;">${fmtNum(history.summary.vehicle_speed_mph.avg)} mph</td><td style="text-align:center;font-family:monospace;">${fmtNum(history.summary.vehicle_speed_mph.max)} mph</td></tr>` : ""}
+  ${history.summary?.short_fuel_trim_b1_pct ? `<tr style="background:#fafafa;"><td style="padding:4px 6px;">Short Fuel Trim B1</td><td style="text-align:center;font-family:monospace;">${fmtNum(history.summary.short_fuel_trim_b1_pct.min)}%</td><td style="text-align:center;font-family:monospace;">${fmtNum(history.summary.short_fuel_trim_b1_pct.avg)}%</td><td style="text-align:center;font-family:monospace;">${fmtNum(history.summary.short_fuel_trim_b1_pct.max)}%</td></tr>` : ""}
+  ${history.summary?.long_fuel_trim_b1_pct ? `<tr><td style="padding:4px 6px;">Long Fuel Trim B1</td><td style="text-align:center;font-family:monospace;">${fmtNum(history.summary.long_fuel_trim_b1_pct.min)}%</td><td style="text-align:center;font-family:monospace;">${fmtNum(history.summary.long_fuel_trim_b1_pct.avg)}%</td><td style="text-align:center;font-family:monospace;">${fmtNum(history.summary.long_fuel_trim_b1_pct.max)}%</td></tr>` : ""}
+  ${history.summary?.fuel_level_pct ? `<tr style="background:#fafafa;"><td style="padding:4px 6px;">Fuel Level</td><td colspan="2" style="text-align:center;font-family:monospace;">${fmtNum(history.summary.fuel_level_pct.start)}% → ${fmtNum(history.summary.fuel_level_pct.end)}%</td><td style="text-align:center;font-family:monospace;">${fmtNum(history.summary.fuel_level_pct.consumed)}% used</td></tr>` : ""}
+</table>
+
+${history.dtcEvents && history.dtcEvents.length > 0 ? `
+<h2>DTC Events During Period</h2>
+${history.dtcEvents.map(e => `<div class="dtc"><span class="dtc-code">${e.code}</span> <span style="color:#6b7280;font-size:12px;">at ${fmtTime(e.timestamp)}</span></div>`).join("")}
+` : ""}
+` : `<h2>Historical Data</h2><p style="color:#9ca3af;">No historical data available from Viam Cloud for this period. Data capture is active and will be available in future reports.</p>`;
 
     const html = `<!DOCTYPE html>
 <html><head><title>IronSight Vehicle Diagnostic Report</title>
@@ -402,8 +437,6 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
   .value { font-weight: bold; font-family: monospace; font-size: 13px; }
   .dtc { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px; margin: 8px 0; }
   .dtc-code { font-weight: bold; color: #dc2626; font-size: 16px; }
-  .score { font-size: 48px; font-weight: bold; text-align: center; margin: 16px 0; }
-  .score.good { color: #16a34a; } .score.warn { color: #ca8a04; } .score.bad { color: #dc2626; }
   .footer { margin-top: 30px; padding-top: 10px; border-top: 2px solid #e5e7eb; font-size: 11px; color: #9ca3af; text-align: center; }
   @media print { body { padding: 0; } }
 </style></head><body>
@@ -418,29 +451,31 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
 
 ${r.vin ? `<p><strong>VIN:</strong> <span style="font-family:monospace">${r.vin}</span></p>` : ""}
 
-<h2>Engine</h2>
+<h2>Current Readings (Live Snapshot)</h2>
+
+<h3 style="font-size:14px;color:#374151;margin-top:16px;">Engine</h3>
 <div class="grid">
-  ${[["RPM", r.engine_rpm, ""], ["Load", r.engine_load_pct, "%"], ["Throttle", r.throttle_position_pct, "%"], ["Timing Advance", r.timing_advance_deg, "°"], ["MAF Flow", r.maf_flow_gps, " g/s"], ["Air/Fuel Ratio", r.commanded_equiv_ratio, ""]].map(([l, v, u]) => v !== undefined ? `<div class="field"><span class="label">${l}</span><span class="value">${typeof v === "number" ? (v as number).toFixed(1) : v}${u}</span></div>` : "").join("")}
+  ${[["RPM", r.engine_rpm, ""], ["Load", r.engine_load_pct, "%"], ["Throttle", r.throttle_position_pct, "%"], ["Timing Advance", r.timing_advance_deg, "\u00B0"], ["MAF Flow", r.maf_flow_gps, " g/s"], ["Air/Fuel Ratio", r.commanded_equiv_ratio, ""]].map(([l, v, u]) => v !== undefined ? `<div class="field"><span class="label">${l}</span><span class="value">${typeof v === "number" ? (v as number).toFixed(1) : v}${u}</span></div>` : "").join("")}
 </div>
 
-<h2>Temperatures</h2>
+<h3 style="font-size:14px;color:#374151;margin-top:16px;">Temperatures</h3>
 <div class="grid">
-  ${[["Coolant", r.coolant_temp_f, "°F"], ["Oil", r.oil_temp_f, "°F"], ["Intake Air", r.intake_air_temp_f, "°F"], ["Ambient", r.ambient_temp_f, "°F"], ["Catalyst", r.catalyst_temp_b1s1_c, "°F"]].map(([l, v, u]) => v !== undefined ? `<div class="field"><span class="label">${l}</span><span class="value">${typeof v === "number" ? (v as number).toFixed(1) : v}${u}</span></div>` : "").join("")}
+  ${[["Coolant", r.coolant_temp_f, "\u00B0F"], ["Oil", r.oil_temp_f, "\u00B0F"], ["Intake Air", r.intake_air_temp_f, "\u00B0F"], ["Ambient", r.ambient_temp_f, "\u00B0F"], ["Catalyst", r.catalyst_temp_b1s1_f, "\u00B0F"]].map(([l, v, u]) => v !== undefined ? `<div class="field"><span class="label">${l}</span><span class="value">${typeof v === "number" ? (v as number).toFixed(1) : v}${u}</span></div>` : "").join("")}
 </div>
 
-<h2>Pressures</h2>
+<h3 style="font-size:14px;color:#374151;margin-top:16px;">Pressures</h3>
 <div class="grid">
   ${[["Manifold", r.boost_pressure_psi, " PSI"], ["Fuel Rail", r.fuel_pressure_psi, " PSI"], ["Barometric", r.barometric_pressure_psi, " PSI"]].map(([l, v, u]) => v !== undefined ? `<div class="field"><span class="label">${l}</span><span class="value">${typeof v === "number" ? (v as number).toFixed(1) : v}${u}</span></div>` : "").join("")}
 </div>
 
-<h2>Vehicle</h2>
+<h3 style="font-size:14px;color:#374151;margin-top:16px;">Vehicle</h3>
 <div class="grid">
   ${[["Speed", r.vehicle_speed_mph, " mph"], ["Fuel Level", r.fuel_level_pct, "%"], ["Battery", r.battery_voltage_v, "V"], ["Runtime", r.runtime_seconds, "s"]].map(([l, v, u]) => v !== undefined ? `<div class="field"><span class="label">${l}</span><span class="value">${typeof v === "number" ? (v as number).toFixed(1) : v}${u}</span></div>` : "").join("")}
 </div>
 
-<h2>Diagnostics</h2>
+<h3 style="font-size:14px;color:#374151;margin-top:16px;">Fuel System</h3>
 <div class="grid">
-  ${[["Short Fuel Trim B1", r.short_fuel_trim_b1_pct, "%"], ["Long Fuel Trim B1", r.long_fuel_trim_b1_pct, "%"], ["Distance w/ MIL", r.distance_with_mil_km, " km"], ["Distance Since Clear", r.distance_since_clear_km, " km"]].map(([l, v, u]) => v !== undefined ? `<div class="field"><span class="label">${l}</span><span class="value">${typeof v === "number" ? (v as number).toFixed(1) : v}${u}</span></div>` : "").join("")}
+  ${[["Short Fuel Trim B1", r.short_fuel_trim_b1_pct, "%"], ["Long Fuel Trim B1", r.long_fuel_trim_b1_pct, "%"], ["Distance w/ MIL", r.distance_with_mil_mi, " mi"], ["Distance Since Clear", r.distance_since_clear_mi, " mi"], ["Time Since Clear", r.time_since_clear_min, " min"], ["Warmups Since Clear", r.warmup_cycles_since_clear, ""]].map(([l, v, u]) => v !== undefined ? `<div class="field"><span class="label">${l}</span><span class="value">${typeof v === "number" ? (v as number).toFixed(1) : v}${u}</span></div>` : "").join("")}
 </div>
 
 <h2>Trouble Codes</h2>
@@ -449,13 +484,12 @@ ${(r.active_dtc_count as number) > 0 ? Array.from({ length: Math.min(r.active_dt
   return code ? `<div class="dtc"><span class="dtc-code">${code}</span></div>` : "";
 }).join("") : "<p style='color:#16a34a'>No active trouble codes</p>"}
 
-<h2>Driver Behavior Score</h2>
-<div class="score ${driverScore >= 80 ? "good" : driverScore >= 50 ? "warn" : "bad"}">${driverScore}/100</div>
+${historySection}
 
 ${aiDiagnosis ? `<h2>AI Mechanic Analysis</h2><div style="white-space:pre-wrap;font-size:13px;line-height:1.6;background:#f9fafb;padding:16px;border-radius:8px;">${aiDiagnosis}</div>` : ""}
 
 <div class="footer">
-  <p>IronSight Fleet Diagnostics Platform | Report generated by Claude AI + Viam Cloud</p>
+  <p>IronSight Fleet Diagnostics Platform | Data stored and queried from Viam Cloud</p>
   <p>Pi Zero 2W + MCP2515 CAN HAT | ${protocol} at ${r._can_interface || "can0"}</p>
 </div>
 </body></html>`;
@@ -847,41 +881,15 @@ ${aiDiagnosis ? `<h2>AI Mechanic Analysis</h2><div style="white-space:pre-wrap;f
         {vehicleMode === "car" && renderFields(CAR_FUEL_FIELDS, "Diagnostics", "\u{1F527}")}
       </div>
 
-      {/* Driver Score + Report Button */}
+      {/* Report Button */}
       {busConnected && (
-        <div className="flex items-center justify-between mt-3 gap-3">
-          <div className="flex items-center gap-3">
-            <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${
-              driverScore >= 80 ? "bg-green-950/30 border-green-700/50" :
-              driverScore >= 50 ? "bg-yellow-950/30 border-yellow-700/50" :
-              "bg-red-950/30 border-red-700/50"
-            }`}>
-              <span className="text-[10px] text-gray-500 uppercase tracking-wider">Driver Score</span>
-              <span className={`text-lg font-black font-mono ${
-                driverScore >= 80 ? "text-green-400" :
-                driverScore >= 50 ? "text-yellow-400" :
-                "text-red-400"
-              }`}>{driverScore}</span>
-              <span className="text-[10px] text-gray-600">/100</span>
-            </div>
-            <div className="text-[10px] text-gray-600">
-              {driverEventsRef.current.filter(e => e.type === "harsh_accel").length > 0 && (
-                <span className="text-yellow-500 mr-2">
-                  {driverEventsRef.current.filter(e => e.type === "harsh_accel").length} harsh accel
-                </span>
-              )}
-              {driverEventsRef.current.filter(e => e.type === "over_rev").length > 0 && (
-                <span className="text-red-500 mr-2">
-                  {driverEventsRef.current.filter(e => e.type === "over_rev").length} over-rev
-                </span>
-              )}
-            </div>
-          </div>
+        <div className="flex justify-end mt-3">
           <button
             onClick={generateReport}
-            className="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider bg-blue-900/50 hover:bg-blue-800 text-blue-300 border border-blue-700/50 transition-colors"
+            disabled={reportLoading}
+            className="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider bg-blue-900/50 hover:bg-blue-800 text-blue-300 border border-blue-700/50 transition-colors disabled:opacity-50 min-h-[44px]"
           >
-            {"\u{1F4C4}"} Generate Report
+            {reportLoading ? "Loading history..." : "\u{1F4C4} Generate Report"}
           </button>
         </div>
       )}
