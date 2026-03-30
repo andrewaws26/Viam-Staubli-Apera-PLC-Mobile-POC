@@ -41,12 +41,12 @@ function formatValue(key: string, value: unknown): string {
   if (typeof value === "boolean") return value ? "ON" : "OFF";
   if (typeof value === "number") {
     if (key.includes("_pct") || key.includes("_pos")) return `${value.toFixed(1)}%`;
-    if (key.includes("_c") && !key.includes("count")) return `${(value * 9/5 + 32).toFixed(0)}°F`;
-    if (key.includes("_v")) return `${value.toFixed(1)}V`;
-    if (key.includes("_kpa")) return `${(value * 0.14504).toFixed(1)} psi`;
-    if (key.includes("_kmh")) return `${(value * 0.621371).toFixed(0)} mph`;
-    if (key.includes("_lph")) return `${(value * 0.264172).toFixed(1)} gal/h`;
-    if (key.includes("_km_l")) return `${(value * 2.35215).toFixed(1)} mpg`;
+    if (key.endsWith("_f")) return `${value.toFixed(0)}°F`;
+    if (key.endsWith("_v")) return `${value.toFixed(1)}V`;
+    if (key.endsWith("_psi")) return `${value.toFixed(1)} PSI`;
+    if (key.endsWith("_mph")) return `${value.toFixed(0)} mph`;
+    if (key.endsWith("_gph")) return `${value.toFixed(1)} gal/h`;
+    if (key.endsWith("_mpg")) return `${value.toFixed(1)} mpg`;
     if (key === "engine_rpm") return `${value.toFixed(0)}`;
     if (key === "engine_hours") return `${value.toFixed(1)} hrs`;
     if (key === "total_fuel_used_gal") return `${value.toFixed(0)} gal`;
