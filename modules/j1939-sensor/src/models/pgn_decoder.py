@@ -164,31 +164,55 @@ PGN_61443 = PGNDefinition(
     ]
 )
 
+def _decode_temp_f(data: bytes, start_byte: int, length_bits: int,
+                   resolution: float, offset_c: float) -> Optional[float]:
+    """Decode a temperature value and convert from Celsius to Fahrenheit."""
+    celsius = _decode_scaled(data, start_byte, length_bits, resolution, offset_c)
+    if celsius is None:
+        return None
+    return round(celsius * 9.0 / 5.0 + 32, 2)
+
+
 PGN_65262 = PGNDefinition(
     pgn=65262,
     name="Engine Temperature 1 (ET1)",
     spns=[
-        SPNDefinition(110, "Engine Coolant Temperature", "coolant_temp_c",
-                      0, 8, 1.0, -40.0, "C"),
-        SPNDefinition(174, "Fuel Temperature", "fuel_temp_c",
-                      1, 8, 1.0, -40.0, "C"),
-        SPNDefinition(175, "Engine Oil Temperature", "oil_temp_c",
-                      2, 16, 0.03125, -273.0, "C"),
+        SPNDefinition(110, "Engine Coolant Temperature", "coolant_temp_f",
+                      0, 8, 1.0, -40.0, "F",
+                      decode_fn=lambda data: _decode_temp_f(data, 0, 8, 1.0, -40.0)),
+        SPNDefinition(174, "Fuel Temperature", "fuel_temp_f",
+                      1, 8, 1.0, -40.0, "F",
+                      decode_fn=lambda data: _decode_temp_f(data, 1, 8, 1.0, -40.0)),
+        SPNDefinition(175, "Engine Oil Temperature", "oil_temp_f",
+                      2, 16, 0.03125, -273.0, "F",
+                      decode_fn=lambda data: _decode_temp_f(data, 2, 16, 0.03125, -273.0)),
     ]
 )
+
+def _decode_pressure_psi(data: bytes, start_byte: int, length_bits: int,
+                        resolution: float, offset: float) -> Optional[float]:
+    """Decode a pressure value and convert from kPa to PSI."""
+    kpa = _decode_scaled(data, start_byte, length_bits, resolution, offset)
+    if kpa is None:
+        return None
+    return round(kpa * 0.145038, 2)
+
 
 PGN_65263 = PGNDefinition(
     pgn=65263,
     name="Engine Fluid Level/Pressure (EFL/P)",
     spns=[
-        SPNDefinition(94, "Engine Fuel Delivery Pressure", "fuel_pressure_kpa",
-                      0, 8, 4.0, 0.0, "kPa"),
-        SPNDefinition(22, "Engine Extended Crankcase Blow-by Pressure", "crankcase_pressure_kpa",
-                      1, 8, 0.05, 0.0, "kPa"),
+        SPNDefinition(94, "Engine Fuel Delivery Pressure", "fuel_pressure_psi",
+                      0, 8, 4.0, 0.0, "PSI",
+                      decode_fn=lambda data: _decode_pressure_psi(data, 0, 8, 4.0, 0.0)),
+        SPNDefinition(22, "Engine Extended Crankcase Blow-by Pressure", "crankcase_pressure_psi",
+                      1, 8, 0.05, 0.0, "PSI",
+                      decode_fn=lambda data: _decode_pressure_psi(data, 1, 8, 0.05, 0.0)),
         SPNDefinition(98, "Engine Oil Level", "oil_level_pct",
                       2, 8, 0.4, 0.0, "%"),
-        SPNDefinition(100, "Engine Oil Pressure", "oil_pressure_kpa",
-                      3, 8, 4.0, 0.0, "kPa"),
+        SPNDefinition(100, "Engine Oil Pressure", "oil_pressure_psi",
+                      3, 8, 4.0, 0.0, "PSI",
+                      decode_fn=lambda data: _decode_pressure_psi(data, 3, 8, 4.0, 0.0)),
     ]
 )
 
@@ -196,8 +220,8 @@ PGN_65265 = PGNDefinition(
     pgn=65265,
     name="Cruise Control/Vehicle Speed (CCVS)",
     spns=[
-        SPNDefinition(84, "Wheel-Based Vehicle Speed", "vehicle_speed_kmh",
-                      1, 16, 0.00390625, 0.0, "km/h"),  # 1/256 km/h per bit
+        SPNDefinition(84, "Wheel-Based Vehicle Speed", "vehicle_speed_mph",
+                      1, 16, 0.00390625 * 0.621371, 0.0, "mph"),
         SPNDefinition(597, "Brake Switch", "brake_switch",
                       3, 8, 1.0, 0.0, ""),
     ]
@@ -207,10 +231,10 @@ PGN_65266 = PGNDefinition(
     pgn=65266,
     name="Fuel Economy (LFE)",
     spns=[
-        SPNDefinition(183, "Engine Fuel Rate", "fuel_rate_lph",
-                      0, 16, 0.05, 0.0, "L/h"),
-        SPNDefinition(184, "Instantaneous Fuel Economy", "fuel_economy_km_l",
-                      2, 16, 0.001953125, 0.0, "km/L"),  # 1/512 km/L per bit
+        SPNDefinition(183, "Engine Fuel Rate", "fuel_rate_gph",
+                      0, 16, 0.05 * 0.264172, 0.0, "gal/h"),
+        SPNDefinition(184, "Instantaneous Fuel Economy", "fuel_economy_mpg",
+                      2, 16, 0.001953125 * 2.35215, 0.0, "mpg"),
     ]
 )
 
@@ -218,10 +242,11 @@ PGN_65269 = PGNDefinition(
     pgn=65269,
     name="Ambient Conditions (AMB)",
     spns=[
-        SPNDefinition(108, "Barometric Pressure", "barometric_pressure_kpa",
-                      0, 8, 0.5, 0.0, "kPa"),
-        SPNDefinition(171, "Ambient Air Temperature", "ambient_temp_c",
-                      3, 16, 0.03125, -273.0, "C"),
+        SPNDefinition(108, "Barometric Pressure", "barometric_pressure_psi",
+                      0, 8, 0.5 * 0.145038, 0.0, "PSI"),
+        SPNDefinition(171, "Ambient Air Temperature", "ambient_temp_f",
+                      3, 16, 0.03125, -273.0, "F",
+                      decode_fn=lambda data: _decode_temp_f(data, 3, 16, 0.03125, -273.0)),
     ]
 )
 
@@ -247,8 +272,8 @@ PGN_65257 = PGNDefinition(
     pgn=65257,
     name="Fuel Consumption (LFC)",
     spns=[
-        SPNDefinition(250, "Total Fuel Used", "total_fuel_used_l",
-                      4, 32, 0.5, 0.0, "L"),
+        SPNDefinition(250, "Total Fuel Used", "total_fuel_used_gal",
+                      4, 32, 0.5 * 0.264172, 0.0, "gal"),
     ]
 )
 
@@ -256,10 +281,12 @@ PGN_65270 = PGNDefinition(
     pgn=65270,
     name="Inlet/Exhaust Conditions 1 (IC1)",
     spns=[
-        SPNDefinition(105, "Intake Manifold Temperature", "intake_manifold_temp_c",
-                      2, 8, 1.0, -40.0, "C"),
-        SPNDefinition(102, "Boost Pressure", "boost_pressure_kpa",
-                      1, 8, 2.0, 0.0, "kPa"),
+        SPNDefinition(105, "Intake Manifold Temperature", "intake_manifold_temp_f",
+                      2, 8, 1.0, -40.0, "F",
+                      decode_fn=lambda data: _decode_temp_f(data, 2, 8, 1.0, -40.0)),
+        SPNDefinition(102, "Boost Pressure", "boost_pressure_psi",
+                      1, 8, 2.0, 0.0, "PSI",
+                      decode_fn=lambda data: _decode_pressure_psi(data, 1, 8, 2.0, 0.0)),
     ]
 )
 
@@ -276,8 +303,9 @@ PGN_65272 = PGNDefinition(
     pgn=65272,
     name="Transmission Fluids (TF)",
     spns=[
-        SPNDefinition(126, "Transmission Oil Temperature", "trans_oil_temp_c",
-                      4, 16, 0.03125, -273.0, "C"),
+        SPNDefinition(126, "Transmission Oil Temperature", "trans_oil_temp_f",
+                      4, 16, 0.03125, -273.0, "F",
+                      decode_fn=lambda data: _decode_temp_f(data, 4, 16, 0.03125, -273.0)),
     ]
 )
 

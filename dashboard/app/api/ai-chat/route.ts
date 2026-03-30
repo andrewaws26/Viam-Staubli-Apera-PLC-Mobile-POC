@@ -149,8 +149,8 @@ async function logConversation(
       .map(([, v]) => v),
     active_dtc_count: readings.active_dtc_count || 0,
     engine_rpm: readings.engine_rpm,
-    coolant_temp_c: readings.coolant_temp_c,
-    vehicle_speed_kph: readings.vehicle_speed_kph,
+    coolant_temp_f: readings.coolant_temp_f,
+    vehicle_speed_mph: readings.vehicle_speed_mph,
     protocol: readings._protocol || "unknown",
     full_conversation: messages.map(m => `${m.role}: ${m.content}`).join("\n---\n"),
   };

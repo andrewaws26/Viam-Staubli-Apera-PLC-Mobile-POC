@@ -32,13 +32,13 @@ OBD2_PIDS: dict[int, tuple[str, str, callable]] = {
     ),
     0x05: (
         "Coolant Temperature",
-        "coolant_temp_c",
-        lambda a: a - 40,
+        "coolant_temp_f",
+        lambda a: (a - 40) * 9.0 / 5.0 + 32,
     ),
     0x0D: (
         "Vehicle Speed",
-        "vehicle_speed_kph",
-        lambda a: a,
+        "vehicle_speed_mph",
+        lambda a: a * 0.621371,
     ),
     0x11: (
         "Throttle Position",
@@ -47,8 +47,8 @@ OBD2_PIDS: dict[int, tuple[str, str, callable]] = {
     ),
     0x0F: (
         "Intake Air Temperature",
-        "intake_air_temp_c",
-        lambda a: a - 40,
+        "intake_air_temp_f",
+        lambda a: (a - 40) * 9.0 / 5.0 + 32,
     ),
     0x2F: (
         "Fuel Level",

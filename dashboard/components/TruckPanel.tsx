@@ -14,12 +14,12 @@ const TRUCK_POLL_MS = 3000;
 
 // Gauge thresholds for color coding
 const THRESHOLDS: Record<string, { warn: number; crit: number; inverted?: boolean }> = {
-  coolant_temp_c: { warn: 95, crit: 105 },
-  oil_pressure_kpa: { warn: 200, crit: 100, inverted: true },
+  coolant_temp_f: { warn: 203, crit: 221 },
+  oil_pressure_psi: { warn: 29, crit: 14.5, inverted: true },
   battery_voltage_v: { warn: 12.0, crit: 11.5, inverted: true },
-  oil_temp_c: { warn: 110, crit: 130 },
+  oil_temp_f: { warn: 230, crit: 266 },
   fuel_level_pct: { warn: 20, crit: 10, inverted: true },
-  boost_pressure_kpa: { warn: 250, crit: 300 },
+  boost_pressure_psi: { warn: 36, crit: 43.5 },
 };
 
 function getValueColor(key: string, value: number): string {
@@ -49,7 +49,7 @@ function formatValue(key: string, value: unknown): string {
     if (key.includes("_km_l")) return `${(value * 2.35215).toFixed(1)} mpg`;
     if (key === "engine_rpm") return `${value.toFixed(0)}`;
     if (key === "engine_hours") return `${value.toFixed(1)} hrs`;
-    if (key === "total_fuel_used_l") return `${(value * 0.264172).toFixed(0)} gal`;
+    if (key === "total_fuel_used_gal") return `${value.toFixed(0)} gal`;
     if (key === "runtime_seconds") {
       const mins = Math.floor(value / 60);
       const secs = Math.floor(value % 60);
@@ -87,26 +87,26 @@ const ENGINE_FIELDS = [
 ];
 
 const TEMP_FIELDS = [
-  { key: "coolant_temp_c", label: "Coolant Temp", highlight: true },
-  { key: "oil_temp_c", label: "Oil" },
-  { key: "fuel_temp_c", label: "Fuel" },
-  { key: "intake_manifold_temp_c", label: "Intake" },
-  { key: "trans_oil_temp_c", label: "Trans Oil" },
-  { key: "ambient_temp_c", label: "Ambient" },
+  { key: "coolant_temp_f", label: "Coolant Temp", highlight: true },
+  { key: "oil_temp_f", label: "Oil" },
+  { key: "fuel_temp_f", label: "Fuel" },
+  { key: "intake_manifold_temp_f", label: "Intake" },
+  { key: "trans_oil_temp_f", label: "Trans Oil" },
+  { key: "ambient_temp_f", label: "Ambient" },
 ];
 
 const PRESSURE_FIELDS = [
-  { key: "oil_pressure_kpa", label: "Oil Pressure", highlight: true },
-  { key: "fuel_pressure_kpa", label: "Fuel Pressure" },
-  { key: "boost_pressure_kpa", label: "Boost" },
-  { key: "barometric_pressure_kpa", label: "Baro" },
+  { key: "oil_pressure_psi", label: "Oil Pressure", highlight: true },
+  { key: "fuel_pressure_psi", label: "Fuel Pressure" },
+  { key: "boost_pressure_psi", label: "Boost" },
+  { key: "barometric_pressure_psi", label: "Baro" },
 ];
 
 const VEHICLE_FIELDS = [
-  { key: "vehicle_speed_kmh", label: "Speed", highlight: true },
+  { key: "vehicle_speed_mph", label: "Speed", highlight: true },
   { key: "current_gear", label: "Gear" },
-  { key: "fuel_rate_lph", label: "Fuel Rate" },
-  { key: "fuel_economy_km_l", label: "Fuel Economy" },
+  { key: "fuel_rate_gph", label: "Fuel Rate" },
+  { key: "fuel_economy_mpg", label: "Fuel Economy" },
   { key: "fuel_level_pct", label: "Fuel Level" },
   { key: "battery_voltage_v", label: "Battery" },
   { key: "oil_level_pct", label: "Oil Level" },
@@ -114,7 +114,7 @@ const VEHICLE_FIELDS = [
 
 const TOTAL_FIELDS = [
   { key: "engine_hours", label: "Engine Hours" },
-  { key: "total_fuel_used_l", label: "Total Fuel" },
+  { key: "total_fuel_used_gal", label: "Total Fuel" },
 ];
 
 // Car-specific field overrides — OBD-II returns different fields
@@ -131,23 +131,23 @@ const CAR_ENGINE_FIELDS = [
 ];
 
 const CAR_TEMP_FIELDS = [
-  { key: "coolant_temp_c", label: "Coolant", highlight: true },
-  { key: "oil_temp_c", label: "Oil" },
-  { key: "intake_air_temp_c", label: "Intake Air" },
-  { key: "ambient_temp_c", label: "Ambient" },
+  { key: "coolant_temp_f", label: "Coolant", highlight: true },
+  { key: "oil_temp_f", label: "Oil" },
+  { key: "intake_air_temp_f", label: "Intake Air" },
+  { key: "ambient_temp_f", label: "Ambient" },
   { key: "catalyst_temp_b1s1_c", label: "Catalytic Conv" },
 ];
 
 const CAR_PRESSURE_FIELDS = [
-  { key: "boost_pressure_kpa", label: "Manifold Pressure", highlight: true },
-  { key: "fuel_pressure_kpa", label: "Fuel Rail" },
+  { key: "boost_pressure_psi", label: "Manifold Pressure", highlight: true },
+  { key: "fuel_pressure_psi", label: "Fuel Rail" },
   { key: "fuel_pump_pressure_kpa", label: "Fuel Pump" },
-  { key: "barometric_pressure_kpa", label: "Barometric" },
+  { key: "barometric_pressure_psi", label: "Barometric" },
   { key: "evap_pressure_pa", label: "EVAP System" },
 ];
 
 const CAR_VEHICLE_FIELDS = [
-  { key: "vehicle_speed_kph", label: "Speed", highlight: true },
+  { key: "vehicle_speed_mph", label: "Speed", highlight: true },
   { key: "fuel_level_pct", label: "Fuel Level" },
   { key: "battery_voltage_v", label: "Battery" },
   { key: "runtime_seconds", label: "Engine Runtime" },
@@ -224,25 +224,25 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
         accel_pedal_pos_pct: 30 + Math.sin(t * 0.12) * 20,
         driver_demand_torque_pct: 35 + Math.sin(t * 0.1) * 20,
         actual_engine_torque_pct: 33 + Math.sin(t * 0.1) * 20,
-        coolant_temp_c: 85 + Math.sin(t * 0.02) * 8 + Math.random() * 2,
-        oil_temp_c: 95 + Math.sin(t * 0.015) * 10,
-        fuel_temp_c: 42 + Math.sin(t * 0.01) * 5,
-        intake_manifold_temp_c: 55 + Math.sin(t * 0.03) * 10,
-        trans_oil_temp_c: 80 + Math.sin(t * 0.02) * 8,
-        ambient_temp_c: 22 + Math.random() * 2,
-        oil_pressure_kpa: 310 + Math.sin(t * 0.05) * 40 + Math.random() * 10,
-        fuel_pressure_kpa: 380 + Math.random() * 20,
-        boost_pressure_kpa: 160 + Math.sin(t * 0.08) * 40,
-        barometric_pressure_kpa: 101.3 + Math.random() * 0.5,
-        vehicle_speed_kmh: Math.round(speed * 10) / 10,
+        coolant_temp_f: 185 + Math.sin(t * 0.02) * 14 + Math.random() * 4,
+        oil_temp_f: 203 + Math.sin(t * 0.015) * 18,
+        fuel_temp_f: 108 + Math.sin(t * 0.01) * 9,
+        intake_manifold_temp_f: 131 + Math.sin(t * 0.03) * 18,
+        trans_oil_temp_f: 176 + Math.sin(t * 0.02) * 14,
+        ambient_temp_f: 72 + Math.random() * 4,
+        oil_pressure_psi: 45 + Math.sin(t * 0.05) * 6 + Math.random() * 1.5,
+        fuel_pressure_psi: 55 + Math.random() * 3,
+        boost_pressure_psi: 23 + Math.sin(t * 0.08) * 6,
+        barometric_pressure_psi: 14.7 + Math.random() * 0.07,
+        vehicle_speed_mph: Math.round(speed * 0.621371 * 10) / 10,
         current_gear: speed < 5 ? 0 : Math.min(12, Math.floor(speed / 8) + 1),
-        fuel_rate_lph: 15 + Math.sin(t * 0.06) * 8 + Math.random() * 2,
-        fuel_economy_km_l: 2.5 + Math.sin(t * 0.04) * 0.8,
+        fuel_rate_gph: 4 + Math.sin(t * 0.06) * 2 + Math.random() * 0.5,
+        fuel_economy_mpg: 5.9 + Math.sin(t * 0.04) * 1.9,
         fuel_level_pct: Math.max(10, 72 - t * 0.01),
         battery_voltage_v: 13.8 + Math.sin(t * 0.03) * 0.3,
         oil_level_pct: 85 + Math.random() * 3,
         engine_hours: 4523.5 + t * 0.001,
-        total_fuel_used_l: 125430 + t * 0.05,
+        total_fuel_used_gal: 33134 + t * 0.013,
         active_dtc_count: 2,
         ...({
           dtc_0_spn: 3226, dtc_0_fmi: 18, dtc_0_occurrence: 5,
@@ -321,7 +321,7 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
   useEffect(() => {
     if (!readings) return;
     const now = Date.now();
-    const trendKeys = ["engine_rpm", "coolant_temp_c", "oil_temp_c", "boost_pressure_kpa", "battery_voltage_v", "vehicle_speed_kph", "throttle_position_pct", "fuel_level_pct"];
+    const trendKeys = ["engine_rpm", "coolant_temp_f", "oil_temp_f", "boost_pressure_psi", "battery_voltage_v", "vehicle_speed_mph", "throttle_position_pct", "fuel_level_pct"];
 
     setTrendHistory((prev) => {
       const updated = { ...prev };
@@ -340,7 +340,7 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
     if (prev) {
       const rpm = readings.engine_rpm as number ?? 0;
       const prevRpm = prev.engine_rpm as number ?? 0;
-      const speed = readings.vehicle_speed_kph as number ?? 0;
+      const speed = readings.vehicle_speed_mph as number ?? 0;
       const throttle = readings.throttle_position_pct as number ?? 0;
 
       // Harsh acceleration: RPM jump > 1500 in one cycle
@@ -425,17 +425,17 @@ ${r.vin ? `<p><strong>VIN:</strong> <span style="font-family:monospace">${r.vin}
 
 <h2>Temperatures</h2>
 <div class="grid">
-  ${[["Coolant", r.coolant_temp_c, "°C"], ["Oil", r.oil_temp_c, "°C"], ["Intake Air", r.intake_air_temp_c, "°C"], ["Ambient", r.ambient_temp_c, "°C"], ["Catalyst", r.catalyst_temp_b1s1_c, "°C"]].map(([l, v, u]) => v !== undefined ? `<div class="field"><span class="label">${l}</span><span class="value">${typeof v === "number" ? (v as number).toFixed(1) : v}${u}</span></div>` : "").join("")}
+  ${[["Coolant", r.coolant_temp_f, "°F"], ["Oil", r.oil_temp_f, "°F"], ["Intake Air", r.intake_air_temp_f, "°F"], ["Ambient", r.ambient_temp_f, "°F"], ["Catalyst", r.catalyst_temp_b1s1_c, "°F"]].map(([l, v, u]) => v !== undefined ? `<div class="field"><span class="label">${l}</span><span class="value">${typeof v === "number" ? (v as number).toFixed(1) : v}${u}</span></div>` : "").join("")}
 </div>
 
 <h2>Pressures</h2>
 <div class="grid">
-  ${[["Manifold", r.boost_pressure_kpa, " kPa"], ["Fuel Rail", r.fuel_pressure_kpa, " kPa"], ["Barometric", r.barometric_pressure_kpa, " kPa"]].map(([l, v, u]) => v !== undefined ? `<div class="field"><span class="label">${l}</span><span class="value">${typeof v === "number" ? (v as number).toFixed(1) : v}${u}</span></div>` : "").join("")}
+  ${[["Manifold", r.boost_pressure_psi, " PSI"], ["Fuel Rail", r.fuel_pressure_psi, " PSI"], ["Barometric", r.barometric_pressure_psi, " PSI"]].map(([l, v, u]) => v !== undefined ? `<div class="field"><span class="label">${l}</span><span class="value">${typeof v === "number" ? (v as number).toFixed(1) : v}${u}</span></div>` : "").join("")}
 </div>
 
 <h2>Vehicle</h2>
 <div class="grid">
-  ${[["Speed", r.vehicle_speed_kph, " kph"], ["Fuel Level", r.fuel_level_pct, "%"], ["Battery", r.battery_voltage_v, "V"], ["Runtime", r.runtime_seconds, "s"]].map(([l, v, u]) => v !== undefined ? `<div class="field"><span class="label">${l}</span><span class="value">${typeof v === "number" ? (v as number).toFixed(1) : v}${u}</span></div>` : "").join("")}
+  ${[["Speed", r.vehicle_speed_mph, " mph"], ["Fuel Level", r.fuel_level_pct, "%"], ["Battery", r.battery_voltage_v, "V"], ["Runtime", r.runtime_seconds, "s"]].map(([l, v, u]) => v !== undefined ? `<div class="field"><span class="label">${l}</span><span class="value">${typeof v === "number" ? (v as number).toFixed(1) : v}${u}</span></div>` : "").join("")}
 </div>
 
 <h2>Diagnostics</h2>
@@ -473,7 +473,7 @@ ${aiDiagnosis ? `<h2>AI Mechanic Analysis</h2><div style="white-space:pre-wrap;f
     try {
       if (simMode) {
         await new Promise(r => setTimeout(r, 800));
-        if (cmd === "get_freeze_frame") setFreezeFrame({ dtc_that_triggered: "P0420", engine_rpm: 2100, vehicle_speed_kph: 45, coolant_temp_c: 92, engine_load_pct: 67, throttle_pct: 35, timing_advance_deg: 14.5, intake_air_temp_c: 38, short_fuel_trim_pct: 2.3, long_fuel_trim_pct: -1.5 });
+        if (cmd === "get_freeze_frame") setFreezeFrame({ dtc_that_triggered: "P0420", engine_rpm: 2100, vehicle_speed_mph: 45, coolant_temp_f: 198, engine_load_pct: 67, throttle_pct: 35, timing_advance_deg: 14.5, intake_air_temp_f: 100, short_fuel_trim_pct: 2.3, long_fuel_trim_pct: -1.5 });
         if (cmd === "get_readiness") setReadiness({ ready_for_inspection: false, complete: ["Misfire", "Fuel System", "Components", "Catalyst"], incomplete: ["EVAP System", "O2 Sensor"], total_supported: 8, total_complete: 6, total_incomplete: 2 });
         if (cmd === "get_pending_dtcs") setPendingDTCs([{ code: "P0442", status: "pending" }]);
         if (cmd === "get_vin") setVin("1N4AL3AP8DC123456");
@@ -894,12 +894,12 @@ ${aiDiagnosis ? `<h2>AI Mechanic Analysis</h2><div style="white-space:pre-wrap;f
           </h4>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
             <TrendChart label="RPM" data={trendHistory.engine_rpm || []} color="#818cf8" />
-            <TrendChart label="Coolant" data={trendHistory.coolant_temp_c || []} unit="°C" color="#f87171" warnThreshold={95} critThreshold={105} />
-            <TrendChart label="Speed" data={trendHistory.vehicle_speed_kph || []} unit=" kph" color="#34d399" />
+            <TrendChart label="Coolant" data={trendHistory.coolant_temp_f || []} unit="°F" color="#f87171" warnThreshold={203} critThreshold={221} />
+            <TrendChart label="Speed" data={trendHistory.vehicle_speed_mph || []} unit=" mph" color="#34d399" />
             <TrendChart label="Throttle" data={trendHistory.throttle_position_pct || []} unit="%" color="#fbbf24" />
             <TrendChart label="Battery" data={trendHistory.battery_voltage_v || []} unit="V" color="#60a5fa" warnThreshold={12} critThreshold={11.5} inverted />
-            <TrendChart label="Oil Temp" data={trendHistory.oil_temp_c || []} unit="°C" color="#fb923c" warnThreshold={110} critThreshold={130} />
-            <TrendChart label="Manifold" data={trendHistory.boost_pressure_kpa || []} unit=" kPa" color="#a78bfa" />
+            <TrendChart label="Oil Temp" data={trendHistory.oil_temp_f || []} unit="°F" color="#fb923c" warnThreshold={230} critThreshold={266} />
+            <TrendChart label="Manifold" data={trendHistory.boost_pressure_psi || []} unit=" PSI" color="#a78bfa" />
             <TrendChart label="Fuel Level" data={trendHistory.fuel_level_pct || []} unit="%" color="#2dd4bf" warnThreshold={20} critThreshold={10} inverted />
           </div>
         </div>

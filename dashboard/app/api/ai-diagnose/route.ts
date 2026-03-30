@@ -109,7 +109,7 @@ ${readingsText}`;
         .map(([, v]) => v),
       active_dtc_count: readings.active_dtc_count || 0,
       engine_rpm: readings.engine_rpm,
-      coolant_temp_c: readings.coolant_temp_c,
+      coolant_temp_f: readings.coolant_temp_f,
       protocol: readings._protocol || "unknown",
     };
     console.log("[AI-DIAGNOSIS-LOG]", JSON.stringify(logEntry));
