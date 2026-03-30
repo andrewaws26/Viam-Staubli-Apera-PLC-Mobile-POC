@@ -190,6 +190,8 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
   const [pendingDTCs, setPendingDTCs] = useState<any[] | null>(null);
   const [vin, setVin] = useState<string | null>(null);
   const [diagLoading, setDiagLoading] = useState<string | null>(null);
+  const [aiDiagnosis, setAiDiagnosis] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
 
   const simTickRef = React.useRef(0);
 
@@ -319,6 +321,29 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
       console.error(`Diag command ${cmd} failed:`, err);
     } finally {
       setDiagLoading(null);
+    }
+  };
+
+  const runAiDiagnosis = async () => {
+    if (!readings) return;
+    setAiLoading(true);
+    setAiDiagnosis(null);
+    try {
+      const resp = await fetch("/api/ai-diagnose", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ readings }),
+      });
+      const data = await resp.json();
+      if (data.success) {
+        setAiDiagnosis(data.diagnosis);
+      } else {
+        setAiDiagnosis(`Error: ${data.error || "Unknown error"}`);
+      }
+    } catch (err) {
+      setAiDiagnosis(`Failed: ${err instanceof Error ? err.message : "Unknown"}`);
+    } finally {
+      setAiLoading(false);
     }
   };
 
@@ -734,6 +759,41 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
                   })}
                 </div>
               )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* AI-Powered Diagnosis */}
+      {busConnected && (
+        <div className="bg-gray-900/50 rounded-2xl border border-purple-800/30 p-4 sm:p-5 mt-3">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">{"\u{1F9E0}"}</span>
+              <h4 className="text-sm sm:text-base font-black text-purple-300 uppercase tracking-wider">
+                AI Mechanic Analysis
+              </h4>
+            </div>
+            <button
+              onClick={runAiDiagnosis}
+              disabled={aiLoading}
+              className={`px-4 sm:px-6 py-2 sm:py-3 rounded-xl text-xs sm:text-sm font-black uppercase tracking-wider transition-colors ${
+                aiLoading
+                  ? "bg-purple-900 text-purple-400 animate-pulse cursor-not-allowed"
+                  : "bg-purple-700 hover:bg-purple-600 text-white shadow-lg shadow-purple-900/50"
+              }`}
+            >
+              {aiLoading ? "Analyzing..." : "Run AI Diagnosis"}
+            </button>
+          </div>
+          <p className="text-[10px] text-gray-600 mb-3">
+            Sends live vehicle data to Claude AI for expert-level mechanic analysis — trouble codes, health assessment, and maintenance recommendations.
+          </p>
+          {aiDiagnosis && (
+            <div className="bg-gray-800/70 rounded-xl p-4 sm:p-5 border border-purple-800/20 prose prose-sm prose-invert max-w-none">
+              <div className="text-xs sm:text-sm text-gray-200 whitespace-pre-wrap leading-relaxed">
+                {aiDiagnosis}
+              </div>
             </div>
           )}
         </div>
