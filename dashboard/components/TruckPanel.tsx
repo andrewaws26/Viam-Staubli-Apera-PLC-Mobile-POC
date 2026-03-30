@@ -408,7 +408,7 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
     const now = new Date().toLocaleString();
     const protocol = r._protocol === "obd2" ? "OBD-II" : "J1939";
 
-    // Fetch historical data — try Viam Cloud first, fall back to Pi's local offline buffer
+    // Fetch historical data — try Viam Cloud first, fall back to Pi's local HTTP server
     let history: { totalPoints: number; totalMinutes: number; periodStart: string; periodEnd: string; source?: string; summary: Record<string, Record<string, number>>; dtcEvents: { timestamp: string; code: string }[] } | null = null;
     try {
       const resp = await fetch("/api/truck-history?hours=4");
@@ -418,15 +418,15 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
       }
     } catch { /* cloud unavailable */ }
 
-    // Fallback: read directly from the Pi's offline buffer
+    // Fallback: fetch directly from Pi's history server (reachable via Tailscale from browser)
     if (!history) {
       try {
-        const resp = await fetch("/api/truck-history-local?minutes=240");
+        const resp = await fetch("http://100.113.196.68:8090", { signal: AbortSignal.timeout(10000) });
         if (resp.ok) {
           const data = await resp.json();
           if (data.totalPoints > 0) history = data;
         }
-      } catch { /* local unavailable */ }
+      } catch { /* Pi unreachable */ }
     }
     setReportLoading(false);
 
