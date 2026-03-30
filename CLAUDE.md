@@ -167,7 +167,15 @@ The system auto-detects J1939 (heavy trucks) vs OBD-II (passenger vehicles) and 
 
 **Tested and validated:** 2015 Nissan Altima — 6.6M CAN frames, zero drops, remote DTC clear successful (2026-03-29). SPI CAN HAT (MCP2515) confirmed production-ready.
 
-**OBD-II features:** 33+ PIDs, DTC read/clear, freeze frame, readiness monitors, VIN, pending/permanent DTCs.
+**OBD-II features:** 33 PIDs (all imperial units), DTC read/clear, freeze frame, readiness monitors, VIN, pending/permanent DTCs.
+
+**CRITICAL: The full OBD-II poller lives in `modules/j1939-sensor/src/models/obd2_poller.py`.**
+This file contains ALL 33 PIDs, the OBD2DTCReader class (Mode 03/04), and the OBD2AdvancedDiag class
+(freeze frame, readiness, VIN, pending/permanent DTCs). The do_command routing in j1939_sensor.py
+forwards OBD-II commands to these classes. Never reduce the PID list or remove these classes —
+doing so breaks the dashboard display and DTC functionality.
+
+**All readings are US imperial:** temperatures in °F, pressures in PSI, speed in mph, distances in miles, fuel in gallons. Conversion happens in the decode lambdas, not in the dashboard.
 
 ## J1939 Truck Sensor (modules/j1939-sensor/)
 
@@ -183,6 +191,13 @@ Decodes 15 PGNs: engine RPM, temperatures, pressures, vehicle speed, fuel, batte
 - `dtparam=spi=on`
 - `dtoverlay=mcp2515-can0,oscillator=12000000,interrupt=25,spimaxfrequency=2000000`
 - 12MHz crystal (NOT 8MHz), GPIO25 interrupt, 500kbps bitrate
+
+**Data capture** is enabled on the `truck-diagnostic` Viam machine:
+- Capture: `Readings` method at 1 Hz on `truck-engine` component
+- Sync: every 6 seconds (0.1 min) to Viam Cloud
+- Capture dir: `/home/andrew/.viam/capture` (persistent, survives reboot)
+- Tags: `truck-diagnostics`, `ironsight`
+- Config note: Viam requires `api` field only — do NOT include `type`/`namespace` alongside `api` on components or services
 
 **SSH:** `ssh andrew@100.113.196.68` (password: 1111, test only)
 
