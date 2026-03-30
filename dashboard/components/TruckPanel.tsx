@@ -428,6 +428,20 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
         }
       } catch { /* Pi unreachable */ }
     }
+
+    // Generate AI health summary using live readings + historical data
+    let aiSummary = "";
+    try {
+      const aiResp = await fetch("/api/ai-report-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ readings: r, history }),
+      });
+      if (aiResp.ok) {
+        const aiData = await aiResp.json();
+        aiSummary = aiData.summary || "";
+      }
+    } catch { /* AI summary is optional */ }
     setReportLoading(false);
 
     const fmtTime = (iso: string) => new Date(iso).toLocaleString();
@@ -518,7 +532,7 @@ ${(r.active_dtc_count as number) > 0 ? Array.from({ length: Math.min(r.active_dt
 
 ${historySection}
 
-${aiDiagnosis ? `<h2>AI Mechanic Analysis</h2><div style="white-space:pre-wrap;font-size:13px;line-height:1.6;background:#f9fafb;padding:16px;border-radius:8px;">${aiDiagnosis}</div>` : ""}
+${aiSummary ? `<h2>AI Vehicle Health Summary</h2><div style="white-space:pre-wrap;font-size:13px;line-height:1.6;background:#f0f9ff;padding:16px;border-radius:8px;border:1px solid #bae6fd;">${aiSummary}</div>` : ""}
 
 <div class="footer">
   <p>IronSight Fleet Diagnostics Platform | Data stored and queried from Viam Cloud</p>
