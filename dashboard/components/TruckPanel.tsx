@@ -1,6 +1,7 @@
 "use client";
 
 import { lookupSPN, lookupFMI } from "../lib/spn-lookup";
+import { lookupPCode } from "../lib/pcode-lookup";
 
 import React, { useState, useEffect, useCallback } from "react";
 
@@ -429,8 +430,8 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
         </div>
       )}
 
-      {/* DTC Details */}
-      {dtcCount > 0 && (
+      {/* DTC Details — J1939 format (truck) */}
+      {dtcCount > 0 && vehicleMode === "truck" && (
         <div className="bg-gray-900/50 rounded-2xl border border-red-800/30 p-4 sm:p-5 mb-3">
           <h4 className="text-sm sm:text-base font-black text-red-300 uppercase tracking-wider mb-3">
             Diagnostic Trouble Codes
@@ -468,6 +469,52 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
                   </div>
                   <div className="text-xs sm:text-sm text-green-400 bg-green-950/30 rounded-lg px-3 py-2 border border-green-800/30">
                     <span className="font-bold">Fix: </span>{spnInfo.fix}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* DTC Details — OBD-II P-codes (car) */}
+      {dtcCount > 0 && vehicleMode === "car" && (
+        <div className="bg-gray-900/50 rounded-2xl border border-red-800/30 p-4 sm:p-5 mb-3">
+          <h4 className="text-sm sm:text-base font-black text-red-300 uppercase tracking-wider mb-3">
+            OBD-II Trouble Codes
+          </h4>
+          <div className="space-y-3">
+            {Array.from({ length: Math.min(dtcCount, 5) }).map((_, i) => {
+              const code = readings?.[`obd2_dtc_${i}`] as string;
+              if (!code) return null;
+              const info = lookupPCode(code);
+              return (
+                <div
+                  key={i}
+                  className="bg-red-950/40 border border-red-800/30 rounded-xl p-3 sm:p-4"
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm sm:text-base font-bold text-red-300">
+                      {info.name}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono font-bold text-red-200 bg-red-900/50 px-2 py-0.5 rounded">
+                        {code}
+                      </span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                        info.severity === "critical" ? "bg-red-700 text-white" :
+                        info.severity === "warning" ? "bg-yellow-700 text-white" :
+                        "bg-blue-700 text-white"
+                      }`}>
+                        {info.severity.toUpperCase()}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-400 mb-2">
+                    {info.description}
+                  </div>
+                  <div className="text-xs sm:text-sm text-green-400 bg-green-950/30 rounded-lg px-3 py-2 border border-green-800/30">
+                    <span className="font-bold">Fix: </span>{info.fix}
                   </div>
                 </div>
               );
