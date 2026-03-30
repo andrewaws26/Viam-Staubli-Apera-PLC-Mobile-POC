@@ -402,11 +402,10 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
   // Generate PDF report with historical data
   const [reportLoading, setReportLoading] = useState(false);
   const generateReport = async () => {
-    if (!readings) return;
     setReportLoading(true);
-    const r = readings;
+    const r = readings || {} as Record<string, unknown>;
     const now = new Date().toLocaleString();
-    const protocol = r._protocol === "obd2" ? "OBD-II" : "J1939";
+    const protocol = (r._protocol === "obd2" ? "OBD-II" : r._protocol === "j1939" ? "J1939" : "OBD-II");
 
     // Fetch historical data — try Viam Cloud first, fall back to Pi's local HTTP server
     let history: { totalPoints: number; totalMinutes: number; periodStart: string; periodEnd: string; source?: string; summary: Record<string, Record<string, number>>; dtcEvents: { timestamp: string; code: string }[] } | null = null;
@@ -1003,8 +1002,8 @@ ${aiSummary ? `<h2>AI Vehicle Health Summary</h2><div style="white-space:pre-wra
         {vehicleMode === "car" && renderFields(CAR_FUEL_FIELDS, "Diagnostics", "\u{1F527}")}
       </div>
 
-      {/* Report Button */}
-      {busConnected && (
+      {/* Report Button — always visible, historical data works without live CAN */}
+      {(
         <div className="flex justify-end mt-3">
           <button
             onClick={generateReport}
