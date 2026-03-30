@@ -132,6 +132,43 @@ Claude is the fleet orchestrator. When making ANY change:
 9. **If a Pi is unreachable**, check: WiFi (nmcli), Tailscale (tailscale status), power (PiSugar).
 10. **If Viam is down**, check: `sudo journalctl -u viam-server -n 30`. Common fixes: restart service, check credentials, check network.
 
+## AI Diagnostic System
+
+The dashboard includes an AI-powered diagnostic system that uses Claude to help mechanics analyze vehicle data. Two endpoints:
+
+**Chat (`dashboard/app/api/ai-chat/route.ts`):**
+- Conversational AI mechanic that receives live vehicle readings with every message
+- Maintains conversation history per session (client-side state)
+- Uses claude-sonnet-4-20250514, 1500 max tokens
+
+**Full Diagnosis (`dashboard/app/api/ai-diagnose/route.ts`):**
+- One-shot comprehensive diagnosis from current readings
+- Structured output: Data Summary, Trouble Codes, Engine Health, Questions for Mechanic, Maintenance Recommendations, Fleet Note
+- Uses claude-sonnet-4-20250514, 2000 max tokens
+
+**Critical prompt design rules:**
+- AI is a **diagnostic partner**, not an oracle — present possibilities, not certainties
+- NEVER make safety/liability judgments — that's the mechanic's professional call
+- NEVER blame previous mechanic work without full context
+- Always ask about vehicle history, recent repairs, symptoms BEFORE diagnosing
+- End every response with 2-3 suggested follow-up questions for mechanics new to AI
+- Say "this COULD indicate" not "this IS caused by"
+
+**Logging:**
+- All AI conversations logged via `console.log("[AI-CHAT-LOG]", ...)` — viewable in Vercel Functions logs
+- All diagnoses logged via `console.log("[AI-DIAGNOSIS-LOG]", ...)`
+- DTC clears and diagnostic commands logged via `console.log("[COMMAND-LOG]", ...)` in `dashboard/app/api/truck-command/route.ts`
+
+**Env vars needed:** `ANTHROPIC_API_KEY`, `TRUCK_VIAM_MACHINE_ADDRESS`, `TRUCK_VIAM_API_KEY`, `TRUCK_VIAM_API_KEY_ID`
+
+## OBD-II Passenger Vehicle Support
+
+The system auto-detects J1939 (heavy trucks) vs OBD-II (passenger vehicles) and adapts the dashboard accordingly. The Pi Zero runs the same module for both — protocol detection is automatic based on CAN frame IDs.
+
+**Tested and validated:** 2015 Nissan Altima — 6.6M CAN frames, zero drops, remote DTC clear successful (2026-03-29). SPI CAN HAT (MCP2515) confirmed production-ready.
+
+**OBD-II features:** 33+ PIDs, DTC read/clear, freeze frame, readiness monitors, VIN, pending/permanent DTCs.
+
 ## J1939 Truck Sensor (modules/j1939-sensor/)
 
 Reads J1939 CAN bus data from heavy-duty trucks (2013+ Mack/Volvo) via Waveshare CAN HAT (B).
