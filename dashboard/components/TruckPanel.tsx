@@ -2,6 +2,7 @@
 
 import { lookupSPN, lookupFMI } from "../lib/spn-lookup";
 import { lookupPCode } from "../lib/pcode-lookup";
+import TrendChart from "./TrendChart";
 
 import React, { useState, useEffect, useCallback } from "react";
 
@@ -200,6 +201,15 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
   const [chatOpen, setChatOpen] = useState(false);
   const chatEndRef = React.useRef<HTMLDivElement>(null);
 
+  // Trend history — stores last 100 readings per metric
+  const MAX_TREND_POINTS = 100;
+  const [trendHistory, setTrendHistory] = useState<Record<string, { time: number; value: number }[]>>({});
+
+  // Driver behavior scoring
+  const [driverScore, setDriverScore] = useState(100);
+  const driverEventsRef = React.useRef<{ type: string; time: number }[]>([]);
+  const prevReadingsRef = React.useRef<TruckReadings | null>(null);
+
   const simTickRef = React.useRef(0);
 
   const fetchReadings = useCallback(async () => {
@@ -304,6 +314,157 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
     } finally {
       setClearing(false);
       setTimeout(() => setClearResult(null), 5000);
+    }
+  };
+
+  // Accumulate trend data and score driver behavior when readings change
+  useEffect(() => {
+    if (!readings) return;
+    const now = Date.now();
+    const trendKeys = ["engine_rpm", "coolant_temp_c", "oil_temp_c", "boost_pressure_kpa", "battery_voltage_v", "vehicle_speed_kph", "throttle_position_pct", "fuel_level_pct"];
+
+    setTrendHistory((prev) => {
+      const updated = { ...prev };
+      for (const key of trendKeys) {
+        const val = readings[key];
+        if (typeof val !== "number") continue;
+        const existing = updated[key] || [];
+        const newPoints = [...existing, { time: now, value: val }];
+        updated[key] = newPoints.length > MAX_TREND_POINTS ? newPoints.slice(-MAX_TREND_POINTS) : newPoints;
+      }
+      return updated;
+    });
+
+    // Driver behavior scoring
+    const prev = prevReadingsRef.current;
+    if (prev) {
+      const rpm = readings.engine_rpm as number ?? 0;
+      const prevRpm = prev.engine_rpm as number ?? 0;
+      const speed = readings.vehicle_speed_kph as number ?? 0;
+      const throttle = readings.throttle_position_pct as number ?? 0;
+
+      // Harsh acceleration: RPM jump > 1500 in one cycle
+      if (rpm - prevRpm > 1500) {
+        driverEventsRef.current.push({ type: "harsh_accel", time: now });
+      }
+      // Over-revving: RPM > 5000
+      if (rpm > 5000) {
+        driverEventsRef.current.push({ type: "over_rev", time: now });
+      }
+      // Excessive idling: RPM < 900 and speed = 0 for extended time
+      if (rpm > 0 && rpm < 900 && speed === 0) {
+        driverEventsRef.current.push({ type: "idle", time: now });
+      }
+      // Aggressive throttle: > 80%
+      if (throttle > 80) {
+        driverEventsRef.current.push({ type: "aggressive_throttle", time: now });
+      }
+
+      // Keep only last 5 minutes of events
+      const cutoff = now - 300000;
+      driverEventsRef.current = driverEventsRef.current.filter((e) => e.time > cutoff);
+
+      // Calculate score: start at 100, deduct per event type
+      const events = driverEventsRef.current;
+      const harshCount = events.filter((e) => e.type === "harsh_accel").length;
+      const overRevCount = events.filter((e) => e.type === "over_rev").length;
+      const idleSeconds = events.filter((e) => e.type === "idle").length * 3; // 3s per reading cycle
+      const aggressiveCount = events.filter((e) => e.type === "aggressive_throttle").length;
+
+      let score = 100;
+      score -= harshCount * 5;      // -5 per harsh acceleration
+      score -= overRevCount * 8;     // -8 per over-rev
+      score -= Math.floor(idleSeconds / 30) * 2; // -2 per 30s of idle
+      score -= aggressiveCount * 3;  // -3 per aggressive throttle event
+      setDriverScore(Math.max(0, Math.min(100, score)));
+    }
+    prevReadingsRef.current = readings;
+  }, [readings]);
+
+  // Generate PDF report
+  const generateReport = () => {
+    if (!readings) return;
+    const r = readings;
+    const now = new Date().toLocaleString();
+    const protocol = r._protocol === "obd2" ? "OBD-II" : "J1939";
+
+    const html = `<!DOCTYPE html>
+<html><head><title>IronSight Vehicle Diagnostic Report</title>
+<style>
+  body { font-family: -apple-system, Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; color: #1a1a1a; }
+  h1 { font-size: 24px; border-bottom: 3px solid #2563eb; padding-bottom: 8px; }
+  h2 { font-size: 16px; color: #2563eb; margin-top: 24px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; }
+  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .badge { background: #2563eb; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .field { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #f3f4f6; }
+  .label { color: #6b7280; font-size: 13px; }
+  .value { font-weight: bold; font-family: monospace; font-size: 13px; }
+  .dtc { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px; margin: 8px 0; }
+  .dtc-code { font-weight: bold; color: #dc2626; font-size: 16px; }
+  .score { font-size: 48px; font-weight: bold; text-align: center; margin: 16px 0; }
+  .score.good { color: #16a34a; } .score.warn { color: #ca8a04; } .score.bad { color: #dc2626; }
+  .footer { margin-top: 30px; padding-top: 10px; border-top: 2px solid #e5e7eb; font-size: 11px; color: #9ca3af; text-align: center; }
+  @media print { body { padding: 0; } }
+</style></head><body>
+<div class="header">
+  <div>
+    <h1>IronSight Vehicle Diagnostic Report</h1>
+    <p style="color:#6b7280;margin:0;">Generated: ${now}</p>
+    <p style="color:#6b7280;margin:4px 0;">Protocol: ${protocol} | Interface: ${r._can_interface || "can0"}</p>
+  </div>
+  <span class="badge">${r._bus_connected ? "LIVE" : "OFFLINE"}</span>
+</div>
+
+${r.vin ? `<p><strong>VIN:</strong> <span style="font-family:monospace">${r.vin}</span></p>` : ""}
+
+<h2>Engine</h2>
+<div class="grid">
+  ${[["RPM", r.engine_rpm, ""], ["Load", r.engine_load_pct, "%"], ["Throttle", r.throttle_position_pct, "%"], ["Timing Advance", r.timing_advance_deg, "°"], ["MAF Flow", r.maf_flow_gps, " g/s"], ["Air/Fuel Ratio", r.commanded_equiv_ratio, ""]].map(([l, v, u]) => v !== undefined ? `<div class="field"><span class="label">${l}</span><span class="value">${typeof v === "number" ? (v as number).toFixed(1) : v}${u}</span></div>` : "").join("")}
+</div>
+
+<h2>Temperatures</h2>
+<div class="grid">
+  ${[["Coolant", r.coolant_temp_c, "°C"], ["Oil", r.oil_temp_c, "°C"], ["Intake Air", r.intake_air_temp_c, "°C"], ["Ambient", r.ambient_temp_c, "°C"], ["Catalyst", r.catalyst_temp_b1s1_c, "°C"]].map(([l, v, u]) => v !== undefined ? `<div class="field"><span class="label">${l}</span><span class="value">${typeof v === "number" ? (v as number).toFixed(1) : v}${u}</span></div>` : "").join("")}
+</div>
+
+<h2>Pressures</h2>
+<div class="grid">
+  ${[["Manifold", r.boost_pressure_kpa, " kPa"], ["Fuel Rail", r.fuel_pressure_kpa, " kPa"], ["Barometric", r.barometric_pressure_kpa, " kPa"]].map(([l, v, u]) => v !== undefined ? `<div class="field"><span class="label">${l}</span><span class="value">${typeof v === "number" ? (v as number).toFixed(1) : v}${u}</span></div>` : "").join("")}
+</div>
+
+<h2>Vehicle</h2>
+<div class="grid">
+  ${[["Speed", r.vehicle_speed_kph, " kph"], ["Fuel Level", r.fuel_level_pct, "%"], ["Battery", r.battery_voltage_v, "V"], ["Runtime", r.runtime_seconds, "s"]].map(([l, v, u]) => v !== undefined ? `<div class="field"><span class="label">${l}</span><span class="value">${typeof v === "number" ? (v as number).toFixed(1) : v}${u}</span></div>` : "").join("")}
+</div>
+
+<h2>Diagnostics</h2>
+<div class="grid">
+  ${[["Short Fuel Trim B1", r.short_fuel_trim_b1_pct, "%"], ["Long Fuel Trim B1", r.long_fuel_trim_b1_pct, "%"], ["Distance w/ MIL", r.distance_with_mil_km, " km"], ["Distance Since Clear", r.distance_since_clear_km, " km"]].map(([l, v, u]) => v !== undefined ? `<div class="field"><span class="label">${l}</span><span class="value">${typeof v === "number" ? (v as number).toFixed(1) : v}${u}</span></div>` : "").join("")}
+</div>
+
+<h2>Trouble Codes</h2>
+${(r.active_dtc_count as number) > 0 ? Array.from({ length: Math.min(r.active_dtc_count as number, 5) }).map((_, i) => {
+  const code = r[("obd2_dtc_" + i) as string] as string;
+  return code ? `<div class="dtc"><span class="dtc-code">${code}</span></div>` : "";
+}).join("") : "<p style='color:#16a34a'>No active trouble codes</p>"}
+
+<h2>Driver Behavior Score</h2>
+<div class="score ${driverScore >= 80 ? "good" : driverScore >= 50 ? "warn" : "bad"}">${driverScore}/100</div>
+
+${aiDiagnosis ? `<h2>AI Mechanic Analysis</h2><div style="white-space:pre-wrap;font-size:13px;line-height:1.6;background:#f9fafb;padding:16px;border-radius:8px;">${aiDiagnosis}</div>` : ""}
+
+<div class="footer">
+  <p>IronSight Fleet Diagnostics Platform | Report generated by Claude AI + Viam Cloud</p>
+  <p>Pi Zero 2W + MCP2515 CAN HAT | ${protocol} at ${r._can_interface || "can0"}</p>
+</div>
+</body></html>`;
+
+    const win = window.open("", "_blank");
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+      setTimeout(() => win.print(), 500);
     }
   };
 
@@ -685,6 +846,64 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
         {vehicleMode === "truck" && renderFields(TOTAL_FIELDS, "Lifetime", "\u{1F4C8}")}
         {vehicleMode === "car" && renderFields(CAR_FUEL_FIELDS, "Diagnostics", "\u{1F527}")}
       </div>
+
+      {/* Driver Score + Report Button */}
+      {busConnected && (
+        <div className="flex items-center justify-between mt-3 gap-3">
+          <div className="flex items-center gap-3">
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${
+              driverScore >= 80 ? "bg-green-950/30 border-green-700/50" :
+              driverScore >= 50 ? "bg-yellow-950/30 border-yellow-700/50" :
+              "bg-red-950/30 border-red-700/50"
+            }`}>
+              <span className="text-[10px] text-gray-500 uppercase tracking-wider">Driver Score</span>
+              <span className={`text-lg font-black font-mono ${
+                driverScore >= 80 ? "text-green-400" :
+                driverScore >= 50 ? "text-yellow-400" :
+                "text-red-400"
+              }`}>{driverScore}</span>
+              <span className="text-[10px] text-gray-600">/100</span>
+            </div>
+            <div className="text-[10px] text-gray-600">
+              {driverEventsRef.current.filter(e => e.type === "harsh_accel").length > 0 && (
+                <span className="text-yellow-500 mr-2">
+                  {driverEventsRef.current.filter(e => e.type === "harsh_accel").length} harsh accel
+                </span>
+              )}
+              {driverEventsRef.current.filter(e => e.type === "over_rev").length > 0 && (
+                <span className="text-red-500 mr-2">
+                  {driverEventsRef.current.filter(e => e.type === "over_rev").length} over-rev
+                </span>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={generateReport}
+            className="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider bg-blue-900/50 hover:bg-blue-800 text-blue-300 border border-blue-700/50 transition-colors"
+          >
+            {"\u{1F4C4}"} Generate Report
+          </button>
+        </div>
+      )}
+
+      {/* Trend Charts */}
+      {busConnected && Object.keys(trendHistory).length > 0 && (
+        <div className="mt-3">
+          <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+            {"\u{1F4C8}"} Live Trends
+          </h4>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+            <TrendChart label="RPM" data={trendHistory.engine_rpm || []} color="#818cf8" />
+            <TrendChart label="Coolant" data={trendHistory.coolant_temp_c || []} unit="°C" color="#f87171" warnThreshold={95} critThreshold={105} />
+            <TrendChart label="Speed" data={trendHistory.vehicle_speed_kph || []} unit=" kph" color="#34d399" />
+            <TrendChart label="Throttle" data={trendHistory.throttle_position_pct || []} unit="%" color="#fbbf24" />
+            <TrendChart label="Battery" data={trendHistory.battery_voltage_v || []} unit="V" color="#60a5fa" warnThreshold={12} critThreshold={11.5} inverted />
+            <TrendChart label="Oil Temp" data={trendHistory.oil_temp_c || []} unit="°C" color="#fb923c" warnThreshold={110} critThreshold={130} />
+            <TrendChart label="Manifold" data={trendHistory.boost_pressure_kpa || []} unit=" kPa" color="#a78bfa" />
+            <TrendChart label="Fuel Level" data={trendHistory.fuel_level_pct || []} unit="%" color="#2dd4bf" warnThreshold={20} critThreshold={10} inverted />
+          </div>
+        </div>
+      )}
 
       {/* On-Demand Diagnostic Tools — Car mode only */}
       {vehicleMode === "car" && busConnected && (
