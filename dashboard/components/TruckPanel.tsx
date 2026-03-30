@@ -200,6 +200,56 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
   const [vehicleMode, setVehicleMode] = useState<VehicleMode>("truck");
   const [modeAutoDetected, setModeAutoDetected] = useState(false);
 
+  // Cached historical data — persists in localStorage across sessions
+  const HISTORY_CACHE_KEY = "ironsight_history_cache";
+  const [cachedHistory, setCachedHistory] = useState<Record<string, unknown> | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const stored = localStorage.getItem(HISTORY_CACHE_KEY);
+      return stored ? JSON.parse(stored) : null;
+    } catch { return null; }
+  });
+
+  // Background history fetch — runs every 5 minutes when Pi is connected
+  useEffect(() => {
+    const fetchHistory = async () => {
+      // Try Viam Cloud first
+      try {
+        const resp = await fetch("/api/truck-history?hours=168");
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.totalPoints > 0) {
+            data._cachedAt = new Date().toISOString();
+            localStorage.setItem(HISTORY_CACHE_KEY, JSON.stringify(data));
+            setCachedHistory(data);
+            return;
+          }
+        }
+      } catch { /* cloud unavailable */ }
+
+      // Try Pi via server-side do_command
+      try {
+        const resp = await fetch("/api/truck-command", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ command: "get_history", days: 7 }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data && data.totalPoints > 0) {
+            data._cachedAt = new Date().toISOString();
+            localStorage.setItem(HISTORY_CACHE_KEY, JSON.stringify(data));
+            setCachedHistory(data);
+          }
+        }
+      } catch { /* Pi unreachable */ }
+    };
+
+    fetchHistory();
+    const id = setInterval(fetchHistory, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+
   // Advanced diagnostics state
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [freezeFrame, setFreezeFrame] = useState<Record<string, any> | null>(null);
@@ -427,9 +477,22 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
         });
         if (resp.ok) {
           const data = await resp.json();
-          if (data && data.totalPoints > 0) history = data;
+          if (data && data.totalPoints > 0) {
+            history = data;
+            // Update cache with fresh data
+            data._cachedAt = new Date().toISOString();
+            localStorage.setItem(HISTORY_CACHE_KEY, JSON.stringify(data));
+            setCachedHistory(data);
+          }
         }
       } catch { /* Pi unreachable */ }
+    }
+
+    // Final fallback: use cached historical data from localStorage
+    if (!history && cachedHistory && (cachedHistory as Record<string, unknown>).totalPoints) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      history = cachedHistory as any;
+      if (history) (history as Record<string, unknown>).source = "cached";
     }
 
     // Generate AI health summary using live readings + historical data
@@ -515,7 +578,7 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
 
     const historySection = history && history.totalPoints > 0 ? `
 <h2>Historical Data (Last ${history.totalMinutes} minutes — ${history.totalPoints} readings)</h2>
-<p style="color:#6b7280;font-size:12px;">Source: ${history.source === "offline-buffer" ? "Pi Local Buffer" : "Viam Cloud"} | Period: ${fmtTime(history.periodStart)} to ${fmtTime(history.periodEnd)}</p>
+<p style="color:#6b7280;font-size:12px;">Source: ${history.source === "cached" ? "Cached (last successful fetch" + ((history as Record<string, unknown>)._cachedAt ? " at " + fmtTime(String((history as Record<string, unknown>)._cachedAt)) : "") + ")" : history.source === "offline-buffer" ? "Pi Local Buffer" : "Viam Cloud"} | Period: ${fmtTime(history.periodStart)} to ${fmtTime(history.periodEnd)}</p>
 
 <table style="width:100%;border-collapse:collapse;font-size:13px;margin:12px 0;">
   <tr style="background:#f3f4f6;"><th style="text-align:left;padding:6px;">Parameter</th><th style="padding:6px;">Min</th><th style="padding:6px;">Avg</th><th style="padding:6px;">Max</th></tr>
