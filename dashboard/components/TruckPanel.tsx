@@ -408,20 +408,34 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
     const now = new Date().toLocaleString();
     const protocol = r._protocol === "obd2" ? "OBD-II" : "J1939";
 
-    // Fetch historical data from Viam Cloud
-    let history: { totalPoints: number; totalMinutes: number; periodStart: string; periodEnd: string; summary: Record<string, Record<string, number>>; dtcEvents: { timestamp: string; code: string }[]; timeSeries: Record<string, unknown>[] } | null = null;
+    // Fetch historical data — try Viam Cloud first, fall back to Pi's local offline buffer
+    let history: { totalPoints: number; totalMinutes: number; periodStart: string; periodEnd: string; source?: string; summary: Record<string, Record<string, number>>; dtcEvents: { timestamp: string; code: string }[] } | null = null;
     try {
       const resp = await fetch("/api/truck-history?hours=4");
-      if (resp.ok) history = await resp.json();
-    } catch { /* history is optional */ }
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data.totalPoints > 0) history = data;
+      }
+    } catch { /* cloud unavailable */ }
+
+    // Fallback: read directly from the Pi's offline buffer
+    if (!history) {
+      try {
+        const resp = await fetch("/api/truck-history-local?minutes=240");
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.totalPoints > 0) history = data;
+        }
+      } catch { /* local unavailable */ }
+    }
     setReportLoading(false);
 
     const fmtTime = (iso: string) => new Date(iso).toLocaleString();
     const fmtNum = (v: unknown, decimals = 1) => typeof v === "number" ? v.toFixed(decimals) : "—";
 
     const historySection = history && history.totalPoints > 0 ? `
-<h2>Historical Data (Last ${history.totalMinutes} minutes — ${history.totalPoints} readings from Viam Cloud)</h2>
-<p style="color:#6b7280;font-size:12px;">Period: ${fmtTime(history.periodStart)} to ${fmtTime(history.periodEnd)}</p>
+<h2>Historical Data (Last ${history.totalMinutes} minutes — ${history.totalPoints} readings)</h2>
+<p style="color:#6b7280;font-size:12px;">Source: ${history.source === "offline-buffer" ? "Pi Local Buffer" : "Viam Cloud"} | Period: ${fmtTime(history.periodStart)} to ${fmtTime(history.periodEnd)}</p>
 
 <table style="width:100%;border-collapse:collapse;font-size:13px;margin:12px 0;">
   <tr style="background:#f3f4f6;"><th style="text-align:left;padding:6px;">Parameter</th><th style="padding:6px;">Min</th><th style="padding:6px;">Avg</th><th style="padding:6px;">Max</th></tr>
