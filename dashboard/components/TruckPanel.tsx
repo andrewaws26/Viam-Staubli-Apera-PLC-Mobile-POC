@@ -1076,12 +1076,12 @@ ${aiDiagnosis ? `<h2>AI Mechanic Analysis</h2><div style="white-space:pre-wrap;f
               {chatMessages.length === 0 && (
                 <div className="grid grid-cols-2 gap-2 mb-3">
                   {[
-                    "What's wrong with this vehicle?",
-                    "Is it safe to drive right now?",
-                    "What should I fix first and how much will it cost?",
-                    "Are there any developing problems I should watch?",
+                    "What could be causing these trouble codes?",
+                    "Walk me through what the data is showing right now",
+                    "What should I check first based on these readings?",
+                    "Are there any readings trending in a bad direction?",
                     "Explain the fuel trim readings",
-                    "Is this ready to pass emissions inspection?",
+                    "What questions should I be asking about this vehicle's history?",
                   ].map((q) => (
                     <button
                       key={q}
