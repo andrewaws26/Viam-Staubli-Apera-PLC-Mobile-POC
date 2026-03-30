@@ -14,6 +14,8 @@ Supports:
 """
 
 import asyncio
+import json
+import os
 import struct
 import threading
 import time
@@ -47,6 +49,72 @@ from .pgn_decoder import (
 from .obd2_poller import OBD2Poller
 
 LOGGER = getLogger(__name__)
+
+# Default offline buffer config
+_DEFAULT_BUFFER_DIR = "/home/andrew/.viam/offline-buffer/truck"
+_DEFAULT_BUFFER_MAX_MB = 50.0
+
+
+def _serialise(value: Any) -> Any:
+    """Make a value JSON-safe."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float, str)):
+        return value
+    return str(value)
+
+
+class OfflineBuffer:
+    """Append-only JSONL buffer that persists readings to local disk.
+
+    Each reading is written as a single JSON line to a date-stamped file.
+    When the buffer directory exceeds max_mb, the oldest files are pruned.
+    This ensures vehicle data survives cloud sync failures and reboots.
+    """
+
+    def __init__(self, buffer_dir: str, max_mb: float = _DEFAULT_BUFFER_MAX_MB):
+        self._dir = buffer_dir
+        self._max_bytes = int(max_mb * 1024 * 1024)
+        os.makedirs(self._dir, exist_ok=True)
+        LOGGER.info("OfflineBuffer initialised: dir=%s max_mb=%.0f", self._dir, max_mb)
+
+    def _current_file(self) -> str:
+        date_str = time.strftime("%Y%m%d")
+        return os.path.join(self._dir, f"readings_{date_str}.jsonl")
+
+    def write(self, readings: Mapping[str, Any]) -> None:
+        """Append a single reading as a JSON line with an ISO timestamp."""
+        record = {
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "epoch": time.time(),
+            **{k: _serialise(v) for k, v in readings.items()},
+        }
+        path = self._current_file()
+        try:
+            with open(path, "a") as f:
+                f.write(json.dumps(record, separators=(",", ":")) + "\n")
+        except Exception as exc:
+            LOGGER.warning("OfflineBuffer write failed: %s", exc)
+            return
+        self._maybe_prune()
+
+    def _maybe_prune(self) -> None:
+        """Remove oldest JSONL files if total size exceeds the cap."""
+        try:
+            files = sorted(
+                (os.path.join(self._dir, f) for f in os.listdir(self._dir) if f.endswith(".jsonl")),
+                key=os.path.getmtime,
+            )
+            total = sum(os.path.getsize(f) for f in files)
+            while total > self._max_bytes and len(files) > 1:
+                oldest = files.pop(0)
+                size = os.path.getsize(oldest)
+                os.remove(oldest)
+                total -= size
+                LOGGER.info("OfflineBuffer pruned %s (%.1f KB)", oldest, size / 1024)
+        except Exception as exc:
+            LOGGER.warning("OfflineBuffer prune error: %s", exc)
+
 
 # J1939 broadcast address
 J1939_GLOBAL_ADDRESS = 0xFF
@@ -117,6 +185,7 @@ class J1939TruckSensor(Sensor):
         self._bus_type = "socketcan"
         self._protocol = "j1939"
         self._obd2_poller: OBD2Poller | None = None
+        self._offline_buffer: OfflineBuffer | None = None
 
     @classmethod
     def new(cls, config: ComponentConfig,
@@ -184,6 +253,15 @@ class J1939TruckSensor(Sensor):
             if "protocol" in fields and fields["protocol"].string_value
             else "j1939"
         )
+
+        # Offline buffer — local JSONL backup for when cloud sync fails
+        buf_dir = _DEFAULT_BUFFER_DIR
+        buf_max_mb = _DEFAULT_BUFFER_MAX_MB
+        if "offline_buffer_dir" in fields and fields["offline_buffer_dir"].string_value:
+            buf_dir = fields["offline_buffer_dir"].string_value
+        if "offline_buffer_max_mb" in fields and fields["offline_buffer_max_mb"].number_value:
+            buf_max_mb = fields["offline_buffer_max_mb"].number_value
+        self._offline_buffer = OfflineBuffer(buf_dir, buf_max_mb)
 
         # PGN filter (J1939 only, but parse regardless)
         if "pgn_filter" in fields and fields["pgn_filter"].list_value:
@@ -327,6 +405,10 @@ class J1939TruckSensor(Sensor):
             readings.update(get_system_health())
         except Exception:
             pass  # health data is optional
+
+        # Persist to local offline buffer (survives reboots + cloud outages)
+        if self._offline_buffer is not None:
+            self._offline_buffer.write(readings)
 
         return readings
 
