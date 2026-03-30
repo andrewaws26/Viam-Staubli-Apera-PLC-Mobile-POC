@@ -441,7 +441,31 @@ class J1939TruckSensor(Sensor):
         cmd = command.get("command", "")
 
         if cmd == "clear_dtcs":
+            # Route to OBD-II poller if in OBD-II mode
+            if self._protocol == "obd2" and self._obd2_poller:
+                return self._obd2_poller.clear_dtcs()
             return await self._clear_dtcs()
+        elif cmd == "get_freeze_frame":
+            if self._protocol == "obd2" and self._obd2_poller and self._obd2_poller._advanced_diag:
+                return {"success": True, "freeze_frame": self._obd2_poller._advanced_diag.get_freeze_frame()}
+            return {"error": "Freeze frame only available in OBD-II mode"}
+        elif cmd == "get_readiness":
+            if self._protocol == "obd2" and self._obd2_poller and self._obd2_poller._advanced_diag:
+                return {"success": True, "readiness": self._obd2_poller._advanced_diag.get_readiness_monitors()}
+            return {"error": "Readiness monitors only available in OBD-II mode"}
+        elif cmd == "get_pending_dtcs":
+            if self._protocol == "obd2" and self._obd2_poller and self._obd2_poller._advanced_diag:
+                return {"success": True, "pending_dtcs": self._obd2_poller._advanced_diag.get_pending_dtcs()}
+            return {"error": "Pending DTCs only available in OBD-II mode"}
+        elif cmd == "get_permanent_dtcs":
+            if self._protocol == "obd2" and self._obd2_poller and self._obd2_poller._advanced_diag:
+                return {"success": True, "permanent_dtcs": self._obd2_poller._advanced_diag.get_permanent_dtcs()}
+            return {"error": "Permanent DTCs only available in OBD-II mode"}
+        elif cmd == "get_vin":
+            if self._protocol == "obd2" and self._obd2_poller and self._obd2_poller._advanced_diag:
+                vin = self._obd2_poller._advanced_diag.get_vin()
+                return {"success": bool(vin), "vin": vin}
+            return {"error": "VIN query only available in OBD-II mode"}
         elif cmd == "request_pgn":
             pgn = command.get("pgn")
             if pgn is None:
@@ -459,9 +483,11 @@ class J1939TruckSensor(Sensor):
             return await self._send_raw(int(can_id), data_hex)
         else:
             return {"error": f"Unknown command: {cmd}",
-                    "available": ["clear_dtcs", "request_pgn",
-                                  "get_supported_pgns", "get_bus_stats",
-                                  "send_raw"]}
+                    "available": ["clear_dtcs", "get_freeze_frame",
+                                  "get_readiness", "get_pending_dtcs",
+                                  "get_permanent_dtcs", "get_vin",
+                                  "request_pgn", "get_supported_pgns",
+                                  "get_bus_stats", "send_raw"]}
 
     async def _clear_dtcs(self) -> dict[str, Any]:
         """
