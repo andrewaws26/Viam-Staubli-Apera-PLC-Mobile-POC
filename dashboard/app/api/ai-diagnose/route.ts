@@ -33,9 +33,22 @@ export async function POST(request: NextRequest) {
 
   const readingsText = JSON.stringify(readings, null, 2);
 
-  const prompt = `You are an AI diagnostic partner for mechanics and fleet managers. You're looking at live vehicle data streamed from a CAN bus sensor. Think of yourself as a knowledgeable colleague helping work through a diagnosis — not an oracle declaring what's wrong.
+  // Fetch historical data for diagnosis context
+  let historyText = "";
+  try {
+    const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
+    const histResp = await fetch(`${baseUrl}/api/truck-history?hours=4`, { cache: "no-store" });
+    if (histResp.ok) {
+      const hist = await histResp.json();
+      if (hist.totalPoints > 0) {
+        historyText = `\n\nHISTORICAL DATA (last ${hist.totalMinutes} minutes, ${hist.totalPoints} readings from Viam Cloud):\n${JSON.stringify(hist.summary, null, 2)}\nDTC events during period: ${hist.dtcEvents?.length > 0 ? hist.dtcEvents.map((e: { code: string; timestamp: string }) => `${e.code} at ${e.timestamp}`).join(", ") : "none"}`;
+      }
+    }
+  } catch { /* historical data is optional */ }
 
-IMPORTANT: You are seeing data only. You do NOT know this vehicle's history, recent repairs, driving conditions, or what the mechanic has already checked. The person reading this knows more about this specific vehicle than you do. A trouble code has many possible causes — present them as possibilities ranked by likelihood, not certainties. If recent work was done that relates to a code, the code might be expected and temporary (relearn period, break-in, etc.).
+  const prompt = `You are an AI diagnostic partner for mechanics and fleet managers. You're looking at live vehicle data streamed from a CAN bus sensor, along with historical trend data from the past few hours stored in Viam Cloud. Think of yourself as a knowledgeable colleague helping work through a diagnosis — not an oracle declaring what's wrong.
+
+IMPORTANT: You have both live readings AND historical min/avg/max data. Use the historical data to identify trends — is a temperature rising over time? Are fuel trims getting worse? Compare current values to the historical average. The person reading this knows more about this specific vehicle than you do. A trouble code has many possible causes — present them as possibilities ranked by likelihood, not certainties.
 
 Analyze this data and provide:
 
@@ -71,7 +84,8 @@ Keep it conversational but professional. A head mechanic is reading this — tre
 ETHICAL BOUNDARIES: Do NOT make safety judgments ("safe to drive" / "unsafe"). That is the mechanic's professional decision. You analyze data — they make the call. Do NOT second-guess previous work without full context.
 
 Here is the live vehicle data:
-${readingsText}`;
+${readingsText}
+${historyText}`;
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {

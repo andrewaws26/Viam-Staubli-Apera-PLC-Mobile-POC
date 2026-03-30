@@ -33,6 +33,11 @@ _KM_TO_MI = lambda km: km * 0.621371
 # PID definitions: pid -> (name, field_key, decode_func)
 # decode_func takes the data bytes (A, B, ...) after the PID byte
 OBD2_PIDS: dict[int, tuple[str, str, callable]] = {
+    0x01: (
+        "Monitor Status",
+        "monitor_status_raw",
+        lambda a, b, c, d: a,  # byte A has MIL bit and DTC count
+    ),
     0x03: (
         "Fuel System Status",
         "fuel_system_status",
@@ -97,6 +102,11 @@ OBD2_PIDS: dict[int, tuple[str, str, callable]] = {
         "Throttle Position",
         "throttle_position_pct",
         lambda a: a * 100 / 255.0,
+    ),
+    0x12: (
+        "Commanded Secondary Air Status",
+        "secondary_air_status",
+        lambda a: a,
     ),
     0x14: (
         "O2 Sensor Voltage B1S1",
@@ -168,6 +178,11 @@ OBD2_PIDS: dict[int, tuple[str, str, callable]] = {
         "commanded_equiv_ratio",
         lambda a, b: ((a * 256) + b) / 32768.0,
     ),
+    0x45: (
+        "Relative Throttle Position",
+        "relative_throttle_pct",
+        lambda a: a * 100 / 255.0,
+    ),
     0x46: (
         "Ambient Air Temperature",
         "ambient_temp_f",
@@ -193,10 +208,30 @@ OBD2_PIDS: dict[int, tuple[str, str, callable]] = {
         "time_since_clear_min",
         lambda a, b: (a * 256) + b,
     ),
+    0x52: (
+        "Ethanol Fuel %",
+        "ethanol_fuel_pct",
+        lambda a: a * 100 / 255.0,
+    ),
+    0x55: (
+        "Short Term Fuel Trim B2",
+        "short_fuel_trim_b2_pct",
+        lambda a: (a - 128) * 100 / 128.0,
+    ),
+    0x57: (
+        "Long Term Fuel Trim B2",
+        "long_fuel_trim_b2_pct",
+        lambda a: (a - 128) * 100 / 128.0,
+    ),
     0x5C: (
         "Oil Temperature",
         "oil_temp_f",
         lambda a: _C_TO_F(a - 40),
+    ),
+    0x5E: (
+        "Engine Fuel Rate",
+        "fuel_rate_gph",
+        lambda a, b: ((a * 256) + b) / 20.0 * 0.264172,
     ),
 }
 
@@ -242,6 +277,7 @@ class OBD2Poller:
         self._bus_connected = False
         self._consecutive_empty_cycles = 0
         self._poll_count = 0
+        self._rpm_history: list[float] = []
         self._dtc_reader = None
         self._advanced_diag = None
         self._dtcs: list[dict] = []
@@ -307,6 +343,53 @@ class OBD2Poller:
             readings["active_dtc_count"] = len(self._dtcs)
             for i, dtc in enumerate(self._dtcs[:5]):
                 readings[f"obd2_dtc_{i}"] = dtc["code"]
+
+            # --- Calculated values ---
+            # Total fuel trim (short + long combined)
+            short_trim = readings.get("short_fuel_trim_b1_pct", 0)
+            long_trim = readings.get("long_fuel_trim_b1_pct", 0)
+            if isinstance(short_trim, (int, float)) and isinstance(long_trim, (int, float)):
+                readings["total_fuel_trim_b1_pct"] = round(short_trim + long_trim, 2)
+
+            # Estimated MPG (from MAF, speed, and stoichiometric ratio)
+            maf = readings.get("maf_flow_gps")
+            speed = readings.get("vehicle_speed_mph")
+            if isinstance(maf, (int, float)) and isinstance(speed, (int, float)) and maf > 0 and speed > 0:
+                # fuel rate in gal/hr = MAF (g/s) * 3600 / (14.7 * 6.17 * 454)
+                # 14.7 = stoich ratio, 6.17 lb/gal gasoline density, 454 g/lb
+                fuel_rate_gph_calc = maf * 3600 / (14.7 * 6.17 * 454)
+                if fuel_rate_gph_calc > 0:
+                    readings["estimated_mpg"] = round(speed / fuel_rate_gph_calc, 1)
+                    readings["calc_fuel_rate_gph"] = round(fuel_rate_gph_calc, 3)
+
+            # RPM stability (variance over recent readings for misfire detection)
+            rpm = readings.get("engine_rpm")
+            if isinstance(rpm, (int, float)):
+                if not hasattr(self, '_rpm_history'):
+                    self._rpm_history = []
+                self._rpm_history.append(rpm)
+                if len(self._rpm_history) > 30:
+                    self._rpm_history = self._rpm_history[-30:]
+                if len(self._rpm_history) >= 5:
+                    avg_rpm = sum(self._rpm_history) / len(self._rpm_history)
+                    variance = sum((r - avg_rpm) ** 2 for r in self._rpm_history) / len(self._rpm_history)
+                    readings["rpm_stability_pct"] = round(100 - min(100, (variance ** 0.5) / max(avg_rpm, 1) * 100), 1)
+
+            # MIL status from monitor_status_raw
+            monitor_raw = readings.get("monitor_status_raw")
+            if isinstance(monitor_raw, (int, float)):
+                readings["mil_on"] = bool(int(monitor_raw) & 0x80)
+                readings["dtc_count_ecu"] = int(monitor_raw) & 0x7F
+
+            # Volumetric efficiency (assumes 2.5L engine for Altima, configurable later)
+            # VE% = (MAF * 2 * 60) / (RPM * displacement_L * air_density_g_per_L)
+            # air_density at sea level ~1.184 g/L
+            if isinstance(maf, (int, float)) and isinstance(rpm, (int, float)) and rpm > 0 and maf > 0:
+                displacement_L = 2.5  # Altima QR25DE
+                air_density = 1.184
+                ve = (maf * 2 * 60) / (rpm * displacement_L * air_density) * 100
+                readings["volumetric_efficiency_pct"] = round(min(ve, 120), 1)  # cap at 120% (forced induction)
+
             return readings
 
     def _poll_loop(self):

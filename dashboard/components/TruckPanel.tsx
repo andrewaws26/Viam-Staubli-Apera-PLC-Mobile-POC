@@ -72,6 +72,13 @@ function formatValue(key: string, value: unknown): string {
       if (value < 0) return "R";
       return `${value.toFixed(0)}`;
     }
+    if (key === "estimated_mpg") return `${value.toFixed(1)} mpg`;
+    if (key === "calc_fuel_rate_gph") return `${value.toFixed(2)} gal/h`;
+    if (key === "rpm_stability_pct") return `${value.toFixed(0)}%`;
+    if (key === "volumetric_efficiency_pct") return `${value.toFixed(0)}%`;
+    if (key === "total_fuel_trim_b1_pct") return `${value.toFixed(1)}%`;
+    if (key === "dtc_count_ecu") return `${value.toFixed(0)}`;
+    if (key === "mil_on") return value ? "ON" : "OFF";
     return value.toFixed(1);
   }
   return String(value);
@@ -128,6 +135,10 @@ const CAR_ENGINE_FIELDS = [
   { key: "timing_advance_deg", label: "Timing Advance" },
   { key: "maf_flow_gps", label: "MAF Flow" },
   { key: "commanded_equiv_ratio", label: "Air/Fuel Ratio" },
+  { key: "total_fuel_trim_b1_pct", label: "Total Fuel Trim B1" },
+  { key: "estimated_mpg", label: "Est. MPG" },
+  { key: "volumetric_efficiency_pct", label: "Vol. Efficiency" },
+  { key: "rpm_stability_pct", label: "RPM Stability" },
 ];
 
 const CAR_TEMP_FIELDS = [
@@ -152,6 +163,7 @@ const CAR_VEHICLE_FIELDS = [
   { key: "battery_voltage_v", label: "Battery" },
   { key: "runtime_seconds", label: "Engine Runtime" },
   { key: "o2_voltage_b1s1_v", label: "O2 Sensor B1S1" },
+  { key: "estimated_mpg", label: "Est. MPG" },
 ];
 
 const CAR_FUEL_FIELDS = [
@@ -162,6 +174,12 @@ const CAR_FUEL_FIELDS = [
   { key: "time_since_clear_min", label: "Time Since Clear" },
   { key: "runtime_with_mil_min", label: "Runtime w/ MIL" },
   { key: "warmup_cycles_since_clear", label: "Warmups Since Clear" },
+  { key: "short_fuel_trim_b2_pct", label: "Short Fuel Trim B2" },
+  { key: "long_fuel_trim_b2_pct", label: "Long Fuel Trim B2" },
+  { key: "calc_fuel_rate_gph", label: "Fuel Rate" },
+  { key: "ethanol_fuel_pct", label: "Ethanol %" },
+  { key: "mil_on", label: "Check Engine Light" },
+  { key: "dtc_count_ecu", label: "ECU DTC Count" },
 ];
 
 const LAMP_NAMES: Record<string, string> = {
