@@ -216,15 +216,21 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
       // Primary: client-side SDK do_command (uses existing WebRTC connection)
       if (!simMode) {
         try {
+          console.log("[HISTORY] Attempting get_history via WebRTC...");
           const { sendTruckCommand } = await import("../lib/truck-viam");
-          const data = await sendTruckCommand("truck-engine", { command: "get_history", days: 7 });
+          const data = await sendTruckCommand("truck-engine", { command: "get_history", days: 1 });
+          console.log("[HISTORY] Response:", data ? `${data.totalPoints} points` : "null");
           if (data && data.totalPoints > 0) {
             data._cachedAt = new Date().toISOString();
             try { localStorage.setItem(HISTORY_CACHE_KEY, JSON.stringify(data)); } catch { /* quota */ }
             setCachedHistory(data);
             return;
+          } else if (data && data.error) {
+            console.log("[HISTORY] Error from Pi:", data.error);
           }
-        } catch { /* WebRTC not connected */ }
+        } catch (err) {
+          console.log("[HISTORY] WebRTC failed:", err);
+        }
       }
 
       // Fallback: Viam Cloud Data API
