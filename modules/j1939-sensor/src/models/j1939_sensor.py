@@ -615,7 +615,7 @@ class J1939TruckSensor(Sensor):
 
         # Read JSONL files for the requested number of days (limit to last 3600 lines to keep response small)
         all_lines = []
-        for d in range(min(days, 7)):
+        for d in range(min(int(days), 7)):
             ts = time.time() - d * 86400
             date_str = time.strftime("%Y%m%d", time.localtime(ts))
             path = os.path.join(buf_path, f"readings_{date_str}.jsonl")
