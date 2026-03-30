@@ -613,8 +613,8 @@ class J1939TruckSensor(Sensor):
 
         buf_path = buffer_dir._dir
 
-        # Read JSONL files for the requested number of days
-        all_points = []
+        # Read JSONL files for the requested number of days (limit to last 3600 lines to keep response small)
+        all_lines = []
         for d in range(min(days, 7)):
             ts = time.time() - d * 86400
             date_str = time.strftime("%Y%m%d", time.localtime(ts))
@@ -622,13 +622,20 @@ class J1939TruckSensor(Sensor):
             if os.path.exists(path):
                 try:
                     with open(path, "r") as f:
-                        for line in f:
-                            try:
-                                all_points.append(json.loads(line.strip()))
-                            except (json.JSONDecodeError, ValueError):
-                                pass
+                        all_lines.extend(f.readlines())
                 except OSError:
                     pass
+
+        # Keep last 3600 lines max (~1 hour at 1Hz) to avoid huge responses over WebRTC
+        if len(all_lines) > 3600:
+            all_lines = all_lines[-3600:]
+
+        all_points = []
+        for line in all_lines:
+            try:
+                all_points.append(json.loads(line.strip()))
+            except (json.JSONDecodeError, ValueError):
+                pass
 
         if not all_points:
             return {"totalPoints": 0, "source": "offline-buffer", "summary": None}
@@ -664,8 +671,8 @@ class J1939TruckSensor(Sensor):
         st = [p.get("short_fuel_trim_b1_pct", 0) for p in all_points if isinstance(p.get("short_fuel_trim_b1_pct"), (int, float))]
         lt = [p.get("long_fuel_trim_b1_pct", 0) for p in all_points if isinstance(p.get("long_fuel_trim_b1_pct"), (int, float))]
 
-        # Downsample time series (max 200 points)
-        step = max(1, len(all_points) // 200)
+        # Downsample time series (max 100 points to keep response under 50KB for WebRTC)
+        step = max(1, len(all_points) // 100)
         ts_data = []
         for i in range(0, len(all_points), step):
             p = all_points[i]
