@@ -448,29 +448,64 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
     const fmtNum = (v: unknown, decimals = 1) => typeof v === "number" ? v.toFixed(decimals) : "—";
 
     // SVG trend chart generator for the report
-    const makeSvgChart = (label: string, data: number[], unit: string, color: string, warnLine?: number) => {
+    const makeSvgChart = (label: string, data: number[], timestamps: string[], unit: string, color: string, warnLine?: number) => {
       if (!data || data.length < 3) return "";
-      const w = 350, h = 80, pad = 4;
-      const filtered = data.filter(v => typeof v === "number" && v !== 0);
+      const filtered: { v: number; t: string }[] = [];
+      data.forEach((v, i) => { if (typeof v === "number") filtered.push({ v, t: timestamps[i] || "" }); });
       if (filtered.length < 3) return "";
-      const minV = Math.min(...filtered);
-      const maxV = Math.max(...filtered);
+
+      const w = 370, h = 130;
+      const left = 55, right = 10, top = 8, bottom = 28; // margins for labels
+      const chartW = w - left - right;
+      const chartH = h - top - bottom;
+      const minV = Math.min(...filtered.map(d => d.v));
+      const maxV = Math.max(...filtered.map(d => d.v));
       const range = maxV - minV || 1;
-      const points = filtered.map((v, i) => {
-        const x = pad + (i / (filtered.length - 1)) * (w - pad * 2);
-        const y = pad + (1 - (v - minV) / range) * (h - pad * 2);
+      const avgV = filtered.reduce((a, d) => a + d.v, 0) / filtered.length;
+
+      // Data polyline
+      const points = filtered.map((d, i) => {
+        const x = left + (i / (filtered.length - 1)) * chartW;
+        const y = top + (1 - (d.v - minV) / range) * chartH;
         return `${x.toFixed(1)},${y.toFixed(1)}`;
       }).join(" ");
-      const warnLineHtml = warnLine !== undefined && warnLine >= minV && warnLine <= maxV
-        ? `<line x1="${pad}" y1="${pad + (1 - (warnLine - minV) / range) * (h - pad * 2)}" x2="${w - pad}" y2="${pad + (1 - (warnLine - minV) / range) * (h - pad * 2)}" stroke="#ef4444" stroke-width="1" stroke-dasharray="4,3" />`
-        : "";
-      return `<div style="display:inline-block;margin:8px;vertical-align:top;">
-        <div style="font-size:11px;color:#374151;font-weight:600;margin-bottom:2px;">${label}</div>
-        <svg width="${w}" height="${h}" style="background:#fafafa;border:1px solid #e5e7eb;border-radius:6px;">
-          ${warnLineHtml}
-          <polyline points="${points}" fill="none" stroke="${color}" stroke-width="1.5" />
-          <text x="${pad + 2}" y="${h - 4}" font-size="9" fill="#9ca3af">${fmtNum(minV)}${unit}</text>
-          <text x="${w - pad - 2}" y="12" font-size="9" fill="#9ca3af" text-anchor="end">${fmtNum(maxV)}${unit}</text>
+
+      // Horizontal grid lines (min, avg, max)
+      const yMin = top + chartH;
+      const yMax = top;
+      const yAvg = top + (1 - (avgV - minV) / range) * chartH;
+
+      // Warning line
+      let warnHtml = "";
+      if (warnLine !== undefined && warnLine >= minV && warnLine <= maxV) {
+        const yWarn = top + (1 - (warnLine - minV) / range) * chartH;
+        warnHtml = `<line x1="${left}" y1="${yWarn}" x2="${left + chartW}" y2="${yWarn}" stroke="#ef4444" stroke-width="1" stroke-dasharray="4,3" /><text x="${left - 4}" y="${yWarn + 3}" font-size="8" fill="#ef4444" text-anchor="end">WARN</text>`;
+      }
+
+      // Time axis labels (start, middle, end)
+      const fmtShort = (iso: string) => { try { const d = new Date(iso); return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); } catch { return ""; } };
+      const startLabel = fmtShort(filtered[0].t);
+      const midLabel = fmtShort(filtered[Math.floor(filtered.length / 2)].t);
+      const endLabel = fmtShort(filtered[filtered.length - 1].t);
+
+      return `<div style="display:inline-block;margin:6px;vertical-align:top;width:${w}px;">
+        <div style="font-size:12px;color:#1f2937;font-weight:700;margin-bottom:4px;">${label}</div>
+        <svg width="${w}" height="${h}" style="background:#ffffff;border:1px solid #d1d5db;border-radius:8px;">
+          <!-- Grid lines -->
+          <line x1="${left}" y1="${yMax}" x2="${left + chartW}" y2="${yMax}" stroke="#e5e7eb" stroke-width="0.5" />
+          <line x1="${left}" y1="${yAvg}" x2="${left + chartW}" y2="${yAvg}" stroke="#e5e7eb" stroke-width="0.5" stroke-dasharray="3,3" />
+          <line x1="${left}" y1="${yMin}" x2="${left + chartW}" y2="${yMin}" stroke="#e5e7eb" stroke-width="0.5" />
+          <!-- Y-axis labels -->
+          <text x="${left - 4}" y="${yMax + 4}" font-size="9" fill="#6b7280" text-anchor="end" font-family="monospace">${fmtNum(maxV)}${unit}</text>
+          <text x="${left - 4}" y="${yAvg + 3}" font-size="9" fill="#9ca3af" text-anchor="end" font-family="monospace">${fmtNum(avgV)}${unit}</text>
+          <text x="${left - 4}" y="${yMin}" font-size="9" fill="#6b7280" text-anchor="end" font-family="monospace">${fmtNum(minV)}${unit}</text>
+          ${warnHtml}
+          <!-- Data line -->
+          <polyline points="${points}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" />
+          <!-- Time axis -->
+          <text x="${left}" y="${h - 6}" font-size="9" fill="#9ca3af">${startLabel}</text>
+          <text x="${left + chartW / 2}" y="${h - 6}" font-size="9" fill="#9ca3af" text-anchor="middle">${midLabel}</text>
+          <text x="${left + chartW}" y="${h - 6}" font-size="9" fill="#9ca3af" text-anchor="end">${endLabel}</text>
         </svg>
       </div>`;
     };
@@ -491,17 +526,20 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
   ${history.summary?.fuel_level_pct ? `<tr style="background:#fafafa;"><td style="padding:4px 6px;">Fuel Level</td><td colspan="2" style="text-align:center;font-family:monospace;">${fmtNum(history.summary.fuel_level_pct.start)}% → ${fmtNum(history.summary.fuel_level_pct.end)}%</td><td style="text-align:center;font-family:monospace;">${fmtNum(history.summary.fuel_level_pct.consumed)}% used</td></tr>` : ""}
 </table>
 
-${(history as Record<string, unknown>).timeSeries ? `
+${(history as Record<string, unknown>).timeSeries ? (() => {
+  const ts = (history as Record<string, unknown>).timeSeries as Record<string, unknown>[];
+  const times = ts.map(p => String(p.t || ""));
+  return `
 <h2>Trend Charts</h2>
 <div style="display:flex;flex-wrap:wrap;justify-content:center;">
-  ${makeSvgChart("Engine RPM", ((history as Record<string, unknown>).timeSeries as Record<string, number>[]).map(p => p.rpm), "", "#6366f1")}
-  ${makeSvgChart("Coolant Temp", ((history as Record<string, unknown>).timeSeries as Record<string, number>[]).map(p => p.coolant_f), "°F", "#ef4444", 221)}
-  ${makeSvgChart("Battery Voltage", ((history as Record<string, unknown>).timeSeries as Record<string, number>[]).map(p => p.battery_v), "V", "#3b82f6", 12)}
-  ${makeSvgChart("Vehicle Speed", ((history as Record<string, unknown>).timeSeries as Record<string, number>[]).map(p => p.speed_mph), " mph", "#10b981")}
-  ${makeSvgChart("Fuel Level", ((history as Record<string, unknown>).timeSeries as Record<string, number>[]).map(p => p.fuel_pct), "%", "#06b6d4")}
-  ${makeSvgChart("Short Fuel Trim", ((history as Record<string, unknown>).timeSeries as Record<string, number>[]).map(p => p.short_trim), "%", "#f59e0b")}
-</div>
-` : ""}
+  ${makeSvgChart("Engine RPM", ts.map(p => Number(p.rpm || 0)), times, "", "#6366f1")}
+  ${makeSvgChart("Coolant Temp", ts.map(p => Number(p.coolant_f || 0)), times, "°F", "#ef4444", 221)}
+  ${makeSvgChart("Battery Voltage", ts.map(p => Number(p.battery_v || 0)), times, "V", "#3b82f6", 12)}
+  ${makeSvgChart("Vehicle Speed", ts.map(p => Number(p.speed_mph || 0)), times, " mph", "#10b981")}
+  ${makeSvgChart("Fuel Level", ts.map(p => Number(p.fuel_pct || 0)), times, "%", "#06b6d4")}
+  ${makeSvgChart("Short Fuel Trim", ts.map(p => Number(p.short_trim || 0)), times, "%", "#f59e0b")}
+</div>`;
+})() : ""}
 
 ${history.dtcEvents && history.dtcEvents.length > 0 ? `
 <h2>DTC Events During Period</h2>
