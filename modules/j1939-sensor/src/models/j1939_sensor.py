@@ -626,14 +626,15 @@ class J1939TruckSensor(Sensor):
                 except OSError:
                     pass
 
-        # Keep last 3600 lines max (~1 hour at 1Hz) to avoid huge responses over WebRTC
-        if len(all_lines) > 3600:
-            all_lines = all_lines[-3600:]
+        # Read all lines but cap after filtering (real data is sparse when car is disconnected)
 
         all_points = []
         for line in all_lines:
             try:
-                all_points.append(json.loads(line.strip()))
+                pt = json.loads(line.strip())
+                # Filter out readings where no vehicle is connected (all zeros)
+                if pt.get("_bus_connected") or (isinstance(pt.get("engine_rpm"), (int, float)) and pt["engine_rpm"] > 0):
+                    all_points.append(pt)
             except (json.JSONDecodeError, ValueError):
                 pass
 
