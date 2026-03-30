@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
   let historyText = "No historical data available yet.";
   try {
     const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
-    const histResp = await fetch(`${baseUrl}/api/truck-history?hours=4`, { cache: "no-store" });
+    const histResp = await fetch(`${baseUrl}/api/truck-history?hours=168`, { cache: "no-store" });
     if (histResp.ok) {
       const hist = await histResp.json();
       if (hist.totalPoints > 0) {

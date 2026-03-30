@@ -411,7 +411,7 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
     // Fetch historical data — try Viam Cloud first, fall back to Pi's local HTTP server
     let history: { totalPoints: number; totalMinutes: number; periodStart: string; periodEnd: string; source?: string; summary: Record<string, Record<string, number>>; dtcEvents: { timestamp: string; code: string }[] } | null = null;
     try {
-      const resp = await fetch("/api/truck-history?hours=4");
+      const resp = await fetch("/api/truck-history?hours=168");
       if (resp.ok) {
         const data = await resp.json();
         if (data.totalPoints > 0) history = data;
@@ -421,7 +421,7 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
     // Fallback: fetch directly from Pi's history server (reachable via Tailscale from browser)
     if (!history) {
       try {
-        const resp = await fetch("http://100.113.196.68:8090", { signal: AbortSignal.timeout(10000) });
+        const resp = await fetch("http://100.113.196.68:8090?days=7", { signal: AbortSignal.timeout(15000) });
         if (resp.ok) {
           const data = await resp.json();
           if (data.totalPoints > 0) history = data;
@@ -447,6 +447,34 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
     const fmtTime = (iso: string) => new Date(iso).toLocaleString();
     const fmtNum = (v: unknown, decimals = 1) => typeof v === "number" ? v.toFixed(decimals) : "—";
 
+    // SVG trend chart generator for the report
+    const makeSvgChart = (label: string, data: number[], unit: string, color: string, warnLine?: number) => {
+      if (!data || data.length < 3) return "";
+      const w = 350, h = 80, pad = 4;
+      const filtered = data.filter(v => typeof v === "number" && v !== 0);
+      if (filtered.length < 3) return "";
+      const minV = Math.min(...filtered);
+      const maxV = Math.max(...filtered);
+      const range = maxV - minV || 1;
+      const points = filtered.map((v, i) => {
+        const x = pad + (i / (filtered.length - 1)) * (w - pad * 2);
+        const y = pad + (1 - (v - minV) / range) * (h - pad * 2);
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      }).join(" ");
+      const warnLineHtml = warnLine !== undefined && warnLine >= minV && warnLine <= maxV
+        ? `<line x1="${pad}" y1="${pad + (1 - (warnLine - minV) / range) * (h - pad * 2)}" x2="${w - pad}" y2="${pad + (1 - (warnLine - minV) / range) * (h - pad * 2)}" stroke="#ef4444" stroke-width="1" stroke-dasharray="4,3" />`
+        : "";
+      return `<div style="display:inline-block;margin:8px;vertical-align:top;">
+        <div style="font-size:11px;color:#374151;font-weight:600;margin-bottom:2px;">${label}</div>
+        <svg width="${w}" height="${h}" style="background:#fafafa;border:1px solid #e5e7eb;border-radius:6px;">
+          ${warnLineHtml}
+          <polyline points="${points}" fill="none" stroke="${color}" stroke-width="1.5" />
+          <text x="${pad + 2}" y="${h - 4}" font-size="9" fill="#9ca3af">${fmtNum(minV)}${unit}</text>
+          <text x="${w - pad - 2}" y="12" font-size="9" fill="#9ca3af" text-anchor="end">${fmtNum(maxV)}${unit}</text>
+        </svg>
+      </div>`;
+    };
+
     const historySection = history && history.totalPoints > 0 ? `
 <h2>Historical Data (Last ${history.totalMinutes} minutes — ${history.totalPoints} readings)</h2>
 <p style="color:#6b7280;font-size:12px;">Source: ${history.source === "offline-buffer" ? "Pi Local Buffer" : "Viam Cloud"} | Period: ${fmtTime(history.periodStart)} to ${fmtTime(history.periodEnd)}</p>
@@ -462,6 +490,18 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
   ${history.summary?.long_fuel_trim_b1_pct ? `<tr><td style="padding:4px 6px;">Long Fuel Trim B1</td><td style="text-align:center;font-family:monospace;">${fmtNum(history.summary.long_fuel_trim_b1_pct.min)}%</td><td style="text-align:center;font-family:monospace;">${fmtNum(history.summary.long_fuel_trim_b1_pct.avg)}%</td><td style="text-align:center;font-family:monospace;">${fmtNum(history.summary.long_fuel_trim_b1_pct.max)}%</td></tr>` : ""}
   ${history.summary?.fuel_level_pct ? `<tr style="background:#fafafa;"><td style="padding:4px 6px;">Fuel Level</td><td colspan="2" style="text-align:center;font-family:monospace;">${fmtNum(history.summary.fuel_level_pct.start)}% → ${fmtNum(history.summary.fuel_level_pct.end)}%</td><td style="text-align:center;font-family:monospace;">${fmtNum(history.summary.fuel_level_pct.consumed)}% used</td></tr>` : ""}
 </table>
+
+${(history as Record<string, unknown>).timeSeries ? `
+<h2>Trend Charts</h2>
+<div style="display:flex;flex-wrap:wrap;justify-content:center;">
+  ${makeSvgChart("Engine RPM", ((history as Record<string, unknown>).timeSeries as Record<string, number>[]).map(p => p.rpm), "", "#6366f1")}
+  ${makeSvgChart("Coolant Temp", ((history as Record<string, unknown>).timeSeries as Record<string, number>[]).map(p => p.coolant_f), "°F", "#ef4444", 221)}
+  ${makeSvgChart("Battery Voltage", ((history as Record<string, unknown>).timeSeries as Record<string, number>[]).map(p => p.battery_v), "V", "#3b82f6", 12)}
+  ${makeSvgChart("Vehicle Speed", ((history as Record<string, unknown>).timeSeries as Record<string, number>[]).map(p => p.speed_mph), " mph", "#10b981")}
+  ${makeSvgChart("Fuel Level", ((history as Record<string, unknown>).timeSeries as Record<string, number>[]).map(p => p.fuel_pct), "%", "#06b6d4")}
+  ${makeSvgChart("Short Fuel Trim", ((history as Record<string, unknown>).timeSeries as Record<string, number>[]).map(p => p.short_trim), "%", "#f59e0b")}
+</div>
+` : ""}
 
 ${history.dtcEvents && history.dtcEvents.length > 0 ? `
 <h2>DTC Events During Period</h2>
