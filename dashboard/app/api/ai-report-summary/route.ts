@@ -18,6 +18,16 @@ export async function POST(request: Request) {
   const body = await request.json();
   const { readings, history } = body;
 
+  // Don't generate a summary if there's no real data
+  const hasLiveData = readings && Object.keys(readings).some(k =>
+    ["engine_rpm", "coolant_temp_f", "vehicle_speed_mph"].includes(k) && typeof readings[k] === "number"
+  );
+  const hasHistory = history && history.totalPoints > 0;
+
+  if (!hasLiveData && !hasHistory) {
+    return NextResponse.json({ summary: "" });
+  }
+
   const readingsText = JSON.stringify(readings || {}, null, 2);
   const historyText = history && history.totalPoints > 0
     ? `HISTORICAL DATA (${history.totalMinutes} minutes, ${history.totalPoints} readings):\n${JSON.stringify(history.summary, null, 2)}\nDTC events: ${history.dtcEvents?.map((e: { code: string; timestamp: string }) => `${e.code} at ${e.timestamp}`).join(", ") || "none"}`
@@ -28,6 +38,7 @@ export async function POST(request: Request) {
 Write 2-3 short paragraphs summarizing the vehicle's current condition. You MUST reference specific numbers from the data as evidence for every claim you make. Do not make vague statements — tie every observation to a measurement.
 
 Rules:
+- CRITICAL: ONLY reference values that are ACTUALLY present in the data below. If a field is missing, empty, 0, or not present, do NOT mention it and do NOT make up values. If there is insufficient data to write a meaningful summary, say "Insufficient data for analysis" and nothing else.
 - Be direct and factual. This is a report, not a conversation.
 - Reference actual values: "Coolant temperature held steady at 186.8-188.6°F over 42 minutes, indicating a properly functioning thermostat."
 - If trouble codes are present, explain what they mean in plain English and what the data suggests about the root cause.
