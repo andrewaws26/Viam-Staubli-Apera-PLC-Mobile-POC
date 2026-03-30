@@ -613,30 +613,28 @@ class J1939TruckSensor(Sensor):
 
         buf_path = buffer_dir._dir
 
-        # Read JSONL files for the requested number of days (limit to last 3600 lines to keep response small)
-        all_lines = []
+        # Read JSONL files line by line — filter as we go to keep memory low on Pi Zero (512MB)
+        all_points = []
         for d in range(min(int(days), 7)):
+            if len(all_points) >= 3600:
+                break
             ts = time.time() - d * 86400
             date_str = time.strftime("%Y%m%d", time.localtime(ts))
             path = os.path.join(buf_path, f"readings_{date_str}.jsonl")
             if os.path.exists(path):
                 try:
                     with open(path, "r") as f:
-                        all_lines.extend(f.readlines())
+                        for line in f:
+                            try:
+                                pt = json.loads(line.strip())
+                                if pt.get("_bus_connected") or (isinstance(pt.get("engine_rpm"), (int, float)) and pt["engine_rpm"] > 0):
+                                    all_points.append(pt)
+                                    if len(all_points) >= 3600:
+                                        break
+                            except (json.JSONDecodeError, ValueError):
+                                pass
                 except OSError:
                     pass
-
-        # Read all lines but cap after filtering (real data is sparse when car is disconnected)
-
-        all_points = []
-        for line in all_lines:
-            try:
-                pt = json.loads(line.strip())
-                # Filter out readings where no vehicle is connected (all zeros)
-                if pt.get("_bus_connected") or (isinstance(pt.get("engine_rpm"), (int, float)) and pt["engine_rpm"] > 0):
-                    all_points.append(pt)
-            except (json.JSONDecodeError, ValueError):
-                pass
 
         if not all_points:
             return {"totalPoints": 0, "source": "offline-buffer", "summary": None}
