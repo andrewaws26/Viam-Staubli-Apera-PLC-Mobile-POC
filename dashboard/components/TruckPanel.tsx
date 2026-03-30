@@ -54,6 +54,18 @@ function formatValue(key: string, value: unknown): string {
       const secs = Math.floor(value % 60);
       return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
     }
+    if (key === "runtime_with_mil_min" || key === "time_since_clear_min") {
+      const hrs = Math.floor(value / 60);
+      const mins = Math.floor(value % 60);
+      return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+    }
+    if (key === "distance_with_mil_km" || key === "distance_since_clear_km") return `${(value * 0.621371).toFixed(0)} mi`;
+    if (key === "timing_advance_deg") return `${value.toFixed(1)}°`;
+    if (key === "maf_flow_gps") return `${value.toFixed(1)} g/s`;
+    if (key === "commanded_equiv_ratio") return `${value.toFixed(3)}`;
+    if (key === "evap_pressure_pa") return `${value.toFixed(0)} Pa`;
+    if (key === "o2_voltage_b1s1_v") return `${value.toFixed(2)}V`;
+    if (key === "warmup_cycles_since_clear") return `${value.toFixed(0)}`;
     if (key === "current_gear" || key === "selected_gear") {
       if (value === 0) return "N";
       if (value < 0) return "R";
@@ -108,26 +120,47 @@ const TOTAL_FIELDS = [
 const CAR_ENGINE_FIELDS = [
   { key: "engine_rpm", label: "Engine RPM", highlight: true },
   { key: "engine_load_pct", label: "Engine Load" },
+  { key: "absolute_load_pct", label: "Absolute Load" },
   { key: "throttle_position_pct", label: "Throttle" },
+  { key: "commanded_throttle_pct", label: "Commanded Throttle" },
+  { key: "accel_pedal_pos_pct", label: "Accelerator Pedal" },
+  { key: "timing_advance_deg", label: "Timing Advance" },
+  { key: "maf_flow_gps", label: "MAF Flow" },
+  { key: "commanded_equiv_ratio", label: "Air/Fuel Ratio" },
 ];
 
 const CAR_TEMP_FIELDS = [
-  { key: "coolant_temp_c", label: "Coolant Temp", highlight: true },
-  { key: "oil_temp_c", label: "Oil Temp" },
+  { key: "coolant_temp_c", label: "Coolant", highlight: true },
+  { key: "oil_temp_c", label: "Oil" },
   { key: "intake_air_temp_c", label: "Intake Air" },
   { key: "ambient_temp_c", label: "Ambient" },
+  { key: "catalyst_temp_b1s1_c", label: "Catalytic Conv" },
 ];
 
 const CAR_PRESSURE_FIELDS = [
   { key: "boost_pressure_kpa", label: "Manifold Pressure", highlight: true },
-  { key: "fuel_pressure_kpa", label: "Fuel Rail Pressure" },
+  { key: "fuel_pressure_kpa", label: "Fuel Rail" },
+  { key: "fuel_pump_pressure_kpa", label: "Fuel Pump" },
+  { key: "barometric_pressure_kpa", label: "Barometric" },
+  { key: "evap_pressure_pa", label: "EVAP System" },
 ];
 
 const CAR_VEHICLE_FIELDS = [
   { key: "vehicle_speed_kph", label: "Speed", highlight: true },
   { key: "fuel_level_pct", label: "Fuel Level" },
   { key: "battery_voltage_v", label: "Battery" },
-  { key: "runtime_seconds", label: "Runtime" },
+  { key: "runtime_seconds", label: "Engine Runtime" },
+  { key: "o2_voltage_b1s1_v", label: "O2 Sensor B1S1" },
+];
+
+const CAR_FUEL_FIELDS = [
+  { key: "short_fuel_trim_b1_pct", label: "Short Fuel Trim B1" },
+  { key: "long_fuel_trim_b1_pct", label: "Long Fuel Trim B1" },
+  { key: "distance_with_mil_km", label: "Distance w/ MIL" },
+  { key: "distance_since_clear_km", label: "Distance Since Clear" },
+  { key: "time_since_clear_min", label: "Time Since Clear" },
+  { key: "runtime_with_mil_min", label: "Runtime w/ MIL" },
+  { key: "warmup_cycles_since_clear", label: "Warmups Since Clear" },
 ];
 
 const LAMP_NAMES: Record<string, string> = {
@@ -556,6 +589,7 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
           "Vehicle", "\u{1F698}"
         )}
         {vehicleMode === "truck" && renderFields(TOTAL_FIELDS, "Lifetime", "\u{1F4C8}")}
+        {vehicleMode === "car" && renderFields(CAR_FUEL_FIELDS, "Diagnostics", "\u{1F527}")}
       </div>
 
       {/* Not connected state */}
