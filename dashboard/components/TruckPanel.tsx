@@ -417,12 +417,18 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
       }
     } catch { /* cloud unavailable */ }
 
-    // Fallback: fetch from Pi's offline buffer via Viam do_command (works over HTTPS/WebRTC)
-    if (!history && !simMode) {
+    // Fallback: fetch from Pi's offline buffer via server-side do_command
+    if (!history) {
       try {
-        const { sendTruckCommand } = await import("../lib/truck-viam");
-        const data = await sendTruckCommand("truck-engine", { command: "get_history", days: 7 });
-        if (data && data.totalPoints > 0) history = data;
+        const resp = await fetch("/api/truck-command", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ command: "get_history", days: 7 }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data && data.totalPoints > 0) history = data;
+        }
       } catch { /* Pi unreachable */ }
     }
 
