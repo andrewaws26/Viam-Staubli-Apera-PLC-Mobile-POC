@@ -211,9 +211,9 @@ class J1939TruckSensor(Sensor):
                 )
         protocol = fields.get("protocol")
         if protocol and protocol.string_value:
-            if protocol.string_value not in ("j1939", "obd2"):
+            if protocol.string_value not in ("j1939", "obd2", "auto"):
                 raise ValueError(
-                    f"protocol must be 'j1939' or 'obd2', got '{protocol.string_value}'"
+                    f"protocol must be 'j1939', 'obd2', or 'auto', got '{protocol.string_value}'"
                 )
         return [], []
 
@@ -281,17 +281,79 @@ class J1939TruckSensor(Sensor):
             self._frame_count = 0
 
         # Start the appropriate protocol handler
+        if self._protocol == "auto":
+            # Auto-detect: listen passively for 3 seconds to determine protocol
+            LOGGER.info("Auto-detecting protocol (listening for 3 seconds)...")
+            detected = self._auto_detect_protocol()
+            LOGGER.info(f"Auto-detected protocol: {detected}")
+            self._protocol = detected
+
         if self._protocol == "obd2":
+            LOGGER.warning(
+                "OBD-II mode TRANSMITS on the CAN bus. "
+                "DO NOT use on J1939 heavy-duty trucks — use 'j1939' protocol instead. "
+                "OBD-II polling sends request frames that can cause DTCs on truck ECUs."
+            )
             self._obd2_poller = OBD2Poller(
                 can_interface=self._can_interface,
                 bus_type=self._bus_type,
                 bitrate=self._bitrate,
             )
             self._obd2_poller.start()
-            LOGGER.info("Configured in OBD-II polling mode")
+            LOGGER.info("Configured in OBD-II polling mode (ACTIVE — transmits on bus)")
         else:
             self._start_listener()
-            LOGGER.info("Configured in J1939 passive listener mode")
+            LOGGER.info("Configured in J1939 passive listener mode (LISTEN-ONLY — no transmissions)")
+
+    def _auto_detect_protocol(self) -> str:
+        """
+        Listen passively on the CAN bus for 3 seconds to determine protocol.
+
+        J1939 uses 29-bit extended CAN IDs (is_extended_id=True).
+        OBD-II passenger vehicles use 11-bit standard CAN IDs.
+
+        Returns "j1939" or "obd2" based on what's seen on the bus.
+        Falls back to "j1939" (safe, listen-only) if no traffic detected.
+        """
+        try:
+            import can
+            bus = can.Bus(
+                channel=self._can_interface,
+                interface=self._bus_type,
+                bitrate=self._bitrate,
+                receive_own_messages=False,
+            )
+            extended_count = 0
+            standard_count = 0
+            deadline = time.time() + 3.0
+
+            while time.time() < deadline:
+                msg = bus.recv(timeout=0.5)
+                if msg is None:
+                    continue
+                if msg.is_extended_id:
+                    extended_count += 1
+                else:
+                    standard_count += 1
+
+            bus.shutdown()
+
+            total = extended_count + standard_count
+            if total == 0:
+                LOGGER.warning("No CAN traffic detected during auto-detect. Defaulting to j1939 (safe).")
+                return "j1939"
+
+            # J1939 = predominantly extended IDs, OBD2 = predominantly standard IDs
+            if extended_count > standard_count:
+                LOGGER.info(f"Auto-detect: {extended_count} extended vs {standard_count} standard IDs → J1939")
+                return "j1939"
+            else:
+                LOGGER.info(f"Auto-detect: {standard_count} standard vs {extended_count} extended IDs → OBD-II")
+                return "obd2"
+
+        except Exception as e:
+            LOGGER.warning(f"Auto-detect failed ({e}). Defaulting to j1939 (safe).")
+            return "j1939"
 
     def _start_listener(self):
         """Start the background CAN bus listener thread."""
