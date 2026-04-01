@@ -1096,9 +1096,6 @@ ${aiSummary ? `<h2>AI Vehicle Health Summary</h2><div style="white-space:pre-wra
         <TruckMap
           latitude={gpsLat}
           longitude={gpsLon}
-          heading={gpsHeading}
-          speed={gpsSpeed}
-          altitude={gpsAlt}
           vehicleState={vehicleState}
         />
       )}
