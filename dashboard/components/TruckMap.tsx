@@ -1,40 +1,37 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import dynamic from "next/dynamic";
+import { MapContainer, TileLayer, Marker, Polyline, useMap } from "react-leaflet";
+import L from "leaflet";
 
-// Dynamically import components with SSR disabled to prevent Vercel build errors
-const MapContainer = dynamic(() => import("react-leaflet").then((m) => m.MapContainer), { ssr: false });
-const TileLayer = dynamic(() => import("react-leaflet").then((m) => m.TileLayer), { ssr: false });
-const Marker = dynamic(() => import("react-leaflet").then((m) => m.Marker), { ssr: false });
-const Polyline = dynamic(() => import("react-leaflet").then((m) => m.Polyline), { ssr: false });
-const useMap = dynamic(() => import("react-leaflet").then((m) => m.useMap), { ssr: false });
-
+// This helper component handles moving the camera
 function RecenterView({ lat, lng }: { lat: number; lng: number }) {
-  const map = (useMap as any)();
+  const map = useMap();
   useEffect(() => {
-    if (map) map.setView([lat, lng]);
+    if (map) {
+      map.setView([lat, lng]);
+    }
   }, [lat, lng, map]);
   return null;
 }
 
 export default function TruckMap({ latitude, longitude, vehicleState }: any) {
   const [mounted, setMounted] = useState(false);
-  const [icon, setIcon] = useState<any>(null);
+  const [truckIcon, setTruckIcon] = useState<L.DivIcon | null>(null);
 
   useEffect(() => {
     setMounted(true);
-    // Dynamically load Leaflet for the icon only on the client side
-    import("leaflet").then((L) => {
-      const truckIcon = L.divIcon({
-        html: '<div style="font-size: 24px; filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.5));">🚛</div>',
-        className: "custom-truck-marker",
-        iconSize: [24, 24],
-        iconAnchor: [12, 12],
-      });
-      setIcon(truckIcon);
+    
+    // Create the icon only on the client side
+    const icon = L.divIcon({
+      html: '<div style="font-size: 24px; filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.5));">🚛</div>',
+      className: "custom-truck-marker",
+      iconSize: [24, 24],
+      iconAnchor: [12, 12],
     });
+    setTruckIcon(icon);
 
+    // Load Leaflet CSS
     if (!document.getElementById("leaflet-css")) {
       const link = document.createElement("link");
       link.id = "leaflet-css";
@@ -59,11 +56,17 @@ export default function TruckMap({ latitude, longitude, vehicleState }: any) {
   return (
     <div className="bg-gray-900/50 border border-gray-800 rounded-lg overflow-hidden mb-3">
       <div style={{ height: "250px", width: "100%", background: "#0e1117" }}>
-        <MapContainer center={[latitude, longitude]} zoom={14} style={{ height: "100%" }} zoomControl={false} attributionControl={false}>
+        <MapContainer 
+          center={[latitude, longitude]} 
+          zoom={14} 
+          style={{ height: "100%" }} 
+          zoomControl={false} 
+          attributionControl={false}
+        >
           <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
           <RecenterView lat={latitude} lng={longitude} />
           <Polyline positions={[[latitude, longitude]]} pathOptions={{ color: "#00D4AA", weight: 3 }} />
-          {icon && <Marker position={[latitude, longitude]} icon={icon} />}
+          {truckIcon && <Marker position={[latitude, longitude]} icon={truckIcon} />}
         </MapContainer>
       </div>
       <div className="px-3 py-1.5 border-t border-gray-800 flex justify-between items-center bg-black/20 text-[10px]">
