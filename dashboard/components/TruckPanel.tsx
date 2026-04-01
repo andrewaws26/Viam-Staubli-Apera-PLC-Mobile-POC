@@ -119,6 +119,16 @@ const VEHICLE_FIELDS = [
   { key: "oil_level_pct", label: "Oil Level" },
 ];
 
+const HYDRAULIC_FIELDS = [
+  { key: "pto_engaged", label: "PTO Status", highlight: true },
+  { key: "pto_rpm", label: "PTO Speed" },
+  { key: "pto_set_rpm", label: "PTO Set Speed" },
+  { key: "hydraulic_oil_temp_f", label: "Hydraulic Temp" },
+  { key: "hydraulic_oil_pressure_psi", label: "Hydraulic Pressure" },
+  { key: "hydraulic_oil_level_pct", label: "Hydraulic Level" },
+  { key: "retarder_torque_pct", label: "Retarder Torque" },
+];
+
 const TOTAL_FIELDS = [
   { key: "engine_hours", label: "Engine Hours" },
   { key: "total_fuel_used_gal", label: "Total Fuel" },
@@ -1068,6 +1078,7 @@ ${aiSummary ? `<h2>AI Vehicle Health Summary</h2><div style="white-space:pre-wra
           vehicleMode === "car" ? CAR_VEHICLE_FIELDS : VEHICLE_FIELDS,
           "Vehicle", "\u{1F698}"
         )}
+        {vehicleMode === "truck" && renderFields(HYDRAULIC_FIELDS, "PTO / Hydraulics", "\u{1F527}")}
         {vehicleMode === "truck" && renderFields(TOTAL_FIELDS, "Lifetime", "\u{1F4C8}")}
         {vehicleMode === "car" && renderFields(CAR_FUEL_FIELDS, "Diagnostics", "\u{1F527}")}
       </div>

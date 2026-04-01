@@ -389,6 +389,69 @@ PGN_65226 = PGNDefinition(
 
 
 # ---------------------------------------------------------------------------
+# PTO / Hydraulic PGN Definitions
+# ---------------------------------------------------------------------------
+
+PGN_65091 = PGNDefinition(
+    pgn=65091,
+    name="PTO Drive Engagement (PTODE)",
+    spns=[
+        SPNDefinition(984, "PTO Engagement Status", "pto_engaged",
+                      0, 8, 1.0, 0, "",
+                      decode_fn=lambda d: _decode_scaled(d, 0, 2, 1.0, 0)),
+        SPNDefinition(985, "PTO Speed", "pto_rpm",
+                      1, 16, 0.125, 0, "rpm"),
+        SPNDefinition(986, "PTO Set Speed", "pto_set_rpm",
+                      3, 16, 0.125, 0, "rpm"),
+    ]
+)
+
+PGN_65268 = PGNDefinition(
+    pgn=65268,
+    name="Auxiliary I/O (AUX)",
+    spns=[
+        SPNDefinition(1083, "PTO Switches", "pto_switches",
+                      0, 8, 1.0, 0, ""),
+        SPNDefinition(1084, "Aux IO 1", "aux_io_1",
+                      1, 8, 1.0, 0, ""),
+        SPNDefinition(1085, "Aux IO 2", "aux_io_2",
+                      2, 8, 1.0, 0, ""),
+    ]
+)
+
+PGN_65098 = PGNDefinition(
+    pgn=65098,
+    name="Vehicle Fluids (VF)",
+    spns=[
+        SPNDefinition(1636, "Hydraulic Oil Temp", "hydraulic_oil_temp_f",
+                      0, 8, 1.0, -40, "F",
+                      decode_fn=lambda d: _decode_temp_f(d, 0, 8, 1.0, -40)),
+        SPNDefinition(1637, "Hydraulic Oil Level", "hydraulic_oil_level_pct",
+                      1, 8, 0.4, 0, "%"),
+        SPNDefinition(1638, "Hydraulic Oil Pressure", "hydraulic_oil_pressure_psi",
+                      2, 8, 16.0, 0, "psi",
+                      decode_fn=lambda d: _decode_pressure_psi(d, 2, 8, 16.0, 0)),
+        SPNDefinition(1639, "Hydraulic Oil Filter Restriction", "hydraulic_filter_psi",
+                      3, 8, 2.0, 0, "psi",
+                      decode_fn=lambda d: _decode_pressure_psi(d, 3, 8, 2.0, 0)),
+    ]
+)
+
+PGN_61440 = PGNDefinition(
+    pgn=61440,
+    name="Electronic Retarder Controller (ERC1)",
+    spns=[
+        SPNDefinition(520, "Retarder Torque Mode", "retarder_torque_mode",
+                      0, 4, 1.0, 0, ""),
+        SPNDefinition(571, "Retarder Enable", "retarder_enable",
+                      0, 2, 1.0, 0, ""),
+        SPNDefinition(521, "Actual Retarder Torque", "retarder_torque_pct",
+                      1, 8, 1.0, -125, "%"),
+    ]
+)
+
+
+# ---------------------------------------------------------------------------
 # PGN Registry
 # ---------------------------------------------------------------------------
 
@@ -408,6 +471,11 @@ PGN_REGISTRY: dict[int, PGNDefinition] = {
     65271: PGN_65271,
     65272: PGN_65272,
     65276: PGN_65276,
+    # PTO / Hydraulic
+    61440: PGN_61440,
+    65091: PGN_65091,
+    65098: PGN_65098,
+    65268: PGN_65268,
 }
 
 
