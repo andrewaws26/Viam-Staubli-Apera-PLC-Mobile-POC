@@ -380,41 +380,122 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
       const t = simTickRef.current;
       const rpm = 800 + Math.sin(t * 0.1) * 400 + Math.random() * 50;
       const speed = Math.max(0, 60 + Math.sin(t * 0.05) * 30 + Math.random() * 5);
+      // Simulate truck driving a route near Louisville, KY
+      const baseLat = 38.2527;
+      const baseLon = -85.7585;
+      const routeAngle = t * 0.02; // slowly circle
+      const simLat = baseLat + Math.sin(routeAngle) * 0.008 + Math.cos(routeAngle * 0.3) * 0.003;
+      const simLon = baseLon + Math.cos(routeAngle) * 0.012 + Math.sin(routeAngle * 0.5) * 0.004;
+      const heading = ((routeAngle * 180 / Math.PI) + 90) % 360;
+      const ptoOn = t % 100 > 80; // PTO active 20% of the time
+      const idling = speed < 2 && rpm > 600;
+
       setReadings({
+        // Engine
         engine_rpm: Math.round(rpm),
         engine_load_pct: 40 + Math.sin(t * 0.08) * 25 + Math.random() * 5,
         accel_pedal_pos_pct: 30 + Math.sin(t * 0.12) * 20,
         driver_demand_torque_pct: 35 + Math.sin(t * 0.1) * 20,
         actual_engine_torque_pct: 33 + Math.sin(t * 0.1) * 20,
+        exhaust_gas_pressure_psi: 2.1 + Math.sin(t * 0.07) * 0.8,
+        friction_torque_pct: 12 + Math.random() * 2,
+        // Temps
         coolant_temp_f: 185 + Math.sin(t * 0.02) * 14 + Math.random() * 4,
         oil_temp_f: 203 + Math.sin(t * 0.015) * 18,
         fuel_temp_f: 108 + Math.sin(t * 0.01) * 9,
         intake_manifold_temp_f: 131 + Math.sin(t * 0.03) * 18,
         trans_oil_temp_f: 176 + Math.sin(t * 0.02) * 14,
         ambient_temp_f: 72 + Math.random() * 4,
+        // Pressures
         oil_pressure_psi: 45 + Math.sin(t * 0.05) * 6 + Math.random() * 1.5,
         fuel_pressure_psi: 55 + Math.random() * 3,
         boost_pressure_psi: 23 + Math.sin(t * 0.08) * 6,
         barometric_pressure_psi: 14.7 + Math.random() * 0.07,
+        // Vehicle
         vehicle_speed_mph: Math.round(speed * 0.621371 * 10) / 10,
         current_gear: speed < 5 ? 0 : Math.min(12, Math.floor(speed / 8) + 1),
+        selected_gear: speed < 5 ? 0 : Math.min(12, Math.floor(speed / 8) + 1),
+        cruise_control_active: speed > 55 ? 1 : 0,
+        vehicle_distance_mi: 187432.5 + t * 0.01,
+        vehicle_distance_hr_mi: 187432.5 + t * 0.01,
+        // Fuel
         fuel_rate_gph: 4 + Math.sin(t * 0.06) * 2 + Math.random() * 0.5,
         fuel_economy_mpg: 5.9 + Math.sin(t * 0.04) * 1.9,
         fuel_level_pct: Math.max(10, 72 - t * 0.01),
         battery_voltage_v: 13.8 + Math.sin(t * 0.03) * 0.3,
         oil_level_pct: 85 + Math.random() * 3,
+        // Lifetime
         engine_hours: 4523.5 + t * 0.001,
         total_fuel_used_gal: 33134 + t * 0.013,
-        active_dtc_count: 2,
-        ...({
-          dtc_0_spn: 3226, dtc_0_fmi: 18, dtc_0_occurrence: 5,
-          dtc_1_spn: 5246, dtc_1_fmi: 0, dtc_1_occurrence: 2,
-          amber_warning_lamp: 1, malfunction_lamp: 0, red_stop_lamp: 0, protect_lamp: 0,
-        }),
+        idle_engine_hours: 1892.3 + (idling ? t * 0.001 : 0),
+        idle_fuel_used_gal: 4215.7 + (idling ? t * 0.002 : 0),
+        trip_fuel_gal: 12.4 + t * 0.005,
+        vin: "1M1AN07Y3GM023456",
+        software_id: "D13TC-EU6 v22.4.1",
+        // GPS
+        gps_latitude: simLat,
+        gps_longitude: simLon,
+        compass_bearing_deg: heading,
+        nav_speed_mph: Math.round(speed * 0.621371 * 10) / 10,
+        altitude_ft: 462 + Math.sin(t * 0.01) * 30,
+        vehicle_pitch_deg: Math.sin(t * 0.03) * 2,
+        // Aftertreatment
+        dpf_soot_load_pct: 32 + Math.sin(t * 0.005) * 15,
+        dpf_diff_pressure_psi: 1.8 + Math.sin(t * 0.04) * 0.6,
+        dpf_inlet_temp_f: 750 + Math.sin(t * 0.03) * 150,
+        dpf_outlet_temp_f: 680 + Math.sin(t * 0.03) * 130,
+        dpf_regen_status: t % 200 > 180 ? 1 : 0,
+        def_level_pct: Math.max(5, 68 - t * 0.005),
+        def_temp_f: 82 + Math.random() * 5,
+        nox_inlet_ppm: 450 + Math.sin(t * 0.06) * 150,
+        nox_outlet_ppm: 35 + Math.sin(t * 0.06) * 15,
+        scr_efficiency_pct: 95 + Math.random() * 3,
+        scr_catalyst_temp_f: 620 + Math.sin(t * 0.025) * 80,
+        // Brakes
+        brake_pedal_pos_pct: speed < 30 && Math.sin(t * 0.15) > 0.8 ? 40 : 0,
+        abs_active: 0,
+        brake_air_pressure_psi: 118 + Math.random() * 4,
+        air_supply_pressure_psi: 120 + Math.random() * 5,
+        air_pressure_circuit1_psi: 119 + Math.random() * 3,
+        air_pressure_circuit2_psi: 117 + Math.random() * 4,
+        front_axle_speed_mph: Math.round(speed * 0.621371 * 10) / 10,
+        // PTO / Hydraulic
+        pto_engaged: ptoOn ? 1 : 0,
+        pto_rpm: ptoOn ? 1200 + Math.random() * 100 : 0,
+        hydraulic_oil_temp_f: ptoOn ? 155 + Math.sin(t * 0.02) * 15 : 95,
+        hydraulic_oil_pressure_psi: ptoOn ? 2800 + Math.sin(t * 0.1) * 400 : 0,
+        hydraulic_oil_level_pct: 92 + Math.random() * 3,
+        retarder_torque_pct: speed > 50 && Math.sin(t * 0.2) > 0.7 ? -25 : 0,
+        // Idle / Service
+        service_distance_mi: 12450 - t * 0.1,
+        fan_speed_pct: (185 + Math.sin(t * 0.02) * 14) > 195 ? 60 + Math.random() * 20 : 0,
+        turbo_wastegate_pct: 30 + Math.sin(t * 0.08) * 20,
+        // Transmission
+        trans_output_rpm: speed > 0 ? rpm * 0.4 : 0,
+        clutch_slip_pct: speed < 10 && rpm > 900 ? 5 + Math.random() * 3 : 0,
+        // Derived metrics
+        vehicle_state: rpm > 0 ? "Engine On" : "Ignition On",
+        idle_waste_active: idling && !ptoOn,
+        harsh_braking: false,
+        harsh_acceleration: false,
+        harsh_behavior_flag: false,
+        fuel_cost_per_hour: (4 + Math.sin(t * 0.06) * 2) * 3.80,
+        fuel_cost_per_mile: 0.62 + Math.random() * 0.05,
+        idle_waste_dollars: 4215.7 * 3.80,
+        idle_pct: (1892.3 / 4523.5) * 100,
+        dpf_health: "OK",
+        battery_health: "OK",
+        def_low: false,
+        // DTCs
+        active_dtc_count: 1,
+        dtc_0_spn: 3226, dtc_0_fmi: 18, dtc_0_occurrence: 5,
+        amber_warning_lamp: 1, malfunction_lamp: 0, red_stop_lamp: 0, protect_lamp: 0,
+        // Metadata
         _bus_connected: true,
-        _frame_count: t * 47,
+        _frame_count: t * 105,
         _seconds_since_last_frame: 0.3 + Math.random() * 0.2,
         _can_interface: "can0",
+        _protocol: "j1939",
       } as TruckReadings);
       setConnected(true);
       setError(null);
