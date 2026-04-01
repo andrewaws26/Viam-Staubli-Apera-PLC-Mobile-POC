@@ -333,6 +333,10 @@ class J1939TruckSensor(Sensor):
 
     def _listen_loop(self):
         """Background thread: read CAN frames and decode J1939 PGNs."""
+        # J1939 Transport Protocol (TP) reassembly state
+        # Key = (source_address, target_pgn), Value = {total_bytes, packets, data}
+        tp_sessions: dict[tuple[int, int], dict] = {}
+
         while self._running and self._bus:
             try:
                 msg = self._bus.recv(timeout=1.0)
@@ -341,7 +345,46 @@ class J1939TruckSensor(Sensor):
                 if not msg.is_extended_id:
                     continue  # J1939 uses extended (29-bit) IDs only
 
-                pgn, decoded = decode_can_frame(msg.arbitration_id, msg.data)
+                pgn = extract_pgn_from_can_id(msg.arbitration_id)
+                sa = extract_source_address(msg.arbitration_id)
+
+                # --- TP.CM (Connection Management) — PGN 60416 (0xEC00) ---
+                if pgn == 60416 and len(msg.data) >= 8:
+                    ctrl = msg.data[0]
+                    if ctrl == 32:  # BAM (Broadcast Announce Message)
+                        total_bytes = msg.data[1] | (msg.data[2] << 8)
+                        total_packets = msg.data[3]
+                        target_pgn = msg.data[5] | (msg.data[6] << 8) | (msg.data[7] << 16)
+                        tp_sessions[(sa, target_pgn)] = {
+                            "total_bytes": total_bytes,
+                            "total_packets": total_packets,
+                            "data": bytearray(),
+                            "received": 0,
+                        }
+                    continue
+
+                # --- TP.DT (Data Transfer) — PGN 60160 (0xEB00) ---
+                if pgn == 60160 and len(msg.data) >= 2:
+                    seq = msg.data[0]  # sequence number (1-based)
+                    payload = msg.data[1:8]
+
+                    # Find which session this belongs to
+                    for key, session in tp_sessions.items():
+                        if key[0] == sa:
+                            session["data"].extend(payload)
+                            session["received"] += 1
+
+                            # Check if complete
+                            if session["received"] >= session["total_packets"]:
+                                target_pgn = key[1]
+                                raw = bytes(session["data"][:session["total_bytes"]])
+                                self._decode_tp_message(target_pgn, sa, raw)
+                                del tp_sessions[key]
+                            break
+                    continue
+
+                # --- Standard single-frame PGN decode ---
+                _, decoded = decode_can_frame(msg.arbitration_id, msg.data)
 
                 # Apply PGN filter
                 if self._pgn_filter and pgn not in self._pgn_filter:
@@ -357,14 +400,39 @@ class J1939TruckSensor(Sensor):
                             pgn_hex = f"pgn_{pgn}_raw"
                             self._readings[pgn_hex] = msg.data.hex()
 
-                        # Store source address for decoded PGNs
-                        sa = extract_source_address(msg.arbitration_id)
                         self._readings[f"pgn_{pgn}_source_addr"] = sa
 
             except Exception as e:
                 if self._running:
                     LOGGER.warning(f"CAN read error: {e}")
                     time.sleep(0.1)
+
+    def _decode_tp_message(self, pgn: int, sa: int, data: bytes):
+        """Decode a reassembled multi-packet J1939 message."""
+        decoded = {}
+
+        if pgn == 65260:  # Vehicle Identification (VI) — contains VIN
+            # VIN is ASCII string, null-padded, up to 17+ chars
+            vin = data.decode("ascii", errors="ignore").rstrip("\x00").rstrip("*").strip()
+            if len(vin) >= 10:
+                decoded["vin"] = vin
+                LOGGER.info(f"VIN decoded: {vin}")
+
+        elif pgn == 65242:  # Software Identification
+            sw_id = data.decode("ascii", errors="ignore").rstrip("\x00").strip()
+            if sw_id:
+                decoded["software_id"] = sw_id
+
+        elif pgn == 65259:  # Component Identification
+            comp_id = data.decode("ascii", errors="ignore").rstrip("\x00").strip()
+            if comp_id:
+                decoded["component_id"] = comp_id
+
+        if decoded:
+            with self._readings_lock:
+                self._readings.update(decoded)
+                self._frame_count += 1
+                self._last_frame_time = time.time()
 
     async def get_readings(
         self,
@@ -458,6 +526,64 @@ class J1939TruckSensor(Sensor):
         self._prev_speed = speed
         self._prev_accel_pedal = accel
         self._prev_readings_time = now
+
+        # ---------------------------------------------------------------
+        # Task 3b: Additional Derived Fleet Metrics
+        # ---------------------------------------------------------------
+        fuel_rate = readings.get("fuel_rate_gph", None)
+        engine_hours = readings.get("engine_hours", None)
+        idle_hours = readings.get("idle_engine_hours", None)
+        idle_fuel = readings.get("idle_fuel_used_gal", None)
+        total_fuel = readings.get("total_fuel_used_gal", None)
+        distance = readings.get("vehicle_distance_hr_mi", None) or readings.get("vehicle_distance_mi", None)
+
+        # Fuel cost per hour (assume $3.80/gal diesel)
+        FUEL_PRICE = 3.80
+        if fuel_rate is not None and fuel_rate > 0:
+            readings["fuel_cost_per_hour"] = round(fuel_rate * FUEL_PRICE, 2)
+
+        # Idle waste dollars
+        if idle_fuel is not None:
+            readings["idle_waste_dollars"] = round(idle_fuel * FUEL_PRICE, 2)
+
+        # Idle percentage
+        if idle_hours is not None and engine_hours is not None and engine_hours > 0:
+            readings["idle_pct"] = round((idle_hours / engine_hours) * 100, 1)
+
+        # Cost per mile
+        if total_fuel is not None and distance is not None and distance > 0:
+            readings["fuel_cost_per_mile"] = round((total_fuel * FUEL_PRICE) / distance, 3)
+
+        # PTO duty cycle
+        pto_status = readings.get("pto_engaged", None)
+        if pto_status is not None and engine_hours is not None and engine_hours > 0:
+            # We track PTO state — can estimate from idle vs PTO
+            readings["pto_active"] = pto_status > 0
+
+        # DPF health indicator
+        soot = readings.get("dpf_soot_load_pct", None)
+        if soot is not None:
+            if soot > 80:
+                readings["dpf_health"] = "CRITICAL"
+            elif soot > 60:
+                readings["dpf_health"] = "WARNING"
+            else:
+                readings["dpf_health"] = "OK"
+
+        # DEF level alert
+        def_level = readings.get("def_level_pct", None)
+        if def_level is not None:
+            readings["def_low"] = def_level < 15
+
+        # Battery health
+        batt = readings.get("battery_voltage_v", None)
+        if batt is not None:
+            if batt < 11.8:
+                readings["battery_health"] = "CRITICAL"
+            elif batt < 12.4:
+                readings["battery_health"] = "LOW"
+            else:
+                readings["battery_health"] = "OK"
 
         # ---------------------------------------------------------------
         # System health + offline buffer
