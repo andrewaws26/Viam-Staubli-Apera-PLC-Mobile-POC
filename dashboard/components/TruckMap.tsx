@@ -26,6 +26,7 @@ function RecenterView({ lat, lng }: { lat: number; lng: number }) {
 export default function TruckMap({ latitude, longitude, heading, speed, altitude, vehicleState }: any) {
   const [trail, setTrail] = useState<[number, number][]>([]);
   const [mounted, setMounted] = useState(false);
+
   useEffect(() => {
     setMounted(true);
     if (typeof document !== "undefined" && !document.getElementById("leaflet-css")) {
@@ -35,14 +36,17 @@ export default function TruckMap({ latitude, longitude, heading, speed, altitude
       document.head.appendChild(link);
     }
   }, []);
+
   useEffect(() => {
-    if (latitude && longitude) {
+    if (latitude && longitude && latitude !== 0 && longitude !== 0) {
       setTrail(prev => [...prev, [latitude, longitude] as [number, number]].slice(-200));
     }
   }, [latitude, longitude]);
 
   if (!mounted) return null;
-  if (!latitude || !longitude) return <div className="p-4 text-gray-500 bg-gray-900/50 rounded-lg border border-gray-800 mb-3 text-center">📍 Waiting for GPS lock...</div>;
+  if (!latitude || !longitude || latitude === 0) {
+    return <div className="p-4 text-gray-500 bg-gray-900/50 rounded-lg border border-gray-800 mb-3 text-center">📍 Waiting for GPS lock...</div>;
+  }
 
   return (
     <div className="bg-gray-900/50 border border-gray-800 rounded-lg overflow-hidden mb-3">
@@ -51,7 +55,14 @@ export default function TruckMap({ latitude, longitude, heading, speed, altitude
           <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
           <RecenterView lat={latitude} lng={longitude} />
           {trail.length > 1 && <Polyline positions={trail} pathOptions={{ color: "#00D4AA", weight: 3 }} />}
-          <Marker position={[latitude, longitude]} icon={truckIcon} />
+          <Marker position={[latitude, longitude]} icon={truckIcon}>
+            <Popup>
+              <div className="text-black text-xs">
+                <strong>Mack Truck</strong><br/>
+                State: {vehicleState}
+              </div>
+            </Popup>
+          </Marker>
         </MapContainer>
       </div>
     </div>
