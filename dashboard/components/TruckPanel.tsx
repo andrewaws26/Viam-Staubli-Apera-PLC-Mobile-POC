@@ -42,7 +42,13 @@ function getValueColor(key: string, value: number): string {
 function formatValue(key: string, value: unknown): string {
   if (value === null || value === undefined) return "--";
   if (typeof value === "boolean") return value ? "ON" : "OFF";
-  if (typeof value === "string") return value;
+  if (typeof value === "string") {
+    // Clean display for status strings
+    if (value === "OK") return "OK";
+    if (value === "WARNING" || value === "LOW") return value;
+    if (value === "CRITICAL" || value === "OVERCHARGE") return value;
+    return value;
+  }
   if (typeof value === "number") {
     if (key.includes("_pct") || key.includes("_pos")) return `${value.toFixed(1)}%`;
     if (key.endsWith("_f")) return `${value.toFixed(0)}°F`;
@@ -195,23 +201,25 @@ const EXTENDED_ENGINE_FIELDS = [
   { key: "trans_output_rpm", label: "Trans Output RPM" },
 ];
 
-const FLEET_METRICS_FIELDS = [
-  { key: "fuel_cost_per_hour", label: "Fuel $/hr", highlight: true },
-  { key: "fuel_cost_per_mile", label: "Fuel $/mile" },
-  { key: "idle_waste_dollars", label: "Idle Waste $" },
-  { key: "idle_pct", label: "Idle %" },
-  { key: "dpf_health", label: "DPF Health" },
-  { key: "battery_health", label: "Battery Health" },
-  { key: "def_low", label: "DEF Low" },
+const COST_FIELDS = [
+  { key: "fuel_cost_per_hour", label: "Current Burn Rate", highlight: true },
+  { key: "fuel_cost_per_mile", label: "Cost Per Mile" },
+  { key: "fuel_economy_mpg", label: "Current MPG" },
+];
+
+const HEALTH_FIELDS = [
+  { key: "dpf_health", label: "DPF Filter", highlight: true },
+  { key: "battery_health", label: "Battery" },
+  { key: "def_low", label: "DEF Fluid Low" },
+  { key: "idle_pct", label: "Lifetime Idle %" },
 ];
 
 const TOTAL_FIELDS = [
   { key: "vin", label: "VIN", highlight: true },
   { key: "engine_hours", label: "Engine Hours" },
-  { key: "total_fuel_used_gal", label: "Total Fuel" },
+  { key: "total_fuel_used_gal", label: "Total Fuel Used" },
   { key: "idle_engine_hours", label: "Idle Hours" },
-  { key: "idle_fuel_used_gal", label: "Idle Fuel" },
-  { key: "software_id", label: "Software ID" },
+  { key: "vehicle_distance_mi", label: "Odometer" },
 ];
 
 // Car-specific field overrides — OBD-II returns different fields
@@ -1294,7 +1302,8 @@ ${aiSummary ? `<h2>AI Vehicle Health Summary</h2><div style="white-space:pre-wra
         {vehicleMode === "truck" && renderFields(AIR_BRAKE_FIELDS, "Air / Wheel Speed", "\u{1F6DE}\uFE0F")}
         {vehicleMode === "truck" && renderFields(NAVIGATION_FIELDS, "Navigation / GPS", "\u{1F4CD}")}
         {vehicleMode === "truck" && renderFields(EXTENDED_ENGINE_FIELDS, "Extended Engine", "\u{1F50C}")}
-        {vehicleMode === "truck" && renderFields(FLEET_METRICS_FIELDS, "Fleet Analytics", "\u{1F4B0}")}
+        {vehicleMode === "truck" && renderFields(COST_FIELDS, "Fuel Cost", "\u{26FD}")}
+        {vehicleMode === "truck" && renderFields(HEALTH_FIELDS, "System Health", "\u{1F6A8}")}
         {vehicleMode === "truck" && renderFields(TOTAL_FIELDS, "Lifetime / Identity", "\u{1F4C8}")}
         {vehicleMode === "car" && renderFields(CAR_FUEL_FIELDS, "Diagnostics", "\u{1F527}")}
       </div>
