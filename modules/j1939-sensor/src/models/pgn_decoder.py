@@ -389,6 +389,72 @@ PGN_65226 = PGNDefinition(
 
 
 # ---------------------------------------------------------------------------
+# GPS / Navigation PGN Definitions
+# ---------------------------------------------------------------------------
+
+def _decode_latitude(data: bytes) -> Optional[float]:
+    """PGN 65267 bytes 0-3: 32-bit LE, 1e-7 deg/bit, offset -210 deg."""
+    raw = _get_dword_le(data, 0)
+    if raw is None:
+        return None
+    return round(raw * 1e-7 - 210.0, 7)
+
+def _decode_longitude(data: bytes) -> Optional[float]:
+    """PGN 65267 bytes 4-7: 32-bit LE, 1e-7 deg/bit, offset -210 deg."""
+    raw = _get_dword_le(data, 4)
+    if raw is None:
+        return None
+    return round(raw * 1e-7 - 210.0, 7)
+
+PGN_65267 = PGNDefinition(
+    pgn=65267,
+    name="Vehicle Position (VP)",
+    spns=[
+        SPNDefinition(584, "Latitude", "gps_latitude",
+                      0, 32, 1e-7, -210.0, "deg",
+                      decode_fn=_decode_latitude),
+        SPNDefinition(585, "Longitude", "gps_longitude",
+                      4, 32, 1e-7, -210.0, "deg",
+                      decode_fn=_decode_longitude),
+    ]
+)
+
+PGN_65256 = PGNDefinition(
+    pgn=65256,
+    name="Vehicle Direction/Speed (VDS)",
+    spns=[
+        SPNDefinition(580, "Compass Bearing", "compass_bearing_deg",
+                      0, 16, 1.0/128.0, 0, "deg"),
+        SPNDefinition(581, "Navigation-Based Vehicle Speed", "nav_speed_mph",
+                      2, 16, 0.00390625 * 0.621371, 0, "mph"),
+        SPNDefinition(582, "Pitch", "vehicle_pitch_deg",
+                      4, 16, 1.0/128.0, -200.0, "deg"),
+        SPNDefinition(583, "Altitude", "altitude_ft",
+                      6, 16, 0.125 * 3.28084, -2500.0 * 3.28084, "ft"),
+    ]
+)
+
+PGN_65254 = PGNDefinition(
+    pgn=65254,
+    name="Time/Date (TD)",
+    spns=[
+        SPNDefinition(959, "Seconds", "time_seconds",
+                      0, 8, 0.25, 0, "s"),
+        SPNDefinition(960, "Minutes", "time_minutes",
+                      1, 8, 1.0, 0, ""),
+        SPNDefinition(961, "Hours", "time_hours",
+                      2, 8, 1.0, 0, ""),
+        SPNDefinition(963, "Day", "time_day",
+                      4, 8, 0.25, 0, ""),
+        SPNDefinition(962, "Month", "time_month",
+                      3, 8, 1.0, 0, ""),
+        SPNDefinition(964, "Year", "time_year",
+                      5, 8, 1.0, 1985.0, ""),
+    ]
+)
+
+
+# ---------------------------------------------------------------------------
 # Aftertreatment PGN Definitions
 # ---------------------------------------------------------------------------
 
@@ -615,6 +681,10 @@ PGN_61440 = PGNDefinition(
 # ---------------------------------------------------------------------------
 
 PGN_REGISTRY: dict[int, PGNDefinition] = {
+    # GPS / Navigation
+    65267: PGN_65267,           # VP: latitude, longitude
+    65256: PGN_65256,           # VDS: compass, nav speed, pitch, altitude
+    65254: PGN_65254,           # TD: time/date
     # Engine
     61443: PGN_61443,           # EEC2: accel pedal, load
     61444: PGN_61444,           # EEC1: RPM, torque

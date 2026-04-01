@@ -3,6 +3,9 @@
 import { lookupSPN, lookupFMI } from "../lib/spn-lookup";
 import { lookupPCode } from "../lib/pcode-lookup";
 import TrendChart from "./TrendChart";
+import dynamic from "next/dynamic";
+
+const TruckMap = dynamic(() => import("./TruckMap"), { ssr: false });
 
 import React, { useState, useEffect, useCallback } from "react";
 
@@ -148,11 +151,21 @@ const BRAKES_FIELDS = [
   { key: "brake_air_pressure_psi", label: "Brake Air Pressure" },
 ];
 
+const NAVIGATION_FIELDS = [
+  { key: "gps_latitude", label: "Latitude" },
+  { key: "gps_longitude", label: "Longitude" },
+  { key: "compass_bearing_deg", label: "Heading" },
+  { key: "altitude_ft", label: "Altitude" },
+  { key: "nav_speed_mph", label: "GPS Speed" },
+  { key: "vehicle_pitch_deg", label: "Pitch" },
+];
+
 const EXTENDED_ENGINE_FIELDS = [
   { key: "exhaust_gas_pressure_psi", label: "Exhaust Pressure" },
-  { key: "turbo_speed_rpm", label: "Turbo Speed" },
   { key: "vehicle_distance_mi", label: "Odometer" },
   { key: "cruise_control_active", label: "Cruise Active" },
+  { key: "clutch_slip_pct", label: "Clutch Slip" },
+  { key: "trans_output_rpm", label: "Trans Output RPM" },
 ];
 
 const TOTAL_FIELDS = [
@@ -815,6 +828,13 @@ ${aiSummary ? `<h2>AI Vehicle Health Summary</h2><div style="white-space:pre-wra
   const idleWaste = readings?.idle_waste_active === true;
   const harshBehavior = readings?.harsh_behavior_flag === true;
 
+  // GPS data
+  const gpsLat = readings?.gps_latitude as number ?? null;
+  const gpsLon = readings?.gps_longitude as number ?? null;
+  const gpsHeading = readings?.compass_bearing_deg as number ?? null;
+  const gpsSpeed = readings?.nav_speed_mph as number ?? null;
+  const gpsAlt = readings?.altitude_ft as number ?? null;
+
   // Render a section of fields
   const renderFields = (
     fields: { key: string; label: string; highlight?: boolean }[],
@@ -948,6 +968,18 @@ ${aiSummary ? `<h2>AI Vehicle Health Summary</h2><div style="white-space:pre-wra
           </span>
         )}
       </div>
+
+      {/* Live Map */}
+      {vehicleMode === "truck" && (
+        <TruckMap
+          latitude={gpsLat}
+          longitude={gpsLon}
+          heading={gpsHeading}
+          speed={gpsSpeed}
+          altitude={gpsAlt}
+          vehicleState={vehicleState}
+        />
+      )}
 
       {/* Staleness warning */}
       {busConnected && secsSinceFrame > 5 && (
@@ -1139,6 +1171,7 @@ ${aiSummary ? `<h2>AI Vehicle Health Summary</h2><div style="white-space:pre-wra
         {vehicleMode === "truck" && renderFields(AFTERTREATMENT_FIELDS, "Aftertreatment", "\u{2601}\uFE0F")}
         {vehicleMode === "truck" && renderFields(BRAKES_FIELDS, "Brakes & Safety", "\u{1F6D1}")}
         {vehicleMode === "truck" && renderFields(HYDRAULIC_FIELDS, "PTO / Hydraulics", "\u{1F527}")}
+        {vehicleMode === "truck" && renderFields(NAVIGATION_FIELDS, "Navigation / GPS", "\u{1F4CD}")}
         {vehicleMode === "truck" && renderFields(EXTENDED_ENGINE_FIELDS, "Extended Engine", "\u{1F50C}")}
         {vehicleMode === "truck" && renderFields(TOTAL_FIELDS, "Lifetime", "\u{1F4C8}")}
         {vehicleMode === "car" && renderFields(CAR_FUEL_FIELDS, "Diagnostics", "\u{1F527}")}
