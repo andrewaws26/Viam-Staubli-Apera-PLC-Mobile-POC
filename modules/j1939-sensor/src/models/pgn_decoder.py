@@ -93,6 +93,17 @@ def _decode_scaled(data: bytes, start_byte: int, length_bits: int,
     return round(raw * resolution + offset, 4)
 
 
+def _decode_2bit_status(data: bytes, byte_idx: int, bit_offset: int) -> Optional[bool]:
+    """Decode a J1939 2-bit status field. 00=off, 01=on, 10=error, 11=N/A."""
+    val = _get_byte(data, byte_idx)
+    if val is None:
+        return None
+    bits = (val >> bit_offset) & 0x03
+    if bits == 3:
+        return None  # not available
+    return bits == 1  # 1 = active/on
+
+
 def extract_pgn_from_can_id(can_id: int) -> int:
     """
     Extract the PGN from a 29-bit extended CAN ID.
@@ -474,9 +485,9 @@ PGN_64777 = PGNDefinition(
     name="Trip Fuel — Total Vehicle (TF_TV)",
     spns=[
         SPNDefinition(4154, "Trip Fuel", "trip_fuel_gal",
-                      0, 32, 0.5 * 0.264172, 0, "gal"),
+                      0, 32, 0.001 * 0.264172, 0, "gal"),
         SPNDefinition(4155, "Trip Fuel 2", "trip_fuel_2_gal",
-                      4, 32, 0.5 * 0.264172, 0, "gal"),
+                      4, 32, 0.001 * 0.264172, 0, "gal"),
     ]
 )
 
@@ -485,7 +496,7 @@ PGN_65216 = PGNDefinition(
     name="Service Information (SERV)",
     spns=[
         SPNDefinition(914, "Service Distance", "service_distance_mi",
-                      0, 16, 5.0 * 0.621371, -160934, "mi"),
+                      0, 16, 5.0 * 0.621371, 0, "mi"),
         SPNDefinition(915, "Service Component ID", "service_component_id",
                       4, 8, 1.0, 0, ""),
     ]
@@ -596,8 +607,8 @@ PGN_64891 = PGNDefinition(
         SPNDefinition(3719, "DPF Soot Load Percent", "dpf_soot_load_pct",
                       0, 8, 1.0, 0, "%"),
         SPNDefinition(3251, "DPF Differential Pressure", "dpf_diff_pressure_psi",
-                      1, 16, 0.1, 0, "kPa",
-                      decode_fn=lambda d: _decode_pressure_psi(d, 1, 16, 0.1, 0)),
+                      1, 16, 0.01, 0, "kPa",
+                      decode_fn=lambda d: _decode_pressure_psi(d, 1, 16, 0.01, 0)),
         SPNDefinition(3242, "DPF Inlet Temperature", "dpf_inlet_temp_f",
                       3, 16, 0.03125, -273, "F",
                       decode_fn=lambda d: _decode_temp_f(d, 3, 16, 0.03125, -273)),
@@ -612,9 +623,11 @@ PGN_64892 = PGNDefinition(
     name="Aftertreatment DPF Regen (AT1DPF2)",
     spns=[
         SPNDefinition(3695, "DPF Regen Status", "dpf_regen_status",
-                      0, 8, 1.0, 0, ""),
+                      0, 8, 1.0, 0, "",
+                      decode_fn=lambda d: {0: "Not Active", 1: "Active", 2: "Regen Needed", 3: "Not Available"}.get((_get_byte(d, 0) or 0) & 0x03, "Unknown")),
         SPNDefinition(3700, "DPF Regen Inhibit Status", "dpf_regen_inhibit",
-                      1, 8, 1.0, 0, ""),
+                      1, 8, 1.0, 0, "",
+                      decode_fn=lambda d: _decode_2bit_status(d, 1, 0)),
     ]
 )
 
@@ -641,7 +654,8 @@ PGN_61441 = PGNDefinition(
         SPNDefinition(521, "Brake Pedal Position", "brake_pedal_pos_pct",
                       1, 8, 0.4, 0, "%"),
         SPNDefinition(563, "ABS Active", "abs_active",
-                      2, 8, 1.0, 0, ""),
+                      2, 8, 1.0, 0, "",
+                      decode_fn=lambda d: _decode_2bit_status(d, 2, 0)),
         SPNDefinition(116, "Brake Application Pressure", "brake_air_pressure_psi",
                       3, 8, 4.0, 0, "psi",
                       decode_fn=lambda d: _decode_pressure_psi(d, 3, 8, 4.0, 0)),
@@ -707,7 +721,8 @@ PGN_65265_EXT = PGNDefinition(
         SPNDefinition(597, "Brake Switch", "brake_switch",
                       3, 8, 1.0, 0.0, ""),
         SPNDefinition(595, "Cruise Control Active", "cruise_control_active",
-                      0, 8, 1.0, 0, ""),
+                      0, 8, 1.0, 0, "",
+                      decode_fn=lambda d: _decode_2bit_status(d, 0, 0)),
     ]
 )
 

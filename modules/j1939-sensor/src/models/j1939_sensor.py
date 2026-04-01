@@ -412,19 +412,24 @@ class J1939TruckSensor(Sensor):
         decoded = {}
 
         if pgn == 65260:  # Vehicle Identification (VI) — contains VIN
-            # VIN is ASCII string, null-padded, up to 17+ chars
-            vin = data.decode("ascii", errors="ignore").rstrip("\x00").rstrip("*").strip()
+            # VIN is ASCII, first byte is count, then the VIN string
+            raw_str = data.decode("ascii", errors="ignore").rstrip("\x00").rstrip("*").strip()
+            # Extract only alphanumeric VIN chars (17 chars standard)
+            vin = "".join(c for c in raw_str if c.isalnum())[:17]
             if len(vin) >= 10:
                 decoded["vin"] = vin
                 LOGGER.info(f"VIN decoded: {vin}")
 
         elif pgn == 65242:  # Software Identification
-            sw_id = data.decode("ascii", errors="ignore").rstrip("\x00").strip()
+            raw_str = data.decode("ascii", errors="ignore").rstrip("\x00").strip()
+            # Take just the first meaningful part (before repeating P01* patterns)
+            sw_id = raw_str.split("*")[0].strip() if "*" in raw_str else raw_str[:30]
             if sw_id:
                 decoded["software_id"] = sw_id
 
         elif pgn == 65259:  # Component Identification
-            comp_id = data.decode("ascii", errors="ignore").rstrip("\x00").strip()
+            raw_str = data.decode("ascii", errors="ignore").rstrip("\x00").strip()
+            comp_id = raw_str[:50]  # truncate
             if comp_id:
                 decoded["component_id"] = comp_id
 
@@ -550,8 +555,12 @@ class J1939TruckSensor(Sensor):
         if idle_hours is not None and engine_hours is not None and engine_hours > 0:
             readings["idle_pct"] = round((idle_hours / engine_hours) * 100, 1)
 
-        # Cost per mile
-        if total_fuel is not None and distance is not None and distance > 0:
+        # Cost per mile — use instantaneous fuel economy, not lifetime totals
+        fuel_econ = readings.get("fuel_economy_mpg", None)
+        if fuel_econ is not None and fuel_econ > 0:
+            readings["fuel_cost_per_mile"] = round(FUEL_PRICE / fuel_econ, 3)
+        elif total_fuel is not None and distance is not None and distance > 100:
+            # Fallback to lifetime average only if we have significant distance
             readings["fuel_cost_per_mile"] = round((total_fuel * FUEL_PRICE) / distance, 3)
 
         # PTO duty cycle
@@ -575,15 +584,26 @@ class J1939TruckSensor(Sensor):
         if def_level is not None:
             readings["def_low"] = def_level < 15
 
-        # Battery health
+        # Battery health — 12.0-12.6V is normal for engine-off, 13.5-14.5V for running
         batt = readings.get("battery_voltage_v", None)
+        rpm = readings.get("engine_rpm", 0) or 0
         if batt is not None:
-            if batt < 11.8:
-                readings["battery_health"] = "CRITICAL"
-            elif batt < 12.4:
-                readings["battery_health"] = "LOW"
+            if rpm > 0:
+                # Engine running — alternator should be charging
+                if batt < 13.0:
+                    readings["battery_health"] = "LOW"
+                elif batt > 15.0:
+                    readings["battery_health"] = "OVERCHARGE"
+                else:
+                    readings["battery_health"] = "OK"
             else:
-                readings["battery_health"] = "OK"
+                # Engine off — resting voltage
+                if batt < 11.5:
+                    readings["battery_health"] = "CRITICAL"
+                elif batt < 12.0:
+                    readings["battery_health"] = "LOW"
+                else:
+                    readings["battery_health"] = "OK"
 
         # ---------------------------------------------------------------
         # System health + offline buffer
