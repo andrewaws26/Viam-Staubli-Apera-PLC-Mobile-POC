@@ -186,6 +186,10 @@ class J1939TruckSensor(Sensor):
         self._protocol = "j1939"
         self._obd2_poller: OBD2Poller | None = None
         self._offline_buffer: OfflineBuffer | None = None
+        # State inference
+        self._prev_speed: float = 0.0
+        self._prev_accel_pedal: float = 0.0
+        self._prev_readings_time: float = 0.0
 
     @classmethod
     def new(cls, config: ComponentConfig,
@@ -400,7 +404,64 @@ class J1939TruckSensor(Sensor):
             else:
                 readings["_seconds_since_last_frame"] = -1
 
-        # Merge system health into readings
+        # ---------------------------------------------------------------
+        # Task 2: Vehicle State Inference
+        # ---------------------------------------------------------------
+        rpm = readings.get("engine_rpm", None)
+        secs_since = readings.get("_seconds_since_last_frame", -1)
+        frame_count = readings.get("_frame_count", 0)
+
+        if frame_count == 0 or secs_since > 60 or secs_since == -1:
+            readings["vehicle_state"] = "Truck Off"
+        elif rpm is not None and rpm > 0:
+            readings["vehicle_state"] = "Engine On"
+        elif rpm is not None and rpm == 0:
+            readings["vehicle_state"] = "Ignition On"
+        elif rpm is None and secs_since >= 0 and secs_since < 60:
+            # Receiving frames but no RPM decoded — could be KOEO
+            has_any_data = any(
+                k in readings for k in ("battery_voltage_v", "coolant_temp_f", "oil_pressure_psi")
+            )
+            readings["vehicle_state"] = "Ignition On" if has_any_data else "Unknown"
+        else:
+            readings["vehicle_state"] = "Unknown"
+
+        # ---------------------------------------------------------------
+        # Task 3: Derived Fleet Metrics
+        # ---------------------------------------------------------------
+        now = time.time()
+        speed = readings.get("vehicle_speed_mph", 0) or 0
+        accel = readings.get("accel_pedal_pos_pct", 0) or 0
+        pto = readings.get("pto_engaged", None)
+
+        # Idle Waste: engine on, not moving, PTO not engaged
+        readings["idle_waste_active"] = (
+            readings["vehicle_state"] == "Engine On"
+            and speed == 0
+            and (pto is None or pto == 0)
+        )
+
+        # Harsh Behavior: rapid delta in speed or accelerator pedal
+        dt = now - self._prev_readings_time if self._prev_readings_time > 0 else 1.0
+        if dt > 0 and dt < 10:  # only valid for consecutive 1Hz readings
+            speed_delta = abs(speed - self._prev_speed)
+            accel_delta = abs(accel - self._prev_accel_pedal)
+            # Thresholds: >7 mph/s decel = hard brake, >30% pedal change/s = aggressive
+            readings["harsh_braking"] = speed_delta > 7 and speed < self._prev_speed
+            readings["harsh_acceleration"] = accel_delta > 30
+            readings["harsh_behavior_flag"] = readings["harsh_braking"] or readings["harsh_acceleration"]
+        else:
+            readings["harsh_braking"] = False
+            readings["harsh_acceleration"] = False
+            readings["harsh_behavior_flag"] = False
+
+        self._prev_speed = speed
+        self._prev_accel_pedal = accel
+        self._prev_readings_time = now
+
+        # ---------------------------------------------------------------
+        # System health + offline buffer
+        # ---------------------------------------------------------------
         try:
             readings.update(get_system_health())
         except Exception:

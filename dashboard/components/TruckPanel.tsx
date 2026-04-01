@@ -129,6 +129,32 @@ const HYDRAULIC_FIELDS = [
   { key: "retarder_torque_pct", label: "Retarder Torque" },
 ];
 
+const AFTERTREATMENT_FIELDS = [
+  { key: "dpf_soot_load_pct", label: "DPF Soot Load", highlight: true },
+  { key: "dpf_regen_status", label: "DPF Regen Status" },
+  { key: "dpf_diff_pressure_psi", label: "DPF Diff Pressure" },
+  { key: "dpf_inlet_temp_f", label: "DPF Inlet Temp" },
+  { key: "dpf_outlet_temp_f", label: "DPF Outlet Temp" },
+  { key: "def_level_pct", label: "DEF Level" },
+  { key: "def_temp_f", label: "DEF Temp" },
+  { key: "nox_inlet_ppm", label: "NOx Inlet" },
+  { key: "nox_outlet_ppm", label: "NOx Outlet" },
+  { key: "scr_catalyst_temp_f", label: "SCR Catalyst Temp" },
+];
+
+const BRAKES_FIELDS = [
+  { key: "brake_pedal_pos_pct", label: "Brake Pedal", highlight: true },
+  { key: "abs_active", label: "ABS Active" },
+  { key: "brake_air_pressure_psi", label: "Brake Air Pressure" },
+];
+
+const EXTENDED_ENGINE_FIELDS = [
+  { key: "exhaust_gas_pressure_psi", label: "Exhaust Pressure" },
+  { key: "turbo_speed_rpm", label: "Turbo Speed" },
+  { key: "vehicle_distance_mi", label: "Odometer" },
+  { key: "cruise_control_active", label: "Cruise Active" },
+];
+
 const TOTAL_FIELDS = [
   { key: "engine_hours", label: "Engine Hours" },
   { key: "total_fuel_used_gal", label: "Total Fuel" },
@@ -784,6 +810,11 @@ ${aiSummary ? `<h2>AI Vehicle Health Summary</h2><div style="white-space:pre-wra
   const dtcCount = readings?.active_dtc_count as number ?? 0;
   const hasData = readings && frameCount > 0;
 
+  // Vehicle state inference
+  const vehicleState = (readings?.vehicle_state as string) ?? "Unknown";
+  const idleWaste = readings?.idle_waste_active === true;
+  const harshBehavior = readings?.harsh_behavior_flag === true;
+
   // Render a section of fields
   const renderFields = (
     fields: { key: string; label: string; highlight?: boolean }[],
@@ -889,6 +920,33 @@ ${aiSummary ? `<h2>AI Vehicle Health Summary</h2><div style="white-space:pre-wra
             </span>
           </div>
         </div>
+      </div>
+
+      {/* Vehicle State + Alerts Bar */}
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        {/* State Badge */}
+        <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
+          vehicleState === "Engine On" ? "bg-green-600 text-white" :
+          vehicleState === "Ignition On" ? "bg-yellow-600 text-white" :
+          vehicleState === "Truck Off" ? "bg-gray-700 text-gray-300" :
+          "bg-red-800 text-white"
+        }`}>
+          {vehicleState}
+        </span>
+
+        {/* Idle Waste Alert */}
+        {idleWaste && (
+          <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-orange-600/30 text-orange-300 border border-orange-600/50">
+            IDLE WASTE
+          </span>
+        )}
+
+        {/* Harsh Behavior Alert */}
+        {harshBehavior && (
+          <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-red-600/30 text-red-300 border border-red-600/50 animate-pulse">
+            HARSH EVENT
+          </span>
+        )}
       </div>
 
       {/* Staleness warning */}
@@ -1078,7 +1136,10 @@ ${aiSummary ? `<h2>AI Vehicle Health Summary</h2><div style="white-space:pre-wra
           vehicleMode === "car" ? CAR_VEHICLE_FIELDS : VEHICLE_FIELDS,
           "Vehicle", "\u{1F698}"
         )}
+        {vehicleMode === "truck" && renderFields(AFTERTREATMENT_FIELDS, "Aftertreatment", "\u{2601}\uFE0F")}
+        {vehicleMode === "truck" && renderFields(BRAKES_FIELDS, "Brakes & Safety", "\u{1F6D1}")}
         {vehicleMode === "truck" && renderFields(HYDRAULIC_FIELDS, "PTO / Hydraulics", "\u{1F527}")}
+        {vehicleMode === "truck" && renderFields(EXTENDED_ENGINE_FIELDS, "Extended Engine", "\u{1F50C}")}
         {vehicleMode === "truck" && renderFields(TOTAL_FIELDS, "Lifetime", "\u{1F4C8}")}
         {vehicleMode === "car" && renderFields(CAR_FUEL_FIELDS, "Diagnostics", "\u{1F527}")}
       </div>

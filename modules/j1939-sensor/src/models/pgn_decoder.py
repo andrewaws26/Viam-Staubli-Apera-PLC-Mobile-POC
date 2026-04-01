@@ -389,6 +389,165 @@ PGN_65226 = PGNDefinition(
 
 
 # ---------------------------------------------------------------------------
+# Aftertreatment PGN Definitions
+# ---------------------------------------------------------------------------
+
+PGN_64947 = PGNDefinition(
+    pgn=64947,
+    name="Aftertreatment 1 Intake Gas 1 (AT1IG1)",
+    spns=[
+        SPNDefinition(4326, "Aftertreatment 1 Intake NOx", "nox_inlet_ppm",
+                      0, 16, 0.05, -200.0, "ppm"),
+        SPNDefinition(4327, "Aftertreatment 1 Intake O2", "at1_intake_o2_pct",
+                      5, 16, 0.0025, -12.0, "%"),
+    ]
+)
+
+PGN_64948 = PGNDefinition(
+    pgn=64948,
+    name="Aftertreatment 1 Outlet Gas 1 (AT1OG1)",
+    spns=[
+        SPNDefinition(4331, "Aftertreatment 1 Outlet NOx", "nox_outlet_ppm",
+                      0, 16, 0.05, -200.0, "ppm"),
+    ]
+)
+
+PGN_65110 = PGNDefinition(
+    pgn=65110,
+    name="Aftertreatment 1 Diesel Exhaust Fluid Info (AT1DEF)",
+    spns=[
+        SPNDefinition(1761, "DEF Tank Level", "def_level_pct",
+                      0, 8, 0.4, 0, "%"),
+        SPNDefinition(3031, "DEF Temperature", "def_temp_f",
+                      1, 8, 1.0, -40, "F",
+                      decode_fn=lambda d: _decode_temp_f(d, 1, 8, 1.0, -40)),
+    ]
+)
+
+PGN_64891 = PGNDefinition(
+    pgn=64891,
+    name="Aftertreatment 1 DPF Conditions (AT1DPF)",
+    spns=[
+        SPNDefinition(3719, "DPF Soot Load Percent", "dpf_soot_load_pct",
+                      0, 8, 1.0, 0, "%"),
+        SPNDefinition(3251, "DPF Differential Pressure", "dpf_diff_pressure_psi",
+                      1, 16, 0.1, 0, "kPa",
+                      decode_fn=lambda d: _decode_pressure_psi(d, 1, 16, 0.1, 0)),
+        SPNDefinition(3242, "DPF Inlet Temperature", "dpf_inlet_temp_f",
+                      3, 16, 0.03125, -273, "F",
+                      decode_fn=lambda d: _decode_temp_f(d, 3, 16, 0.03125, -273)),
+        SPNDefinition(3246, "DPF Outlet Temperature", "dpf_outlet_temp_f",
+                      5, 16, 0.03125, -273, "F",
+                      decode_fn=lambda d: _decode_temp_f(d, 5, 16, 0.03125, -273)),
+    ]
+)
+
+PGN_64892 = PGNDefinition(
+    pgn=64892,
+    name="Aftertreatment DPF Regen (AT1DPF2)",
+    spns=[
+        SPNDefinition(3695, "DPF Regen Status", "dpf_regen_status",
+                      0, 8, 1.0, 0, ""),
+        SPNDefinition(3700, "DPF Regen Inhibit Status", "dpf_regen_inhibit",
+                      1, 8, 1.0, 0, ""),
+    ]
+)
+
+PGN_65252 = PGNDefinition(
+    pgn=65252,
+    name="Aftertreatment 1 SCR Catalyst (AT1SC)",
+    spns=[
+        SPNDefinition(4360, "SCR Conversion Efficiency", "scr_efficiency_pct",
+                      0, 8, 0.4, 0, "%"),
+        SPNDefinition(4363, "SCR Catalyst Temperature", "scr_catalyst_temp_f",
+                      2, 16, 0.03125, -273, "F",
+                      decode_fn=lambda d: _decode_temp_f(d, 2, 16, 0.03125, -273)),
+    ]
+)
+
+# ---------------------------------------------------------------------------
+# Brakes & Safety PGN Definitions
+# ---------------------------------------------------------------------------
+
+PGN_61441 = PGNDefinition(
+    pgn=61441,
+    name="Electronic Brake Controller 1 (EBC1)",
+    spns=[
+        SPNDefinition(521, "Brake Pedal Position", "brake_pedal_pos_pct",
+                      1, 8, 0.4, 0, "%"),
+        SPNDefinition(563, "ABS Active", "abs_active",
+                      2, 8, 1.0, 0, ""),
+        SPNDefinition(116, "Brake Application Pressure", "brake_air_pressure_psi",
+                      3, 8, 4.0, 0, "psi",
+                      decode_fn=lambda d: _decode_pressure_psi(d, 3, 8, 4.0, 0)),
+    ]
+)
+
+# ---------------------------------------------------------------------------
+# Extended Engine & Vehicle PGN Definitions
+# ---------------------------------------------------------------------------
+
+PGN_65247 = PGNDefinition(
+    pgn=65247,
+    name="Electronic Engine Controller 3 (EEC3)",
+    spns=[
+        SPNDefinition(514, "Nominal Friction Percent Torque", "friction_torque_pct",
+                      0, 8, 1.0, -125, "%"),
+        SPNDefinition(2978, "Estimated Engine Parasitic Losses", "parasitic_losses_pct",
+                      1, 8, 0.4, 0, "%"),
+        SPNDefinition(1636, "Exhaust Gas Pressure", "exhaust_gas_pressure_psi",
+                      2, 16, 0.01, 0, "kPa",
+                      decode_fn=lambda d: _decode_pressure_psi(d, 2, 16, 0.01, 0)),
+    ]
+)
+
+PGN_65248 = PGNDefinition(
+    pgn=65248,
+    name="Vehicle Distance (VD)",
+    spns=[
+        SPNDefinition(245, "Total Vehicle Distance", "vehicle_distance_mi",
+                      0, 32, 0.125 * 0.000621371, 0, "mi"),
+    ]
+)
+
+PGN_65217 = PGNDefinition(
+    pgn=65217,
+    name="High Resolution Vehicle Distance (VDHR)",
+    spns=[
+        SPNDefinition(917, "High Resolution Total Vehicle Distance", "vehicle_distance_hr_mi",
+                      0, 32, 0.005 * 0.000621371, 0, "mi"),
+    ]
+)
+
+PGN_61442 = PGNDefinition(
+    pgn=61442,
+    name="Electronic Transmission Controller 1 (ETC1)",
+    spns=[
+        SPNDefinition(522, "Torque Converter Lockup Engaged", "tc_lockup_engaged",
+                      0, 8, 1.0, 0, ""),
+        SPNDefinition(525, "Transmission Output Shaft Speed", "trans_output_rpm",
+                      3, 16, 0.125, 0, "rpm"),
+        SPNDefinition(526, "Percent Clutch Slip", "clutch_slip_pct",
+                      5, 8, 0.4, 0, "%"),
+    ]
+)
+
+# Cruise control detailed — extend CCVS to also extract cruise status
+PGN_65265_EXT = PGNDefinition(
+    pgn=65265,
+    name="Cruise Control/Vehicle Speed (CCVS) - Extended",
+    spns=[
+        SPNDefinition(84, "Wheel-Based Vehicle Speed", "vehicle_speed_mph",
+                      1, 16, 0.00390625 * 0.621371, 0.0, "mph"),
+        SPNDefinition(597, "Brake Switch", "brake_switch",
+                      3, 8, 1.0, 0.0, ""),
+        SPNDefinition(595, "Cruise Control Active", "cruise_control_active",
+                      0, 8, 1.0, 0, ""),
+    ]
+)
+
+
+# ---------------------------------------------------------------------------
 # PTO / Hydraulic PGN Definitions
 # ---------------------------------------------------------------------------
 
@@ -456,26 +615,51 @@ PGN_61440 = PGNDefinition(
 # ---------------------------------------------------------------------------
 
 PGN_REGISTRY: dict[int, PGNDefinition] = {
-    61443: PGN_61443,
-    61444: PGN_61444,
-    61445: PGN_61445,
-    65226: PGN_65226,
-    65253: PGN_65253,
-    65257: PGN_65257,
-    65262: PGN_65262,
-    65263: PGN_65263,
-    65265: PGN_65265,
-    65266: PGN_65266,
-    65269: PGN_65269,
-    65270: PGN_65270,
-    65271: PGN_65271,
-    65272: PGN_65272,
-    65276: PGN_65276,
+    # Engine
+    61443: PGN_61443,           # EEC2: accel pedal, load
+    61444: PGN_61444,           # EEC1: RPM, torque
+    65247: PGN_65247,           # EEC3: exhaust pressure, friction
+    # Transmission
+    61442: PGN_61442,           # ETC1: output shaft, clutch slip
+    61445: PGN_61445,           # ETC2: current/selected gear
+    # Brakes
+    61441: PGN_61441,           # EBC1: brake pedal, ABS, air pressure
+    # Retarder
+    61440: PGN_61440,           # ERC1: retarder torque
+    # Temperatures
+    65262: PGN_65262,           # ET1: coolant, fuel, oil temp
+    # Pressures
+    65263: PGN_65263,           # EFL/P: oil pressure, fuel pressure
+    # Vehicle
+    65265: PGN_65265_EXT,       # CCVS: speed, brake switch, cruise control
+    65248: PGN_65248,           # VD: total vehicle distance (odometer)
+    65217: PGN_65217,           # VDHR: high resolution distance
+    # Fuel
+    65266: PGN_65266,           # LFE: fuel rate, economy
+    65257: PGN_65257,           # LFC: total fuel consumed
+    65276: PGN_65276,           # DD: fuel level
+    # Ambient / Inlet
+    65269: PGN_65269,           # AMB: barometric, ambient temp
+    65270: PGN_65270,           # IC1: intake temp, boost pressure
+    # Electrical
+    65271: PGN_65271,           # VEP: battery voltage
+    # Transmission fluids
+    65272: PGN_65272,           # TF: trans oil temp
+    # Engine hours
+    65253: PGN_65253,           # HOURS: engine hours
+    # DTCs
+    65226: PGN_65226,           # DM1: active diagnostic trouble codes
+    # Aftertreatment
+    64891: PGN_64891,           # AT1DPF: soot load, diff pressure, temps
+    64892: PGN_64892,           # AT1DPF2: regen status
+    64947: PGN_64947,           # AT1IG1: NOx inlet
+    64948: PGN_64948,           # AT1OG1: NOx outlet
+    65110: PGN_65110,           # AT1DEF: DEF level, temp
+    65252: PGN_65252,           # AT1SC: SCR efficiency, catalyst temp
     # PTO / Hydraulic
-    61440: PGN_61440,
-    65091: PGN_65091,
-    65098: PGN_65098,
-    65268: PGN_65268,
+    65091: PGN_65091,           # PTODE: PTO engagement, speed
+    65098: PGN_65098,           # VF: hydraulic oil temp, pressure, level
+    65268: PGN_65268,           # AUX: PTO switches, aux IO
 }
 
 
