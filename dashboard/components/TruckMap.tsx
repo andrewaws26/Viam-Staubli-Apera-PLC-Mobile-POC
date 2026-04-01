@@ -42,7 +42,7 @@ export default function TruckMap({ latitude, longitude, heading, speed, altitude
   }, [latitude, longitude]);
 
   if (!mounted) return null;
-  if (!latitude || !longitude) return <div className="p-4 text-gray-500 bg-gray-900/50 rounded-lg border border-gray-800 mb-3">📍 Waiting for GPS lock...</div>;
+  if (!latitude || !longitude) return <div className="p-4 text-gray-500 bg-gray-900/50 rounded-lg border border-gray-800 mb-3 text-center">📍 Waiting for GPS lock...</div>;
 
   return (
     <div className="bg-gray-900/50 border border-gray-800 rounded-lg overflow-hidden mb-3">
