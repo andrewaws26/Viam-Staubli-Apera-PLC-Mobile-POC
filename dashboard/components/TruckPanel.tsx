@@ -160,9 +160,26 @@ const NAVIGATION_FIELDS = [
   { key: "vehicle_pitch_deg", label: "Pitch" },
 ];
 
+const IDLE_TRIP_FIELDS = [
+  { key: "idle_fuel_used_gal", label: "Idle Fuel Used", highlight: true },
+  { key: "idle_engine_hours", label: "Idle Hours" },
+  { key: "trip_fuel_gal", label: "Trip Fuel" },
+  { key: "service_distance_mi", label: "Next Service" },
+  { key: "fan_speed_pct", label: "Fan Speed" },
+  { key: "turbo_wastegate_pct", label: "Turbo Wastegate" },
+];
+
+const AIR_BRAKE_FIELDS = [
+  { key: "air_supply_pressure_psi", label: "Air Supply", highlight: true },
+  { key: "air_pressure_circuit1_psi", label: "Circuit 1" },
+  { key: "air_pressure_circuit2_psi", label: "Circuit 2" },
+  { key: "front_axle_speed_mph", label: "Front Axle Speed" },
+];
+
 const EXTENDED_ENGINE_FIELDS = [
   { key: "exhaust_gas_pressure_psi", label: "Exhaust Pressure" },
   { key: "vehicle_distance_mi", label: "Odometer" },
+  { key: "vehicle_distance_hr_mi", label: "Odometer (HR)" },
   { key: "cruise_control_active", label: "Cruise Active" },
   { key: "clutch_slip_pct", label: "Clutch Slip" },
   { key: "trans_output_rpm", label: "Trans Output RPM" },
@@ -1171,6 +1188,8 @@ ${aiSummary ? `<h2>AI Vehicle Health Summary</h2><div style="white-space:pre-wra
         {vehicleMode === "truck" && renderFields(AFTERTREATMENT_FIELDS, "Aftertreatment", "\u{2601}\uFE0F")}
         {vehicleMode === "truck" && renderFields(BRAKES_FIELDS, "Brakes & Safety", "\u{1F6D1}")}
         {vehicleMode === "truck" && renderFields(HYDRAULIC_FIELDS, "PTO / Hydraulics", "\u{1F527}")}
+        {vehicleMode === "truck" && renderFields(IDLE_TRIP_FIELDS, "Idle / Trip / Service", "\u{23F1}\uFE0F")}
+        {vehicleMode === "truck" && renderFields(AIR_BRAKE_FIELDS, "Air / Wheel Speed", "\u{1F6DE}\uFE0F")}
         {vehicleMode === "truck" && renderFields(NAVIGATION_FIELDS, "Navigation / GPS", "\u{1F4CD}")}
         {vehicleMode === "truck" && renderFields(EXTENDED_ENGINE_FIELDS, "Extended Engine", "\u{1F50C}")}
         {vehicleMode === "truck" && renderFields(TOTAL_FIELDS, "Lifetime", "\u{1F4C8}")}

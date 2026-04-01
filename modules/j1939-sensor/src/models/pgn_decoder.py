@@ -455,6 +455,105 @@ PGN_65254 = PGNDefinition(
 
 
 # ---------------------------------------------------------------------------
+# Idle / Trip / Service PGN Definitions
+# ---------------------------------------------------------------------------
+
+PGN_65244 = PGNDefinition(
+    pgn=65244,
+    name="Idle Operation (IO)",
+    spns=[
+        SPNDefinition(235, "Idle Fuel Used", "idle_fuel_used_gal",
+                      0, 32, 0.5 * 0.264172, 0, "gal"),
+        SPNDefinition(236, "Idle Engine Hours", "idle_engine_hours",
+                      4, 32, 0.05, 0, "hr"),
+    ]
+)
+
+PGN_64777 = PGNDefinition(
+    pgn=64777,
+    name="Trip Fuel — Total Vehicle (TF_TV)",
+    spns=[
+        SPNDefinition(4154, "Trip Fuel", "trip_fuel_gal",
+                      0, 32, 0.5 * 0.264172, 0, "gal"),
+        SPNDefinition(4155, "Trip Fuel 2", "trip_fuel_2_gal",
+                      4, 32, 0.5 * 0.264172, 0, "gal"),
+    ]
+)
+
+PGN_65216 = PGNDefinition(
+    pgn=65216,
+    name="Service Information (SERV)",
+    spns=[
+        SPNDefinition(914, "Service Distance", "service_distance_mi",
+                      0, 16, 5.0 * 0.621371, -160934, "mi"),
+        SPNDefinition(915, "Service Component ID", "service_component_id",
+                      4, 8, 1.0, 0, ""),
+    ]
+)
+
+PGN_65213 = PGNDefinition(
+    pgn=65213,
+    name="Fan Drive State (FD)",
+    spns=[
+        SPNDefinition(975, "Estimated Fan Speed Percent", "fan_speed_pct",
+                      0, 8, 0.4, 0, "%"),
+        SPNDefinition(976, "Fan Drive State", "fan_drive_state",
+                      1, 8, 1.0, 0, ""),
+    ]
+)
+
+# ---------------------------------------------------------------------------
+# Wheel Speed / Air Supply PGN Definitions
+# ---------------------------------------------------------------------------
+
+PGN_65215 = PGNDefinition(
+    pgn=65215,
+    name="Wheel Speed Information (EBC2)",
+    spns=[
+        SPNDefinition(904, "Front Axle Speed", "front_axle_speed_mph",
+                      0, 16, 0.00390625 * 0.621371, 0, "mph"),
+        SPNDefinition(905, "Relative Speed Front Left", "rel_speed_front_left",
+                      2, 8, 0.0625 * 0.621371, -7.8125 * 0.621371, "mph"),
+        SPNDefinition(906, "Relative Speed Front Right", "rel_speed_front_right",
+                      3, 8, 0.0625 * 0.621371, -7.8125 * 0.621371, "mph"),
+        SPNDefinition(907, "Relative Speed Rear Left", "rel_speed_rear_left",
+                      4, 8, 0.0625 * 0.621371, -7.8125 * 0.621371, "mph"),
+        SPNDefinition(908, "Relative Speed Rear Right", "rel_speed_rear_right",
+                      5, 8, 0.0625 * 0.621371, -7.8125 * 0.621371, "mph"),
+    ]
+)
+
+PGN_65198 = PGNDefinition(
+    pgn=65198,
+    name="Air Supply Pressure (ASP)",
+    spns=[
+        SPNDefinition(46, "Pneumatic Supply Pressure", "air_supply_pressure_psi",
+                      0, 8, 8.0, 0, "kPa",
+                      decode_fn=lambda d: _decode_pressure_psi(d, 0, 8, 8.0, 0)),
+        SPNDefinition(1086, "Air Supply Pressure Circuit 1", "air_pressure_circuit1_psi",
+                      2, 8, 8.0, 0, "kPa",
+                      decode_fn=lambda d: _decode_pressure_psi(d, 2, 8, 8.0, 0)),
+        SPNDefinition(1087, "Air Supply Pressure Circuit 2", "air_pressure_circuit2_psi",
+                      3, 8, 8.0, 0, "kPa",
+                      decode_fn=lambda d: _decode_pressure_psi(d, 3, 8, 8.0, 0)),
+    ]
+)
+
+# ---------------------------------------------------------------------------
+# Turbo / EGR PGN Definitions
+# ---------------------------------------------------------------------------
+
+PGN_64972 = PGNDefinition(
+    pgn=64972,
+    name="Turbocharger Wastegate (TCW)",
+    spns=[
+        SPNDefinition(4177, "Turbo Wastegate Actuator", "turbo_wastegate_pct",
+                      0, 8, 0.4, 0, "%"),
+    ]
+)
+
+
+# ---------------------------------------------------------------------------
 # Aftertreatment PGN Definitions
 # ---------------------------------------------------------------------------
 
@@ -685,6 +784,16 @@ PGN_REGISTRY: dict[int, PGNDefinition] = {
     65267: PGN_65267,           # VP: latitude, longitude
     65256: PGN_65256,           # VDS: compass, nav speed, pitch, altitude
     65254: PGN_65254,           # TD: time/date
+    # Idle / Trip / Service
+    65244: PGN_65244,           # IO: idle fuel, idle hours
+    64777: PGN_64777,           # TF_TV: trip fuel
+    65216: PGN_65216,           # SI: service distance/time remaining
+    65213: PGN_65213,           # FD: fan drive state
+    # Wheel Speed / Air
+    65215: PGN_65215,           # EBC2: wheel speeds
+    65198: PGN_65198,           # ASP: air supply pressure
+    # Turbo / EGR
+    64972: PGN_64972,           # TCW: turbo wastegate
     # Engine
     61443: PGN_61443,           # EEC2: accel pedal, load
     61444: PGN_61444,           # EEC1: RPM, torque
