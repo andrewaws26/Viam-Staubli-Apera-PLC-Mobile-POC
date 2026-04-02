@@ -232,7 +232,7 @@ export default function DevTruckPanel() {
         : activeDtcs.length;
   const milOn = data?.dtc_mil_status === true;
 
-  // Reading keys: exclude meta, DTC, and known connection fields
+  // Reading keys: exclude meta, DTC, connection, and health fields
   const connectionKeys = new Set([
     "vin",
     "vehicle_make",
@@ -242,6 +242,24 @@ export default function DevTruckPanel() {
     "frames_per_second",
     "bus_load_pct",
   ]);
+  const HEALTH_KEYS = new Set([
+    "cpu_temp_c",
+    "cpu_usage_pct",
+    "load_1m",
+    "load_5m",
+    "memory_total_mb",
+    "memory_used_mb",
+    "memory_used_pct",
+    "disk_used_pct",
+    "disk_free_gb",
+    "wifi_ssid",
+    "wifi_signal_pct",
+    "wifi_signal_dbm",
+    "tailscale_ip",
+    "tailscale_online",
+    "internet",
+    "uptime_seconds",
+  ]);
   const readingKeys = data
     ? Object.keys(data)
         .filter(
@@ -249,6 +267,7 @@ export default function DevTruckPanel() {
             !META_KEYS.has(k) &&
             !DTC_KEYS.has(k) &&
             !connectionKeys.has(k) &&
+            !HEALTH_KEYS.has(k) &&
             !k.startsWith("_")
         )
         .sort((a, b) => {
@@ -367,6 +386,94 @@ export default function DevTruckPanel() {
                 }
               />
               <KV label="Poll #" value={String(pollCount)} />
+            </div>
+          </div>
+
+          {/* ============================================================= */}
+          {/* Pi System Health                                               */}
+          {/* ============================================================= */}
+          <div>
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+              Pi System Health
+            </h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-2">
+              <KV
+                label="CPU Temp"
+                value={
+                  data?.cpu_temp_c != null
+                    ? `${(data.cpu_temp_c as number).toFixed(1)}\u00B0C / ${((data.cpu_temp_c as number) * 9/5 + 32).toFixed(0)}\u00B0F`
+                    : "\u2014"
+                }
+              />
+              <KV
+                label="CPU Usage"
+                value={
+                  data?.cpu_usage_pct != null
+                    ? `${(data.cpu_usage_pct as number).toFixed(1)}%`
+                    : "\u2014"
+                }
+              />
+              <KV
+                label="RAM"
+                value={
+                  data?.memory_used_mb != null && data?.memory_total_mb != null
+                    ? `${Math.round(data.memory_used_mb as number)}/${Math.round(data.memory_total_mb as number)} MB (${(data.memory_used_pct as number)?.toFixed(0) ?? "?"}%)`
+                    : "\u2014"
+                }
+              />
+              <KV
+                label="Disk Free"
+                value={
+                  data?.disk_free_gb != null
+                    ? `${(data.disk_free_gb as number).toFixed(1)} GB (${(data.disk_used_pct as number)?.toFixed(0) ?? "?"}% used)`
+                    : "\u2014"
+                }
+              />
+              <KV
+                label="WiFi"
+                value={
+                  data?.wifi_ssid
+                    ? `${data.wifi_ssid} (${data.wifi_signal_dbm != null ? `${Math.round(data.wifi_signal_dbm as number)} dBm` : "?"})`
+                    : "\u2014"
+                }
+              />
+              <KV
+                label="Tailscale"
+                value={
+                  data?.tailscale_ip
+                    ? String(data.tailscale_ip)
+                    : data?.tailscale_online === false
+                      ? "Offline"
+                      : "\u2014"
+                }
+                mono
+              />
+              <KV
+                label="Internet"
+                value={
+                  data?.internet === true
+                    ? "Connected"
+                    : data?.internet === false
+                      ? "No Internet"
+                      : "\u2014"
+                }
+              />
+              <KV
+                label="Uptime"
+                value={
+                  data?.uptime_seconds != null
+                    ? `${((data.uptime_seconds as number) / 3600).toFixed(1)}h`
+                    : "\u2014"
+                }
+              />
+              <KV
+                label="Load Avg"
+                value={
+                  data?.load_1m != null
+                    ? `${(data.load_1m as number).toFixed(2)} / ${(data.load_5m as number)?.toFixed(2) ?? "?"}`
+                    : "\u2014"
+                }
+              />
             </div>
           </div>
 
