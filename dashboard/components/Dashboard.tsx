@@ -77,8 +77,9 @@ export default function Dashboard() {
 
   const [faultHistory, setFaultHistory] = useState<FaultEvent[]>([]);
   const [activeFaultLabels, setActiveFaultLabels] = useState<string[]>([]);
-  const [sdkConnected, setSdkConnected] = useState(false);
-  const [sdkError, setSdkError] = useState<string | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<"connected" | "stale" | "plc-disconnected" | "offline" | "loading">("loading");
+  const [connectionDataAge, setConnectionDataAge] = useState<number | null>(null);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const [flashKey, setFlashKey] = useState(0); // bumping triggers flash animation
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -158,8 +159,9 @@ export default function Dashboard() {
           local_time: new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }),
         } as unknown as SensorReadings;
         status = "healthy";
-        setSdkConnected(true);
-        setSdkError(null);
+        setConnectionStatus("connected");
+        setConnectionDataAge(null);
+        setConnectionError(null);
 
         newStates.push({ id: cfg.id, label: cfg.label, icon: cfg.icon, status, readings, lastUpdated: new Date(), faultMessage: null });
         continue;
@@ -172,48 +174,77 @@ export default function Dashboard() {
           if (body.error === "component_not_found") {
             status = "pending";
             faultMessage = "Not configured in Viam yet";
-            setSdkConnected(true);
           } else {
-            // no_recent_data — machine may be offline
             status = "error";
             faultMessage = "No recent sensor data";
-            setSdkConnected(false);
-            setSdkError("No data in last 30 seconds");
+            setConnectionStatus("offline");
+            setConnectionDataAge(null);
+            setConnectionError("No data in last 30 seconds");
           }
         } else if (!res.ok) {
           throw new Error(`API returned ${res.status}`);
         } else {
           readings = await res.json() as SensorReadings;
 
-          const healthy = cfg.isHealthy(readings);
-          status = healthy ? "healthy" : "fault";
+          // Detect API-level offline marker (200 response but no real data)
+          if (readings._offline) {
+            status = "error";
+            faultMessage = "No recent sensor data";
+            setConnectionStatus("offline");
+            setConnectionDataAge(null);
+            setConnectionError((readings._reason as string) || "No recent data");
+          } else {
+            const dataAge = typeof readings._data_age_seconds === "number"
+              ? readings._data_age_seconds : null;
 
-          if (!healthy) {
-            faultMessage = cfg.getFaultMessage(readings);
-            currentFaultIds.add(cfg.id);
+            if (dataAge !== null && dataAge > 120) {
+              // Data too old — treat as offline
+              status = "error";
+              faultMessage = `Sensor data is ${dataAge}s old`;
+              setConnectionStatus("offline");
+              setConnectionDataAge(dataAge);
+              setConnectionError(`Last data ${dataAge}s ago`);
+            } else {
+              // Set connection indicator based on freshness and PLC state
+              if (dataAge !== null && dataAge > 30) {
+                setConnectionStatus("stale");
+              } else if (readings.connected === false) {
+                setConnectionStatus("plc-disconnected");
+              } else {
+                setConnectionStatus("connected");
+              }
+              setConnectionDataAge(dataAge);
+              setConnectionError(null);
 
-            // Only record a new history entry when this fault is newly detected
-            if (!prevFaultIds.current.has(cfg.id)) {
-              newFaultEvents.push({
-                id: `${cfg.id}-${Date.now()}`,
-                componentId: cfg.id,
-                componentLabel: cfg.label,
-                message: faultMessage,
-                timestamp: new Date(),
-              });
+              // Standard health check
+              const healthy = cfg.isHealthy(readings);
+              status = healthy ? "healthy" : "fault";
+
+              if (!healthy) {
+                faultMessage = cfg.getFaultMessage(readings);
+                currentFaultIds.add(cfg.id);
+
+                if (!prevFaultIds.current.has(cfg.id)) {
+                  newFaultEvents.push({
+                    id: `${cfg.id}-${Date.now()}`,
+                    componentId: cfg.id,
+                    componentLabel: cfg.label,
+                    message: faultMessage,
+                    timestamp: new Date(),
+                  });
+                }
+              }
             }
           }
-
-          setSdkConnected(true);
-          setSdkError(null);
         }
       } catch (err) {
         status = "error";
         faultMessage = "Sensor read error";
         currentFaultIds.add(cfg.id);
 
-        setSdkConnected(false);
-        setSdkError(err instanceof Error ? err.message : "Connection error");
+        setConnectionStatus("offline");
+        setConnectionDataAge(null);
+        setConnectionError(err instanceof Error ? err.message : "Connection error");
       }
 
       newStates.push({
@@ -330,7 +361,7 @@ export default function Dashboard() {
               IronSight — Live Production & Fleet Data
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-end">
             <a
               href="/shift-report"
               className="min-h-[44px] px-3 sm:px-4 py-2 rounded-lg bg-green-600 hover:bg-green-500 text-white text-xs sm:text-sm font-bold uppercase tracking-wider transition-colors flex items-center gap-1.5"
@@ -338,7 +369,7 @@ export default function Dashboard() {
               <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm2 10a1 1 0 10-2 0v3a1 1 0 102 0v-3zm2-3a1 1 0 011 1v5a1 1 0 11-2 0v-5a1 1 0 011-1zm4 2a1 1 0 10-2 0v3a1 1 0 102 0v-3z" clipRule="evenodd" />
               </svg>
-              Shift Report
+              <span className="hidden sm:inline">Shift Report</span>
             </a>
             <a
               href="/ironsight-overview.html"
@@ -349,7 +380,7 @@ export default function Dashboard() {
               <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z" />
               </svg>
-              Overview
+              <span className="hidden sm:inline">Overview</span>
             </a>
             <button
               onClick={() => {
@@ -367,8 +398,9 @@ export default function Dashboard() {
               {simMode ? "SIM ON" : "SIM"}
             </button>
             <ConnectionDot
-              connected={simMode || sdkConnected}
-              error={simMode ? null : sdkError}
+              status={simMode ? "connected" : connectionStatus}
+              dataAge={simMode ? null : connectionDataAge}
+              error={simMode ? null : connectionError}
             />
           </div>
         </header>

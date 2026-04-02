@@ -93,33 +93,34 @@ export default function PiHealthCard({ label, icon, host, simMode = false }: Pro
     }
 
     try {
-      // Use server-side API routes to fetch readings (no browser WebRTC)
-      let readings: Record<string, unknown>;
-      if (host === "truck") {
-        const resp = await fetch("/api/truck-readings?component=truck-engine");
-        if (!resp.ok) throw new Error(`API error: ${resp.status}`);
-        readings = await resp.json() as Record<string, unknown>;
-      } else {
-        const { getSensorReadings } = await import("../lib/viam");
-        readings = await getSensorReadings("plc-monitor") as Record<string, unknown>;
+      const resp = await fetch(`/api/pi-health?host=${host}`);
+      if (!resp.ok) throw new Error(`API error: ${resp.status}`);
+      const data = await resp.json() as Record<string, unknown>;
+
+      // Handle offline response from pi-health route
+      if (data.online === false) {
+        setError((data.error as string) || "Offline — no recent data");
+        setHealth(null);
+        return;
       }
+
       setHealth({
-        hostname: (readings.hostname as string) ?? (host === "tps" ? "viam-pi" : "truck-diagnostics"),
-        cpu_temp_c: (readings.cpu_temp_c as number) ?? 0,
-        cpu_usage_pct: (readings.cpu_usage_pct as number) ?? 0,
-        memory_used_pct: (readings.memory_used_pct as number) ?? 0,
-        memory_used_mb: (readings.memory_used_mb as number) ?? 0,
-        memory_total_mb: (readings.memory_total_mb as number) ?? 0,
-        disk_used_pct: (readings.disk_used_pct as number) ?? 0,
-        disk_free_gb: (readings.disk_free_gb as number) ?? 0,
-        uptime_hours: ((readings.uptime_seconds as number) ?? 0) / 3600,
-        wifi_ssid: (readings.wifi_ssid as string) ?? "N/A",
-        wifi_signal_dbm: (readings.wifi_signal_dbm as number) ?? -99,
-        tailscale_ip: (readings.tailscale_ip as string) ?? "N/A",
-        tailscale_online: (readings.tailscale_online as boolean) ?? false,
-        internet: (readings.internet as boolean) ?? false,
-        load_1m: (readings.load_1m as number) ?? 0,
-        load_5m: (readings.load_5m as number) ?? 0,
+        hostname: (data.hostname as string) ?? (host === "tps" ? "viam-pi" : "truck-diagnostics"),
+        cpu_temp_c: (data.cpu_temp_c as number) ?? 0,
+        cpu_usage_pct: (data.cpu_usage_pct as number) ?? 0,
+        memory_used_pct: (data.memory_used_pct as number) ?? 0,
+        memory_used_mb: (data.memory_used_mb as number) ?? 0,
+        memory_total_mb: (data.memory_total_mb as number) ?? (host === "tps" ? 8192 : 512),
+        disk_used_pct: (data.disk_used_pct as number) ?? 0,
+        disk_free_gb: (data.disk_free_gb as number) ?? 0,
+        uptime_hours: (data.uptime_hours as number) ?? 0,
+        wifi_ssid: (data.wifi_ssid as string) ?? "N/A",
+        wifi_signal_dbm: (data.wifi_signal_dbm as number) ?? -99,
+        tailscale_ip: (data.tailscale_ip as string) ?? "N/A",
+        tailscale_online: (data.tailscale_online as boolean) ?? false,
+        internet: (data.internet as boolean) ?? false,
+        load_1m: (data.load_1m as number) ?? 0,
+        load_5m: (data.load_5m as number) ?? 0,
       });
       setError(null);
     } catch (err) {
@@ -148,17 +149,17 @@ export default function PiHealthCard({ label, icon, host, simMode = false }: Pro
 
   if (error) {
     return (
-      <div className="bg-gray-900/50 rounded-xl border border-yellow-800/30 p-3">
+      <div className="bg-gray-900/50 rounded-xl border border-red-800/30 p-3">
         <div className="flex items-center gap-2 mb-2">
           <span>{icon}</span>
           <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">{label}</span>
-          <div className="w-2 h-2 rounded-full bg-yellow-500 ml-auto animate-pulse" />
+          <div className="w-2 h-2 rounded-full bg-red-500 ml-auto animate-pulse" />
         </div>
         <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] text-gray-600">
           <span>CPU: --</span><span>Temp: --</span>
           <span>RAM: --</span><span>Disk: --</span>
         </div>
-        <p className="text-[10px] text-yellow-500 mt-1">Waiting for connection...</p>
+        <p className="text-[10px] text-red-400 mt-1">{error}</p>
       </div>
     );
   }
