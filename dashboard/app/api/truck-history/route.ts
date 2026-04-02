@@ -188,8 +188,34 @@ function buildTruckSummary(points: RawPoint[], hours: number) {
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
   const hours = Math.min(Math.max(parseFloat(params.get("hours") || "4") || 4, 0.1), 168);
+  const debug = params.get("debug") === "1";
 
   try {
+    if (debug) {
+      // Return raw payloads to inspect actual data structure from Viam Cloud
+      if (!TRUCK_PART_ID) {
+        return NextResponse.json({ error: "TRUCK_VIAM_PART_ID not configured" }, { status: 500 });
+      }
+      const dc = await getDataClient();
+      const endTime = new Date();
+      const startTime = new Date(endTime.getTime() - hours * 3600000);
+      const rows = await dc.exportTabularData(
+        TRUCK_PART_ID, RESOURCE_NAME, RESOURCE_SUBTYPE, METHOD_NAME, startTime, endTime,
+      );
+      // Return first 3 raw rows + total count
+      return NextResponse.json({
+        totalRows: rows.length,
+        partId: TRUCK_PART_ID,
+        sampleRows: rows.slice(0, 3).map(r => ({
+          timeCaptured: r.timeCaptured,
+          payloadType: typeof r.payload,
+          payloadKeys: r.payload && typeof r.payload === "object" ? Object.keys(r.payload as object) : [],
+          rawPayload: r.payload,
+          fullRow: r,
+        })),
+      });
+    }
+
     const points = await fetchTruckData(hours);
     const result = buildTruckSummary(points, hours);
     return NextResponse.json(result);
