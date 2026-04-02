@@ -1376,6 +1376,11 @@ class J1939TruckSensor(Sensor):
                 minimal["vehicle_make"] = self._vehicle_profile.make
                 minimal["vehicle_model"] = self._vehicle_profile.model
                 minimal["vehicle_year"] = self._vehicle_profile.year
+            # Always include Pi system health — dashboard needs it even when vehicle is off
+            try:
+                minimal.update(get_system_health())
+            except Exception:
+                pass
             return minimal
 
         # ---------------------------------------------------------------
