@@ -98,9 +98,8 @@ export default function Dashboard() {
   // Core poll — called on mount and every POLL_INTERVAL_MS
   // -------------------------------------------------------------------------
   const poll = useCallback(async () => {
-    // In live mode, readings are fetched via /api/sensor-readings (server-side
-    // proxy) so Viam credentials never reach the browser.
-    const { getSensorReadings, ComponentNotFoundError } = await import("../lib/viam");
+    // Readings are fetched via /api/sensor-readings (server-side Data API)
+    // so Viam credentials never reach the browser and no WebRTC is needed.
 
     const newStates: ComponentState[] = [];
     const currentFaultIds = new Set<string>();
@@ -167,46 +166,54 @@ export default function Dashboard() {
       }
 
       try {
-        readings = await getSensorReadings(cfg.componentName);
-
-        const healthy = cfg.isHealthy(readings);
-        status = healthy ? "healthy" : "fault";
-
-        if (!healthy) {
-          faultMessage = cfg.getFaultMessage(readings);
-          currentFaultIds.add(cfg.id);
-
-          // Only record a new history entry when this fault is newly detected
-          if (!prevFaultIds.current.has(cfg.id)) {
-            newFaultEvents.push({
-              id: `${cfg.id}-${Date.now()}`,
-              componentId: cfg.id,
-              componentLabel: cfg.label,
-              message: faultMessage,
-              timestamp: new Date(),
-            });
+        const res = await fetch(`/api/sensor-readings?component=${cfg.componentName}`);
+        if (res.status === 404) {
+          const body = await res.json();
+          if (body.error === "component_not_found") {
+            status = "pending";
+            faultMessage = "Not configured in Viam yet";
+            setSdkConnected(true);
+          } else {
+            // no_recent_data — machine may be offline
+            status = "error";
+            faultMessage = "No recent sensor data";
+            setSdkConnected(false);
+            setSdkError("No data in last 30 seconds");
           }
-        }
-
-        setSdkConnected(true);
-      } catch (err) {
-        // ComponentNotFoundError means the API route connected fine but the
-        // component doesn't exist on the machine — show as pending.
-        const isNotFound =
-          ComponentNotFoundError && err instanceof ComponentNotFoundError;
-
-        if (isNotFound) {
-          status = "pending";
-          faultMessage = "Not configured in Viam yet";
-          setSdkConnected(true);
+        } else if (!res.ok) {
+          throw new Error(`API returned ${res.status}`);
         } else {
-          status = "error";
-          faultMessage = "Sensor read error";
-          currentFaultIds.add(cfg.id);
+          readings = await res.json() as SensorReadings;
 
-          setSdkConnected(false);
-          setSdkError(err instanceof Error ? err.message : "Connection error");
+          const healthy = cfg.isHealthy(readings);
+          status = healthy ? "healthy" : "fault";
+
+          if (!healthy) {
+            faultMessage = cfg.getFaultMessage(readings);
+            currentFaultIds.add(cfg.id);
+
+            // Only record a new history entry when this fault is newly detected
+            if (!prevFaultIds.current.has(cfg.id)) {
+              newFaultEvents.push({
+                id: `${cfg.id}-${Date.now()}`,
+                componentId: cfg.id,
+                componentLabel: cfg.label,
+                message: faultMessage,
+                timestamp: new Date(),
+              });
+            }
+          }
+
+          setSdkConnected(true);
+          setSdkError(null);
         }
+      } catch (err) {
+        status = "error";
+        faultMessage = "Sensor read error";
+        currentFaultIds.add(cfg.id);
+
+        setSdkConnected(false);
+        setSdkError(err instanceof Error ? err.message : "Connection error");
       }
 
       newStates.push({
