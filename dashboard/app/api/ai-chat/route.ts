@@ -1,14 +1,16 @@
 /**
  * AI mechanic chat endpoint with conversation history.
  *
- * Each message includes live vehicle readings as context so Claude
- * always knows the current state of the vehicle.
+ * Each message includes live vehicle readings AND 24h historical trends
+ * so Claude always knows the current state AND recent patterns.
  *
  * POST /api/ai-chat
  * Body: { messages: [{role, content}...], readings: {...} }
+ * Query: ?debug=1 returns the full prompt without calling Claude
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { getAiHistorySummary } from "@/lib/ai-history";
 
 export async function POST(request: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -36,22 +38,17 @@ export async function POST(request: NextRequest) {
 
   const readingsText = JSON.stringify(readings || {}, null, 2);
 
-  // Fetch historical data for AI context
-  let historyText = "No historical data available yet.";
-  try {
-    const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
-    const histResp = await fetch(`${baseUrl}/api/truck-history?hours=168`, { cache: "no-store" });
-    if (histResp.ok) {
-      const hist = await histResp.json();
-      if (hist.totalPoints > 0) {
-        historyText = `HISTORICAL DATA (last ${hist.totalMinutes} minutes, ${hist.totalPoints} readings):\n${JSON.stringify(hist.summary, null, 2)}\nDTC events during period: ${hist.dtcEvents?.length > 0 ? hist.dtcEvents.map((e: { code: string; timestamp: string }) => `${e.code} at ${e.timestamp}`).join(", ") : "none"}`;
-      }
-    }
-  } catch { /* historical data is optional context */ }
+  // Fetch historical summary (cached, 5-min TTL)
+  const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
+  const history = await getAiHistorySummary(baseUrl);
 
   const systemPrompt = `You are an AI diagnostic partner for mechanics and fleet managers. Think of yourself as a knowledgeable colleague sitting next to them at the shop, looking at live data together and working through problems as a team. You're NOT here to tell them what's wrong — you're here to help them figure it out faster by analyzing data they don't have time to stare at.
 
-You're currently looking at LIVE diagnostic data streaming from a vehicle's CAN bus through a cloud-connected IoT sensor built by IronSight. You also have access to HISTORICAL data from the Viam Cloud database — trends, min/max/avg values, and DTC events over the past few hours.
+You have TWO types of vehicle data:
+1. LIVE READINGS — current CAN bus data updating every few seconds (below)
+2. HISTORICAL TRENDS — 24-hour patterns, peak events, 7-day baseline, activity estimates, and DTC history (below)
+
+Use BOTH together. When a mechanic asks "is my coolant temp normal?", don't just look at the live number — check the 24h trend (is it rising or stable?), compare to the 7-day average, and note any peak events. A reading of 195°F that's been climbing steadily all day tells a very different story than a stable 195°F.
 
 The mechanic or fleet manager you're talking to is the expert on this vehicle. They've touched it, driven it, heard it, smelled it. You bring data analysis and broad knowledge across thousands of vehicles. Together, you're a better diagnostic team than either alone.
 
@@ -62,6 +59,8 @@ CRITICAL RULES:
 - Say "Based on the data, this COULD indicate..." not "This IS caused by..."
 - When the person gives you context (recent repairs, driving conditions, known issues), UPDATE your assessment. Don't stick to your first guess.
 - Ask clarifying questions when they would change your diagnosis: "How long ago was that work done?" "Has the light been on since the repair or did it come back?" "Any symptoms — rough idle, hesitation, smell?"
+- When you reference historical data, be specific: "coolant has averaged 188°F over the past 24h but peaked at 201°F" — not just "coolant looks ok"
+- Flag any metric marked 'ALERT' or 'watch' in the trend data and explain what it means mechanically
 
 When discussing repairs:
 - Give realistic cost ranges (parts + labor)
@@ -72,16 +71,15 @@ When discussing repairs:
 
 When discussing diagnostic data:
 - Explain what normal ranges are
-- Point out anything trending in a bad direction
+- Point out anything trending in a bad direction (use the Trend column from historical data)
 - Connect related readings (e.g., high fuel trim + low fuel pressure = fuel delivery issue)
+- Compare current readings to the 7-day average — deviations may signal developing issues
 - Consider that some readings look abnormal during warmup, after repairs, or under specific driving conditions
 
 CURRENT LIVE VEHICLE DATA (updating in real-time):
 ${readingsText}
 
-${historyText}
-
-This data refreshes every few seconds. If the mechanic asks about current values, reference these numbers directly. You also have historical trend data above — use it to identify patterns (is coolant temp rising over time? are fuel trims getting worse?). Compare current values to historical min/avg/max when relevant.
+${history.text}
 
 FORMATTING: Keep responses concise and readable. Use short paragraphs, not markdown headers. Bold key terms with **term**. Use bullet points sparingly. Do NOT use ## or ### headers — the chat UI doesn't render them well.
 
@@ -92,6 +90,17 @@ ETHICAL BOUNDARIES:
 - You are a diagnostic tool, not a decision-maker.
 
 FOLLOW-UP QUESTIONS: At the end of EVERY response, include 2-3 suggested follow-up questions under "You might want to ask:" — keep them specific to what you just discussed. Focus on diagnostic questions that help narrow down root causes, NOT questions that put liability on the AI (never suggest asking "is it safe to drive" — that's their judgment). Good examples: "What did the downstream O2 sensor look like before the repair?" or "How do these fuel trims compare to last month?" or "What's the mileage on those spark plugs?"`;
+
+  // Debug mode: return prompt instead of calling Claude
+  const debug = request.nextUrl.searchParams.get("debug") === "1";
+  if (debug) {
+    return NextResponse.json({
+      debug: true,
+      systemPrompt,
+      historyHasData: history.hasData,
+      historyDebug: history.debug,
+    });
+  }
 
   try {
     const apiMessages = messages.map((m) => ({
