@@ -120,7 +120,8 @@ def get_system_health() -> dict:
     # Viam data capture sync status
     try:
         import time as _time
-        capture_dir = os.path.expanduser("~/.viam/capture")
+        # viam-server runs as root but capture dir is under the andrew user home
+        capture_dir = "/home/andrew/.viam/capture"
         failed_dir = os.path.join(capture_dir, "failed")
         pending_count = 0
         pending_bytes = 0
