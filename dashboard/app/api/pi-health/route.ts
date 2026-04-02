@@ -1,34 +1,25 @@
 /**
  * API route to get Pi health data.
  *
- * In production on Vercel, this won't have SSH access to the Pis.
- * Instead, we'll use the Viam sensor data which includes metadata.
- * For now, returns basic connectivity info from the Viam sensor readings.
+ * Uses the Viam Data API (no WebRTC) to fetch the most recent sensor reading
+ * and extract health-relevant fields. This avoids WebRTC peer-to-peer
+ * connections that fail through carrier-grade NAT (e.g. iPhone tethering).
  *
  * GET /api/pi-health?host=tps|truck
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createRobotClient, SensorClient } from "@viamrobotics/sdk";
-import type { RobotClient } from "@viamrobotics/sdk";
+import { getLatestReading, resetDataClient } from "@/lib/viam-data";
 
-// Cache clients
-const clients: Record<string, { client: RobotClient | null; connecting: boolean }> = {
-  tps: { client: null, connecting: false },
-  truck: { client: null, connecting: false },
-};
+const DEFAULT_TPS_PART_ID = "7c24d42f-1d66-4cae-81a4-97e3ff9404b4";
 
-const CONFIGS: Record<string, { host: string; keyId: string; key: string; component: string }> = {
+const CONFIGS: Record<string, { partId: string; component: string }> = {
   tps: {
-    host: process.env.NEXT_PUBLIC_VIAM_MACHINE_ADDRESS || "",
-    keyId: process.env.NEXT_PUBLIC_VIAM_API_KEY_ID || "",
-    key: process.env.NEXT_PUBLIC_VIAM_API_KEY || "",
+    partId: process.env.VIAM_PART_ID || DEFAULT_TPS_PART_ID,
     component: "plc-monitor",
   },
   truck: {
-    host: process.env.NEXT_PUBLIC_TRUCK_VIAM_MACHINE_ADDRESS || "",
-    keyId: process.env.NEXT_PUBLIC_TRUCK_VIAM_API_KEY_ID || "",
-    key: process.env.NEXT_PUBLIC_TRUCK_VIAM_API_KEY || "",
+    partId: process.env.TRUCK_VIAM_PART_ID || "",
     component: "truck-engine",
   },
 };
@@ -37,37 +28,22 @@ export async function GET(request: NextRequest) {
   const host = request.nextUrl.searchParams.get("host") || "tps";
   const config = CONFIGS[host];
 
-  if (!config || !config.host) {
-    return NextResponse.json({ error: `Unknown host: ${host}` }, { status: 400 });
+  if (!config || !config.partId) {
+    return NextResponse.json({ error: `Unknown or unconfigured host: ${host}` }, { status: 400 });
   }
 
-  // Since we can't SSH from Vercel, return a basic health object
-  // based on whether the Viam machine is reachable
   try {
-    const entry = clients[host];
-    if (!entry.client && !entry.connecting) {
-      entry.connecting = true;
-      try {
-        entry.client = await createRobotClient({
-          host: config.host,
-          credentials: { type: "api-key", authEntity: config.keyId, payload: config.key },
-          signalingAddress: "https://app.viam.com:443",
-          reconnectMaxAttempts: 2,
-        });
-      } finally {
-        entry.connecting = false;
-      }
+    const reading = await getLatestReading(config.partId, config.component);
+
+    if (!reading) {
+      return NextResponse.json({
+        hostname: host === "tps" ? "viam-pi" : "truck-diagnostics",
+        online: false,
+        error: "No recent data",
+      }, { status: 200 });
     }
 
-    if (!entry.client) {
-      return NextResponse.json({ error: "Connection in progress" }, { status: 503 });
-    }
-
-    const sensor = new SensorClient(entry.client, config.component);
-    const readings = await sensor.getReadings();
-
-    // Extract health-relevant fields from sensor readings
-    const r = readings as Record<string, unknown>;
+    const r = reading.payload;
     return NextResponse.json({
       hostname: host === "tps" ? "viam-pi" : "truck-diagnostics",
       cpu_temp_c: r.cpu_temp_c ?? 55,
@@ -88,7 +64,7 @@ export async function GET(request: NextRequest) {
       online: true,
     });
   } catch (err) {
-    clients[host].client = null;
+    resetDataClient();
     return NextResponse.json({
       hostname: host === "tps" ? "viam-pi" : "truck-diagnostics",
       online: false,

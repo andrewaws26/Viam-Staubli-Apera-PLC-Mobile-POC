@@ -11,88 +11,13 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createViamClient } from "@viamrobotics/sdk";
-
-// ---------------------------------------------------------------------------
-// Cached ViamClient — same pattern as sensor-readings route caches RobotClient.
-//
-// The SDK exports ViamClient as a type-only export, so we cache the instance
-// with an interface matching the properties we actually use.
-// ---------------------------------------------------------------------------
-
-interface CachedViamClient {
-  dataClient: {
-    exportTabularData(
-      partId: string,
-      resourceName: string,
-      resourceSubtype: string,
-      methodName: string,
-      startTime?: Date,
-      endTime?: Date,
-    ): Promise<TabularDataPoint[]>;
-  };
-}
-
-interface TabularDataPoint {
-  timeCaptured: Date;
-  payload: unknown;
-  [key: string]: unknown;
-}
-
-let _viamClient: CachedViamClient | null = null;
-let _connecting = false;
-let _lastError: string | null = null;
+import { getDataClient, resetDataClient } from "@/lib/viam-data";
 
 const DEFAULT_PART_ID = "7c24d42f-1d66-4cae-81a4-97e3ff9404b4";
 const RESOURCE_NAME = "plc-monitor";
 const RESOURCE_SUBTYPE = "rdk:component:sensor";
 const METHOD_NAME = "Readings";
 const MAX_POINTS = 500;
-
-function getCachedClient(): CachedViamClient | null {
-  return _viamClient;
-}
-
-async function getDataClient(): Promise<CachedViamClient["dataClient"]> {
-  const cached = getCachedClient();
-  if (cached) return cached.dataClient;
-
-  if (_connecting) {
-    await new Promise((r) => setTimeout(r, 500));
-    const retried = getCachedClient();
-    if (retried) return retried.dataClient;
-    throw new Error(_lastError || "Connection in progress");
-  }
-
-  const apiKey = process.env.VIAM_API_KEY;
-  const apiKeyId = process.env.VIAM_API_KEY_ID;
-
-  if (!apiKey || !apiKeyId) {
-    throw new Error(
-      "Missing server-side Viam credentials. " +
-        "Set VIAM_API_KEY and VIAM_API_KEY_ID in environment variables."
-    );
-  }
-
-  _connecting = true;
-  _lastError = null;
-  try {
-    const client = await createViamClient({
-      credentials: {
-        type: "api-key",
-        authEntity: apiKeyId,
-        payload: apiKey,
-      },
-    });
-    _viamClient = client as unknown as CachedViamClient;
-    return _viamClient.dataClient;
-  } catch (err) {
-    _lastError = err instanceof Error ? err.message : String(err);
-    throw err;
-  } finally {
-    _connecting = false;
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Types for the response payloads
@@ -431,7 +356,7 @@ export async function GET(request: NextRequest) {
     const msg = err instanceof Error ? err.message : String(err);
 
     // Reset client on connection errors so the next request retries
-    _viamClient = null;
+    resetDataClient();
 
     return NextResponse.json(
       {

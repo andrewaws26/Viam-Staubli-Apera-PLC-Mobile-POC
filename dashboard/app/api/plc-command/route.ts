@@ -34,6 +34,7 @@ async function getClient(): Promise<RobotClient> {
       host,
       credentials: { type: "api-key", authEntity: apiKeyId, payload: apiKey },
       signalingAddress: "https://app.viam.com:443",
+      iceServers: [{ urls: "stun:global.stun.twilio.com:3478" }],
       reconnectMaxAttempts: 3,
     });
     return _client;
