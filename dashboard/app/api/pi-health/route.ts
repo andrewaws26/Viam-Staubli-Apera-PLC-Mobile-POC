@@ -10,6 +10,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createViamClient } from "@viamrobotics/sdk";
+import { getTruckById, getDefaultTruck } from "@/lib/machines";
 
 // ---------------------------------------------------------------------------
 // Cached ViamClient for data queries (HTTPS only)
@@ -95,10 +96,29 @@ async function getDataClient(): Promise<CachedViamClient["dataClient"]> {
 
 export async function GET(request: NextRequest) {
   const host = request.nextUrl.searchParams.get("host") || "tps";
-  const config = HOST_CONFIGS[host];
+  const truckId = request.nextUrl.searchParams.get("truck_id");
 
-  if (!config) {
-    return NextResponse.json({ error: `Unknown host: ${host}` }, { status: 400 });
+  let config: { partId: string; component: string; hostname: string; tailscaleIp: string; defaultMemTotal: number };
+
+  if (truckId) {
+    const truck = getTruckById(truckId);
+    if (!truck) {
+      return NextResponse.json({ error: "truck_not_found", truck_id: truckId }, { status: 404 });
+    }
+    const isTruck = host === "truck";
+    config = {
+      partId: isTruck ? truck.truckPartId : truck.tpsPartId,
+      component: isTruck ? "truck-engine" : "plc-monitor",
+      hostname: isTruck ? `${truck.id}-truck` : `${truck.id}-tps`,
+      tailscaleIp: "",
+      defaultMemTotal: isTruck ? 512 : 8192,
+    };
+  } else {
+    const c = HOST_CONFIGS[host];
+    if (!c) {
+      return NextResponse.json({ error: `Unknown host: ${host}` }, { status: 400 });
+    }
+    config = c;
   }
 
   try {

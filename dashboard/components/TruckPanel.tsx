@@ -309,6 +309,10 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
   const [vehicleMode, setVehicleMode] = useState<VehicleMode>("truck");
   const [modeAutoDetected, setModeAutoDetected] = useState(false);
 
+  // VIN selector for history filtering
+  const [selectedHistoryVin, setSelectedHistoryVin] = useState<string>("");
+  const [historyVins, setHistoryVins] = useState<string[]>([]);
+
   // Cached historical data — persists in localStorage across sessions
   const HISTORY_CACHE_KEY = "ironsight_history_cache";
   const [cachedHistory, setCachedHistory] = useState<Record<string, unknown> | null>(() => {
@@ -323,9 +327,14 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
   useEffect(() => {
     const fetchHistory = async () => {
       try {
-        const resp = await fetch("/api/truck-history?hours=168");
+        const vinParam = selectedHistoryVin ? `&vin=${encodeURIComponent(selectedHistoryVin)}` : "";
+        const resp = await fetch(`/api/truck-history?hours=168${vinParam}`);
         if (resp.ok) {
           const data = await resp.json();
+          // Update available VINs from API response
+          if (Array.isArray(data.distinctVins) && data.distinctVins.length > 0) {
+            setHistoryVins(data.distinctVins);
+          }
           if (data.totalPoints > 0) {
             data._cachedAt = new Date().toISOString();
             try { localStorage.setItem(HISTORY_CACHE_KEY, JSON.stringify(data)); } catch { /* quota */ }
@@ -339,7 +348,7 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
     const timer = setTimeout(fetchHistory, 3000); // delay 3s to let initial page load settle
     const id = setInterval(fetchHistory, 5 * 60 * 1000);
     return () => { clearTimeout(timer); clearInterval(id); };
-  }, [simMode]);
+  }, [simMode, selectedHistoryVin]);
 
   // Advanced diagnostics state
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -428,6 +437,8 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
         idle_fuel_used_gal: 4215.7 + (idling ? t * 0.002 : 0),
         trip_fuel_gal: 12.4 + t * 0.005,
         vin: "1M1AN07Y3GM023456",
+        vehicle_vin: "1M1AN07Y3GM023456",
+        vehicle_protocol: "j1939",
         software_id: "D13TC-EU6 v22.4.1",
         // GPS
         gps_latitude: simLat,
@@ -526,6 +537,10 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
       if (!modeAutoDetected && data._protocol) {
         setVehicleMode(data._protocol === "obd2" ? "car" : "truck");
         setModeAutoDetected(true);
+      }
+      // Default history VIN selector to connected vehicle (only once)
+      if (!selectedHistoryVin && data.vehicle_vin && String(data.vehicle_vin) !== "UNKNOWN" && String(data.vehicle_vin) !== "0") {
+        setSelectedHistoryVin(String(data.vehicle_vin));
       }
     } catch (err) {
       setConnected(false);
@@ -1014,46 +1029,69 @@ ${aiSummary ? `<h2>AI Vehicle Health Summary</h2><div style="white-space:pre-wra
   return (
     <div className="bg-gray-900/30 rounded-2xl border border-gray-800 p-3 sm:p-5">
       {/* Header */}
-      <div className="flex items-center justify-between mb-3 sm:mb-4">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3 sm:mb-4">
+        <div className="flex items-center gap-2 min-w-0">
           <span className="text-lg sm:text-xl">{vehicleMode === "truck" ? "\u{1F69B}" : "\u{1F697}"}</span>
-          <div>
-            <h3 className="text-sm sm:text-lg font-black tracking-widest uppercase text-gray-100">
+          <div className="min-w-0">
+            <h3 className="text-sm sm:text-lg font-black tracking-widest uppercase text-gray-100 truncate">
               {vehicleMode === "truck" ? "Truck Diagnostics" : "Vehicle Diagnostics"}
             </h3>
-            <p className="text-[10px] sm:text-xs text-gray-600">
+            <p className="text-[10px] sm:text-xs text-gray-600 truncate">
               {vehicleMode === "truck" ? "J1939 CAN Bus — Heavy Duty" : "OBD-II CAN Bus — Live Data"}
             </p>
+            {readings?.vehicle_vin && String(readings.vehicle_vin) !== "UNKNOWN" && String(readings.vehicle_vin) !== "0" ? (
+              <p className="text-[10px] sm:text-xs text-blue-400 font-mono tracking-wider truncate">
+                VIN: {String(readings.vehicle_vin)}
+              </p>
+            ) : readings?.vehicle_vin === "UNKNOWN" ? (
+              <p className="text-[10px] sm:text-xs text-gray-600 italic">VIN: Unknown</p>
+            ) : null}
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          {/* Vehicle history VIN selector */}
+          {historyVins.length > 1 && (
+            <select
+              value={selectedHistoryVin}
+              onChange={(e) => setSelectedHistoryVin(e.target.value)}
+              className="bg-gray-800 border border-gray-700 text-gray-300 text-[10px] sm:text-xs rounded px-1.5 py-2 min-h-[44px] focus:outline-none focus:border-blue-500"
+              title="Filter history by vehicle"
+            >
+              <option value="">All Vehicles</option>
+              {historyVins.map((v) => (
+                <option key={v} value={v}>
+                  {v.length === 17 ? `...${v.slice(-6)}` : v}
+                </option>
+              ))}
+            </select>
+          )}
           {/* Vehicle mode toggle */}
           <div className="flex rounded-lg overflow-hidden border border-gray-700">
             <button
               onClick={() => setVehicleMode("truck")}
-              className={`px-2 sm:px-3 py-1 text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-colors ${
+              className={`px-2 sm:px-3 py-2 min-h-[44px] text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-colors ${
                 vehicleMode === "truck"
                   ? "bg-blue-600 text-white"
                   : "bg-gray-800 text-gray-500 hover:text-gray-300"
               }`}
             >
-              Semi-Truck
+              <span className="hidden sm:inline">Semi-</span>Truck
             </button>
             <button
               onClick={() => setVehicleMode("car")}
-              className={`px-2 sm:px-3 py-1 text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-colors ${
+              className={`px-2 sm:px-3 py-2 min-h-[44px] text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-colors ${
                 vehicleMode === "car"
                   ? "bg-green-600 text-white"
                   : "bg-gray-800 text-gray-500 hover:text-gray-300"
               }`}
             >
-              Passenger
+              <span className="hidden sm:inline">Passenger</span><span className="sm:hidden">Car</span>
             </button>
           </div>
           {/* Connection status */}
           <div className="flex items-center gap-1.5">
             <div
-              className={`w-2 h-2 rounded-full ${
+              className={`w-2 h-2 rounded-full shrink-0 ${
                 busConnected
                   ? "bg-green-500"
                   : connected
@@ -1061,7 +1099,7 @@ ${aiSummary ? `<h2>AI Vehicle Health Summary</h2><div style="white-space:pre-wra
                   : "bg-red-500"
               }`}
             />
-            <span className="text-[10px] text-gray-500">
+            <span className="text-[10px] text-gray-500 whitespace-nowrap">
               {busConnected
                 ? `CAN OK (${frameCount} frames)`
                 : connected
@@ -1117,12 +1155,12 @@ ${aiSummary ? `<h2>AI Vehicle Health Summary</h2><div style="white-space:pre-wra
 
       {/* DTC Alert Bar */}
       {dtcCount > 0 && (
-        <div className="bg-red-950/50 border border-red-700/50 rounded-lg px-3 py-2 mb-3 flex items-center justify-between">
-          <div>
+        <div className="bg-red-950/50 border border-red-700/50 rounded-lg px-3 py-2 mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="min-w-0">
             <span className="text-xs sm:text-sm font-bold text-red-300">
               {dtcCount} Active DTC{dtcCount > 1 ? "s" : ""}
             </span>
-            <div className="flex gap-2 mt-1">
+            <div className="flex flex-wrap gap-2 mt-1">
               {Object.entries(LAMP_NAMES).map(([key, name]) => {
                 const val = readings?.[key] as number;
                 if (!val || val === 0) return null;
@@ -1357,7 +1395,7 @@ ${aiSummary ? `<h2>AI Vehicle Health Summary</h2><div style="white-space:pre-wra
                 key={cmd}
                 onClick={() => runDiagCommand(cmd)}
                 disabled={diagLoading !== null}
-                className={`px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors ${
+                className={`px-3 py-2 min-h-[44px] rounded-lg text-xs font-bold uppercase tracking-wider transition-colors ${
                   diagLoading === cmd
                     ? "bg-blue-800 text-blue-200 animate-pulse"
                     : "bg-blue-900/50 hover:bg-blue-800 text-blue-300 border border-blue-700/50"
@@ -1468,12 +1506,12 @@ ${aiSummary ? `<h2>AI Vehicle Health Summary</h2><div style="white-space:pre-wra
                 </p>
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               {!chatOpen && (
                 <button
                   onClick={runAiDiagnosis}
                   disabled={aiLoading}
-                  className={`px-3 sm:px-4 py-2 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-colors ${
+                  className={`min-h-[44px] px-3 sm:px-4 py-2 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-colors ${
                     aiLoading
                       ? "bg-purple-900 text-purple-400 animate-pulse"
                       : "bg-purple-700 hover:bg-purple-600 text-white"
@@ -1484,7 +1522,7 @@ ${aiSummary ? `<h2>AI Vehicle Health Summary</h2><div style="white-space:pre-wra
               )}
               <button
                 onClick={() => setChatOpen(!chatOpen)}
-                className={`px-3 sm:px-4 py-2 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-colors ${
+                className={`min-h-[44px] px-3 sm:px-4 py-2 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-colors ${
                   chatOpen
                     ? "bg-purple-600 text-white"
                     : "bg-purple-900/50 text-purple-300 border border-purple-700/50 hover:bg-purple-800"
@@ -1509,7 +1547,7 @@ ${aiSummary ? `<h2>AI Vehicle Health Summary</h2><div style="white-space:pre-wra
             <div className="flex flex-col">
               {/* Quick question buttons */}
               {chatMessages.length === 0 && (
-                <div className="grid grid-cols-2 gap-2 mb-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
                   {[
                     "What could be causing these trouble codes?",
                     "Walk me through what the data is showing right now",
@@ -1536,8 +1574,8 @@ ${aiSummary ? `<h2>AI Vehicle Health Summary</h2><div style="white-space:pre-wra
                     key={i}
                     className={`rounded-xl p-3 ${
                       msg.role === "user"
-                        ? "bg-purple-900/30 border border-purple-800/30 ml-8"
-                        : "bg-gray-800/70 border border-gray-700/30 mr-4"
+                        ? "bg-purple-900/30 border border-purple-800/30 ml-4 sm:ml-8"
+                        : "bg-gray-800/70 border border-gray-700/30 mr-2 sm:mr-4"
                     }`}
                   >
                     <div className="flex items-center gap-2 mb-1">
@@ -1555,7 +1593,7 @@ ${aiSummary ? `<h2>AI Vehicle Health Summary</h2><div style="white-space:pre-wra
                   </div>
                 ))}
                 {chatLoading && (
-                  <div className="bg-gray-800/70 rounded-xl p-3 mr-4 border border-gray-700/30">
+                  <div className="bg-gray-800/70 rounded-xl p-3 mr-2 sm:mr-4 border border-gray-700/30">
                     <span className="text-xs text-purple-400 animate-pulse">AI Mechanic is thinking...</span>
                   </div>
                 )}
@@ -1570,13 +1608,13 @@ ${aiSummary ? `<h2>AI Vehicle Health Summary</h2><div style="white-space:pre-wra
                   onChange={(e) => setChatInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && !chatLoading && sendChat()}
                   placeholder="Ask about this vehicle's health, repairs, costs..."
-                  className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs sm:text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-purple-600"
+                  className="flex-1 min-w-0 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 min-h-[44px] text-xs sm:text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-purple-600"
                   disabled={chatLoading}
                 />
                 <button
                   onClick={() => sendChat()}
                   disabled={chatLoading || !chatInput.trim()}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition-colors ${
+                  className={`px-4 py-2 min-h-[44px] rounded-lg text-xs font-bold uppercase transition-colors shrink-0 ${
                     chatLoading || !chatInput.trim()
                       ? "bg-gray-700 text-gray-500"
                       : "bg-purple-700 hover:bg-purple-600 text-white"

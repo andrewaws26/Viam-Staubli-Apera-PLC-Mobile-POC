@@ -616,7 +616,7 @@ export default function ShiftReportPage() {
               <button
                 key={p.id}
                 onClick={() => applyPreset(p)}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                className={`px-3 py-2 min-h-[44px] rounded-full text-xs font-semibold transition-colors flex items-center ${
                   activePreset === p.id
                     ? "bg-white text-gray-900"
                     : "bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700"

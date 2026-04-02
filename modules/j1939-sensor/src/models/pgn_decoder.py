@@ -398,6 +398,12 @@ PGN_65226 = PGNDefinition(
     spns=[]  # handled specially by decode_dm1
 )
 
+PGN_65260 = PGNDefinition(
+    pgn=65260,
+    name="Vehicle Identification (VI)",
+    spns=[]  # VIN is multi-packet ASCII, decoded via Transport Protocol in j1939_sensor.py
+)
+
 
 # ---------------------------------------------------------------------------
 # GPS / Navigation PGN Definitions
@@ -843,6 +849,8 @@ PGN_REGISTRY: dict[int, PGNDefinition] = {
     65253: PGN_65253,           # HOURS: engine hours
     # DTCs
     65226: PGN_65226,           # DM1: active diagnostic trouble codes
+    # Vehicle Identification
+    65260: PGN_65260,           # VI: Vehicle Identification Number (VIN)
     # Aftertreatment
     64891: PGN_64891,           # AT1DPF: soot load, diff pressure, temps
     64892: PGN_64892,           # AT1DPF2: regen status

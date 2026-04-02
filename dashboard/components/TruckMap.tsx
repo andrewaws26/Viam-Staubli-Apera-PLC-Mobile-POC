@@ -50,7 +50,7 @@ export default function TruckMap({ latitude, longitude, vehicleState }: any) {
 
   if (!latitude || !longitude || latitude === 0) {
     return (
-      <div className="bg-gray-100 border border-gray-300 rounded-lg p-8 mb-3 text-center">
+      <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-4 sm:p-8 mb-3 text-center">
         <div className="text-2xl mb-2">📡</div>
         <div className="text-xs font-bold text-gray-500 uppercase tracking-widest">Waiting for GPS Lock</div>
       </div>
@@ -59,7 +59,7 @@ export default function TruckMap({ latitude, longitude, vehicleState }: any) {
 
   return (
     <div className="bg-white border border-gray-300 rounded-lg overflow-hidden mb-3 shadow-sm">
-      <div style={{ height: "300px", width: "100%", background: "#f8f9fa" }}>
+      <div className="h-[200px] sm:h-[300px] w-full" style={{ background: "#f8f9fa" }}>
         <MapContainer 
           center={[latitude, longitude]} 
           zoom={15} 
@@ -80,7 +80,7 @@ export default function TruckMap({ latitude, longitude, vehicleState }: any) {
           {truckIcon && <Marker position={[latitude, longitude]} icon={truckIcon} />}
         </MapContainer>
       </div>
-      <div className="px-3 py-2 border-t border-gray-200 flex justify-between items-center bg-gray-50">
+      <div className="px-3 py-2 border-t border-gray-200 flex flex-wrap justify-between items-center gap-1 bg-gray-50">
          <span className="text-[10px] text-gray-600 font-mono font-bold">{latitude.toFixed(5)}, {longitude.toFixed(5)}</span>
          <div className="flex items-center gap-2">
            <span className="text-[10px] text-gray-400 uppercase font-bold tracking-tighter">Status:</span>

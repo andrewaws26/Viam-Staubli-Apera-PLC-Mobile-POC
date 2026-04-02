@@ -12,6 +12,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createViamClient } from "@viamrobotics/sdk";
+import { getTruckById, getDefaultTruck } from "@/lib/machines";
 
 // ---------------------------------------------------------------------------
 // Cached ViamClient — same pattern as sensor-readings route caches RobotClient.
@@ -43,7 +44,6 @@ let _viamClient: CachedViamClient | null = null;
 let _connecting = false;
 let _lastError: string | null = null;
 
-const DEFAULT_PART_ID = "7c24d42f-1d66-4cae-81a4-97e3ff9404b4";
 const RESOURCE_NAME = "plc-monitor";
 const RESOURCE_SUBTYPE = "rdk:component:sensor";
 const METHOD_NAME = "Readings";
@@ -186,9 +186,8 @@ interface RawDataPoint {
   payload: Record<string, unknown>;
 }
 
-async function fetchData(hours: number): Promise<RawDataPoint[]> {
+async function fetchData(hours: number, partId: string): Promise<RawDataPoint[]> {
   const dc = await getDataClient();
-  const partId = process.env.VIAM_PART_ID || DEFAULT_PART_ID;
 
   const endTime = new Date();
   const startTime = new Date(endTime.getTime() - hours * 60 * 60 * 1000);
@@ -413,8 +412,17 @@ export async function GET(request: NextRequest) {
   const type = params.get("type") || "summary";
   const hours = Math.min(Math.max(parseFloat(params.get("hours") || "8") || 8, 0.1), 168); // cap at 7 days
 
+  const truckId = params.get("truck_id");
+  const truck = truckId ? getTruckById(truckId) : getDefaultTruck();
+  if (!truck) {
+    return NextResponse.json(
+      { error: "truck_not_found", truck_id: truckId },
+      { status: 404 },
+    );
+  }
+
   try {
-    const points = await fetchData(hours);
+    const points = await fetchData(hours, truck.tpsPartId);
 
     if (type === "recent") {
       const data = buildRecentResponse(points);

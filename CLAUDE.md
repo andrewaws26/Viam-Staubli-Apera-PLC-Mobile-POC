@@ -202,7 +202,7 @@ The dashboard includes an AI-powered diagnostic system that uses Claude to help 
 
 The system auto-detects J1939 (heavy trucks) vs OBD-II (passenger vehicles) and adapts the dashboard accordingly. The Pi Zero runs the same module for both — protocol detection is automatic based on CAN frame IDs.
 
-**Tested and validated:** 2015 Nissan Altima — 6.6M CAN frames, zero drops, remote DTC clear successful (2026-03-29). SPI CAN HAT (MCP2515) confirmed production-ready.
+**Tested and validated:** 2013 Nissan Altima — 6.6M CAN frames, zero drops, remote DTC clear successful (2026-03-29). SPI CAN HAT (MCP2515) confirmed production-ready.
 
 **OBD-II features:** 33 PIDs (all imperial units), DTC read/clear, freeze frame, readiness monitors, VIN, pending/permanent DTCs.
 
