@@ -1267,6 +1267,16 @@ class J1939TruckSensor(Sensor):
             readings["_protocol"] = "obd2"
             readings["_bus_connected"] = self._obd2_poller.bus_connected
             readings["can_bitrate"] = self._current_bitrate
+            # Provide frame metadata so vehicle state detection works for OBD2
+            # Without these, defaults (0 / -1) always trigger "Truck Off"
+            readings["_frame_count"] = self._obd2_poller._poll_count
+            last_resp = self._obd2_poller._last_response_time
+            if last_resp > 0:
+                readings["_seconds_since_last_frame"] = round(
+                    time.time() - last_resp, 2
+                )
+            else:
+                readings["_seconds_since_last_frame"] = -1
         else:
             with self._readings_lock:
                 readings = dict(self._readings)
