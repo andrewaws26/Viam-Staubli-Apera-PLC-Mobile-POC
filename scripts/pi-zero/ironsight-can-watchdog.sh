@@ -52,7 +52,7 @@ get_rx() {
 # --- Bring can0 UP with correct parameters ---
 can_up() {
     ip link set "$CAN_IF" down 2>/dev/null
-    ip link set "$CAN_IF" up type can bitrate "$CAN_BITRATE" listen-only on 2>/dev/null
+    ip link set "$CAN_IF" up type can bitrate "$CAN_BITRATE" listen-only off restart-ms 100 2>/dev/null
 }
 
 # --- Bring can0 DOWN ---
