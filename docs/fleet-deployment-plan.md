@@ -228,11 +228,10 @@ A **fragment** is a reusable config template that can be applied to multiple mac
 |---|---|---|---|
 | Viam Cloud upload | — | $8.55 | ~54 MB/day × 36 × 30 days ≈ 57 GB × $0.15/GB |
 | Viam Cloud storage | — | $85.00 | 90-day retention: ~170 GB × $0.50/GB |
-| Hologram SIM platform fee | $1.00 | $36.00 | Per-SIM monthly fee, required for each active SIM |
-| Hologram cellular data | ~$0.75 | ~$27.00 | ~25 MB/month × $0.03/MB; Tailscale keepalive + health pings only |
-| **Total monthly** | | **~$157/month** | |
+| Hologram IoT cellular | $15.00 | $540.00 | $1 platform fee + ~$14 data (~467 MB/month at $0.03/MB) |
+| **Total monthly** | | **~$634/month** | |
 
-**Why cellular costs are low:** The system is offline-first. All bulk data (~74 MB/day of TPS + engine readings) syncs over WiFi when trucks return to the shop — zero cellular cost for that. Cellular carries only Tailscale keepalive, Viam heartbeats, and critical alerts (~25 MB/month per truck). If real-time streaming is ever needed for specific trucks, budget ~$2.25/day extra per truck ($0.03/MB × 74 MB).
+**Why cellular costs are manageable:** The system is offline-first. Bulk sensor data syncs over WiFi when trucks return to the shop. Cellular handles Tailscale connectivity, Viam heartbeats, remote diagnostics, and periodic data syncs in the field. At ~$15/truck/month the entire 36-truck fleet stays connected for under $650/month total.
 
 ### 3.6 Rollout Schedule
 
