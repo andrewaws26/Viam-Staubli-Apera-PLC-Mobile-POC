@@ -1,64 +1,20 @@
 /**
  * Server-side API route that proxies Viam sensor readings.
  *
- * Credentials (VIAM_API_KEY, VIAM_API_KEY_ID, VIAM_MACHINE_ADDRESS) are
- * loaded from server-only env vars — they are NEVER sent to the browser.
- * The browser calls this route instead of connecting to Viam directly.
+ * Uses the Viam Data API (no WebRTC) to fetch the most recent sensor reading.
+ * This avoids WebRTC peer-to-peer connections that fail through carrier-grade
+ * NAT (e.g. iPhone tethering). Data may be up to ~6 seconds old (sync interval).
+ *
+ * Credentials (VIAM_API_KEY, VIAM_API_KEY_ID) are loaded from server-only
+ * env vars — they are NEVER sent to the browser.
  *
  * GET /api/sensor-readings?component=plc-monitor
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createRobotClient, SensorClient } from "@viamrobotics/sdk";
-import type { RobotClient } from "@viamrobotics/sdk";
+import { getLatestReading, resetDataClient } from "@/lib/viam-data";
 
-let _client: RobotClient | null = null;
-let _connecting = false;
-let _lastError: string | null = null;
-
-async function getClient(): Promise<RobotClient> {
-  if (_client) return _client;
-  if (_connecting) {
-    // Wait for in-flight connection
-    await new Promise((r) => setTimeout(r, 500));
-    if (_client) return _client;
-    throw new Error(_lastError || "Connection in progress");
-  }
-
-  // Server-only env vars — NOT prefixed with NEXT_PUBLIC_
-  const host = process.env.VIAM_MACHINE_ADDRESS;
-  const apiKey = process.env.VIAM_API_KEY;
-  const apiKeyId = process.env.VIAM_API_KEY_ID;
-
-  if (!host || !apiKey || !apiKeyId) {
-    throw new Error(
-      "Missing server-side Viam credentials. " +
-        "Set VIAM_MACHINE_ADDRESS, VIAM_API_KEY, and VIAM_API_KEY_ID " +
-        "in environment variables (NOT NEXT_PUBLIC_ prefixed)."
-    );
-  }
-
-  _connecting = true;
-  _lastError = null;
-  try {
-    _client = await createRobotClient({
-      host,
-      credentials: {
-        type: "api-key",
-        authEntity: apiKeyId,
-        payload: apiKey,
-      },
-      signalingAddress: "https://app.viam.com:443",
-      reconnectMaxAttempts: 3,
-    });
-    return _client;
-  } catch (err) {
-    _lastError = err instanceof Error ? err.message : String(err);
-    throw err;
-  } finally {
-    _connecting = false;
-  }
-}
+const DEFAULT_PART_ID = "7c24d42f-1d66-4cae-81a4-97e3ff9404b4";
 
 export async function GET(request: NextRequest) {
   const componentName = request.nextUrl.searchParams.get("component");
@@ -70,14 +26,21 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const client = await getClient();
-    const sensor = new SensorClient(client, componentName);
-    const readings = await sensor.getReadings();
-    return NextResponse.json(readings);
+    const partId = process.env.VIAM_PART_ID || DEFAULT_PART_ID;
+    const reading = await getLatestReading(partId, componentName);
+
+    if (!reading) {
+      return NextResponse.json(
+        { error: "no_recent_data", message: "No sensor data in last 30 seconds" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(reading.payload);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
 
-    // Component not found — return 404 so the dashboard can show "pending"
+    // Component not found on the machine
     if (
       /not found/i.test(msg) ||
       /no resource/i.test(msg) ||
@@ -93,7 +56,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Connection error — reset client so next request retries
-    _client = null;
+    resetDataClient();
     return NextResponse.json(
       { error: "sensor_read_failed", message: msg },
       { status: 502 }

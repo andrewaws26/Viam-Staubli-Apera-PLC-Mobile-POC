@@ -1,56 +1,17 @@
 /**
  * Server-side API route for truck J1939 CAN bus sensor readings.
  *
- * Connects to the truck-diagnostics Viam machine (separate from the TPS machine)
- * using TRUCK_VIAM_* env vars.
+ * Uses the Viam Data API (no WebRTC) to fetch the most recent sensor reading.
+ * This avoids WebRTC peer-to-peer connections that fail through carrier-grade
+ * NAT (e.g. iPhone tethering). Data may be up to ~6 seconds old (sync interval).
  *
  * GET /api/truck-readings?component=truck-engine
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createRobotClient, SensorClient } from "@viamrobotics/sdk";
-import type { RobotClient } from "@viamrobotics/sdk";
+import { getLatestReading, resetDataClient } from "@/lib/viam-data";
 
-let _client: RobotClient | null = null;
-let _connecting = false;
-let _lastError: string | null = null;
-
-async function getClient(): Promise<RobotClient> {
-  if (_client) return _client;
-  if (_connecting) {
-    await new Promise((r) => setTimeout(r, 500));
-    if (_client) return _client;
-    throw new Error(_lastError || "Connection in progress");
-  }
-
-  const host = process.env.TRUCK_VIAM_MACHINE_ADDRESS;
-  const apiKey = process.env.TRUCK_VIAM_API_KEY;
-  const apiKeyId = process.env.TRUCK_VIAM_API_KEY_ID;
-
-  if (!host || !apiKey || !apiKeyId) {
-    throw new Error(
-      "Missing truck Viam credentials. " +
-        "Set TRUCK_VIAM_MACHINE_ADDRESS, TRUCK_VIAM_API_KEY, and TRUCK_VIAM_API_KEY_ID."
-    );
-  }
-
-  _connecting = true;
-  _lastError = null;
-  try {
-    _client = await createRobotClient({
-      host,
-      credentials: { type: "api-key", authEntity: apiKeyId, payload: apiKey },
-      signalingAddress: "https://app.viam.com:443",
-      reconnectMaxAttempts: 3,
-    });
-    return _client;
-  } catch (err) {
-    _lastError = err instanceof Error ? err.message : String(err);
-    throw err;
-  } finally {
-    _connecting = false;
-  }
-}
+const DEFAULT_TRUCK_PART_ID = "";
 
 export async function GET(request: NextRequest) {
   const componentName = request.nextUrl.searchParams.get("component");
@@ -61,11 +22,25 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  const partId = process.env.TRUCK_VIAM_PART_ID || DEFAULT_TRUCK_PART_ID;
+  if (!partId) {
+    return NextResponse.json(
+      { error: "missing_config", message: "TRUCK_VIAM_PART_ID not configured" },
+      { status: 500 }
+    );
+  }
+
   try {
-    const client = await getClient();
-    const sensor = new SensorClient(client, componentName);
-    const readings = await sensor.getReadings();
-    return NextResponse.json(readings);
+    const reading = await getLatestReading(partId, componentName);
+
+    if (!reading) {
+      return NextResponse.json(
+        { error: "no_recent_data", message: "No sensor data in last 30 seconds" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(reading.payload);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
 
@@ -80,7 +55,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    _client = null;
+    resetDataClient();
     return NextResponse.json(
       { error: "sensor_read_failed", message: msg },
       { status: 502 }
