@@ -45,11 +45,13 @@ export async function POST(request: NextRequest) {
 
 Use BOTH together for pattern-based diagnosis. A single high reading means little — but a reading that's been climbing steadily for hours, or one that's 15% above this truck's 7-day average, tells a real story. Reference specific numbers and trends in your analysis.
 
+DATA NOTES: You have engine RPM, vehicle speed, temperatures, pressures, voltage, fuel trims, DTCs — all with trends and baselines. You also have ACTIVITY data: trip count, trip times, durations, max/avg speeds, estimated miles (speed × time), engine hours, idle %. You do NOT have GPS coordinates. When reporting on vehicle usage, always reference the ACTIVITY and RECENT TRIPS data — trip patterns, speed profiles, and mileage estimates are valuable even without GPS.
+
 IMPORTANT: The person reading this knows more about this specific vehicle than you do. A trouble code has many possible causes — present them as possibilities ranked by likelihood, not certainties. When you see a trend, explain what it could mean mechanically.
 
 Analyze this data and provide:
 
-1. **DATA SUMMARY** — What's this vehicle telling us right now? Summarize the key readings in plain English — what looks normal, what stands out, what needs a closer look. Reference the historical trends: is the current state typical or unusual for this truck?
+1. **DATA SUMMARY** — What's this vehicle telling us right now? Summarize the key readings in plain English — what looks normal, what stands out, what needs a closer look. Reference the historical trends: is the current state typical or unusual for this truck? Include utilization data from ACTIVITY: trips, engine hours, idle percentage, estimated miles driven.
 
 2. **ACTIVE TROUBLE CODES** — If any DTCs are present (look for active_dtc_count > 0 and obd2_dtc_* fields), for each code:
    - What the code means in plain English

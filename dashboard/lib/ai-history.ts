@@ -141,7 +141,7 @@ function buildSummary(hist: TruckHistoryResponse): AiHistorySummary {
 
   const trends = computeTrends(pts24, pts7d);
   const peaks = findPeaks(pts24);
-  const activity = estimateActivity(pts24);
+  const activity = estimateActivity(ts);
   const dtcs48 = hist.dtcEvents.filter(e => new Date(e.timestamp).getTime() >= cut48);
 
   const text = formatAll(trends, peaks, activity, dtcs48, hist, pts24.length);
@@ -324,33 +324,100 @@ function findMin(pts: TSPoint[], key: keyof TSPoint): { val: number; t: string }
 
 // ── Activity estimation ────────────────────────────────────────────
 
+interface TripDetail {
+  start: string;
+  end: string;
+  durationMin: number;
+  maxSpeed: number;
+  avgSpeed: number;
+  estMiles: number;
+}
+
 interface Activity {
   trips: number;
+  tripDetails: TripDetail[];
   engineHrs: number;
   idleHrs: number;
   idlePct: number;
+  estMiles: number;
+  maxSpeed: number;
 }
 
-function estimateActivity(pts24: TSPoint[]): Activity {
-  if (pts24.length < 2) return { trips: 0, engineHrs: 0, idleHrs: 0, idlePct: 0 };
+function estimateActivity(pts: TSPoint[]): Activity {
+  const empty: Activity = { trips: 0, tripDetails: [], engineHrs: 0, idleHrs: 0, idlePct: 0, estMiles: 0, maxSpeed: 0 };
+  if (pts.length < 2) return empty;
 
-  let trips = 0, enginePts = 0, idlePts = 0, wasRunning = false;
-  for (const p of pts24) {
+  const tripDetails: TripDetail[] = [];
+  let enginePts = 0, idlePts = 0, wasRunning = false;
+  let tripStartIdx = -1;
+  let maxSpeed = 0;
+  let totalDistMi = 0;
+
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i];
     const isRunning = p.rpm > 300;
-    if (isRunning && !wasRunning) trips++;
-    if (isRunning) enginePts++;
-    if (isRunning && p.speed_mph < 2) idlePts++;
+
+    if (isRunning && !wasRunning) tripStartIdx = i;
+    if (!isRunning && wasRunning && tripStartIdx >= 0) {
+      tripDetails.push(buildTrip(pts, tripStartIdx, i - 1));
+      tripStartIdx = -1;
+    }
+    if (isRunning) {
+      enginePts++;
+      if (p.speed_mph < 2) idlePts++;
+      if (p.speed_mph > maxSpeed) maxSpeed = p.speed_mph;
+    }
+
+    // Integrate distance: trapezoidal rule between consecutive points
+    if (i > 0) {
+      const dtHrs = (new Date(pts[i].t).getTime() - new Date(pts[i - 1].t).getTime()) / 3600000;
+      const avgSpd = (pts[i].speed_mph + pts[i - 1].speed_mph) / 2;
+      totalDistMi += avgSpd * dtHrs;
+    }
+
     wasRunning = isRunning;
   }
 
-  // Convert point counts to hours based on time span
-  const spanMs = new Date(pts24[pts24.length - 1].t).getTime() - new Date(pts24[0].t).getTime();
-  const hrsPerPt = spanMs / (pts24.length * 3600000);
+  // Close open trip at end of data
+  if (wasRunning && tripStartIdx >= 0) {
+    tripDetails.push(buildTrip(pts, tripStartIdx, pts.length - 1));
+  }
+
+  const spanMs = new Date(pts[pts.length - 1].t).getTime() - new Date(pts[0].t).getTime();
+  const hrsPerPt = spanMs / (pts.length * 3600000);
   const engineHrs = rd(enginePts * hrsPerPt, 1);
   const idleHrs = rd(idlePts * hrsPerPt, 1);
   const idlePct = enginePts > 0 ? Math.round((idlePts / enginePts) * 100) : 0;
 
-  return { trips, engineHrs, idleHrs, idlePct };
+  return {
+    trips: tripDetails.length,
+    tripDetails: tripDetails.slice(-5),
+    engineHrs,
+    idleHrs,
+    idlePct,
+    estMiles: rd(totalDistMi, 1),
+    maxSpeed: rd(maxSpeed, 0),
+  };
+}
+
+function buildTrip(pts: TSPoint[], startIdx: number, endIdx: number): TripDetail {
+  let maxSpeed = 0, speedSum = 0, speedCount = 0;
+  for (let i = startIdx; i <= endIdx; i++) {
+    if (pts[i].speed_mph > maxSpeed) maxSpeed = pts[i].speed_mph;
+    speedSum += pts[i].speed_mph;
+    speedCount++;
+  }
+  const durationMs = new Date(pts[endIdx].t).getTime() - new Date(pts[startIdx].t).getTime();
+  const avgSpeed = speedCount > 0 ? speedSum / speedCount : 0;
+  const estMiles = avgSpeed * (durationMs / 3600000);
+  return {
+    start: pts[startIdx].t,
+    end: pts[endIdx].t,
+    durationMin: Math.round(durationMs / 60000),
+    maxSpeed: rd(maxSpeed, 0),
+    avgSpeed: rd(avgSpeed, 0),
+    estMiles: rd(estMiles, 1),
+  };
 }
 
 // ── Format into prompt text ────────────────────────────────────────
@@ -382,7 +449,17 @@ function formatAll(
   // Activity
   if (activity.trips > 0 || activity.engineHrs > 0) {
     out.push("");
-    out.push(`ACTIVITY (24h est.): ${activity.trips} trip${activity.trips !== 1 ? "s" : ""}, ~${activity.engineHrs}h engine, ~${activity.idleHrs}h idle (${activity.idlePct}% idle)`);
+    out.push(`ACTIVITY (7d est.): ${activity.trips} trip${activity.trips !== 1 ? "s" : ""}, ~${activity.engineHrs}h engine, ~${activity.idleHrs}h idle (${activity.idlePct}% idle), ~${activity.estMiles} mi driven, max ${activity.maxSpeed} mph`);
+    if (activity.tripDetails.length > 0) {
+      out.push("RECENT TRIPS:");
+      for (let i = 0; i < activity.tripDetails.length; i++) {
+        const t = activity.tripDetails[i];
+        const dur = t.durationMin >= 60
+          ? `${Math.floor(t.durationMin / 60)}h ${t.durationMin % 60}m`
+          : `${t.durationMin}m`;
+        out.push(`- Trip ${i + 1}: ${fmtTime(t.start)} – ${fmtTime(t.end)} (${dur}), max ${t.maxSpeed} mph, avg ${t.avgSpeed} mph, ~${t.estMiles} mi`);
+      }
+    }
   }
 
   // Peak events
