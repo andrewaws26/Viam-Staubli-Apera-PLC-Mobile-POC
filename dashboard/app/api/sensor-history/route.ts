@@ -128,10 +128,17 @@ async function fetchData(hours: number): Promise<RawDataPoint[]> {
   );
 
   // Map to a simpler structure and sort by time
-  const points: RawDataPoint[] = rows.map((row) => ({
-    timeCaptured: row.timeCaptured instanceof Date ? row.timeCaptured : new Date(String(row.timeCaptured)),
-    payload: (typeof row.payload === "object" && row.payload !== null ? row.payload : {}) as Record<string, unknown>,
-  }));
+  // Viam wraps sensor readings under a "readings" key — unwrap it
+  const points: RawDataPoint[] = rows.map((row) => {
+    const rawPayload = (typeof row.payload === "object" && row.payload !== null ? row.payload : {}) as Record<string, unknown>;
+    const payload = (rawPayload.readings && typeof rawPayload.readings === "object"
+      ? rawPayload.readings
+      : rawPayload) as Record<string, unknown>;
+    return {
+      timeCaptured: row.timeCaptured instanceof Date ? row.timeCaptured : new Date(String(row.timeCaptured)),
+      payload,
+    };
+  });
 
   points.sort((a, b) => a.timeCaptured.getTime() - b.timeCaptured.getTime());
   return points;
