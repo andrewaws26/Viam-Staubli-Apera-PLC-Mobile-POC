@@ -258,10 +258,10 @@ function PrintDataTable({ timeSeries }: { timeSeries: TimeSeriesPoint[] }) {
 }
 
 // ---------------------------------------------------------------------------
-// Print-only ignition + trip table (replaces visual timeline in print)
+// Print-only trip table (replaces visual timeline in print)
 // ---------------------------------------------------------------------------
 
-function PrintIgnitionTable({ trips }: { trips: Trip[] }) {
+function PrintTripTable({ trips }: { trips: Trip[] }) {
   if (trips.length === 0) return null;
 
   return (
@@ -269,8 +269,8 @@ function PrintIgnitionTable({ trips }: { trips: Trip[] }) {
       <thead>
         <tr>
           <th>#</th>
-          <th>Ignition On</th>
-          <th>Ignition Off</th>
+          <th>Start</th>
+          <th>End</th>
           <th>Duration</th>
         </tr>
       </thead>
@@ -289,20 +289,8 @@ function PrintIgnitionTable({ trips }: { trips: Trip[] }) {
 }
 
 // ---------------------------------------------------------------------------
-// Trip Timeline with ignition time labels
+// Trip Timeline (screen only)
 // ---------------------------------------------------------------------------
-
-/** Short time format for timeline labels: "6:29a" / "3:01p" */
-function fmtTimeShort(iso: string): string {
-  const d = new Date(iso);
-  const parts = new Intl.DateTimeFormat("en-US", {
-    hour: "numeric", minute: "2-digit", hour12: true, timeZone: TZ,
-  }).formatToParts(d);
-  const h = parts.find((p) => p.type === "hour")?.value || "";
-  const m = parts.find((p) => p.type === "minute")?.value || "";
-  const dp = parts.find((p) => p.type === "dayPeriod")?.value || "";
-  return `${h}:${m}${dp[0]?.toLowerCase() || ""}`;
-}
 
 function TripTimeline({
   trips,
@@ -321,45 +309,21 @@ function TripTimeline({
   const endMs = new Date(periodEnd).getTime();
   const totalMs = endMs - startMs || 1;
 
-  // Determine which trips are long enough to show labels (>= 5 min or <= 3 trips total)
-  const showAllLabels = trips.length <= 3;
-
   return (
     <div>
-      {/* Timeline bar with ignition time labels */}
-      <div className="relative h-10 bg-gray-800 rounded-lg overflow-visible print-hide-visual">
+      <div className="relative h-8 bg-gray-800 rounded-lg overflow-hidden print-hide-visual">
         {trips.map((trip, i) => {
           const tripStartMs = new Date(trip.startTime).getTime();
           const tripEndMs = new Date(trip.endTime).getTime();
           const left = ((tripStartMs - startMs) / totalMs) * 100;
           const w = ((tripEndMs - tripStartMs) / totalMs) * 100;
-          const showLabel = showAllLabels || trip.durationMin >= 5;
           return (
-            <div key={i}>
-              {/* Green block */}
-              <div
-                className="absolute top-0 h-full bg-green-600/70 border-x border-green-500/50"
-                style={{ left: `${Math.max(0, left)}%`, width: `${Math.max(0.5, w)}%` }}
-                title={`Ignition On: ${fmtTime(trip.startTime)} — Off: ${fmtTime(trip.endTime)} (${trip.durationMin} min)`}
-              />
-              {/* Time labels on bar */}
-              {showLabel && (
-                <>
-                  <span
-                    className="absolute text-[9px] text-green-300 font-semibold whitespace-nowrap"
-                    style={{ left: `${Math.max(0, left)}%`, top: "-14px" }}
-                  >
-                    {fmtTimeShort(trip.startTime)}
-                  </span>
-                  <span
-                    className="absolute text-[9px] text-red-300 font-semibold whitespace-nowrap"
-                    style={{ left: `${Math.max(0, left + w)}%`, top: "-14px", transform: "translateX(-100%)" }}
-                  >
-                    {fmtTimeShort(trip.endTime)}
-                  </span>
-                </>
-              )}
-            </div>
+            <div
+              key={i}
+              className="absolute top-0 h-full bg-green-600/70 border-x border-green-500/50"
+              style={{ left: `${Math.max(0, left)}%`, width: `${Math.max(0.5, w)}%` }}
+              title={`${fmtTime(trip.startTime)} — ${fmtTime(trip.endTime)} (${trip.durationMin} min)`}
+            />
           );
         })}
       </div>
@@ -370,30 +334,6 @@ function TripTimeline({
           <span className="inline-block w-3 h-2 bg-gray-800 rounded-sm border border-gray-700" /> Off
         </span>
         <span>{fmtTime(periodEnd)}</span>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Ignition On/Off summary list
-// ---------------------------------------------------------------------------
-
-function IgnitionSummary({ trips }: { trips: Trip[] }) {
-  if (trips.length === 0) return null;
-
-  const onTimes = trips.map((t) => fmtTime(t.startTime));
-  const offTimes = trips.map((t) => fmtTime(t.endTime));
-
-  return (
-    <div className="grid grid-cols-2 gap-3 mt-3 text-xs">
-      <div>
-        <span className="text-green-400 font-semibold uppercase text-[10px] tracking-wider">Ignition On</span>
-        <p className="text-gray-300 mt-0.5">{onTimes.join(", ")}</p>
-      </div>
-      <div>
-        <span className="text-red-400 font-semibold uppercase text-[10px] tracking-wider">Ignition Off</span>
-        <p className="text-gray-300 mt-0.5">{offTimes.join(", ")}</p>
       </div>
     </div>
   );
@@ -891,31 +831,21 @@ export default function ShiftReportPage() {
                     periodStart={report.periodStart}
                     periodEnd={report.periodEnd}
                   />
-                  {/* Ignition on/off summary */}
-                  <IgnitionSummary trips={report.trips} />
-                  {/* Trip cards with ignition labels */}
                   {report.trips.length > 0 && (
                     <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs text-gray-400 screen-trip-cards">
                       {report.trips.map((trip, i) => (
                         <div key={i} className="bg-gray-800/50 rounded-lg px-3 py-2">
                           <span className="text-gray-300 font-medium">Trip {i + 1}</span>
-                          <div className="mt-1 space-y-0.5">
-                            <div>
-                              <span className="text-green-400 text-[10px] font-semibold">ON </span>
-                              <span>{fmtTime(trip.startTime)}</span>
-                            </div>
-                            <div>
-                              <span className="text-red-400 text-[10px] font-semibold">OFF </span>
-                              <span>{fmtTime(trip.endTime)}</span>
-                            </div>
-                          </div>
-                          <span className="text-gray-500 mt-1 block">{trip.durationMin} min</span>
+                          <span className="block">
+                            {fmtTime(trip.startTime)} — {fmtTime(trip.endTime)}
+                          </span>
+                          <span className="text-green-400">{trip.durationMin} min</span>
                         </div>
                       ))}
                     </div>
                   )}
-                  {/* Print: ignition table */}
-                  <PrintIgnitionTable trips={report.trips} />
+                  {/* Print: trip table */}
+                  <PrintTripTable trips={report.trips} />
                 </div>
               </section>
 
