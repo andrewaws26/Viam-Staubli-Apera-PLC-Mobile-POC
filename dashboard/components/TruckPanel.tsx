@@ -311,23 +311,29 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
   // Background history fetch — runs every 5 minutes, caches to localStorage
   useEffect(() => {
     const fetchHistory = async () => {
-      // Primary: client-side SDK do_command (uses existing WebRTC connection)
+      // Primary: server-side command route (no WebRTC needed)
       if (!simMode) {
         try {
-          console.log("[HISTORY] Attempting get_history via WebRTC...");
-          const { sendTruckCommand } = await import("../lib/truck-viam");
-          const data = await sendTruckCommand("truck-engine", { command: "get_history", days: 1 });
-          console.log("[HISTORY] Response:", data ? `${data.totalPoints} points` : "null");
-          if (data && data.totalPoints > 0) {
-            data._cachedAt = new Date().toISOString();
-            try { localStorage.setItem(HISTORY_CACHE_KEY, JSON.stringify(data)); } catch { /* quota */ }
-            setCachedHistory(data);
-            return;
-          } else if (data && data.error) {
-            console.log("[HISTORY] Error from Pi:", data.error);
+          console.log("[HISTORY] Attempting get_history via server API...");
+          const resp = await fetch("/api/truck-command", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ command: "get_history", days: 1 }),
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            console.log("[HISTORY] Response:", data ? `${data.totalPoints} points` : "null");
+            if (data && data.totalPoints > 0) {
+              data._cachedAt = new Date().toISOString();
+              try { localStorage.setItem(HISTORY_CACHE_KEY, JSON.stringify(data)); } catch { /* quota */ }
+              setCachedHistory(data);
+              return;
+            } else if (data && data.error) {
+              console.log("[HISTORY] Error from Pi:", data.error);
+            }
           }
         } catch (err) {
-          console.log("[HISTORY] WebRTC failed:", err);
+          console.log("[HISTORY] Server API failed:", err);
         }
       }
 
@@ -347,7 +353,7 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
     };
 
     // Fetch immediately, then every 5 minutes
-    const timer = setTimeout(fetchHistory, 3000); // delay 3s to let WebRTC connect first
+    const timer = setTimeout(fetchHistory, 3000); // slight delay for initial page load
     const id = setInterval(fetchHistory, 5 * 60 * 1000);
     return () => { clearTimeout(timer); clearInterval(id); };
   }, [simMode]);
@@ -511,8 +517,11 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
     }
 
     try {
-      const { getTruckSensorReadings } = await import("../lib/truck-viam");
-      const data = await getTruckSensorReadings("truck-engine");
+      const res = await fetch("/api/truck-readings?component=truck-engine");
+      if (!res.ok) {
+        throw new Error(`API returned ${res.status}`);
+      }
+      const data = await res.json();
       setReadings(data as TruckReadings);
       setConnected(true);
       setError(null);
@@ -552,8 +561,12 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
           return cleaned;
         });
       } else {
-        const { sendTruckCommand } = await import("../lib/truck-viam");
-        data = await sendTruckCommand("truck-engine", { command: "clear_dtcs" });
+        const resp = await fetch("/api/truck-command", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ command: "clear_dtcs" }),
+        });
+        data = await resp.json();
       }
       if (data.success) {
         setClearResult("DTCs cleared successfully");
@@ -643,18 +656,24 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
     // Fetch historical data — try client SDK, then cloud, then cache
     let history: { totalPoints: number; totalMinutes: number; periodStart: string; periodEnd: string; source?: string; summary: Record<string, Record<string, number>>; dtcEvents: { timestamp: string; code: string }[] } | null = null;
 
-    // Primary: client-side SDK (same WebRTC connection as live data)
+    // Primary: server-side command route (no WebRTC needed)
     if (!simMode) {
       try {
-        const { sendTruckCommand } = await import("../lib/truck-viam");
-        const data = await sendTruckCommand("truck-engine", { command: "get_history", days: 7 });
-        if (data && data.totalPoints > 0) {
-          history = data;
-          data._cachedAt = new Date().toISOString();
-          try { localStorage.setItem(HISTORY_CACHE_KEY, JSON.stringify(data)); } catch { /* quota */ }
-          setCachedHistory(data);
+        const resp = await fetch("/api/truck-command", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ command: "get_history", days: 7 }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data && data.totalPoints > 0) {
+            history = data;
+            data._cachedAt = new Date().toISOString();
+            try { localStorage.setItem(HISTORY_CACHE_KEY, JSON.stringify(data)); } catch { /* quota */ }
+            setCachedHistory(data);
+          }
         }
-      } catch { /* WebRTC not connected */ }
+      } catch { /* server API unavailable */ }
     }
 
     // Fallback: Viam Cloud Data API
@@ -882,8 +901,12 @@ ${aiSummary ? `<h2>AI Vehicle Health Summary</h2><div style="white-space:pre-wra
         if (cmd === "get_pending_dtcs") setPendingDTCs([{ code: "P0442", status: "pending" }]);
         if (cmd === "get_vin") setVin("1N4AL3AP8DC123456");
       } else {
-        const { sendTruckCommand } = await import("../lib/truck-viam");
-        const result = await sendTruckCommand("truck-engine", { command: cmd });
+        const resp = await fetch("/api/truck-command", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ command: cmd }),
+        });
+        const result = await resp.json();
         if (cmd === "get_freeze_frame") setFreezeFrame(result.freeze_frame || {});
         if (cmd === "get_readiness") setReadiness(result.readiness || {});
         if (cmd === "get_pending_dtcs") setPendingDTCs(result.pending_dtcs || []);

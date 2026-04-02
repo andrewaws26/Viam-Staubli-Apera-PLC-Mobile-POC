@@ -93,32 +93,34 @@ export default function PiHealthCard({ label, icon, host, simMode = false }: Pro
     }
 
     try {
-      // Use the same Viam WebRTC clients that TPS and Truck panels use
-      let readings: Record<string, unknown>;
-      if (host === "truck") {
-        const { getTruckSensorReadings } = await import("../lib/truck-viam");
-        readings = await getTruckSensorReadings("truck-engine") as Record<string, unknown>;
-      } else {
-        const { getSensorReadings } = await import("../lib/viam");
-        readings = await getSensorReadings("plc-monitor") as Record<string, unknown>;
+      // Use the server-side /api/pi-health route (Data API, no WebRTC)
+      const res = await fetch(`/api/pi-health?host=${host}`);
+      if (!res.ok) throw new Error(`API returned ${res.status}`);
+      const data = await res.json();
+
+      if (data.online === false) {
+        setHealth(null);
+        setError(data.error || "Offline");
+        return;
       }
+
       setHealth({
-        hostname: (readings.hostname as string) ?? (host === "tps" ? "viam-pi" : "truck-diagnostics"),
-        cpu_temp_c: (readings.cpu_temp_c as number) ?? 0,
-        cpu_usage_pct: (readings.cpu_usage_pct as number) ?? 0,
-        memory_used_pct: (readings.memory_used_pct as number) ?? 0,
-        memory_used_mb: (readings.memory_used_mb as number) ?? 0,
-        memory_total_mb: (readings.memory_total_mb as number) ?? 0,
-        disk_used_pct: (readings.disk_used_pct as number) ?? 0,
-        disk_free_gb: (readings.disk_free_gb as number) ?? 0,
-        uptime_hours: ((readings.uptime_seconds as number) ?? 0) / 3600,
-        wifi_ssid: (readings.wifi_ssid as string) ?? "N/A",
-        wifi_signal_dbm: (readings.wifi_signal_dbm as number) ?? -99,
-        tailscale_ip: (readings.tailscale_ip as string) ?? "N/A",
-        tailscale_online: (readings.tailscale_online as boolean) ?? false,
-        internet: (readings.internet as boolean) ?? false,
-        load_1m: (readings.load_1m as number) ?? 0,
-        load_5m: (readings.load_5m as number) ?? 0,
+        hostname: data.hostname ?? (host === "tps" ? "viam-pi" : "truck-diagnostics"),
+        cpu_temp_c: data.cpu_temp_c ?? 0,
+        cpu_usage_pct: data.cpu_usage_pct ?? 0,
+        memory_used_pct: data.memory_used_pct ?? 0,
+        memory_used_mb: data.memory_used_mb ?? 0,
+        memory_total_mb: data.memory_total_mb ?? 0,
+        disk_used_pct: data.disk_used_pct ?? 0,
+        disk_free_gb: data.disk_free_gb ?? 0,
+        uptime_hours: data.uptime_hours ?? 0,
+        wifi_ssid: data.wifi_ssid ?? "N/A",
+        wifi_signal_dbm: data.wifi_signal_dbm ?? -99,
+        tailscale_ip: data.tailscale_ip ?? "N/A",
+        tailscale_online: data.tailscale_online ?? false,
+        internet: data.internet ?? false,
+        load_1m: data.load_1m ?? 0,
+        load_5m: data.load_5m ?? 0,
       });
       setError(null);
     } catch (err) {
