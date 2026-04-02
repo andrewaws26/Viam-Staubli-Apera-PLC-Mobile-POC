@@ -119,12 +119,17 @@ export async function getLatestReading(
   });
 
   const latest = rows[0];
+  const rawPayload = (typeof latest.payload === "object" && latest.payload !== null
+    ? latest.payload
+    : {}) as Record<string, unknown>;
+  // Viam wraps sensor readings under a "readings" key — unwrap it
+  const payload = (rawPayload.readings && typeof rawPayload.readings === "object"
+    ? rawPayload.readings
+    : rawPayload) as Record<string, unknown>;
   return {
     timeCaptured: latest.timeCaptured instanceof Date
       ? latest.timeCaptured
       : new Date(String(latest.timeCaptured)),
-    payload: (typeof latest.payload === "object" && latest.payload !== null
-      ? latest.payload
-      : {}) as Record<string, unknown>,
+    payload,
   };
 }
