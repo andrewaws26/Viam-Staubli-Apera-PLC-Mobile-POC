@@ -281,10 +281,31 @@ class OBD2Poller:
         self._dtc_reader = None
         self._advanced_diag = None
         self._dtcs: list[dict] = []
+        # Adaptive polling: if set, only poll these PIDs
+        self._supported_pids: set[int] | None = None
 
     @property
     def bus_connected(self) -> bool:
         return self._bus_connected
+
+    def set_supported_pids(self, pids: list[int]) -> None:
+        """Restrict polling to only the given PIDs.
+
+        Called after PID discovery completes.  Passing an empty list
+        disables adaptive filtering (polls all configured PIDs).
+        """
+        if pids:
+            self._supported_pids = set(pids)
+            LOGGER.info(
+                "Adaptive polling: restricted to %d supported PIDs", len(pids),
+            )
+        else:
+            self._supported_pids = None
+            LOGGER.info("Adaptive polling: disabled, polling all PIDs")
+
+    def get_configured_pids(self) -> list[int]:
+        """Return the full list of PID numbers this poller is configured to poll."""
+        return sorted(OBD2_PIDS.keys())
 
     def start(self):
         """Open CAN bus and start the polling thread."""
@@ -322,6 +343,19 @@ class OBD2Poller:
                 self._dtcs = []
             return {"success": success, "message": "OBD-II DTCs cleared" if success else "Clear failed"}
         return {"success": False, "error": "No DTC reader available"}
+
+    def get_vin(self) -> str:
+        """Return the vehicle VIN, reading it once and caching the result."""
+        if not hasattr(self, '_cached_vin'):
+            self._cached_vin = ""
+        if self._cached_vin:
+            return self._cached_vin
+        if self._advanced_diag:
+            vin = self._advanced_diag.get_vin()
+            if vin and len(vin) >= 10:
+                self._cached_vin = vin
+            return vin
+        return ""
 
     def stop(self):
         """Stop the polling thread and shut down the CAN bus."""
@@ -401,6 +435,9 @@ class OBD2Poller:
             for pid in OBD2_PIDS:
                 if not self._running:
                     break
+                # Adaptive polling: skip PIDs the vehicle doesn't support
+                if self._supported_pids is not None and pid not in self._supported_pids:
+                    continue
                 result = self._request_pid(pid)
                 if result is not None:
                     field_key = OBD2_PIDS[pid][1]

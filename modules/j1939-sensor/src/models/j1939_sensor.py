@@ -17,6 +17,7 @@ import asyncio
 import json
 import os
 import struct
+import subprocess
 import threading
 import time
 from typing import Any, ClassVar, Mapping, Optional
@@ -47,12 +48,23 @@ from .pgn_decoder import (
     get_supported_pgns,
 )
 from .obd2_poller import OBD2Poller
+from .vehicle_profiles import (
+    VehicleProfile,
+    discover_broadcast_pgns,
+    discover_supported_pids,
+    get_or_create_profile,
+    profile_needs_discovery,
+    save_profile,
+)
 
 LOGGER = getLogger(__name__)
 
 # Default offline buffer config
 _DEFAULT_BUFFER_DIR = "/home/andrew/.viam/offline-buffer/truck"
 _DEFAULT_BUFFER_MAX_MB = 50.0
+
+# VIN cache — persists last successful VIN read across restarts
+_VIN_CACHE_PATH = "/home/andrew/.viam/last-vin.json"
 
 
 def _serialise(value: Any) -> Any:
@@ -185,7 +197,30 @@ class J1939TruckSensor(Sensor):
         self._bus_type = "socketcan"
         self._protocol = "j1939"
         self._obd2_poller: OBD2Poller | None = None
+        self._config_protocol = "j1939"  # raw config value before auto-detect
+        # Protocol re-detection state (auto mode only)
+        self._redetect_extended = 0
+        self._redetect_standard = 0
+        self._redetect_mismatch_count = 0
+        self._last_redetect_check = 0.0
+        self._pending_protocol_switch: str | None = None
+        # Bitrate auto-negotiation state
+        self._current_bitrate = 500000
+        self._configured_bitrate = 500000
+        self._auto_bitrate = False
+        self._bitrate_candidates: list[int] = [500000, 250000, 125000]
+        self._pending_bitrate_negotiation = False
+        self._last_negotiation_time = 0.0
+        self._last_any_frame_time: float = 0
+        self._obd2_bus_lost_time: float = 0
         self._offline_buffer: OfflineBuffer | None = None
+        # VIN tracking
+        self._vehicle_vin: str = "UNKNOWN"
+        self._vin_thread: threading.Thread | None = None
+        # Vehicle profile (populated after VIN read)
+        self._vehicle_profile: VehicleProfile | None = None
+        self._discovery_status: str = ""  # "", "cached", "running", "complete"
+        self._profile_applied = False  # True once profile fields emitted
         # State inference
         self._prev_speed: float = 0.0
         self._prev_accel_pedal: float = 0.0
@@ -204,7 +239,7 @@ class J1939TruckSensor(Sensor):
         bitrate = fields.get("bitrate")
         if bitrate and bitrate.number_value:
             br = int(bitrate.number_value)
-            valid_bitrates = [250000, 500000, 1000000]
+            valid_bitrates = [125000, 250000, 500000, 1000000]
             if br not in valid_bitrates:
                 raise ValueError(
                     f"bitrate must be one of {valid_bitrates}, got {br}"
@@ -224,6 +259,11 @@ class J1939TruckSensor(Sensor):
         if self._obd2_poller:
             self._obd2_poller.stop()
             self._obd2_poller = None
+        self._vehicle_vin = "UNKNOWN"
+        self._vin_thread = None
+        self._vehicle_profile = None
+        self._discovery_status = ""
+        self._profile_applied = False
 
         fields = config.attributes.fields
 
@@ -258,6 +298,34 @@ class J1939TruckSensor(Sensor):
             else "j1939"
         )
 
+        # Save raw config protocol and reset re-detection state
+        self._config_protocol = self._protocol
+        self._redetect_extended = 0
+        self._redetect_standard = 0
+        self._redetect_mismatch_count = 0
+        self._last_redetect_check = time.time()
+        self._pending_protocol_switch = None
+
+        # Bitrate auto-negotiation config
+        self._configured_bitrate = self._bitrate
+        self._current_bitrate = self._bitrate
+        if "auto_bitrate" in fields:
+            self._auto_bitrate = bool(fields["auto_bitrate"].bool_value)
+        else:
+            # Default: auto-bitrate ON when protocol is "auto", OFF otherwise
+            self._auto_bitrate = self._config_protocol == "auto"
+        if "bitrate_candidates" in fields and fields["bitrate_candidates"].list_value:
+            self._bitrate_candidates = [
+                int(v.number_value)
+                for v in fields["bitrate_candidates"].list_value.values
+            ]
+        else:
+            self._bitrate_candidates = [500000, 250000, 125000]
+        self._pending_bitrate_negotiation = False
+        self._last_negotiation_time = 0.0
+        self._last_any_frame_time = 0
+        self._obd2_bus_lost_time = 0
+
         # Offline buffer — local JSONL backup for when cloud sync fails
         buf_dir = _DEFAULT_BUFFER_DIR
         buf_max_mb = _DEFAULT_BUFFER_MAX_MB
@@ -280,6 +348,25 @@ class J1939TruckSensor(Sensor):
             self._readings = {}
             self._frame_count = 0
 
+        # Bitrate auto-negotiation on startup
+        if self._auto_bitrate:
+            LOGGER.info(
+                "Auto-bitrate enabled — probing for CAN traffic on %s...",
+                self._can_interface,
+            )
+            found = self._negotiate_bitrate()
+            if found:
+                LOGGER.info(
+                    "Startup bitrate negotiation: traffic found at %d bps",
+                    self._current_bitrate,
+                )
+            else:
+                LOGGER.warning(
+                    "Startup bitrate negotiation: no traffic found — "
+                    "using configured %d bps",
+                    self._configured_bitrate,
+                )
+
         # Start the appropriate protocol handler
         if self._protocol == "auto":
             # Auto-detect: listen passively for 3 seconds to determine protocol
@@ -301,9 +388,19 @@ class J1939TruckSensor(Sensor):
             )
             self._obd2_poller.start()
             LOGGER.info("Configured in OBD-II polling mode (ACTIVE — transmits on bus)")
+            if self._config_protocol == "auto":
+                self._start_listener()
+                LOGGER.info("Passive CAN listener started for protocol re-detection")
         else:
             self._start_listener()
             LOGGER.info("Configured in J1939 passive listener mode (LISTEN-ONLY — no transmissions)")
+
+        # Read VIN in background (needs protocol handler running first)
+        threading.Thread(
+            target=self._start_vin_reading,
+            daemon=True,
+            name="vin-init",
+        ).start()
 
     def _auto_detect_protocol(self) -> str:
         """
@@ -355,6 +452,512 @@ class J1939TruckSensor(Sensor):
             LOGGER.warning(f"Auto-detect failed ({e}). Defaulting to j1939 (safe).")
             return "j1939"
 
+    # ---------------------------------------------------------------
+    # CAN Bitrate Auto-Negotiation
+    # ---------------------------------------------------------------
+
+    def _set_can_bitrate(self, interface: str, bitrate: int):
+        """Cycle CAN interface down/configure/up to change bitrate.
+
+        Requires root (viam-server runs as root).
+        Invalidates all existing CAN sockets on this interface.
+        """
+        LOGGER.debug("Setting %s bitrate to %d", interface, bitrate)
+        subprocess.run(
+            ["ip", "link", "set", interface, "down"], check=True,
+        )
+        subprocess.run(
+            ["ip", "link", "set", interface, "type", "can",
+             "bitrate", str(bitrate)],
+            check=True,
+        )
+        subprocess.run(
+            ["ip", "link", "set", interface, "up"], check=True,
+        )
+
+    def _negotiate_bitrate(self) -> bool:
+        """Cycle through candidate bitrates to find one producing CAN traffic.
+
+        Tries the current bitrate first (10-second window), then each
+        candidate from the configured list.  Returns True if a working
+        bitrate was found, False if all candidates were exhausted.
+
+        On failure, restores the configured bitrate and sets a cooldown
+        so the next attempt is delayed by 60 seconds.
+        """
+        # Build deduplicated candidate list: current first, then configured list
+        candidates = [self._current_bitrate]
+        for b in self._bitrate_candidates:
+            if b not in candidates:
+                candidates.append(b)
+
+        for bitrate in candidates:
+            LOGGER.info(
+                "Bitrate negotiation: trying %d bps on %s",
+                bitrate, self._can_interface,
+            )
+            try:
+                self._set_can_bitrate(self._can_interface, bitrate)
+            except Exception as e:
+                LOGGER.error(
+                    "Failed to set CAN bitrate %d on %s: %s",
+                    bitrate, self._can_interface, e,
+                )
+                continue
+
+            # Probe for traffic — 10-second window
+            found = False
+            bus = None
+            try:
+                import can
+                bus = can.Bus(
+                    channel=self._can_interface,
+                    interface=self._bus_type,
+                    receive_own_messages=False,
+                )
+                deadline = time.time() + 10.0
+                while time.time() < deadline:
+                    msg = bus.recv(timeout=1.0)
+                    if msg is not None:
+                        found = True
+                        break
+            except Exception as e:
+                LOGGER.error(
+                    "Error probing CAN at %d bps: %s", bitrate, e,
+                )
+            finally:
+                if bus:
+                    try:
+                        bus.shutdown()
+                    except Exception:
+                        pass
+
+            if found:
+                old = self._current_bitrate
+                self._current_bitrate = bitrate
+                self._bitrate = bitrate
+                if old != bitrate:
+                    LOGGER.info(
+                        "CAN bitrate changed: %d → %d on %s",
+                        old, bitrate, self._can_interface,
+                    )
+                else:
+                    LOGGER.info(
+                        "CAN bitrate confirmed: %d bps on %s",
+                        bitrate, self._can_interface,
+                    )
+                self._last_negotiation_time = time.time()
+                return True
+
+        # All candidates exhausted — restore configured bitrate
+        LOGGER.warning(
+            "All bitrate candidates failed on %s. "
+            "Restoring configured bitrate %d. Will retry in 60 seconds.",
+            self._can_interface, self._configured_bitrate,
+        )
+        try:
+            self._set_can_bitrate(self._can_interface, self._configured_bitrate)
+        except Exception as e:
+            LOGGER.error("Failed to restore configured bitrate: %s", e)
+        self._current_bitrate = self._configured_bitrate
+        self._bitrate = self._configured_bitrate
+        self._last_negotiation_time = time.time()
+        return False
+
+    def _maybe_trigger_bitrate_negotiation(self):
+        """Check if bus silence warrants bitrate negotiation.
+
+        Called from _listen_loop on recv timeout (~1-second intervals).
+        Sets _pending_bitrate_negotiation which is executed from
+        get_readings() on the next 1 Hz tick.
+        """
+        if not self._auto_bitrate:
+            return
+        if self._pending_bitrate_negotiation:
+            return
+
+        now = time.time()
+
+        # Cooldown: don't renegotiate within 60 seconds of last attempt
+        if now - self._last_negotiation_time < 60:
+            return
+
+        # Check silence based on last received frame (any type)
+        if self._last_any_frame_time > 0:
+            silence = now - self._last_any_frame_time
+            if silence > 30:
+                LOGGER.warning(
+                    "No CAN traffic for %.0f seconds on %s — "
+                    "triggering bitrate negotiation",
+                    silence, self._can_interface,
+                )
+                self._pending_bitrate_negotiation = True
+        elif self._last_negotiation_time > 0 and now - self._last_negotiation_time > 60:
+            # Never received any frames since last negotiation attempt
+            LOGGER.warning(
+                "No CAN traffic received on %s — "
+                "triggering bitrate renegotiation",
+                self._can_interface,
+            )
+            self._pending_bitrate_negotiation = True
+
+    def _execute_bitrate_negotiation(self):
+        """Execute pending bitrate negotiation.
+
+        Stops all CAN handlers, cycles through bitrates, re-detects
+        protocol if in auto mode, and restarts the appropriate handler.
+        Called from get_readings().
+        """
+        LOGGER.info("Executing bitrate negotiation on %s", self._can_interface)
+
+        # Stop all handlers BEFORE cycling the interface
+        if self._obd2_poller:
+            self._obd2_poller.stop()
+            self._obd2_poller = None
+        self._stop_listener()
+
+        # Run negotiation
+        found = self._negotiate_bitrate()
+
+        if not found:
+            LOGGER.warning(
+                "Bitrate negotiation failed — restarting with %d bps, "
+                "will retry in 60 seconds",
+                self._configured_bitrate,
+            )
+            if self._config_protocol == "auto":
+                self._protocol = "j1939"  # safe default
+            self._start_listener()
+            return
+
+        # Bitrate found — re-detect protocol if in auto mode
+        if self._config_protocol == "auto":
+            detected = self._auto_detect_protocol()
+            if detected != self._protocol:
+                LOGGER.info(
+                    "Protocol changed after bitrate negotiation: %s → %s",
+                    self._protocol, detected,
+                )
+            self._protocol = detected
+
+            # Reset re-detection counters
+            self._redetect_mismatch_count = 0
+            self._redetect_extended = 0
+            self._redetect_standard = 0
+            self._last_redetect_check = time.time()
+
+        # Reset readings for clean start
+        with self._readings_lock:
+            self._readings = {}
+            self._frame_count = 0
+        self._last_any_frame_time = 0
+        self._obd2_bus_lost_time = 0
+
+        # Start appropriate handler
+        if self._protocol == "obd2":
+            LOGGER.warning(
+                "OBD-II mode TRANSMITS on the CAN bus. "
+                "DO NOT use on J1939 heavy-duty trucks."
+            )
+            self._obd2_poller = OBD2Poller(
+                can_interface=self._can_interface,
+                bus_type=self._bus_type,
+                bitrate=self._current_bitrate,
+            )
+            self._obd2_poller.start()
+            if self._config_protocol == "auto":
+                self._start_listener()
+                LOGGER.info(
+                    "Passive CAN listener started for protocol re-detection"
+                )
+        else:
+            self._start_listener()
+
+        LOGGER.info(
+            "Bitrate negotiation complete: %d bps, protocol %s on %s",
+            self._current_bitrate, self._protocol, self._can_interface,
+        )
+
+        # Re-read VIN for the (potentially different) vehicle
+        self._vehicle_vin = "UNKNOWN"
+        threading.Thread(
+            target=self._start_vin_reading,
+            daemon=True,
+            name="vin-renegotiate",
+        ).start()
+
+    # ---------------------------------------------------------------
+    # VIN Reading & Caching
+    # ---------------------------------------------------------------
+
+    def _start_vin_reading(self):
+        """Attempt to read VIN on startup. Retries 3 times, falls back to cache."""
+        # Give the protocol handler a moment to initialize
+        time.sleep(3)
+
+        for attempt in range(3):
+            vin = self._read_vin()
+            if vin and len(vin) >= 10:
+                self._vehicle_vin = vin
+                self._save_vin_cache()
+                LOGGER.info(f"VIN read successfully: {vin}")
+                self._load_vehicle_profile(vin)
+                return
+            if attempt < 2:
+                time.sleep(2)
+
+        # All retries failed — try loading from cache
+        cached = self._load_vin_cache()
+        if cached:
+            self._vehicle_vin = cached
+            LOGGER.warning(f"Using cached VIN: {cached} (live read failed)")
+            self._load_vehicle_profile(cached)
+            return
+
+        LOGGER.warning("Could not read VIN — data will not be vehicle-tagged")
+
+        # Continue retrying every 60 seconds in background
+        self._vin_thread = threading.Thread(
+            target=self._vin_retry_loop,
+            daemon=True,
+            name="vin-retry",
+        )
+        self._vin_thread.start()
+
+    def _vin_retry_loop(self):
+        """Background: retry VIN read every 60 seconds until successful."""
+        while self._running:
+            end = time.monotonic() + 60
+            while self._running and time.monotonic() < end:
+                time.sleep(min(1.0, end - time.monotonic()))
+            if not self._running:
+                break
+            vin = self._read_vin()
+            if vin and len(vin) >= 10:
+                self._vehicle_vin = vin
+                self._save_vin_cache()
+                LOGGER.info(f"VIN read successfully (background retry): {vin}")
+                self._load_vehicle_profile(vin)
+                return
+
+    def _read_vin(self) -> str:
+        """Read VIN using the current protocol."""
+        if self._protocol == "obd2" and self._obd2_poller:
+            return self._obd2_poller.get_vin()
+        elif self._protocol == "j1939":
+            return self._read_vin_j1939()
+        return ""
+
+    def _read_vin_j1939(self) -> str:
+        """Request VIN via J1939 PGN 65260 (Vehicle Identification)."""
+        # First check if VIN was already decoded from passive listening
+        with self._readings_lock:
+            vin = self._readings.get("vin", "")
+        if vin and len(vin) >= 10:
+            return vin
+
+        # Actively request PGN 65260
+        if not self._bus:
+            return ""
+        try:
+            import can
+            pgn_bytes = struct.pack("<I", 65260)[:3]
+            data = pgn_bytes + bytes([0xFF] * 5)
+            can_id = _build_can_id(
+                priority=6,
+                pgn=REQUEST_PGN,
+                source_address=self._source_address,
+                destination_address=J1939_GLOBAL_ADDRESS,
+            )
+            msg = can.Message(
+                arbitration_id=can_id,
+                data=data,
+                is_extended_id=True,
+            )
+            self._bus.send(msg)
+            LOGGER.debug("Sent PGN 65260 request for VIN")
+
+            # Wait up to 2 seconds for the TP response to be decoded by the listener
+            for _ in range(20):
+                time.sleep(0.1)
+                with self._readings_lock:
+                    vin = self._readings.get("vin", "")
+                if vin and len(vin) >= 10:
+                    return vin
+        except Exception as e:
+            LOGGER.debug(f"J1939 VIN request failed: {e}")
+        return ""
+
+    def _load_vin_cache(self) -> str | None:
+        """Load cached VIN from disk. Returns VIN string or None."""
+        try:
+            with open(_VIN_CACHE_PATH, "r") as f:
+                data = json.load(f)
+                vin = data.get("vin", "")
+                if vin and len(vin) >= 10:
+                    return vin
+        except (OSError, json.JSONDecodeError, ValueError):
+            pass
+        return None
+
+    def _save_vin_cache(self):
+        """Save current VIN to disk cache."""
+        try:
+            os.makedirs(os.path.dirname(_VIN_CACHE_PATH), exist_ok=True)
+            with open(_VIN_CACHE_PATH, "w") as f:
+                json.dump({
+                    "vin": self._vehicle_vin,
+                    "protocol": self._protocol,
+                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                }, f)
+            LOGGER.debug(f"VIN cache saved: {self._vehicle_vin}")
+        except OSError as e:
+            LOGGER.warning(f"Failed to save VIN cache: {e}")
+
+    # ---------------------------------------------------------------
+    # Vehicle Profile & Discovery
+    # ---------------------------------------------------------------
+
+    def _load_vehicle_profile(self, vin: str):
+        """Load or create a vehicle profile, then run discovery if needed.
+
+        Called from the VIN-reading thread once a valid VIN is available.
+        """
+        try:
+            profile = get_or_create_profile(vin)
+            profile.protocol = profile.protocol or self._protocol
+            self._vehicle_profile = profile
+
+            if not profile_needs_discovery(profile):
+                LOGGER.info(
+                    "Vehicle profile loaded from cache: %s %s %s (%s)",
+                    profile.year or "?", profile.make or "?",
+                    profile.model or "?", vin,
+                )
+                self._discovery_status = "cached"
+                # Apply cached adaptive polling
+                self._apply_profile(profile)
+                return
+
+            # Discovery needed — run it in this thread (already background)
+            self._discovery_status = "running"
+            LOGGER.info(
+                "Running %s discovery for %s %s %s (%s)...",
+                self._protocol.upper(),
+                profile.year or "?", profile.make or "?",
+                profile.model or "?", vin,
+            )
+            self._run_discovery(profile)
+
+        except Exception as e:
+            LOGGER.error("Vehicle profile error for %s: %s", vin, e)
+
+    def _run_discovery(self, profile: VehicleProfile):
+        """Execute PID or PGN discovery and persist the result."""
+        try:
+            if self._protocol == "obd2" and self._obd2_poller:
+                self._run_pid_discovery(profile)
+            elif self._protocol == "j1939":
+                self._run_pgn_discovery(profile)
+
+            profile.discovered_at = time.strftime(
+                "%Y-%m-%dT%H:%M:%SZ", time.gmtime(),
+            )
+            save_profile(profile)
+            self._discovery_status = "complete"
+            self._apply_profile(profile)
+        except Exception as e:
+            LOGGER.error("Discovery failed for %s: %s", profile.vin, e)
+            self._discovery_status = "complete"
+
+    def _run_pid_discovery(self, profile: VehicleProfile):
+        """Discover supported OBD-II PIDs using Mode 01 bitmask chain."""
+        import can
+
+        bus = None
+        try:
+            bus = can.Bus(
+                channel=self._can_interface,
+                interface=self._bus_type,
+                receive_own_messages=False,
+            )
+            configured = (
+                self._obd2_poller.get_configured_pids()
+                if self._obd2_poller else []
+            )
+            supported, unsupported = discover_supported_pids(bus, configured)
+            profile.supported_pids = supported
+            profile.unsupported_pids = unsupported
+
+            LOGGER.info(
+                "Vehicle %s supports %d of %d configured PIDs",
+                profile.vin, len(supported), len(configured),
+            )
+            if unsupported:
+                LOGGER.info(
+                    "Unsupported PIDs for %s: %s",
+                    profile.vin,
+                    [f"0x{p:02X}" for p in unsupported],
+                )
+        except Exception as e:
+            LOGGER.error("PID discovery error: %s", e)
+        finally:
+            if bus:
+                try:
+                    bus.shutdown()
+                except Exception:
+                    pass
+
+    def _run_pgn_discovery(self, profile: VehicleProfile):
+        """Discover broadcast PGNs by listening passively for 60 seconds."""
+        import can
+
+        bus = None
+        try:
+            bus = can.Bus(
+                channel=self._can_interface,
+                interface=self._bus_type,
+                receive_own_messages=False,
+            )
+            expected = sorted(get_supported_pgns().keys())
+            discovered, missing = discover_broadcast_pgns(
+                bus, duration=60.0, expected_pgns=expected,
+            )
+            profile.supported_pgns = discovered
+            profile.unsupported_pgns = missing
+
+            LOGGER.info(
+                "Vehicle %s broadcasts %d PGNs, %d expected PGNs missing",
+                profile.vin, len(discovered), len(missing),
+            )
+            if missing:
+                pgn_names = get_supported_pgns()
+                missing_desc = [
+                    f"{p} ({pgn_names.get(p, '?')})" for p in missing
+                ]
+                LOGGER.info(
+                    "Missing PGNs for %s: %s", profile.vin, missing_desc,
+                )
+        except Exception as e:
+            LOGGER.error("PGN discovery error: %s", e)
+        finally:
+            if bus:
+                try:
+                    bus.shutdown()
+                except Exception:
+                    pass
+
+    def _apply_profile(self, profile: VehicleProfile):
+        """Apply discovered capabilities to the running protocol handler."""
+        # OBD-II: restrict polling to supported PIDs
+        if (self._protocol == "obd2" and self._obd2_poller
+                and profile.supported_pids):
+            self._obd2_poller.set_supported_pids(profile.supported_pids)
+            LOGGER.info(
+                "Adaptive polling active: %d PIDs for %s",
+                len(profile.supported_pids), profile.vin,
+            )
+
     def _start_listener(self):
         """Start the background CAN bus listener thread."""
         try:
@@ -393,6 +996,121 @@ class J1939TruckSensor(Sensor):
                 pass
             self._bus = None
 
+    def _maybe_check_redetect(self):
+        """Periodic check: does CAN traffic still match the active protocol?
+
+        Called from _listen_loop on every recv. Short-circuits unless 30 seconds
+        have elapsed since the last check. Counts extended (J1939) vs standard
+        (OBD-II) frame IDs seen since the previous check.
+
+        Safety: obd2->j1939 switches immediately on first mismatch (OBD-II
+        transmissions can cause false DTCs on truck ECUs). j1939->obd2 requires
+        3 consecutive agreeing checks (90 seconds).
+        """
+        if self._config_protocol != "auto":
+            return
+        if self._pending_protocol_switch:
+            return  # switch already pending
+        now = time.time()
+        if now - self._last_redetect_check < 30.0:
+            return
+        self._last_redetect_check = now
+
+        ext = self._redetect_extended
+        std = self._redetect_standard
+        self._redetect_extended = 0
+        self._redetect_standard = 0
+
+        total = ext + std
+        LOGGER.info(
+            "Protocol re-detect check: %d extended, %d standard frames (current: %s)",
+            ext, std, self._protocol,
+        )
+
+        if total == 0:
+            LOGGER.debug("No CAN traffic during re-detect window — keeping current protocol")
+            self._redetect_mismatch_count = 0
+            return
+
+        detected = "j1939" if ext > std else "obd2"
+
+        if detected == self._protocol:
+            self._redetect_mismatch_count = 0
+            return
+
+        self._redetect_mismatch_count += 1
+
+        # CRITICAL SAFETY: obd2 -> j1939 — stop OBD-II immediately
+        # OBD-II transmits request frames that can cause false DTCs on truck ECUs
+        if self._protocol == "obd2" and detected == "j1939":
+            LOGGER.warning(
+                "SAFETY: J1939 traffic detected while in OBD-II mode — "
+                "stopping OBD-II polling IMMEDIATELY to prevent false DTCs"
+            )
+            if self._obd2_poller:
+                self._obd2_poller.stop()
+            self._pending_protocol_switch = detected
+            return
+
+        # j1939 -> obd2: require 3 consecutive agreeing checks (90 seconds)
+        LOGGER.warning(
+            "Protocol mismatch: current=%s, traffic suggests=%s (%d/3)",
+            self._protocol, detected, self._redetect_mismatch_count,
+        )
+        if self._redetect_mismatch_count >= 3:
+            self._pending_protocol_switch = detected
+
+    def _execute_protocol_switch(self, new_protocol: str):
+        """Switch the active protocol after re-detection confirmed a mismatch.
+
+        Stops current handler, re-confirms with _auto_detect_protocol(), then
+        starts the appropriate new handler.
+        """
+        old = self._protocol
+        LOGGER.warning("Protocol switch detected: %s → %s, reinitializing", old, new_protocol)
+
+        # Stop current handlers
+        if self._obd2_poller:
+            self._obd2_poller.stop()
+            self._obd2_poller = None
+        self._stop_listener()
+
+        # Re-confirm with existing auto-detect method
+        confirmed = self._auto_detect_protocol()
+        LOGGER.info("Re-detect confirmation: %s", confirmed)
+        self._protocol = confirmed
+
+        # Reset re-detection state
+        self._redetect_mismatch_count = 0
+        self._redetect_extended = 0
+        self._redetect_standard = 0
+        self._last_redetect_check = time.time()
+
+        # Reset readings for clean protocol start
+        with self._readings_lock:
+            self._readings = {}
+            self._frame_count = 0
+
+        # Start new protocol handler
+        if self._protocol == "obd2":
+            LOGGER.warning(
+                "OBD-II mode TRANSMITS on the CAN bus. "
+                "DO NOT use on J1939 heavy-duty trucks."
+            )
+            self._obd2_poller = OBD2Poller(
+                can_interface=self._can_interface,
+                bus_type=self._bus_type,
+                bitrate=self._bitrate,
+            )
+            self._obd2_poller.start()
+            # Continue monitoring for future switches
+            self._start_listener()
+            LOGGER.info("Passive CAN listener started for protocol re-detection")
+        else:
+            self._start_listener()
+
+        LOGGER.info("Protocol switch complete: now running %s", self._protocol)
+
     def _listen_loop(self):
         """Background thread: read CAN frames and decode J1939 PGNs."""
         # J1939 Transport Protocol (TP) reassembly state
@@ -403,7 +1121,20 @@ class J1939TruckSensor(Sensor):
             try:
                 msg = self._bus.recv(timeout=1.0)
                 if msg is None:
+                    self._maybe_check_redetect()
+                    self._maybe_trigger_bitrate_negotiation()
                     continue
+
+                # Track frame reception for bitrate negotiation
+                self._last_any_frame_time = time.time()
+
+                # Count frame types for protocol re-detection
+                if msg.is_extended_id:
+                    self._redetect_extended += 1
+                else:
+                    self._redetect_standard += 1
+                self._maybe_check_redetect()
+
                 if not msg.is_extended_id:
                     continue  # J1939 uses extended (29-bit) IDs only
 
@@ -518,11 +1249,24 @@ class J1939TruckSensor(Sensor):
           - _bus_connected: whether the CAN bus is active
           - _seconds_since_last_frame: time since last decoded frame
         """
+        # Execute pending bitrate negotiation (priority over protocol switch)
+        if self._pending_bitrate_negotiation:
+            self._pending_bitrate_negotiation = False
+            self._pending_protocol_switch = None  # negotiation includes protocol detection
+            self._execute_bitrate_negotiation()
+
+        # Execute pending protocol switch from re-detection
+        if self._pending_protocol_switch:
+            new_proto = self._pending_protocol_switch
+            self._pending_protocol_switch = None
+            self._execute_protocol_switch(new_proto)
+
         if self._protocol == "obd2" and self._obd2_poller:
             readings = self._obd2_poller.get_readings()
             readings["_can_interface"] = self._can_interface
             readings["_protocol"] = "obd2"
             readings["_bus_connected"] = self._obd2_poller.bus_connected
+            readings["can_bitrate"] = self._current_bitrate
         else:
             with self._readings_lock:
                 readings = dict(self._readings)
@@ -531,6 +1275,7 @@ class J1939TruckSensor(Sensor):
             readings["_protocol"] = "j1939"
             readings["_frame_count"] = self._frame_count
             readings["_bus_connected"] = self._bus is not None and self._running
+            readings["can_bitrate"] = self._current_bitrate
 
             if self._last_frame_time > 0:
                 readings["_seconds_since_last_frame"] = round(
@@ -538,6 +1283,49 @@ class J1939TruckSensor(Sensor):
                 )
             else:
                 readings["_seconds_since_last_frame"] = -1
+
+        # Track OBD-II bus loss for bitrate negotiation (non-auto protocol mode)
+        if (self._auto_bitrate and self._protocol == "obd2"
+                and self._obd2_poller and self._config_protocol != "auto"):
+            if not self._obd2_poller.bus_connected:
+                if self._obd2_bus_lost_time == 0:
+                    self._obd2_bus_lost_time = time.time()
+                elif (time.time() - self._obd2_bus_lost_time > 30
+                      and time.time() - self._last_negotiation_time > 60):
+                    LOGGER.warning(
+                        "OBD-II bus disconnected for >30s — "
+                        "triggering bitrate negotiation"
+                    )
+                    self._pending_bitrate_negotiation = True
+            else:
+                self._obd2_bus_lost_time = 0
+
+        # VIN and protocol tagging — in EVERY reading for Viam Data API filtering
+        readings["vehicle_vin"] = self._vehicle_vin
+        readings["vehicle_protocol"] = self._protocol
+
+        # Vehicle profile fields — in EVERY reading for dashboard display
+        profile = self._vehicle_profile
+        if profile:
+            readings["vehicle_make"] = profile.make
+            readings["vehicle_model"] = profile.model
+            readings["vehicle_year"] = profile.year
+            # Emit discovery metadata once (first reading after profile loaded)
+            if not self._profile_applied:
+                self._profile_applied = True
+                readings["discovery_status"] = self._discovery_status
+                if self._protocol == "obd2" and profile.supported_pids:
+                    readings["supported_pid_count"] = len(profile.supported_pids)
+                    readings["missing_parameters"] = [
+                        f"0x{p:02X}" for p in profile.unsupported_pids
+                    ]
+                elif self._protocol == "j1939" and profile.supported_pgns:
+                    readings["discovered_pgn_count"] = len(profile.supported_pgns)
+                    pgn_names = get_supported_pgns()
+                    readings["missing_parameters"] = [
+                        f"{p} ({pgn_names.get(p, '?')})"
+                        for p in profile.unsupported_pgns
+                    ]
 
         # ---------------------------------------------------------------
         # Task 2: Vehicle State Inference
@@ -573,14 +1361,22 @@ class J1939TruckSensor(Sensor):
         if readings.get("_vehicle_off", False):
             # When vehicle is off, return minimal readings to save cloud storage
             # Viam data_manager still captures at 1Hz but the payloads are tiny
-            return {
+            minimal = {
                 "_vehicle_off": True,
                 "_protocol": readings.get("_protocol", "j1939"),
                 "_bus_connected": bus_connected,
                 "_can_interface": readings.get("_can_interface", "can0"),
+                "can_bitrate": self._current_bitrate,
                 "vehicle_state": readings["vehicle_state"],
                 "battery_voltage_v": readings.get("battery_voltage_v", 0),
+                "vehicle_vin": self._vehicle_vin,
+                "vehicle_protocol": self._protocol,
             }
+            if self._vehicle_profile:
+                minimal["vehicle_make"] = self._vehicle_profile.make
+                minimal["vehicle_model"] = self._vehicle_profile.model
+                minimal["vehicle_year"] = self._vehicle_profile.year
+            return minimal
 
         # ---------------------------------------------------------------
         # Task 3: Derived Fleet Metrics
@@ -890,6 +1686,8 @@ class J1939TruckSensor(Sensor):
         return {
             "can_interface": self._can_interface,
             "bitrate": self._bitrate,
+            "configured_bitrate": self._configured_bitrate,
+            "auto_bitrate": self._auto_bitrate,
             "bus_type": self._bus_type,
             "bus_connected": self._bus is not None,
             "listener_running": self._running,
@@ -1011,6 +1809,8 @@ class J1939TruckSensor(Sensor):
         """Clean up CAN bus resources."""
         LOGGER.info(f"Closing J1939 sensor {self.name}")
         self._stop_listener()
+        if self._vin_thread and self._vin_thread.is_alive():
+            self._vin_thread.join(timeout=2.0)
         if self._obd2_poller:
             self._obd2_poller.stop()
             self._obd2_poller = None

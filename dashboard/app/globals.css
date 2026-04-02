@@ -8,9 +8,10 @@
 
 /* --- Touch optimizations for 3.5" Sunfounder touchscreen (480×320) --- */
 
-/* Eliminate 300ms tap delay, disable double-tap zoom */
+/* Eliminate 300ms tap delay, disable double-tap zoom, prevent horizontal scroll */
 html {
   touch-action: manipulation;
+  overflow-x: hidden;
 }
 
 /* Remove default blue tap highlight on WebKit browsers */

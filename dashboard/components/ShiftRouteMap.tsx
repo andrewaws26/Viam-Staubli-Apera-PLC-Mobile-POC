@@ -54,7 +54,7 @@ export default function ShiftRouteMap({ points, stops, startLocation, endLocatio
 
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden print-card">
-      <div style={{ height: "300px", width: "100%" }}>
+      <div className="h-[200px] sm:h-[300px] w-full">
         <MapContainer
           center={[avgLat, avgLon]}
           zoom={13}

@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createViamClient } from "@viamrobotics/sdk";
+import { getTruckById, getDefaultTruck } from "@/lib/machines";
 
 // ---------------------------------------------------------------------------
 // Cached ViamClient for data queries (HTTPS only, no WebRTC)
@@ -36,7 +37,6 @@ interface TabularDataPoint {
 let _viamClient: CachedViamClient | null = null;
 let _connecting = false;
 
-const TPS_PART_ID = process.env.VIAM_PART_ID || "7c24d42f-1d66-4cae-81a4-97e3ff9404b4";
 const RESOURCE_SUBTYPE = "rdk:component:sensor";
 const METHOD_NAME = "Readings";
 const DATA_WINDOW_SECONDS = 300; // Look back 5 minutes for latest reading
@@ -83,13 +83,22 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  const truckId = request.nextUrl.searchParams.get("truck_id");
+  const truck = truckId ? getTruckById(truckId) : getDefaultTruck();
+  if (!truck) {
+    return NextResponse.json(
+      { error: "truck_not_found", truck_id: truckId },
+      { status: 404 },
+    );
+  }
+
   try {
     const dc = await getDataClient();
     const endTime = new Date();
     const startTime = new Date(endTime.getTime() - DATA_WINDOW_SECONDS * 1000);
 
     const rows = await dc.exportTabularData(
-      TPS_PART_ID,
+      truck.tpsPartId,
       componentName,
       RESOURCE_SUBTYPE,
       METHOD_NAME,
