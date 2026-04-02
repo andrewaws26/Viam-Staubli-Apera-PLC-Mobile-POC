@@ -35,7 +35,8 @@ interface TabularDataPoint {
 let _viamClient: CachedViamClient | null = null;
 let _connecting = false;
 
-const TRUCK_PART_ID = "ca039781-665c-47e3-9bc5-35f603f3baf1";
+const DEFAULT_TRUCK_PART_ID = "ca039781-665c-47e3-9bc5-35f603f3baf1";
+const TRUCK_PART_ID = process.env.TRUCK_VIAM_PART_ID || DEFAULT_TRUCK_PART_ID;
 const RESOURCE_NAME = "truck-engine";
 const RESOURCE_SUBTYPE = "rdk:component:sensor";
 const METHOD_NAME = "Readings";
