@@ -62,10 +62,10 @@ export default function ShiftRouteMap({ points, stops, startLocation, endLocatio
           zoomControl={true}
           attributionControl={false}
         >
-          <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
+          <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
 
           {/* Route line */}
-          <Polyline positions={routePositions} pathOptions={{ color: "#22c55e", weight: 3, opacity: 0.8 }} />
+          <Polyline positions={routePositions} pathOptions={{ color: "#2563eb", weight: 3, opacity: 0.9 }} />
 
           {/* Start marker */}
           {startLocation && (
