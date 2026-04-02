@@ -259,6 +259,11 @@ export default function DevTruckPanel() {
     "tailscale_online",
     "internet",
     "uptime_seconds",
+    "sync_pending_files",
+    "sync_pending_mb",
+    "sync_oldest_age_min",
+    "sync_failed_files",
+    "sync_ok",
   ]);
   const readingKeys = data
     ? Object.keys(data)
@@ -471,6 +476,61 @@ export default function DevTruckPanel() {
                 value={
                   data?.load_1m != null
                     ? `${(data.load_1m as number).toFixed(2)} / ${(data.load_5m as number)?.toFixed(2) ?? "?"}`
+                    : "\u2014"
+                }
+              />
+            </div>
+          </div>
+
+          {/* ============================================================= */}
+          {/* Viam Data Sync                                                 */}
+          {/* ============================================================= */}
+          <div>
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+              Viam Data Sync
+              {data?.sync_ok === true && (
+                <span className="ml-2 text-green-400 normal-case tracking-normal font-normal">
+                  &mdash; OK
+                </span>
+              )}
+              {data?.sync_ok === false && (
+                <span className="ml-2 text-red-400 normal-case tracking-normal font-normal">
+                  &mdash; BEHIND
+                </span>
+              )}
+            </h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2">
+              <KV
+                label="Pending Files"
+                value={
+                  data?.sync_pending_files != null
+                    ? String(data.sync_pending_files)
+                    : "\u2014"
+                }
+              />
+              <KV
+                label="Pending Size"
+                value={
+                  data?.sync_pending_mb != null
+                    ? `${(data.sync_pending_mb as number).toFixed(2)} MB`
+                    : "\u2014"
+                }
+              />
+              <KV
+                label="Oldest File"
+                value={
+                  data?.sync_oldest_age_min != null
+                    ? (data.sync_oldest_age_min as number) > 60
+                      ? `${((data.sync_oldest_age_min as number) / 60).toFixed(1)}h`
+                      : `${Math.round(data.sync_oldest_age_min as number)} min`
+                    : "\u2014"
+                }
+              />
+              <KV
+                label="Failed Files"
+                value={
+                  data?.sync_failed_files != null
+                    ? String(data.sync_failed_files)
                     : "\u2014"
                 }
               />
