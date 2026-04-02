@@ -328,13 +328,18 @@ export default function Dashboard() {
             </h1>
             <p className="text-[10px] sm:text-xs text-gray-600 mt-0.5 tracking-wide truncate">
               IronSight — Live Production & Fleet Data
-              <span className="mx-1.5">·</span>
-              <a href="/shift-report" className="text-gray-500 hover:text-gray-300 underline underline-offset-2">
-                Shift Report
-              </a>
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <a
+              href="/shift-report"
+              className="min-h-[44px] px-3 sm:px-4 py-2 rounded-lg bg-green-600 hover:bg-green-500 text-white text-xs sm:text-sm font-bold uppercase tracking-wider transition-colors flex items-center gap-1.5"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm2 10a1 1 0 10-2 0v3a1 1 0 102 0v-3zm2-3a1 1 0 011 1v5a1 1 0 11-2 0v-5a1 1 0 011-1zm4 2a1 1 0 10-2 0v3a1 1 0 102 0v-3z" clipRule="evenodd" />
+              </svg>
+              Shift Report
+            </a>
             <button
               onClick={() => {
                 if (!simMode) {
