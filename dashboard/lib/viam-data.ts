@@ -94,7 +94,7 @@ export function resetDataClient(): void {
 export async function getLatestReading(
   partId: string,
   resourceName: string,
-  windowSeconds = 30,
+  windowSeconds = 300,
 ): Promise<{ timeCaptured: Date; payload: Record<string, unknown> } | null> {
   const dc = await getDataClient();
   const endTime = new Date();
