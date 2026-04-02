@@ -207,14 +207,17 @@ A **fragment** is a reusable config template that can be applied to multiple mac
 
 **Hardware (one-time):**
 
-| Item | Per Truck | 36 Trucks |
-|---|---|---|
-| Raspberry Pi 5 (4 GB) | $60 | $2,160 |
-| Endurance SD card (32 GB) | $12 | $432 |
-| Automotive power supply | $20 | $720 |
-| Enclosure + mounting | $15 | $540 |
-| Ethernet cable | $5 | $180 |
-| **Total hardware** | **$112** | **$4,032** |
+| Item | Per Truck | 36 Trucks | Notes |
+|---|---|---|---|
+| Raspberry Pi 5 (4 GB) | $85 | $3,060 | Third-party/in-stock pricing; MSRP $60 rarely available |
+| Raspberry Pi Zero 2 W | $30 | $1,080 | Often $25–35 from third-party; MSRP $15 rarely in stock |
+| Endurance SD card (32 GB) × 2 | $24 | $864 | One per Pi |
+| Waveshare RS485 CAN HAT (B) | $18 | $648 | Basic model, no surge protection |
+| Automotive power supply | $20 | $720 | 12/24V to 5V buck converter |
+| Enclosure + mounting | $15 | $540 | Weatherproof project box |
+| Ethernet cable (Pi 5 to PLC) | $5 | $180 | |
+| Micro USB power cable (Pi Zero) | $5 | $180 | USB from Pi 5 or separate supply |
+| **Total hardware** | **$202** | **$7,272** | |
 
 **Monthly operating costs (36 trucks):**
 
