@@ -8,6 +8,17 @@ import dynamic from "next/dynamic";
 const TruckMap = dynamic(() => import("./TruckMap"), { ssr: false });
 
 import React, { useState, useEffect, useCallback } from "react";
+import ReactMarkdown, { Components } from "react-markdown";
+
+const mdComponents: Components = {
+  strong: ({ children }) => <strong className="text-white font-semibold">{children}</strong>,
+  em: ({ children }) => <em className="text-purple-300">{children}</em>,
+  p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+  ul: ({ children }) => <ul className="list-disc pl-4 space-y-1 mb-2">{children}</ul>,
+  ol: ({ children }) => <ol className="list-decimal pl-4 space-y-1 mb-2">{children}</ol>,
+  li: ({ children }) => <li>{children}</li>,
+  code: ({ children }) => <code className="bg-gray-700/60 px-1 py-0.5 rounded text-purple-300 text-[0.85em]">{children}</code>,
+};
 
 interface TruckReadings {
   [key: string]: unknown;
@@ -1487,8 +1498,8 @@ ${aiSummary ? `<h2>AI Vehicle Health Summary</h2><div style="white-space:pre-wra
           {/* Full diagnosis result */}
           {aiDiagnosis && !chatOpen && (
             <div className="bg-gray-800/70 rounded-xl p-4 sm:p-5 border border-purple-800/20">
-              <div className="text-xs sm:text-sm text-gray-200 whitespace-pre-wrap leading-relaxed">
-                {aiDiagnosis}
+              <div className="text-xs sm:text-sm text-gray-200 leading-relaxed">
+                <ReactMarkdown components={mdComponents}>{aiDiagnosis}</ReactMarkdown>
               </div>
             </div>
           )}
@@ -1534,8 +1545,12 @@ ${aiSummary ? `<h2>AI Vehicle Health Summary</h2><div style="white-space:pre-wra
                         {msg.role === "user" ? "You" : "\u{1F9E0} AI Mechanic"}
                       </span>
                     </div>
-                    <div className="text-xs sm:text-sm text-gray-200 whitespace-pre-wrap leading-relaxed">
-                      {msg.content}
+                    <div className={`text-xs sm:text-sm text-gray-200 leading-relaxed ${msg.role === "user" ? "whitespace-pre-wrap" : ""}`}>
+                      {msg.role === "assistant" ? (
+                        <ReactMarkdown components={mdComponents}>{msg.content}</ReactMarkdown>
+                      ) : (
+                        msg.content
+                      )}
                     </div>
                   </div>
                 ))}

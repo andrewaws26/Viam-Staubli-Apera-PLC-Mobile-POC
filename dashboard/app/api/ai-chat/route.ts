@@ -38,9 +38,8 @@ export async function POST(request: NextRequest) {
 
   const readingsText = JSON.stringify(readings || {}, null, 2);
 
-  // Fetch historical summary (cached, 5-min TTL)
-  const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
-  const history = await getAiHistorySummary(baseUrl);
+  // Fetch historical summary (cached, 5-min TTL — calls Viam Data API directly)
+  const history = await getAiHistorySummary();
 
   const systemPrompt = `You are an AI diagnostic partner for mechanics and fleet managers. Think of yourself as a knowledgeable colleague sitting next to them at the shop, looking at live data together and working through problems as a team. You're NOT here to tell them what's wrong — you're here to help them figure it out faster by analyzing data they don't have time to stare at.
 

@@ -35,9 +35,8 @@ export async function POST(request: NextRequest) {
 
   const readingsText = JSON.stringify(readings, null, 2);
 
-  // Fetch historical summary (cached, 5-min TTL)
-  const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
-  const history = await getAiHistorySummary(baseUrl);
+  // Fetch historical summary (cached, 5-min TTL — calls Viam Data API directly)
+  const history = await getAiHistorySummary();
 
   const prompt = `You are an AI diagnostic partner for mechanics and fleet managers. You have access to:
 1. LIVE vehicle data — current CAN bus readings (below)

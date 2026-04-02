@@ -1,16 +1,19 @@
 /**
  * AI Historical Data Summary
  *
- * Fetches truck history, computes 24h trends with direction, peak events,
- * activity estimates, DTC history, and 7-day baseline comparison.
+ * Fetches truck history directly via the shared Viam Data API client,
+ * computes 24h trends with direction, peak events, activity estimates,
+ * DTC history, and 7-day baseline comparison.
  * Returns a compact text block for injection into Claude prompts.
  *
  * Cached for 5 minutes to avoid repeated Viam queries on rapid AI chat.
  */
 
+import { fetchTruckData, buildTruckSummary } from "@/lib/truck-data";
+
 // ── Types ──────────────────────────────────────────────────────────
 
-interface TruckHistoryResponse {
+interface TruckHistoryData {
   totalPoints: number;
   hours: number;
   periodStart: string;
@@ -92,7 +95,7 @@ const CACHE_TTL = 5 * 60 * 1000;
 
 // ── Main export ────────────────────────────────────────────────────
 
-export async function getAiHistorySummary(baseUrl: string): Promise<AiHistorySummary> {
+export async function getAiHistorySummary(): Promise<AiHistorySummary> {
   if (_cache && Date.now() - _cache.fetchedAt < CACHE_TTL) {
     return {
       ..._cache,
@@ -103,12 +106,24 @@ export async function getAiHistorySummary(baseUrl: string): Promise<AiHistorySum
   }
 
   try {
-    console.log("[AI-HISTORY] Fetching truck history for AI context...");
-    const resp = await fetch(`${baseUrl}/api/truck-history?hours=168`, { cache: "no-store" });
-    if (!resp.ok) return noData("History API returned " + resp.status);
+    console.log("[AI-HISTORY] Fetching truck data from Viam Data API...");
+    const points = await fetchTruckData(168);
+    const raw = buildTruckSummary(points, 168);
 
-    const hist: TruckHistoryResponse = await resp.json();
-    if (!hist.totalPoints || !hist.timeSeries?.length) return noData("No data points");
+    if (!raw.totalPoints || !raw.timeSeries?.length) return noData("No data points");
+    console.log("[AI-CHAT-LOG] History fetch status: OK,", raw.totalPoints, "points");
+
+    // Map to typed format for AI processing (safe — totalPoints > 0 guarantees non-null fields)
+    const hist: TruckHistoryData = {
+      totalPoints: raw.totalPoints,
+      hours: raw.hours,
+      periodStart: raw.periodStart as string,
+      periodEnd: raw.periodEnd as string,
+      totalMinutes: raw.totalMinutes,
+      summary: raw.summary as Record<string, Record<string, number>>,
+      dtcEvents: raw.dtcEvents,
+      timeSeries: raw.timeSeries as TSPoint[],
+    };
 
     const summary = buildSummary(hist);
     _cache = summary;
@@ -130,7 +145,7 @@ function noData(reason: string): AiHistorySummary {
 
 // ── Build structured summary ───────────────────────────────────────
 
-function buildSummary(hist: TruckHistoryResponse): AiHistorySummary {
+function buildSummary(hist: TruckHistoryData): AiHistorySummary {
   const now = Date.now();
   const ts = hist.timeSeries;
 
@@ -427,7 +442,7 @@ function formatAll(
   peaks: PeakEvent[],
   activity: Activity,
   dtcs: { timestamp: string; code: string }[],
-  hist: TruckHistoryResponse,
+  hist: TruckHistoryData,
   pts24Count: number,
 ): string {
   const out: string[] = [];
