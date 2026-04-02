@@ -207,14 +207,18 @@ A **fragment** is a reusable config template that can be applied to multiple mac
 
 **Hardware (one-time):**
 
-| Item | Per Truck | 36 Trucks |
-|---|---|---|
-| Raspberry Pi 5 (4 GB) | $60 | $2,160 |
-| Endurance SD card (32 GB) | $12 | $432 |
-| Automotive power supply | $20 | $720 |
-| Enclosure + mounting | $15 | $540 |
-| Ethernet cable | $5 | $180 |
-| **Total hardware** | **$112** | **$4,032** |
+| Item | Per Truck | 36 Trucks | Notes |
+|---|---|---|---|
+| Raspberry Pi 5 (4 GB) | $85 | $3,060 | MSRP $60 but rarely in stock; $80-90 from third-party/in-stock sellers |
+| Raspberry Pi Zero 2 W | $30 | $1,080 | MSRP $15 but real-world $25-35; needed for J1939/OBD-II diagnostics |
+| Waveshare SIM7600G-H 4G HAT | $83 | $2,988 | SKU 17372; kit includes LTE antenna, GPS antenna, USB cable; 4G + GNSS |
+| Waveshare RS485 CAN HAT (B) | $18 | $648 | Basic model, no surge protection; connects Pi Zero to truck CAN bus |
+| Endurance SD cards (32 GB) × 2 | $24 | $864 | One per Pi; Samsung PRO Endurance or SanDisk MAX Endurance |
+| Micro USB power cable (Pi Zero) | $5 | $180 | Powers Pi Zero from truck 12V via existing supply |
+| Automotive power supply | $20 | $720 | 12V→5V USB-C, automotive-rated for voltage spikes |
+| Enclosure + mounting | $15 | $540 | DIN rail or panel-mount; protects from dust/vibration |
+| Ethernet cable | $5 | $180 | Pi 5 to Click PLC connection |
+| **Total hardware** | **$285** | **$10,260** | |
 
 **Monthly operating costs (36 trucks):**
 
