@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>IronSight Fleet Monitoring System — Overview</title>
 <style>
-  /* ── Reset & Base ─────────────────────────────────────────── */
+  
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html { scroll-behavior: smooth; }
   body {
@@ -13,7 +13,7 @@
     color: #2d2d2d; background: #fff; line-height: 1.6; font-size: 16px;
   }
 
-  /* ── Color tokens ─────────────────────────────────────────── */
+  
   :root {
     --navy:   #1a1a2e;
     --green:  #00d4aa;
@@ -27,12 +27,12 @@
     --muted:  #6b7280;
   }
 
-  /* ── Layout ───────────────────────────────────────────────── */
+  
   .container { max-width: 960px; margin: 0 auto; padding: 0 24px; }
   section { padding: 48px 0; }
   section + section { border-top: 1px solid var(--border); }
 
-  /* ── Hero ──────────────────────────────────────────────────── */
+  
   .hero {
     background: var(--navy); color: #fff; padding: 56px 0 48px;
     text-align: center;
@@ -51,7 +51,7 @@
     letter-spacing: 0.06em; text-transform: uppercase;
   }
 
-  /* ── Flow diagram (hero) ──────────────────────────────────── */
+  
   .flow { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
   .flow-node {
     background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
@@ -62,14 +62,14 @@
   .flow-node .label { font-size: 0.82rem; font-weight: 600; letter-spacing: 0.03em; }
   .flow-arrow { color: var(--green); font-size: 1.4rem; font-weight: 700; }
 
-  /* ── Section headings ─────────────────────────────────────── */
+  
   h2 {
     font-size: 1.45rem; font-weight: 700; color: var(--navy);
     margin-bottom: 20px; letter-spacing: 0.01em;
   }
   h3 { font-size: 1.05rem; font-weight: 700; color: var(--navy); margin-bottom: 8px; }
 
-  /* ── Problem cards ────────────────────────────────────────── */
+  
   .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
   .card {
     background: var(--card); border: 1px solid var(--border);
@@ -90,18 +90,19 @@
   .icon-maintenance .card-icon { background: #fce4ec; color: #c62828; }
   .icon-metrics .card-icon { background: #e3f2fd; color: #1565c0; }
 
-  /* ── Architecture SVG ─────────────────────────────────────── */
+  
   .arch-wrap {
     background: var(--bg); border: 1px solid var(--border);
     border-radius: 12px; padding: 24px; overflow-x: auto;
   }
   .arch-wrap svg { display: block; margin: 0 auto; }
+  svg text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
   .arch-note {
     font-size: 0.9rem; color: var(--muted); margin-top: 20px;
     line-height: 1.7; max-width: 700px;
   }
 
-  /* ── Cost table ───────────────────────────────────────────── */
+  
   table {
     width: 100%; border-collapse: collapse; font-size: 0.92rem;
     background: var(--card); border-radius: 12px; overflow: hidden;
@@ -114,33 +115,23 @@
   .cost { font-weight: 700; color: var(--navy); white-space: nowrap; }
   .total-row td { font-weight: 700; background: #f0fdf4; border-top: 2px solid var(--green); }
 
-  /* ── Screenshot placeholders ──────────────────────────────── */
+  
   .screenshot-section { margin-top: 12px; }
   .screenshot-section h3 { margin-bottom: 4px; }
   .screenshot-section > p { font-size: 0.9rem; color: var(--muted); margin-bottom: 12px; }
-  .placeholder {
-    width: 100%; height: 0; padding-bottom: 50%;
-    border: 2px dashed var(--border); border-radius: 12px;
-    display: flex; align-items: center; justify-content: center;
-    position: relative; background: var(--bg); margin-bottom: 32px;
-    overflow: hidden;
+  .mockup-wrap {
+    border: 1px solid var(--border); border-radius: 12px;
+    overflow: hidden; margin-bottom: 32px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
   }
-  .placeholder-inner {
-    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    text-align: center; padding: 16px;
-  }
-  .placeholder-label {
-    font-size: 0.85rem; font-weight: 700; color: var(--navy);
-    background: #fff; border: 1px solid var(--border);
-    padding: 8px 20px; border-radius: 8px;
-    letter-spacing: 0.03em;
-  }
-  .placeholder-hint {
-    font-size: 0.75rem; color: var(--muted); margin-top: 8px;
+  .mockup-wrap svg { display: block; width: 100%; height: auto; }
+  .mockup-caption {
+    font-size: 0.75rem; color: var(--muted); text-align: center;
+    padding: 8px; background: var(--bg); border-top: 1px solid var(--border);
+    font-style: italic;
   }
 
-  /* ── Checklist ────────────────────────────────────────────── */
+  
   .checklist { list-style: none; }
   .checklist li {
     padding: 10px 0; border-bottom: 1px solid var(--border);
@@ -156,7 +147,7 @@
   }
   .checklist strong { color: var(--navy); }
 
-  /* ── Q&A ──────────────────────────────────────────────────── */
+  
   .qa { display: grid; gap: 16px; }
   .qa-item {
     background: var(--card); border: 1px solid var(--border);
@@ -168,7 +159,7 @@
   }
   .qa-item .a { font-size: 0.9rem; color: var(--muted); }
 
-  /* ── Roadmap ──────────────────────────────────────────────── */
+  
   .roadmap { display: grid; gap: 14px; }
   .roadmap-item {
     display: flex; align-items: flex-start; gap: 14px;
@@ -182,7 +173,7 @@
   .roadmap-item h3 { margin-bottom: 2px; font-size: 0.95rem; }
   .roadmap-item p { font-size: 0.85rem; color: var(--muted); }
 
-  /* ── Footer ───────────────────────────────────────────────── */
+  
   .doc-footer {
     text-align: center; padding: 32px 0;
     font-size: 0.75rem; color: var(--muted);
@@ -190,7 +181,7 @@
     letter-spacing: 0.03em;
   }
 
-  /* ── Print ────────────────────────────────────────────────── */
+  
   @media print {
     body { font-size: 11pt; color: #000; background: #fff; }
     .hero { background: #fff !important; color: #000 !important; border-bottom: 2px solid #000; padding: 24px 0; }
@@ -203,14 +194,14 @@
     .card { box-shadow: none; border: 1px solid #ccc; break-inside: avoid; }
     .qa-item, .roadmap-item { break-inside: avoid; }
     .arch-wrap { background: #fff; }
-    .placeholder { border-color: #aaa; background: #f9f9f9; }
-    .placeholder-label { border-color: #aaa; }
+    .mockup-wrap { box-shadow: none; border-color: #ccc; }
+    .mockup-caption { background: #f5f5f5; }
     table { font-size: 10pt; }
     thead { background: #333 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .total-row td { background: #e8f5e9 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 
-  /* ── Responsive ───────────────────────────────────────────── */
+  
   @media (max-width: 640px) {
     .hero h1 { font-size: 1.5rem; }
     .hero .tagline { font-size: 0.92rem; }
@@ -228,9 +219,6 @@
 </head>
 <body>
 
-<!-- ════════════════════════════════════════════════════════════════
-     1. HERO
-     ════════════════════════════════════════════════════════════════ -->
 <header class="hero">
   <div class="container">
     <h1><span>IronSight</span> Fleet Monitoring System</h1>
@@ -262,9 +250,6 @@
   </div>
 </header>
 
-<!-- ════════════════════════════════════════════════════════════════
-     2. THE PROBLEM WE SOLVE
-     ════════════════════════════════════════════════════════════════ -->
 <section>
   <div class="container">
     <h2>The Problem We Solve</h2>
@@ -301,70 +286,55 @@
   </div>
 </section>
 
-<!-- ════════════════════════════════════════════════════════════════
-     3. HOW IT WORKS (ARCHITECTURE)
-     ════════════════════════════════════════════════════════════════ -->
 <section>
   <div class="container">
     <h2>How It Works</h2>
     <div class="arch-wrap">
       <svg viewBox="0 0 880 470" width="880" height="470" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;">
-        <!-- ── Truck Cab boundary ── -->
-        <rect x="16" y="16" width="500" height="430" rx="14" fill="#f0f4f8" stroke="#c8cfd8" stroke-width="1.5" stroke-dasharray="6 3"/>
-        <text x="36" y="42" font-size="12" font-weight="700" fill="#6b7280" letter-spacing="0.08em" font-family="-apple-system,sans-serif">TRUCK CAB</text>
+                <rect x="16" y="16" width="500" height="430" rx="14" fill="#f0f4f8" stroke="#c8cfd8" stroke-width="1.5" stroke-dasharray="6 3"/>
+        <text x="36" y="42" font-size="12" font-weight="700" fill="#6b7280" letter-spacing="0.08em">TRUCK CAB</text>
 
-        <!-- ── Pi Zero 2 W ── -->
-        <rect x="40" y="64" width="210" height="170" rx="10" fill="#fff" stroke="#e2e5ea" stroke-width="1.2"/>
+                <rect x="40" y="64" width="210" height="170" rx="10" fill="#fff" stroke="#e2e5ea" stroke-width="1.2"/>
         <rect x="40" y="64" width="210" height="32" rx="10" fill="#1a1a2e"/>
         <rect x="40" y="86" width="210" height="10" fill="#1a1a2e"/>
-        <text x="145" y="86" font-size="11" font-weight="700" fill="#fff" text-anchor="middle" font-family="-apple-system,sans-serif">Raspberry Pi Zero 2 W</text>
-        <text x="145" y="114" font-size="10" fill="#6b7280" text-anchor="middle" font-family="-apple-system,sans-serif">~$15 &middot; CAN bus diagnostics</text>
+        <text x="145" y="86" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">Raspberry Pi Zero 2 W</text>
+        <text x="145" y="114" font-size="10" fill="#6b7280" text-anchor="middle">~$15 &middot; CAN bus diagnostics</text>
 
-        <!-- MCP2515 CAN HAT -->
-        <rect x="60" y="130" width="170" height="36" rx="6" fill="#fef3c7" stroke="#f59e0b" stroke-width="1"/>
-        <text x="145" y="153" font-size="10" font-weight="600" fill="#92400e" text-anchor="middle" font-family="-apple-system,sans-serif">MCP2515 CAN HAT (~$15)</text>
+                <rect x="60" y="130" width="170" height="36" rx="6" fill="#fef3c7" stroke="#f59e0b" stroke-width="1"/>
+        <text x="145" y="153" font-size="10" font-weight="600" fill="#92400e" text-anchor="middle">MCP2515 CAN HAT (~$15)</text>
 
-        <!-- Arrow to Engine ECU -->
-        <rect x="60" y="182" width="170" height="40" rx="6" fill="#fef2f2" stroke="#ff6b6b" stroke-width="1"/>
-        <text x="145" y="198" font-size="9.5" font-weight="600" fill="#991b1b" text-anchor="middle" font-family="-apple-system,sans-serif">Engine ECU (J1939 CAN)</text>
-        <text x="145" y="213" font-size="8.5" fill="#991b1b" text-anchor="middle" font-family="-apple-system,sans-serif">RPM, temps, DTCs, speed, fuel</text>
+                <rect x="60" y="182" width="170" height="40" rx="6" fill="#fef2f2" stroke="#ff6b6b" stroke-width="1"/>
+        <text x="145" y="198" font-size="9.5" font-weight="600" fill="#991b1b" text-anchor="middle">Engine ECU (J1939 CAN)</text>
+        <text x="145" y="213" font-size="8.5" fill="#991b1b" text-anchor="middle">RPM, temps, DTCs, speed, fuel</text>
 
-        <!-- ── Pi 5 ── -->
-        <rect x="280" y="64" width="220" height="370" rx="10" fill="#fff" stroke="#e2e5ea" stroke-width="1.2"/>
+                <rect x="280" y="64" width="220" height="370" rx="10" fill="#fff" stroke="#e2e5ea" stroke-width="1.2"/>
         <rect x="280" y="64" width="220" height="32" rx="10" fill="#1a1a2e"/>
         <rect x="280" y="86" width="220" height="10" fill="#1a1a2e"/>
-        <text x="390" y="86" font-size="11" font-weight="700" fill="#fff" text-anchor="middle" font-family="-apple-system,sans-serif">Raspberry Pi 5</text>
-        <text x="390" y="114" font-size="10" fill="#6b7280" text-anchor="middle" font-family="-apple-system,sans-serif">~$80 &middot; TPS monitor &amp; hub</text>
+        <text x="390" y="86" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">Raspberry Pi 5</text>
+        <text x="390" y="114" font-size="10" fill="#6b7280" text-anchor="middle">~$80 &middot; TPS monitor &amp; hub</text>
 
-        <!-- Click PLC -->
-        <rect x="300" y="130" width="180" height="48" rx="6" fill="#e0f2fe" stroke="#6bcbff" stroke-width="1"/>
-        <text x="390" y="150" font-size="10" font-weight="600" fill="#0c4a6e" text-anchor="middle" font-family="-apple-system,sans-serif">Click PLC (Ethernet)</text>
-        <text x="390" y="166" font-size="8.5" fill="#0c4a6e" text-anchor="middle" font-family="-apple-system,sans-serif">Plate count, encoder, eject status</text>
+                <rect x="300" y="130" width="180" height="48" rx="6" fill="#e0f2fe" stroke="#6bcbff" stroke-width="1"/>
+        <text x="390" y="150" font-size="10" font-weight="600" fill="#0c4a6e" text-anchor="middle">Click PLC (Ethernet)</text>
+        <text x="390" y="166" font-size="8.5" fill="#0c4a6e" text-anchor="middle">Plate count, encoder, eject status</text>
 
-        <!-- Touch Display -->
-        <rect x="300" y="192" width="180" height="36" rx="6" fill="#f0fdf4" stroke="#00d4aa" stroke-width="1"/>
-        <text x="390" y="215" font-size="10" font-weight="600" fill="#065f46" text-anchor="middle" font-family="-apple-system,sans-serif">Touch Display (in-cab)</text>
+                <rect x="300" y="192" width="180" height="36" rx="6" fill="#f0fdf4" stroke="#00d4aa" stroke-width="1"/>
+        <text x="390" y="215" font-size="10" font-weight="600" fill="#065f46" text-anchor="middle">Touch Display (in-cab)</text>
 
-        <!-- SIM7600G -->
-        <rect x="300" y="242" width="180" height="48" rx="6" fill="#faf5ff" stroke="#a78bfa" stroke-width="1"/>
-        <text x="390" y="262" font-size="10" font-weight="600" fill="#5b21b6" text-anchor="middle" font-family="-apple-system,sans-serif">SIM7600G Cellular HAT</text>
-        <text x="390" y="278" font-size="8.5" fill="#5b21b6" text-anchor="middle" font-family="-apple-system,sans-serif">~$50 &middot; 4G internet anywhere</text>
+                <rect x="300" y="242" width="180" height="48" rx="6" fill="#faf5ff" stroke="#a78bfa" stroke-width="1"/>
+        <text x="390" y="262" font-size="10" font-weight="600" fill="#5b21b6" text-anchor="middle">SIM7600G Cellular HAT</text>
+        <text x="390" y="278" font-size="8.5" fill="#5b21b6" text-anchor="middle">~$50 &middot; 4G internet anywhere</text>
 
-        <!-- WiFi to Pi Zero -->
-        <rect x="300" y="304" width="180" height="36" rx="6" fill="#f5f5f5" stroke="#d1d5db" stroke-width="1"/>
-        <text x="390" y="327" font-size="9.5" font-weight="600" fill="#6b7280" text-anchor="middle" font-family="-apple-system,sans-serif">WiFi hotspot for Pi Zero</text>
+                <rect x="300" y="304" width="180" height="36" rx="6" fill="#f5f5f5" stroke="#d1d5db" stroke-width="1"/>
+        <text x="390" y="327" font-size="9.5" font-weight="600" fill="#6b7280" text-anchor="middle">WiFi hotspot for Pi Zero</text>
 
-        <!-- Offline Buffer -->
-        <rect x="300" y="354" width="180" height="36" rx="6" fill="#fff7ed" stroke="#f59e0b" stroke-width="1"/>
-        <text x="390" y="377" font-size="9.5" font-weight="600" fill="#92400e" text-anchor="middle" font-family="-apple-system,sans-serif">Offline buffer (50 MB)</text>
+                <rect x="300" y="354" width="180" height="36" rx="6" fill="#fff7ed" stroke="#f59e0b" stroke-width="1"/>
+        <text x="390" y="377" font-size="9.5" font-weight="600" fill="#92400e" text-anchor="middle">Offline buffer (50 MB)</text>
 
-        <!-- WiFi link Pi5 to Pi Zero -->
-        <line x1="250" y1="155" x2="280" y2="155" stroke="#9ca3af" stroke-width="1.2" stroke-dasharray="4 2"/>
-        <text x="265" y="147" font-size="7.5" fill="#9ca3af" text-anchor="middle" font-family="-apple-system,sans-serif">WiFi</text>
+                <line x1="250" y1="155" x2="280" y2="155" stroke="#9ca3af" stroke-width="1.2" stroke-dasharray="4 2"/>
+        <text x="265" y="147" font-size="7.5" fill="#9ca3af" text-anchor="middle">WiFi</text>
 
-        <!-- ── Arrow: Truck → Cloud ── -->
-        <line x1="500" y1="220" x2="570" y2="220" stroke="#00d4aa" stroke-width="2" marker-end="url(#arrowG)"/>
-        <text x="535" y="210" font-size="8" fill="#00d4aa" text-anchor="middle" font-weight="600" font-family="-apple-system,sans-serif">ENCRYPTED</text>
+                <line x1="500" y1="220" x2="570" y2="220" stroke="#00d4aa" stroke-width="2" marker-end="url(#arrowG)"/>
+        <text x="535" y="210" font-size="8" fill="#00d4aa" text-anchor="middle" font-weight="600">ENCRYPTED</text>
 
         <defs>
           <marker id="arrowG" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
@@ -375,37 +345,33 @@
           </marker>
         </defs>
 
-        <!-- ── Viam Cloud ── -->
-        <rect x="570" y="140" width="160" height="160" rx="12" fill="#f0fdf4" stroke="#00d4aa" stroke-width="1.5"/>
-        <text x="650" y="170" font-size="12" font-weight="700" fill="#065f46" text-anchor="middle" font-family="-apple-system,sans-serif">Viam Cloud</text>
-        <text x="650" y="190" font-size="9" fill="#6b7280" text-anchor="middle" font-family="-apple-system,sans-serif">Encrypted storage</text>
-        <text x="650" y="206" font-size="9" fill="#6b7280" text-anchor="middle" font-family="-apple-system,sans-serif">Automatic sync</text>
-        <text x="650" y="222" font-size="9" fill="#6b7280" text-anchor="middle" font-family="-apple-system,sans-serif">Device management</text>
-        <text x="650" y="242" font-size="9" fill="#6b7280" text-anchor="middle" font-family="-apple-system,sans-serif">Data API</text>
-        <text x="650" y="275" font-size="9" font-weight="600" fill="#065f46" text-anchor="middle" font-family="-apple-system,sans-serif">Free at current scale</text>
+                <rect x="570" y="140" width="160" height="160" rx="12" fill="#f0fdf4" stroke="#00d4aa" stroke-width="1.5"/>
+        <text x="650" y="170" font-size="12" font-weight="700" fill="#065f46" text-anchor="middle">Viam Cloud</text>
+        <text x="650" y="190" font-size="9" fill="#6b7280" text-anchor="middle">Encrypted storage</text>
+        <text x="650" y="206" font-size="9" fill="#6b7280" text-anchor="middle">Automatic sync</text>
+        <text x="650" y="222" font-size="9" fill="#6b7280" text-anchor="middle">Device management</text>
+        <text x="650" y="242" font-size="9" fill="#6b7280" text-anchor="middle">Data API</text>
+        <text x="650" y="275" font-size="9" font-weight="600" fill="#065f46" text-anchor="middle">Free at current scale</text>
 
-        <!-- ── Arrow: Cloud → Dashboard ── -->
-        <line x1="650" y1="300" x2="650" y2="340" stroke="#6bcbff" stroke-width="2" marker-end="url(#arrowB)"/>
+                <line x1="650" y1="300" x2="650" y2="340" stroke="#6bcbff" stroke-width="2" marker-end="url(#arrowB)"/>
 
-        <!-- ── Dashboard ── -->
-        <rect x="570" y="340" width="290" height="110" rx="12" fill="#e0f2fe" stroke="#6bcbff" stroke-width="1.5"/>
-        <text x="715" y="368" font-size="12" font-weight="700" fill="#0c4a6e" text-anchor="middle" font-family="-apple-system,sans-serif">Vercel Dashboard</text>
-        <text x="715" y="386" font-size="9" fill="#6b7280" text-anchor="middle" font-family="-apple-system,sans-serif">Any browser &middot; phone, tablet, or computer</text>
+                <rect x="570" y="340" width="290" height="110" rx="12" fill="#e0f2fe" stroke="#6bcbff" stroke-width="1.5"/>
+        <text x="715" y="368" font-size="12" font-weight="700" fill="#0c4a6e" text-anchor="middle">Vercel Dashboard</text>
+        <text x="715" y="386" font-size="9" fill="#6b7280" text-anchor="middle">Any browser &middot; phone, tablet, or computer</text>
 
-        <!-- Dashboard features grid -->
-        <rect x="585" y="398" width="62" height="24" rx="4" fill="#fff" stroke="#e2e5ea" stroke-width="0.8"/>
-        <text x="616" y="414" font-size="7.5" font-weight="600" fill="#1a1a2e" text-anchor="middle" font-family="-apple-system,sans-serif">Live Monitor</text>
+                <rect x="585" y="398" width="62" height="24" rx="4" fill="#fff" stroke="#e2e5ea" stroke-width="0.8"/>
+        <text x="616" y="414" font-size="7.5" font-weight="600" fill="#1a1a2e" text-anchor="middle">Live Monitor</text>
 
         <rect x="655" y="398" width="62" height="24" rx="4" fill="#fff" stroke="#e2e5ea" stroke-width="0.8"/>
-        <text x="686" y="414" font-size="7.5" font-weight="600" fill="#1a1a2e" text-anchor="middle" font-family="-apple-system,sans-serif">Shift Report</text>
+        <text x="686" y="414" font-size="7.5" font-weight="600" fill="#1a1a2e" text-anchor="middle">Shift Report</text>
 
         <rect x="725" y="398" width="62" height="24" rx="4" fill="#fff" stroke="#e2e5ea" stroke-width="0.8"/>
-        <text x="756" y="414" font-size="7.5" font-weight="600" fill="#1a1a2e" text-anchor="middle" font-family="-apple-system,sans-serif">AI Mechanic</text>
+        <text x="756" y="414" font-size="7.5" font-weight="600" fill="#1a1a2e" text-anchor="middle">AI Mechanic</text>
 
         <rect x="795" y="398" width="55" height="24" rx="4" fill="#fff" stroke="#e2e5ea" stroke-width="0.8"/>
-        <text x="822.5" y="414" font-size="7.5" font-weight="600" fill="#1a1a2e" text-anchor="middle" font-family="-apple-system,sans-serif">Fleet View</text>
+        <text x="822.5" y="414" font-size="7.5" font-weight="600" fill="#1a1a2e" text-anchor="middle">Fleet View</text>
 
-        <text x="715" y="440" font-size="8.5" fill="#065f46" text-anchor="middle" font-weight="600" font-family="-apple-system,sans-serif">Free tier &middot; auto-deploys on code push</text>
+        <text x="715" y="440" font-size="8.5" fill="#065f46" text-anchor="middle" font-weight="600">Free tier &middot; auto-deploys on code push</text>
       </svg>
     </div>
     <p class="arch-note">
@@ -414,9 +380,6 @@
   </div>
 </section>
 
-<!-- ════════════════════════════════════════════════════════════════
-     4. WHAT EACH PIECE COSTS
-     ════════════════════════════════════════════════════════════════ -->
 <section>
   <div class="container">
     <h2>What Each Piece Costs and Why We Need It</h2>
@@ -465,51 +428,250 @@
   </div>
 </section>
 
-<!-- ════════════════════════════════════════════════════════════════
-     5. THE DASHBOARD — WHAT YOU SEE
-     ════════════════════════════════════════════════════════════════ -->
 <section>
   <div class="container">
     <h2>The Dashboard &mdash; What You See</h2>
 
     <div class="screenshot-section">
       <h3>Live Monitor</h3>
-      <p>See every truck's status right now &mdash; engine on/off, RPM, temperatures, fault codes, plate counts. Updated every 5 seconds.</p>
-      <div class="placeholder">
-        <div class="placeholder-inner">
-          <div class="placeholder-label">PASTE SCREENSHOT: Main Dashboard</div>
-          <div class="placeholder-hint">Take a screenshot of the live dashboard at full width and replace this placeholder</div>
-        </div>
+      <p>See every truck's status right now &mdash; engine on/off, RPM, temperatures, fault codes, plate counts, and 19 automated diagnostic checks. Updated every 2 seconds.</p>
+      <div class="mockup-wrap">
+        <svg viewBox="0 0 800 420" xmlns="http://www.w3.org/2000/svg">
+          <defs><linearGradient id="spark1" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#22c55e" stop-opacity="0.2"/><stop offset="1" stop-color="#22c55e" stop-opacity="0"/></linearGradient></defs>
+                    <rect width="800" height="420" rx="0" fill="#030712"/>
+                    <rect width="800" height="44" fill="#0f1117"/>
+          <text x="20" y="28" font-size="14" font-weight="800" fill="#f3f4f6" letter-spacing="0.08em">TPS MONITOR</text>
+          <text x="155" y="28" font-size="9" fill="#4b5563">IronSight &#8212; Live Production &amp; Fleet Data</text>
+                    <rect x="630" y="10" width="90" height="26" rx="6" fill="#16a34a"/>
+          <text x="675" y="27" font-size="9" font-weight="600" fill="#fff" text-anchor="middle">Shift Report</text>
+                    <circle cx="740" cy="22" r="5" fill="#22c55e"/>
+          <text x="750" y="26" font-size="8" fill="#6b7280">Live</text>
+
+                    <text x="20" y="68" font-size="9" font-weight="600" fill="#6b7280" letter-spacing="0.1em">SYSTEM STATUS</text>
+                    <rect x="20" y="78" width="182" height="56" rx="8" fill="#111827" stroke="#1f2937" stroke-width="1"/>
+          <circle cx="42" cy="106" r="12" fill="#052e16" stroke="#16a34a" stroke-width="1.5"/>
+          <text x="42" y="110" font-size="10" fill="#22c55e" text-anchor="middle">&#10003;</text>
+          <text x="62" y="100" font-size="10" font-weight="700" fill="#e5e7eb">PLC Connected</text>
+          <text x="62" y="116" font-size="8" fill="#22c55e">Modbus OK &#183; 2ms latency</text>
+                    <rect x="212" y="78" width="182" height="56" rx="8" fill="#111827" stroke="#1f2937" stroke-width="1"/>
+          <circle cx="234" cy="106" r="12" fill="#052e16" stroke="#16a34a" stroke-width="1.5"/>
+          <text x="234" y="110" font-size="10" fill="#22c55e" text-anchor="middle">&#10003;</text>
+          <text x="254" y="100" font-size="10" font-weight="700" fill="#e5e7eb">Engine Running</text>
+          <text x="254" y="116" font-size="8" fill="#22c55e">CAN OK &#183; J1939 &#183; 847 frames</text>
+                    <rect x="404" y="78" width="182" height="56" rx="8" fill="#111827" stroke="#1f2937" stroke-width="1"/>
+          <circle cx="426" cy="106" r="12" fill="#052e16" stroke="#16a34a" stroke-width="1.5"/>
+          <text x="426" y="110" font-size="10" fill="#22c55e" text-anchor="middle">&#10003;</text>
+          <text x="446" y="100" font-size="10" font-weight="700" fill="#e5e7eb">Plate Flipper</text>
+          <text x="446" y="116" font-size="8" fill="#22c55e">6.2 detections/min</text>
+                    <rect x="596" y="78" width="182" height="56" rx="8" fill="#111827" stroke="#1f2937" stroke-width="1"/>
+          <circle cx="618" cy="106" r="12" fill="#052e16" stroke="#16a34a" stroke-width="1.5"/>
+          <text x="618" y="110" font-size="10" fill="#22c55e" text-anchor="middle">&#10003;</text>
+          <text x="638" y="100" font-size="10" font-weight="700" fill="#e5e7eb">Eject System</text>
+          <text x="638" y="116" font-size="8" fill="#22c55e">TPS1 + TPS2 active</text>
+
+                    <text x="20" y="158" font-size="9" font-weight="600" fill="#6b7280" letter-spacing="0.1em">ENGINE DATA</text>
+                    <rect x="20" y="168" width="120" height="60" rx="8" fill="#111827" stroke="#1f2937" stroke-width="1"/>
+          <text x="30" y="184" font-size="8" fill="#6b7280" letter-spacing="0.05em">ENGINE RPM</text>
+          <text x="30" y="214" font-size="22" font-weight="800" fill="#22c55e">1,247</text>
+                    <rect x="150" y="168" width="120" height="60" rx="8" fill="#111827" stroke="#1f2937" stroke-width="1"/>
+          <text x="160" y="184" font-size="8" fill="#6b7280" letter-spacing="0.05em">COOLANT TEMP</text>
+          <text x="160" y="214" font-size="22" font-weight="800" fill="#22c55e">192<tspan font-size="12" fill="#6b7280">&#176;F</tspan></text>
+                    <rect x="280" y="168" width="120" height="60" rx="8" fill="#111827" stroke="#1f2937" stroke-width="1"/>
+          <text x="290" y="184" font-size="8" fill="#6b7280" letter-spacing="0.05em">OIL TEMP</text>
+          <text x="290" y="214" font-size="22" font-weight="800" fill="#22c55e">214<tspan font-size="12" fill="#6b7280">&#176;F</tspan></text>
+                    <rect x="410" y="168" width="120" height="60" rx="8" fill="#111827" stroke="#1f2937" stroke-width="1"/>
+          <text x="420" y="184" font-size="8" fill="#6b7280" letter-spacing="0.05em">SPEED</text>
+          <text x="420" y="214" font-size="22" font-weight="800" fill="#22c55e">12<tspan font-size="12" fill="#6b7280"> mph</tspan></text>
+                    <rect x="540" y="168" width="120" height="60" rx="8" fill="#111827" stroke="#1f2937" stroke-width="1"/>
+          <text x="550" y="184" font-size="8" fill="#6b7280" letter-spacing="0.05em">BATTERY</text>
+          <text x="550" y="214" font-size="22" font-weight="800" fill="#22c55e">14.2<tspan font-size="12" fill="#6b7280">V</tspan></text>
+                    <rect x="670" y="168" width="110" height="60" rx="8" fill="#111827" stroke="#1f2937" stroke-width="1"/>
+          <text x="680" y="184" font-size="8" fill="#6b7280" letter-spacing="0.05em">FUEL LEVEL</text>
+          <text x="680" y="214" font-size="22" font-weight="800" fill="#22c55e">68<tspan font-size="12" fill="#6b7280">%</tspan></text>
+
+                    <text x="20" y="256" font-size="9" font-weight="600" fill="#6b7280" letter-spacing="0.1em">TPS PRODUCTION</text>
+                    <rect x="20" y="266" width="180" height="60" rx="8" fill="#111827" stroke="#1f2937" stroke-width="1"/>
+          <text x="30" y="282" font-size="8" fill="#6b7280" letter-spacing="0.05em">PLATES PLACED</text>
+          <text x="30" y="312" font-size="22" font-weight="800" fill="#22c55e">1,847<tspan font-size="12" fill="#6b7280"> plates</tspan></text>
+                    <rect x="210" y="266" width="180" height="60" rx="8" fill="#111827" stroke="#1f2937" stroke-width="1"/>
+          <text x="220" y="282" font-size="8" fill="#6b7280" letter-spacing="0.05em">PLATES / MINUTE</text>
+          <text x="220" y="312" font-size="22" font-weight="800" fill="#22c55e">8.2<tspan font-size="12" fill="#6b7280"> /min</tspan></text>
+                    <rect x="400" y="266" width="180" height="60" rx="8" fill="#111827" stroke="#1f2937" stroke-width="1"/>
+          <text x="410" y="282" font-size="8" fill="#6b7280" letter-spacing="0.05em">TRACK DISTANCE</text>
+          <text x="410" y="312" font-size="22" font-weight="800" fill="#6bcbff">2,341<tspan font-size="12" fill="#6b7280"> ft</tspan></text>
+                    <rect x="590" y="266" width="190" height="60" rx="8" fill="#111827" stroke="#1f2937" stroke-width="1"/>
+          <text x="600" y="282" font-size="8" fill="#6b7280" letter-spacing="0.05em">SYSTEM DIAGNOSTICS</text>
+          <circle cx="610" cy="304" r="6" fill="#052e16"/><text x="610" y="308" font-size="8" fill="#22c55e" text-anchor="middle">&#10003;</text>
+          <text x="622" y="308" font-size="11" font-weight="600" fill="#22c55e">All Clear</text>
+          <text x="700" y="308" font-size="8" fill="#6b7280">19 rules checked</text>
+
+                    <text x="20" y="350" font-size="9" font-weight="600" fill="#6b7280" letter-spacing="0.1em">LIVE TRENDS</text>
+                    <rect x="20" y="358" width="185" height="48" rx="6" fill="#111827" stroke="#1f2937" stroke-width="0.5"/>
+          <text x="30" y="372" font-size="7.5" fill="#6b7280">RPM</text>
+          <polyline points="30,395 50,388 70,392 90,380 110,385 130,378 150,390 170,382 190,386" fill="none" stroke="#22c55e" stroke-width="1.5" stroke-linejoin="round"/>
+                    <rect x="215" y="358" width="185" height="48" rx="6" fill="#111827" stroke="#1f2937" stroke-width="0.5"/>
+          <text x="225" y="372" font-size="7.5" fill="#6b7280">Coolant &#176;F</text>
+          <polyline points="225,394 245,392 265,390 285,388 305,387 325,386 345,385 365,384 385,383" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-linejoin="round"/>
+                    <rect x="410" y="358" width="185" height="48" rx="6" fill="#111827" stroke="#1f2937" stroke-width="0.5"/>
+          <text x="420" y="372" font-size="7.5" fill="#6b7280">Speed mph</text>
+          <polyline points="420,395 440,388 460,380 480,395 500,390 520,385 540,395 560,388 580,392" fill="none" stroke="#3b82f6" stroke-width="1.5" stroke-linejoin="round"/>
+                    <rect x="605" y="358" width="175" height="48" rx="6" fill="#111827" stroke="#1f2937" stroke-width="0.5"/>
+          <text x="615" y="372" font-size="7.5" fill="#6b7280">Battery V</text>
+          <polyline points="615,385 635,384 655,385 675,384 695,385 715,384 735,385 755,384 770,385" fill="none" stroke="#a78bfa" stroke-width="1.5" stroke-linejoin="round"/>
+
+                    <text x="400" y="416" font-size="7.5" fill="#374151" text-anchor="middle">Polling every 2s &#183; Live &#8212; Viam Cloud &#183; 2026</text>
+        </svg>
+        <div class="mockup-caption">Live dashboard showing real-time engine data, TPS production metrics, system diagnostics, and trend charts</div>
       </div>
     </div>
 
     <div class="screenshot-section">
       <h3>Shift Report</h3>
-      <p>Select any date, get a complete summary: engine hours, idle time, plates placed, peak temperatures, trouble codes, and a trip timeline. Print it for the clipboard.</p>
-      <div class="placeholder">
-        <div class="placeholder-inner">
-          <div class="placeholder-label">PASTE SCREENSHOT: Shift Report</div>
-          <div class="placeholder-hint">Generate a shift report for a recent workday and screenshot the full page</div>
-        </div>
+      <p>Pick any date and time range &mdash; presets for day shift, night shift, full day, or a custom start/end time. Get engine hours, idle time, plates placed, peak temperatures, trouble codes, and a trip timeline. Print-optimized for the clipboard.</p>
+      <div class="mockup-wrap">
+        <svg viewBox="0 0 800 430" xmlns="http://www.w3.org/2000/svg">
+          <rect width="800" height="430" fill="#030712"/>
+                    <rect width="800" height="44" fill="#0f1117"/>
+          <text x="20" y="18" font-size="8" fill="#6b7280">&#8592; Dashboard</text>
+          <text x="20" y="36" font-size="14" font-weight="800" fill="#f3f4f6" letter-spacing="0.08em">SHIFT REPORT</text>
+          <text x="155" y="36" font-size="9" fill="#4b5563">IronSight Fleet Monitoring</text>
+          <rect x="720" y="12" width="60" height="24" rx="6" fill="#1f2937"/>
+          <text x="750" y="28" font-size="9" font-weight="600" fill="#d1d5db" text-anchor="middle">Print</text>
+
+                    <rect x="0" y="44" width="800" height="52" fill="#0f1117" stroke="#1f2937" stroke-width="0.5"/>
+                    <text x="20" y="60" font-size="7" fill="#6b7280" letter-spacing="0.08em">DATE</text>
+          <rect x="20" y="64" width="100" height="24" rx="6" fill="#111827" stroke="#374151" stroke-width="0.8"/>
+          <text x="30" y="80" font-size="9" fill="#e5e7eb">2026-03-26</text>
+                    <text x="130" y="60" font-size="7" fill="#6b7280" letter-spacing="0.08em">START</text>
+          <rect x="130" y="64" width="70" height="24" rx="6" fill="#111827" stroke="#374151" stroke-width="0.8"/>
+          <text x="140" y="80" font-size="9" fill="#e5e7eb">06:00</text>
+                    <text x="210" y="60" font-size="7" fill="#6b7280" letter-spacing="0.08em">END</text>
+          <rect x="210" y="64" width="70" height="24" rx="6" fill="#111827" stroke="#374151" stroke-width="0.8"/>
+          <text x="220" y="80" font-size="9" fill="#e5e7eb">18:00</text>
+                    <rect x="300" y="64" width="55" height="24" rx="0" fill="#f3f4f6"/>
+          <text x="327" y="80" font-size="8.5" font-weight="600" fill="#111827" text-anchor="middle">Day</text>
+          <rect x="355" y="64" width="55" height="24" rx="0" fill="#111827" stroke="#374151" stroke-width="0.8"/>
+          <text x="382" y="80" font-size="8.5" fill="#9ca3af" text-anchor="middle">Night</text>
+          <rect x="410" y="64" width="55" height="24" rx="0" fill="#111827" stroke="#374151" stroke-width="0.8"/>
+          <text x="437" y="80" font-size="8.5" fill="#9ca3af" text-anchor="middle">Full</text>
+          <rect x="465" y="64" width="60" height="24" rx="0" fill="#111827" stroke="#374151" stroke-width="0.8"/>
+          <text x="495" y="80" font-size="8.5" fill="#9ca3af" text-anchor="middle">Custom</text>
+                    <rect x="545" y="64" width="76" height="24" rx="6" fill="#2563eb"/>
+          <text x="583" y="80" font-size="9" font-weight="600" fill="#fff" text-anchor="middle">Generate</text>
+
+                    <rect x="20" y="108" width="182" height="64" rx="8" fill="#111827" stroke="#166534" stroke-width="0.8"/>
+          <text x="30" y="124" font-size="7.5" fill="#6b7280" letter-spacing="0.05em">ENGINE HOURS</text>
+          <text x="30" y="158" font-size="28" font-weight="800" fill="#22c55e">8.4<tspan font-size="14" fill="#6b7280"> hrs</tspan></text>
+
+          <rect x="212" y="108" width="182" height="64" rx="8" fill="#111827" stroke="#166534" stroke-width="0.8"/>
+          <text x="222" y="124" font-size="7.5" fill="#6b7280" letter-spacing="0.05em">IDLE TIME</text>
+          <text x="222" y="158" font-size="28" font-weight="800" fill="#22c55e">18<tspan font-size="14" fill="#6b7280"> %</tspan></text>
+
+          <rect x="404" y="108" width="182" height="64" rx="8" fill="#111827" stroke="#166534" stroke-width="0.8"/>
+          <text x="414" y="124" font-size="7.5" fill="#6b7280" letter-spacing="0.05em">PLATES PLACED</text>
+          <text x="414" y="158" font-size="28" font-weight="800" fill="#22c55e">1,847<tspan font-size="14" fill="#6b7280"> plates</tspan></text>
+
+          <rect x="596" y="108" width="182" height="64" rx="8" fill="#111827" stroke="#166534" stroke-width="0.8"/>
+          <text x="606" y="124" font-size="7.5" fill="#6b7280" letter-spacing="0.05em">PLATES / HOUR</text>
+          <text x="606" y="158" font-size="28" font-weight="800" fill="#22c55e">220<tspan font-size="14" fill="#6b7280"> /hr</tspan></text>
+
+                    <text x="20" y="200" font-size="9" font-weight="600" fill="#6b7280" letter-spacing="0.1em">ENGINE ACTIVITY</text>
+          <rect x="20" y="210" width="758" height="48" rx="8" fill="#111827" stroke="#1f2937" stroke-width="0.8"/>
+                    <rect x="30" y="222" width="738" height="16" rx="4" fill="#1f2937"/>
+                    <rect x="60" y="222" width="220" height="16" rx="0" fill="rgba(22,163,74,0.6)" stroke="#16a34a" stroke-width="0.3"/>
+          <rect x="360" y="222" width="80" height="16" rx="0" fill="rgba(22,163,74,0.6)" stroke="#16a34a" stroke-width="0.3"/>
+          <rect x="490" y="222" width="200" height="16" rx="0" fill="rgba(22,163,74,0.6)" stroke="#16a34a" stroke-width="0.3"/>
+                    <text x="30" y="250" font-size="7" fill="#6b7280">6:00 AM</text>
+          <text x="758" y="250" font-size="7" fill="#6b7280" text-anchor="end">6:00 PM</text>
+          <text x="400" y="250" font-size="7" fill="#6b7280" text-anchor="middle">&#9632; Engine On &#160; &#9633; Off</text>
+
+                    <text x="20" y="284" font-size="9" font-weight="600" fill="#6b7280" letter-spacing="0.1em">PEAK READINGS</text>
+          <rect x="20" y="294" width="248" height="50" rx="8" fill="rgba(22,163,74,0.08)" stroke="#16a34a" stroke-width="0.6"/>
+          <text x="30" y="310" font-size="7.5" fill="#6b7280" letter-spacing="0.05em">PEAK COOLANT</text>
+          <text x="30" y="330" font-size="18" font-weight="700" fill="#22c55e">204&#176;F</text>
+          <text x="100" y="330" font-size="7" fill="#4b5563">at 2:14 PM</text>
+
+          <rect x="278" y="294" width="248" height="50" rx="8" fill="rgba(22,163,74,0.08)" stroke="#16a34a" stroke-width="0.6"/>
+          <text x="288" y="310" font-size="7.5" fill="#6b7280" letter-spacing="0.05em">PEAK OIL TEMP</text>
+          <text x="288" y="330" font-size="18" font-weight="700" fill="#22c55e">228&#176;F</text>
+          <text x="358" y="330" font-size="7" fill="#4b5563">at 3:47 PM</text>
+
+          <rect x="536" y="294" width="242" height="50" rx="8" fill="rgba(22,163,74,0.08)" stroke="#16a34a" stroke-width="0.6"/>
+          <text x="546" y="310" font-size="7.5" fill="#6b7280" letter-spacing="0.05em">MIN BATTERY</text>
+          <text x="546" y="330" font-size="18" font-weight="700" fill="#22c55e">13.8V</text>
+          <text x="610" y="330" font-size="7" fill="#4b5563">at 6:02 AM</text>
+
+                    <text x="20" y="368" font-size="9" font-weight="600" fill="#6b7280" letter-spacing="0.1em">ENGINE VITALS</text>
+          <rect x="20" y="378" width="370" height="38" rx="6" fill="#111827" stroke="#1f2937" stroke-width="0.5"/>
+          <text x="30" y="392" font-size="7.5" fill="#6b7280">Coolant Temp &#176;F</text>
+          <text x="140" y="392" font-size="7" fill="#4b5563">180&#176;F &#8212; 204&#176;F</text>
+          <polyline points="30,408 70,406 110,404 150,402 190,400 230,399 270,398 310,400 350,401 380,400" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-linejoin="round"/>
+
+          <rect x="400" y="378" width="378" height="38" rx="6" fill="#111827" stroke="#1f2937" stroke-width="0.5"/>
+          <text x="410" y="392" font-size="7.5" fill="#6b7280">Engine RPM</text>
+          <text x="500" y="392" font-size="7" fill="#4b5563">0 &#8212; 1,820</text>
+          <polyline points="410,410 440,398 470,404 500,396 530,402 560,394 590,408 620,400 650,396 680,402 720,398 760,404" fill="none" stroke="#22c55e" stroke-width="1.5" stroke-linejoin="round"/>
+
+                    <text x="400" y="426" font-size="7" fill="#374151" text-anchor="middle">Report: Wed, Mar 26, 2026 &#183; Day Shift (6:00 AM &#8211; 6:00 PM ET) &#183; Data points: 4,320 TPS, 3,891 truck &#183; All times Eastern</text>
+        </svg>
+        <div class="mockup-caption">Shift report with custom time range selector, summary KPIs, engine activity timeline, peak readings, and vitals charts</div>
       </div>
     </div>
 
     <div class="screenshot-section">
       <h3>AI Mechanic</h3>
-      <p>Ask questions in plain English. The AI sees live <em>and</em> historical data &mdash; it spots trends a human would miss. It presents possibilities ranked by likelihood and asks the mechanic what they've already checked.</p>
-      <div class="placeholder">
-        <div class="placeholder-inner">
-          <div class="placeholder-label">PASTE SCREENSHOT: AI Diagnostics</div>
-          <div class="placeholder-hint">Start a conversation with the AI mechanic and screenshot the exchange</div>
-        </div>
+      <p>Ask questions in plain English. The AI sees live <em>and</em> up to 7 days of historical data from Viam Cloud &mdash; it spots trends a human would miss. It presents possibilities ranked by likelihood, gives cost estimates, and asks the mechanic what they've already checked. Also available: one-click "Full Diagnosis" for a structured report covering trouble codes, engine health, and maintenance recommendations.</p>
+      <div class="mockup-wrap">
+        <svg viewBox="0 0 800 440" xmlns="http://www.w3.org/2000/svg">
+          <rect width="800" height="440" fill="#030712"/>
+                    <rect x="20" y="14" width="760" height="36" rx="8" fill="#111827" stroke="#1f2937" stroke-width="0.8"/>
+          <text x="42" y="37" font-size="15" fill="#a78bfa">&#x1F9E0;</text>
+          <text x="62" y="37" font-size="12" font-weight="700" fill="#e5e7eb">AI Mechanic</text>
+          <text x="160" y="37" font-size="8.5" fill="#6b7280">Ask anything &#8212; Claude sees live vehicle data in real-time</text>
+                    <rect x="560" y="20" width="100" height="24" rx="6" fill="#7c3aed"/>
+          <text x="610" y="36" font-size="9" font-weight="600" fill="#fff" text-anchor="middle">Full Diagnosis</text>
+                    <rect x="670" y="20" width="100" height="24" rx="6" fill="#581c87" stroke="#7c3aed" stroke-width="0.8"/>
+          <text x="720" y="36" font-size="9" font-weight="600" fill="#c4b5fd" text-anchor="middle">Close Chat</text>
+
+                    <rect x="20" y="60" width="760" height="340" rx="8" fill="#0a0a14" stroke="#1f2937" stroke-width="0.5"/>
+
+                    <rect x="340" y="76" width="420" height="36" rx="8" fill="rgba(124,58,237,0.15)" stroke="#4c1d95" stroke-width="0.5"/>
+          <text x="750" y="88" font-size="7" fill="#a78bfa" text-anchor="end">YOU</text>
+          <text x="352" y="102" font-size="9.5" fill="#e5e7eb">The coolant temp has been creeping up this week. Should I be worried?</text>
+
+                    <rect x="40" y="124" width="540" height="185" rx="8" fill="#111827" stroke="#1f2937" stroke-width="0.5"/>
+          <text x="52" y="140" font-size="7" fill="#a78bfa">&#x1F9E0; AI MECHANIC</text>
+          <text x="52" y="158" font-size="9.5" fill="#d1d5db">Good catch. Looking at the historical data from Viam Cloud:</text>
+          <text x="52" y="176" font-size="9.5" fill="#d1d5db">&#8226; 3 days ago: coolant peaked at <tspan font-weight="700" fill="#f3f4f6">194&#176;F</tspan></text>
+          <text x="52" y="192" font-size="9.5" fill="#d1d5db">&#8226; Yesterday: peaked at <tspan font-weight="700" fill="#f3f4f6">201&#176;F</tspan></text>
+          <text x="52" y="208" font-size="9.5" fill="#d1d5db">&#8226; Right now: <tspan font-weight="700" fill="#fbbf24">204&#176;F</tspan> (above normal &#8212; typical range is 190-210&#176;F)</text>
+          <text x="52" y="228" font-size="9.5" fill="#d1d5db">That's a steady upward trend. This <tspan font-weight="700" fill="#f3f4f6">could indicate</tspan>:</text>
+          <text x="52" y="246" font-size="9.5" fill="#d1d5db">1. Low coolant level (check first &#8212; most common, $0)</text>
+          <text x="52" y="262" font-size="9.5" fill="#d1d5db">2. Thermostat starting to stick ($50-150 parts + labor)</text>
+          <text x="52" y="278" font-size="9.5" fill="#d1d5db">3. Water pump wear ($200-400 if it needs replacing)</text>
+          <text x="52" y="296" font-size="9" fill="#a78bfa">You might want to ask:</text>
+
+                    <rect x="400" y="320" width="360" height="30" rx="8" fill="rgba(124,58,237,0.15)" stroke="#4c1d95" stroke-width="0.5"/>
+          <text x="750" y="332" font-size="7" fill="#a78bfa" text-anchor="end">YOU</text>
+          <text x="412" y="340" font-size="9.5" fill="#e5e7eb">Coolant was topped off last week. What else should I check?</text>
+
+                    <rect x="40" y="362" width="160" height="24" rx="8" fill="#111827" stroke="#1f2937" stroke-width="0.5"/>
+          <text x="52" y="378" font-size="9" fill="#a78bfa">AI Mechanic is thinking...</text>
+          <circle cx="180" cy="374" r="2" fill="#a78bfa" opacity="0.4"/>
+          <circle cx="186" cy="374" r="2" fill="#a78bfa" opacity="0.6"/>
+          <circle cx="192" cy="374" r="2" fill="#a78bfa" opacity="0.9"/>
+
+                    <rect x="30" y="395" width="680" height="30" rx="8" fill="#111827" stroke="#374151" stroke-width="0.8"/>
+          <text x="42" y="414" font-size="9" fill="#4b5563">Ask about this vehicle's health, repairs, costs...</text>
+          <rect x="720" y="395" width="50" height="30" rx="8" fill="#7c3aed"/>
+          <text x="745" y="414" font-size="9" font-weight="600" fill="#fff" text-anchor="middle">Send</text>
+        </svg>
+        <div class="mockup-caption">AI mechanic chat with live data context, historical trend analysis, ranked diagnoses with cost estimates, and follow-up questions</div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ════════════════════════════════════════════════════════════════
-     6. WHAT HAPPENS AUTOMATICALLY
-     ════════════════════════════════════════════════════════════════ -->
 <section>
   <div class="container">
     <h2>What Happens Automatically (No Human Needed)</h2>
@@ -538,13 +700,18 @@
         <span class="check">&#10003;</span>
         <div><strong>19 diagnostic rules</strong> &mdash; the system continuously checks for anomalies across 5 categories (plate flipper, encoder, eject, PLC, operations) and flags issues with plain-English explanations.</div>
       </li>
+      <li>
+        <span class="check">&#10003;</span>
+        <div><strong>Remote DTC clearing</strong> &mdash; clear dashboard warning lights from the web dashboard without walking to the truck. Also supports on-demand PGN requests and CAN bus diagnostics.</div>
+      </li>
+      <li>
+        <span class="check">&#10003;</span>
+        <div><strong>Protocol auto-detection</strong> &mdash; automatically detects J1939 (heavy trucks) or OBD-II (passenger vehicles) and adapts the dashboard, data fields, and diagnostic commands accordingly.</div>
+      </li>
     </ul>
   </div>
 </section>
 
-<!-- ════════════════════════════════════════════════════════════════
-     7. RELIABILITY & EDGE CASES
-     ════════════════════════════════════════════════════════════════ -->
 <section>
   <div class="container">
     <h2>Reliability &amp; Edge Cases</h2>
@@ -573,9 +740,6 @@
   </div>
 </section>
 
-<!-- ════════════════════════════════════════════════════════════════
-     8. ROADMAP
-     ════════════════════════════════════════════════════════════════ -->
 <section>
   <div class="container">
     <h2>Roadmap &mdash; What's Coming</h2>
@@ -612,7 +776,6 @@
   </div>
 </section>
 
-<!-- ── Footer ──────────────────────────────────────────────────── -->
 <footer class="doc-footer">
   <div class="container">
     IronSight Fleet Monitoring System &middot; B&amp;B Metals &middot; Confidential Internal Document &middot; April 2026
