@@ -229,9 +229,10 @@ A **fragment** is a reusable config template that can be applied to multiple mac
 | Viam Cloud upload | — | $8.55 | ~54 MB/day × 36 × 30 days ≈ 57 GB × $0.15/GB |
 | Viam Cloud storage | — | $85.00 | 90-day retention: ~170 GB × $0.50/GB |
 | Hologram IoT cellular | $15.00 | $540.00 | $1 platform fee + ~$14 data (~467 MB/month at $0.03/MB) |
-| **Total monthly** | | **~$634/month** | |
+| Viam Cloud + Vercel hosting | — | ~$50.00 | Free tiers cover POC; at 36-truck scale expect paid plans |
+| **Total monthly** | | **~$684/month** | |
 
-**Why cellular costs are manageable:** The system is offline-first. Bulk sensor data syncs over WiFi when trucks return to the shop. Cellular handles Tailscale connectivity, Viam heartbeats, remote diagnostics, and periodic data syncs in the field. At ~$15/truck/month the entire 36-truck fleet stays connected for under $650/month total.
+**Why cellular costs are manageable:** The system is offline-first. Bulk sensor data syncs over WiFi when trucks return to the shop. Cellular handles Tailscale connectivity, Viam heartbeats, remote diagnostics, and periodic data syncs in the field. At ~$15/truck/month the entire 36-truck fleet stays connected for under $700/month total.
 
 ### 3.6 Rollout Schedule
 

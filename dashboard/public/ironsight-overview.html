@@ -117,7 +117,22 @@
   td .hw-photo {
     width: 100px; height: 75px; object-fit: contain; border-radius: 6px;
     background: var(--bg); border: 1px solid var(--border); padding: 4px;
-    display: block; margin-bottom: 6px;
+    display: block; margin-bottom: 6px; cursor: pointer;
+  }
+  .hw-card img { cursor: pointer; }
+  .lightbox {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+    z-index: 9999; justify-content: center; align-items: center; cursor: pointer;
+  }
+  .lightbox.active { display: flex; }
+  .lightbox img {
+    max-width: 90vw; max-height: 90vh; object-fit: contain;
+    border-radius: 12px; background: #fff; padding: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  .lightbox-hint {
+    position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+    color: #fff; font-size: 0.85rem; opacity: 0.7;
   }
   .hw-grid {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -430,24 +445,24 @@
           <td>4G cellular + GPS kit (SKU 17372). Includes LTE antenna, GPS antenna, USB cable. Internet from anywhere &mdash; job sites, highways, rail yards</td>
         </tr>
         <tr>
-          <td><strong>7" Touch Display</strong></td>
+          <td><img src="https://cdn-shop.adafruit.com/1200x900/2718-07.jpg" alt="Raspberry Pi 7 inch Touch Display" class="hw-photo" loading="lazy"><strong>7" Touch Display</strong></td>
           <td class="cost">~$70</td>
           <td>Official Raspberry Pi touchscreen for in-cab status display, mounted to Pi 5</td>
         </tr>
         <tr>
-          <td><strong>Hologram IoT SIM</strong></td>
+          <td><img src="https://store.hologram.io/cdn/shop/files/sim-mock.png?v=1736883143&width=1946" alt="Hologram IoT SIM card" class="hw-photo" loading="lazy"><strong>Hologram IoT SIM</strong></td>
           <td class="cost">~$3</td>
           <td>Cellular SIM for field connectivity. One per truck &mdash; Pi Zero piggybacks on Pi 5's WiFi hotspot</td>
         </tr>
         <tr>
-          <td><strong>Enclosures, SD cards, cables, power supply</strong></td>
+          <td><img src="https://images.samsung.com/is/image/samsung/p6pim/us/mb-mj128ka-am/gallery/us--mb-mj128ka-am-550350438" alt="Samsung PRO Endurance SD card" class="hw-photo" loading="lazy"><strong>Enclosures, SD cards, cables, power supply</strong></td>
           <td class="cost">~$79</td>
           <td>Two enclosures ($25), two endurance SD cards ($24), automotive 12V&rarr;5V supply ($20), micro USB cable ($5), Ethernet cable ($5)</td>
         </tr>
         <tr>
           <td><strong>Viam Cloud + Vercel</strong></td>
-          <td class="cost">Free tier</td>
-          <td>Data storage, device management, dashboard hosting. Free at current fleet scale</td>
+          <td class="cost">~$50/mo</td>
+          <td>Data storage, device management, dashboard hosting. Free tiers cover the POC; at 36-truck scale expect ~$50/month combined</td>
         </tr>
         <tr class="total-row">
           <td>Total per truck</td>
@@ -478,6 +493,11 @@
         <img src="https://www.waveshare.com/media/catalog/product/s/i/sim7600g-h-4g-hat-1.jpg" alt="Waveshare SIM7600G-H 4G HAT" loading="lazy">
         <div class="hw-name">SIM7600G 4G HAT</div>
         <div class="hw-role">Cellular internet</div>
+      </div>
+      <div class="hw-card">
+        <img src="https://cdn-shop.adafruit.com/1200x900/2718-07.jpg" alt="Raspberry Pi 7 inch Touch Display" loading="lazy">
+        <div class="hw-name">7" Touch Display</div>
+        <div class="hw-role">In-cab status screen</div>
       </div>
       <div class="hw-card">
         <img src="https://cdn.automationdirect.com/images/products/large/l_c010dd2ed.jpg" alt="Click PLC C0-10DD2E-D" loading="lazy">
@@ -868,13 +888,6 @@
           <p>Push notifications when the AI detects a developing problem &mdash; coolant trending up, battery weakening, abnormal idle patterns. Fix it before it breaks.</p>
         </div>
       </div>
-      <div class="roadmap-item">
-        <div class="roadmap-dot" style="background:var(--red)"></div>
-        <div>
-          <h3>Cost Reduction: One Pi Per Truck</h3>
-          <p>Once the system is proven at scale, consolidate both Pis into one unit per truck. Reduces hardware cost and simplifies installation.</p>
-        </div>
-      </div>
     </div>
   </div>
 </section>
@@ -885,5 +898,21 @@
   </div>
 </footer>
 
+<div class="lightbox" id="lightbox" onclick="this.classList.remove('active')">
+  <img id="lightbox-img" src="" alt="Enlarged view">
+  <div class="lightbox-hint">Click anywhere to close</div>
+</div>
+<script>
+document.querySelectorAll('.hw-photo, .hw-card img').forEach(function(img) {
+  img.addEventListener('click', function() {
+    document.getElementById('lightbox-img').src = this.src;
+    document.getElementById('lightbox-img').alt = this.alt;
+    document.getElementById('lightbox').classList.add('active');
+  });
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') document.getElementById('lightbox').classList.remove('active');
+});
+</script>
 </body>
 </html>
