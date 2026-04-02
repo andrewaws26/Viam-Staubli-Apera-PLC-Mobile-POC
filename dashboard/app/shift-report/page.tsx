@@ -1,6 +1,14 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import dynamic from "next/dynamic";
+
+const ShiftRouteMap = dynamic(() => import("../../components/ShiftRouteMap"), { ssr: false });
+
+// ---------------------------------------------------------------------------
+// Timezone constant — all times displayed in Louisville, KY
+// ---------------------------------------------------------------------------
+const TZ = "America/New_York";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -33,12 +41,38 @@ interface TimeSeriesPoint {
   oil_f: number;
 }
 
+interface RoutePoint {
+  lat: number;
+  lon: number;
+  t: string;
+}
+
+interface Stop {
+  lat: number;
+  lon: number;
+  t: string;
+  durationMin: number;
+}
+
+interface RouteData {
+  hasGps: boolean;
+  points: RoutePoint[];
+  startLocation: { lat: number; lon: number } | null;
+  endLocation: { lat: number; lon: number } | null;
+  distanceMiles: number;
+  distanceSource: "gps" | "speed_estimate";
+  stops: Stop[];
+  movingMinutes: number;
+  stoppedMinutes: number;
+}
+
 interface ShiftReport {
   date: string;
   shift: string;
   periodStart: string;
   periodEnd: string;
   truckId: string;
+  timezone: string;
   engineHours: number;
   idleHours: number;
   idlePercent: number;
@@ -51,6 +85,7 @@ interface ShiftReport {
   dtcEvents: DtcEvent[];
   trips: Trip[];
   alerts: ShiftAlert[];
+  route: RouteData;
   timeSeries: TimeSeriesPoint[];
   dataPointCount: { tps: number; truck: number };
   hasTpsData: boolean;
@@ -67,7 +102,7 @@ function Sparkline({
   label,
   unit,
   width = 600,
-  height = 120,
+  height = 200,
 }: {
   data: { t: string; v: number }[];
   color: string;
@@ -83,19 +118,21 @@ function Sparkline({
   const max = Math.max(...values);
   const range = max - min || 1;
 
-  const pad = 4;
-  const plotW = width - pad * 2;
-  const plotH = height - pad * 2 - 20; // leave room for labels
+  const padL = 4;
+  const padR = 16; // extra right padding for time labels
+  const padY = 4;
+  const labelH = 24; // room for bottom time labels
+  const plotW = width - padL - padR;
+  const plotH = height - padY * 2 - labelH;
 
   const points = data
     .map((d, i) => {
-      const x = pad + (i / (data.length - 1)) * plotW;
-      const y = pad + 16 + plotH - ((d.v - min) / range) * plotH;
+      const x = padL + (i / (data.length - 1)) * plotW;
+      const y = padY + plotH - ((d.v - min) / range) * plotH;
       return `${x},${y}`;
     })
     .join(" ");
 
-  // Time labels (first and last)
   const firstTime = fmtTime(data[0].t);
   const lastTime = fmtTime(data[data.length - 1].t);
 
@@ -110,9 +147,14 @@ function Sparkline({
       <svg
         viewBox={`0 0 ${width} ${height}`}
         className="w-full"
-        preserveAspectRatio="none"
-        style={{ maxHeight: height }}
+        preserveAspectRatio="xMidYMid meet"
+        style={{ height: height, maxHeight: height }}
       >
+        {/* Horizontal grid lines */}
+        {[0.25, 0.5, 0.75].map((frac) => {
+          const y = padY + plotH - frac * plotH;
+          return <line key={frac} x1={padL} y1={y} x2={padL + plotW} y2={y} stroke="#374151" strokeWidth="0.5" />;
+        })}
         <polyline
           fill="none"
           stroke={color}
@@ -121,16 +163,16 @@ function Sparkline({
           strokeLinecap="round"
           points={points}
         />
-        {/* Axis labels */}
-        <text x={pad} y={height - 2} fontSize="10" fill="#6b7280">{firstTime}</text>
-        <text x={width - pad} y={height - 2} fontSize="10" fill="#6b7280" textAnchor="end">{lastTime}</text>
+        {/* Time labels */}
+        <text x={padL} y={height - 4} fontSize="11" fill="#6b7280">{firstTime}</text>
+        <text x={padL + plotW} y={height - 4} fontSize="11" fill="#6b7280" textAnchor="end">{lastTime}</text>
       </svg>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Trip Timeline (visual bar showing engine on/off periods)
+// Trip Timeline
 // ---------------------------------------------------------------------------
 
 function TripTimeline({
@@ -157,12 +199,12 @@ function TripTimeline({
           const tripStartMs = new Date(trip.startTime).getTime();
           const tripEndMs = new Date(trip.endTime).getTime();
           const left = ((tripStartMs - startMs) / totalMs) * 100;
-          const width = ((tripEndMs - tripStartMs) / totalMs) * 100;
+          const w = ((tripEndMs - tripStartMs) / totalMs) * 100;
           return (
             <div
               key={i}
               className="absolute top-0 h-full bg-green-600/70 border-x border-green-500/50"
-              style={{ left: `${Math.max(0, left)}%`, width: `${Math.max(0.5, width)}%` }}
+              style={{ left: `${Math.max(0, left)}%`, width: `${Math.max(0.5, w)}%` }}
               title={`${fmtTime(trip.startTime)} — ${fmtTime(trip.endTime)} (${trip.durationMin} min)`}
             />
           );
@@ -181,22 +223,64 @@ function TripTimeline({
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Helpers — all times in Eastern (America/New_York)
 // ---------------------------------------------------------------------------
 
 function fmtTime(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  return new Date(iso).toLocaleTimeString("en-US", {
+    hour: "numeric", minute: "2-digit", hour12: true, timeZone: TZ,
+  });
 }
 
 function fmtDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+  return new Date(iso).toLocaleDateString("en-US", {
+    weekday: "short", month: "short", day: "numeric", year: "numeric", timeZone: TZ,
+  });
+}
+
+function fmtDateTime(iso: string): string {
+  return new Date(iso).toLocaleString("en-US", {
+    month: "short", day: "numeric", year: "numeric",
+    hour: "numeric", minute: "2-digit", hour12: true, timeZone: TZ,
+  });
 }
 
 function todayStr(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  // Today in Eastern time
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  return parts; // YYYY-MM-DD
+}
+
+const SHIFT_LABELS: Record<string, { label: string; range: string }> = {
+  day:   { label: "Day",   range: "6:00 AM – 6:00 PM ET" },
+  night: { label: "Night", range: "6:00 PM – 6:00 AM ET" },
+  full:  { label: "Full",  range: "12:00 AM – 12:00 AM ET" },
+};
+
+// ---------------------------------------------------------------------------
+// Loading skeleton
+// ---------------------------------------------------------------------------
+
+function LoadingSkeleton({ shift }: { shift: string }) {
+  const shiftInfo = SHIFT_LABELS[shift] || SHIFT_LABELS.full;
+  return (
+    <div className="flex flex-col items-center justify-center py-16 gap-4">
+      <div className="w-10 h-10 rounded-full border-2 border-gray-700 border-t-green-500 animate-spin" />
+      <div className="text-center">
+        <p className="text-gray-300 font-semibold">Generating {shiftInfo.label} Shift Report</p>
+        <p className="text-gray-500 text-sm mt-1">Querying Viam Cloud for TPS + truck data...</p>
+      </div>
+      {/* Skeleton summary cards */}
+      <div className="w-full max-w-3xl grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 mt-4">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="bg-gray-900 rounded-xl border border-gray-800 p-4 animate-pulse">
+            <div className="h-3 w-20 bg-gray-800 rounded mb-3" />
+            <div className="h-8 w-16 bg-gray-800 rounded" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -214,10 +298,7 @@ export default function ShiftReportPage() {
     setLoading(true);
     setError(null);
     try {
-      const tzOffset = new Date().getTimezoneOffset();
-      const res = await fetch(
-        `/api/shift-report?date=${date}&shift=${shift}&tz_offset=${tzOffset}`
-      );
+      const res = await fetch(`/api/shift-report?date=${date}&shift=${shift}`);
       if (!res.ok) {
         const body = await res.json().catch(() => ({ message: res.statusText }));
         throw new Error(body.message || `HTTP ${res.status}`);
@@ -236,7 +317,8 @@ export default function ShiftReportPage() {
   }, [fetchReport]);
 
   const noData = report && !report.hasTpsData && !report.hasTruckData;
-  const shiftLabel = shift === "day" ? "Day Shift (6A–6P)" : shift === "night" ? "Night Shift (6P–6A)" : "Full Day";
+  const shiftInfo = SHIFT_LABELS[shift] || SHIFT_LABELS.full;
+  const shiftLabel = `${shiftInfo.label} Shift (${shiftInfo.range})`;
 
   return (
     <>
@@ -246,10 +328,16 @@ export default function ShiftReportPage() {
           body { background: white !important; color: black !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .no-print { display: none !important; }
           .print-break { page-break-before: always; }
-          .print-card { border: 1px solid #d1d5db !important; background: white !important; }
+          .print-card { border: 1px solid #d1d5db !important; background: white !important; color: #111827 !important; }
+          .print-card p, .print-card span { color: #374151 !important; }
+          .print-card .text-green-400, .print-card .text-yellow-400, .print-card .text-red-400 { color: #111827 !important; }
           .print-chart svg polyline { stroke: #1f2937 !important; }
+          .print-chart svg line { stroke: #d1d5db !important; }
+          .print-chart svg text { fill: #374151 !important; }
+          .print-chart .text-gray-400, .print-chart .text-gray-500 { color: #374151 !important; }
           .print-timeline { background: #e5e7eb !important; }
           .print-timeline > div { background: #16a34a !important; }
+          .leaflet-container { display: none !important; }
         }
       `}</style>
 
@@ -293,13 +381,17 @@ export default function ShiftReportPage() {
                 <button
                   key={s}
                   onClick={() => setShift(s)}
-                  className={`px-3 sm:px-4 py-2 text-sm font-semibold min-h-[44px] transition-colors ${
+                  title={SHIFT_LABELS[s].range}
+                  className={`px-3 sm:px-4 py-1.5 text-sm font-semibold min-h-[44px] transition-colors flex flex-col items-center justify-center ${
                     shift === s
                       ? "bg-gray-100 text-gray-900"
                       : "bg-gray-900 text-gray-400 hover:text-white"
                   }`}
                 >
-                  {s === "day" ? "Day" : s === "night" ? "Night" : "Full"}
+                  <span>{SHIFT_LABELS[s].label}</span>
+                  <span className={`text-[9px] font-normal ${shift === s ? "text-gray-500" : "text-gray-600"}`}>
+                    {SHIFT_LABELS[s].range}
+                  </span>
                 </button>
               ))}
             </div>
@@ -315,12 +407,8 @@ export default function ShiftReportPage() {
 
         {/* Content */}
         <main className="flex-1 px-3 sm:px-6 py-4 sm:py-6 flex flex-col gap-4 sm:gap-6">
-          {/* Loading state */}
-          {loading && (
-            <div className="flex items-center justify-center py-20">
-              <div className="w-8 h-8 rounded-full border-2 border-gray-600 border-t-gray-300 animate-spin" />
-            </div>
-          )}
+          {/* Loading skeleton */}
+          {loading && <LoadingSkeleton shift={shift} />}
 
           {/* Error state */}
           {!loading && error && (
@@ -334,7 +422,7 @@ export default function ShiftReportPage() {
             <div className="flex flex-col items-center justify-center py-20 text-gray-500">
               <p className="text-lg font-semibold">No data for this date</p>
               <p className="text-sm mt-1">
-                No TPS or truck readings were recorded for {fmtDate(date + "T00:00:00")} ({shiftLabel}).
+                No TPS or truck readings were recorded for {fmtDate(date + "T12:00:00Z")} ({shiftLabel}).
               </p>
             </div>
           )}
@@ -342,7 +430,7 @@ export default function ShiftReportPage() {
           {/* Report content */}
           {!loading && !error && report && !noData && (
             <>
-              {/* Report header (visible in print) */}
+              {/* Print header */}
               <div className="hidden print:block mb-4">
                 <h1 className="text-2xl font-black tracking-widest uppercase">Shift Report</h1>
                 <p className="text-sm text-gray-600 mt-1">
@@ -374,10 +462,7 @@ export default function ShiftReportPage() {
                   label="Plates / Hour"
                   value={report.platesPerHour.toFixed(0)}
                   unit="/hr"
-                  color={
-                    report.platesPerHour === 0 ? "gray" :
-                    report.platesPerHour < 500 ? "yellow" : "green"
-                  }
+                  color={report.platesPerHour === 0 ? "gray" : report.platesPerHour < 500 ? "yellow" : "green"}
                 />
               </div>
 
@@ -452,6 +537,56 @@ export default function ShiftReportPage() {
                 </div>
               </section>
 
+              {/* Location / Distance section */}
+              <section>
+                <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-2">
+                  {report.route.hasGps ? "Route" : "Distance"}
+                </h2>
+
+                {report.route.hasGps ? (
+                  <>
+                    <ShiftRouteMap
+                      points={report.route.points}
+                      stops={report.route.stops}
+                      startLocation={report.route.startLocation}
+                      endLocation={report.route.endLocation}
+                    />
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
+                      <MiniStat label="Distance" value={`${report.route.distanceMiles} mi`} />
+                      <MiniStat label="Moving" value={`${report.route.movingMinutes} min`} />
+                      <MiniStat label="Stopped" value={`${report.route.stoppedMinutes} min`} />
+                      <MiniStat label="Stops" value={`${report.route.stops.length}`} />
+                    </div>
+                    {report.route.stops.length > 0 && (
+                      <div className="mt-2 bg-gray-900 rounded-xl border border-gray-800 divide-y divide-gray-800 print-card">
+                        {report.route.stops.map((stop, i) => (
+                          <div key={i} className="px-4 py-2 flex justify-between items-center text-sm">
+                            <span className="text-yellow-400">Stop {i + 1}</span>
+                            <span className="text-gray-400">
+                              {stop.durationMin} min at {fmtTime(stop.t)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 print-card">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      <MiniStat label="Est. Distance" value={`${report.route.distanceMiles} mi`} sub="from speed data" />
+                      <MiniStat label="Moving" value={`${report.route.movingMinutes} min`} />
+                      <MiniStat label="Stopped" value={`${report.route.stoppedMinutes} min`} />
+                    </div>
+                    {/* GPS not available notice */}
+                    <p className="text-gray-600 text-xs mt-3 border-t border-gray-800 pt-3">
+                      GPS data not available — install GPS module for route tracking.
+                      {/* SIM7600G-H cellular HAT on Pi 5 has built-in GNSS/GPS
+                         that can feed location data via AT commands once enabled. */}
+                    </p>
+                  </div>
+                )}
+              </section>
+
               {/* Engine peak readings */}
               <section>
                 <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-2">
@@ -460,7 +595,7 @@ export default function ShiftReportPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
                   <PeakCard
                     label="Peak Coolant"
-                    value={report.peakCoolantTemp ? `${report.peakCoolantTemp.value}\u00B0F` : "—"}
+                    value={report.peakCoolantTemp ? `${report.peakCoolantTemp.value}°F` : "—"}
                     time={report.peakCoolantTemp?.timestamp}
                     color={
                       !report.peakCoolantTemp ? "gray" :
@@ -470,7 +605,7 @@ export default function ShiftReportPage() {
                   />
                   <PeakCard
                     label="Peak Oil Temp"
-                    value={report.peakOilTemp ? `${report.peakOilTemp.value}\u00B0F` : "—"}
+                    value={report.peakOilTemp ? `${report.peakOilTemp.value}°F` : "—"}
                     time={report.peakOilTemp?.timestamp}
                     color={
                       !report.peakOilTemp ? "gray" :
@@ -497,12 +632,12 @@ export default function ShiftReportPage() {
                   <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-2">
                     Engine Vitals
                   </h2>
-                  <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 grid gap-4 print-card">
+                  <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 grid gap-6 print-card">
                     <Sparkline
                       data={report.timeSeries.map((p) => ({ t: p.t, v: p.coolant_f }))}
                       color="#f59e0b"
                       label="Coolant Temp"
-                      unit="\u00B0F"
+                      unit="°F"
                     />
                     <Sparkline
                       data={report.timeSeries.map((p) => ({ t: p.t, v: p.rpm }))}
@@ -528,7 +663,7 @@ export default function ShiftReportPage() {
 
               {/* Footer */}
               <footer className="text-[10px] sm:text-xs text-gray-600 text-center py-4 border-t border-gray-800">
-                Report generated {new Date().toLocaleString()} | Data points: {report.dataPointCount.tps} TPS, {report.dataPointCount.truck} truck | IronSight Fleet Monitoring
+                Report generated {fmtDateTime(new Date().toISOString())} | Data points: {report.dataPointCount.tps} TPS, {report.dataPointCount.truck} truck | All times Eastern (Louisville, KY) | IronSight Fleet Monitoring
               </footer>
             </>
           )}
@@ -600,6 +735,16 @@ function PeakCard({
       <p className="text-[10px] sm:text-xs text-gray-500 uppercase tracking-widest">{label}</p>
       <p className={`text-xl sm:text-2xl font-bold mt-1 ${textMap[color]}`}>{value}</p>
       {time && <p className="text-[10px] text-gray-600 mt-0.5">at {fmtTime(time)}</p>}
+    </div>
+  );
+}
+
+function MiniStat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="bg-gray-800/50 rounded-lg px-3 py-2 print-card">
+      <p className="text-[10px] text-gray-500 uppercase tracking-widest">{label}</p>
+      <p className="text-lg font-bold text-gray-200 mt-0.5">{value}</p>
+      {sub && <p className="text-[9px] text-gray-600">{sub}</p>}
     </div>
   );
 }
