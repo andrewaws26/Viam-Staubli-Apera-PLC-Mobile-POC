@@ -213,24 +213,26 @@ A **fragment** is a reusable config template that can be applied to multiple mac
 | Raspberry Pi Zero 2 W | $30 | $1,080 | MSRP $15 but real-world $25-35; needed for J1939/OBD-II diagnostics |
 | Waveshare SIM7600G-H 4G HAT | $83 | $2,988 | SKU 17372; kit includes LTE antenna, GPS antenna, USB cable; 4G + GNSS |
 | Waveshare RS485 CAN HAT (B) | $18 | $648 | Basic model, no surge protection; connects Pi Zero to truck CAN bus |
+| 7" Raspberry Pi Touch Display | $70 | $2,520 | Official Pi touchscreen for in-cab status display on Pi 5 |
+| Hologram IoT SIM card | $3 | $108 | Hyper eUICC SIM; one per truck (Pi Zero uses Pi 5 WiFi hotspot) |
 | Endurance SD cards (32 GB) × 2 | $24 | $864 | One per Pi; Samsung PRO Endurance or SanDisk MAX Endurance |
 | Micro USB power cable (Pi Zero) | $5 | $180 | Powers Pi Zero from truck 12V via existing supply |
 | Automotive power supply | $20 | $720 | 12V→5V USB-C, automotive-rated for voltage spikes |
-| Enclosure + mounting | $15 | $540 | DIN rail or panel-mount; protects from dust/vibration |
+| Enclosures + mounting × 2 | $25 | $900 | One per Pi; DIN rail or panel-mount; protects from dust/vibration |
 | Ethernet cable | $5 | $180 | Pi 5 to Click PLC connection |
-| **Total hardware** | **$285** | **$10,260** | |
+| **Total hardware** | **$368** | **$13,248** | |
 
 **Monthly operating costs (36 trucks):**
 
-| Item | Monthly Cost |
-|---|---|
-| Viam Cloud upload (~54 MB/day × 36 trucks × 30 days ≈ 57 GB × $0.15/GB) | $8.55 |
-| Viam Cloud storage (with 90-day retention: ~170 GB × $0.50/GB) | $85.00 |
-| Cellular connectivity (if Option B, per truck) | $0–$50/truck |
-| **Total (WiFi-only sync)** | **~$94/month** |
-| **Total (with cellular on all trucks)** | **~$994–$1,894/month** |
+| Item | Per Truck | 36 Trucks | Notes |
+|---|---|---|---|
+| Viam Cloud upload | — | $8.55 | ~54 MB/day × 36 × 30 days ≈ 57 GB × $0.15/GB |
+| Viam Cloud storage | — | $85.00 | 90-day retention: ~170 GB × $0.50/GB |
+| Hologram SIM platform fee | $1.00 | $36.00 | Per-SIM monthly fee, required for each active SIM |
+| Hologram cellular data | ~$0.75 | ~$27.00 | ~25 MB/month × $0.03/MB; Tailscale keepalive + health pings only |
+| **Total monthly** | | **~$157/month** | |
 
-**Recommendation:** WiFi-only sync keeps operating costs under $100/month for the entire fleet. Add cellular selectively only to trucks where real-time monitoring has clear value.
+**Why cellular costs are low:** The system is offline-first. All bulk data (~74 MB/day of TPS + engine readings) syncs over WiFi when trucks return to the shop — zero cellular cost for that. Cellular carries only Tailscale keepalive, Viam heartbeats, and critical alerts (~25 MB/month per truck). If real-time streaming is ever needed for specific trucks, budget ~$2.25/day extra per truck ($0.03/MB × 74 MB).
 
 ### 3.6 Rollout Schedule
 
