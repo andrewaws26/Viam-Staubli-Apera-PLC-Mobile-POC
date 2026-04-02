@@ -6,7 +6,7 @@
 # reads, burning ~88% of a CPU core via [irq/184-spi0.0].
 #
 # Solution: Bring can0 down when idle (no rx_packets change for 2 checks).
-# Probe every 5 minutes by briefly bringing can0 up for 10 seconds. If traffic
+# Probe every 1 minute by briefly bringing can0 up for 10 seconds. If traffic
 # is detected, leave it up; otherwise bring it back down.
 #
 # State file resets on reboot (/tmp), so can0 always starts UP via can0.service.
@@ -18,7 +18,7 @@ STATE_FILE="/tmp/ironsight-can-watchdog.state"
 TAG="ironsight-can-watchdog"
 CAN_IF="can0"
 CAN_BITRATE=250000
-PROBE_INTERVAL=5  # probe every Nth check when down (5 checks = 5 min at 60s timer)
+PROBE_INTERVAL=2  # probe every Nth check when down (2 checks = 1 min at 30s timer)
 PROBE_DURATION=10 # seconds to listen during probe
 
 log() { logger -t "$TAG" "$1"; }
@@ -82,9 +82,9 @@ if can_is_up; then
         idle_count=$((idle_count + 1))
 
         if [[ "$idle_count" -ge 2 ]]; then
-            # 2 consecutive idle checks (2 min) — shut down to save CPU
+            # 2 consecutive idle checks (~1 min) — shut down to save CPU
             can_down
-            log "can0 DOWN (no traffic for $((idle_count * 60))s, saving CPU)"
+            log "can0 DOWN (no traffic for $((idle_count * 30))s, saving CPU)"
             save_state "$current_rx" 0 0 true
             exit 0
         else
