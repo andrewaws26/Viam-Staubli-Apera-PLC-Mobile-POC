@@ -10,71 +10,13 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createViamClient } from "@viamrobotics/sdk";
+import { getDataClient, resetDataClient } from "@/lib/viam-data";
 
-// Cached ViamClient for data queries
-interface CachedViamClient {
-  dataClient: {
-    exportTabularData(
-      partId: string,
-      resourceName: string,
-      resourceSubtype: string,
-      methodName: string,
-      startTime?: Date,
-      endTime?: Date,
-    ): Promise<TabularDataPoint[]>;
-  };
-}
-
-interface TabularDataPoint {
-  timeCaptured: Date;
-  payload: unknown;
-  [key: string]: unknown;
-}
-
-let _viamClient: CachedViamClient | null = null;
-let _connecting = false;
-
-const DEFAULT_TRUCK_PART_ID = "ca039781-665c-47e3-9bc5-35f603f3baf1";
-const TRUCK_PART_ID = process.env.TRUCK_VIAM_PART_ID || DEFAULT_TRUCK_PART_ID;
+const TRUCK_PART_ID = process.env.TRUCK_VIAM_PART_ID || "";
 const RESOURCE_NAME = "truck-engine";
 const RESOURCE_SUBTYPE = "rdk:component:sensor";
 const METHOD_NAME = "Readings";
 const MAX_POINTS = 500;
-
-function getCachedClient(): CachedViamClient | null {
-  return _viamClient;
-}
-
-async function getDataClient(): Promise<CachedViamClient["dataClient"]> {
-  const cached = getCachedClient();
-  if (cached) return cached.dataClient;
-  if (_connecting) {
-    await new Promise((r) => setTimeout(r, 500));
-    const retried = getCachedClient();
-    if (retried) return retried.dataClient;
-    throw new Error("Connection in progress");
-  }
-
-  // Use location-level key for data queries (machine-level keys lack data read permissions)
-  const apiKey = process.env.VIAM_API_KEY;
-  const apiKeyId = process.env.VIAM_API_KEY_ID;
-
-  if (!apiKey || !apiKeyId) {
-    throw new Error("Missing Viam API credentials for truck data query");
-  }
-
-  _connecting = true;
-  try {
-    const client = await createViamClient({
-      credentials: { type: "api-key", authEntity: apiKeyId, payload: apiKey },
-    });
-    _viamClient = client as unknown as CachedViamClient;
-    return _viamClient.dataClient;
-  } finally {
-    _connecting = false;
-  }
-}
 
 function num(val: unknown): number {
   if (typeof val === "number") return val;
@@ -97,6 +39,9 @@ interface RawPoint {
 }
 
 async function fetchTruckData(hours: number): Promise<RawPoint[]> {
+  if (!TRUCK_PART_ID) {
+    throw new Error("TRUCK_VIAM_PART_ID not configured");
+  }
   const dc = await getDataClient();
   const endTime = new Date();
   const startTime = new Date(endTime.getTime() - hours * 3600000);
@@ -111,7 +56,17 @@ async function fetchTruckData(hours: number): Promise<RawPoint[]> {
   }));
 
   points.sort((a, b) => a.timeCaptured.getTime() - b.timeCaptured.getTime());
-  return points;
+
+  // Filter out readings where the truck was off (all key values zero)
+  const activePoints = points.filter(p => {
+    const rpm = num(p.payload.engine_rpm);
+    const speed = num(p.payload.vehicle_speed_mph);
+    const coolant = num(p.payload.coolant_temp_f);
+    const battery = num(p.payload.battery_voltage_v);
+    return rpm > 0 || speed > 0 || coolant > 0 || battery > 0;
+  });
+
+  return activePoints;
 }
 
 function buildTruckSummary(points: RawPoint[], hours: number) {
@@ -239,7 +194,7 @@ export async function GET(request: NextRequest) {
     const result = buildTruckSummary(points, hours);
     return NextResponse.json(result);
   } catch (err) {
-    _viamClient = null;
+    resetDataClient();
     return NextResponse.json(
       { error: "truck_history_query_failed", message: err instanceof Error ? err.message : String(err) },
       { status: 502 },
