@@ -46,8 +46,14 @@ can_status() {
         state=$(echo "$link_info" | grep -oP 'state \K\S+')
         ok "can0 UP (state: ${state})"
     else
-        fail "can0 interface DOWN"
-        add_issue "can0 down"
+        # Check if watchdog intentionally brought can0 down
+        if [[ -f /tmp/ironsight-can-watchdog.state ]] && \
+           grep -q 'can_was_down=true' /tmp/ironsight-can-watchdog.state 2>/dev/null; then
+            warn "can0 DOWN (watchdog: vehicle off, saving CPU)"
+        else
+            fail "can0 interface DOWN"
+            add_issue "can0 down"
+        fi
     fi
 
     # CAN stats
