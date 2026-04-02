@@ -561,6 +561,27 @@ class J1939TruckSensor(Sensor):
         else:
             readings["vehicle_state"] = "Unknown"
 
+        # Vehicle-off detection for data capture optimization
+        # If vehicle is off (no CAN traffic) for >30 seconds, flag it
+        bus_connected = readings.get("_bus_connected", False)
+        vehicle_off = (
+            readings["vehicle_state"] == "Truck Off"
+            or (not bus_connected and (secs_since > 30 or secs_since == -1))
+        )
+        readings["_vehicle_off"] = vehicle_off
+
+        if readings.get("_vehicle_off", False):
+            # When vehicle is off, return minimal readings to save cloud storage
+            # Viam data_manager still captures at 1Hz but the payloads are tiny
+            return {
+                "_vehicle_off": True,
+                "_protocol": readings.get("_protocol", "j1939"),
+                "_bus_connected": bus_connected,
+                "_can_interface": readings.get("_can_interface", "can0"),
+                "vehicle_state": readings["vehicle_state"],
+                "battery_voltage_v": readings.get("battery_voltage_v", 0),
+            }
+
         # ---------------------------------------------------------------
         # Task 3: Derived Fleet Metrics
         # ---------------------------------------------------------------
@@ -675,8 +696,20 @@ class J1939TruckSensor(Sensor):
         except Exception:
             pass  # health data is optional
 
+        # Ensure core fields exist for both protocols (dashboard expects these)
+        core_fields = [
+            "engine_rpm", "coolant_temp_f", "vehicle_speed_mph",
+            "battery_voltage_v", "fuel_level_pct", "_protocol",
+            "_bus_connected", "_vehicle_off", "vehicle_state",
+            "active_dtc_count"
+        ]
+        for field in core_fields:
+            if field not in readings:
+                readings[field] = 0
+
         # Persist to local offline buffer (survives reboots + cloud outages)
-        if self._offline_buffer is not None:
+        # Skip buffer write when vehicle is off — no point buffering zero data
+        if self._offline_buffer and not readings.get("_vehicle_off", False):
             self._offline_buffer.write(readings)
 
         return readings
