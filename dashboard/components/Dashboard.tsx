@@ -328,6 +328,10 @@ export default function Dashboard() {
             </h1>
             <p className="text-[10px] sm:text-xs text-gray-600 mt-0.5 tracking-wide truncate">
               IronSight — Live Production & Fleet Data
+              <span className="mx-1.5">·</span>
+              <a href="/shift-report" className="text-gray-500 hover:text-gray-300 underline underline-offset-2">
+                Shift Report
+              </a>
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
