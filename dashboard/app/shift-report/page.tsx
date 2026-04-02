@@ -471,12 +471,9 @@ export default function ShiftReportPage() {
       {/* ================================================================ */}
       <style>{`
         @media print {
-          @page {
-            margin: 0.5in 0.6in;
-            size: letter;
-          }
+          @page { size: letter portrait; margin: 0.5in; }
 
-          /* Reset everything to paper */
+          /* White paper reset */
           *, *::before, *::after {
             color: #111827 !important;
             background: white !important;
@@ -484,118 +481,58 @@ export default function ShiftReportPage() {
             box-shadow: none !important;
             text-shadow: none !important;
           }
-          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; padding: 0; }
 
+          /* Hide ALL screen content — only .print-report shows */
           .no-print { display: none !important; }
-          .print-only { display: block !important; }
+          main > *:not(.print-report) { display: none !important; }
+          .print-report { display: block !important; }
 
-          /* Hide SVG charts, show data table fallback */
-          .print-hide-svg { display: none !important; }
-          .print-hide-visual { display: none !important; }
+          /* Header */
+          .pr-header { display: flex; justify-content: space-between; align-items: baseline; margin: 0; }
+          .pr-header h1 { font-size: 14pt; font-weight: 900; letter-spacing: 0.08em; margin: 0; line-height: 1.2; }
+          .pr-header-right { font-size: 9pt; color: #374151 !important; text-align: right; }
+          .pr-rule { border: none; border-top: 2pt solid #111827 !important; margin: 4px 0 10px 0; }
 
-          /* Print header */
-          .print-header {
-            display: flex !important;
-            justify-content: space-between;
-            align-items: flex-start;
-            border-bottom: 2px solid #111827 !important;
-            padding-bottom: 8px;
-            margin-bottom: 16px;
-          }
-          .print-header h1 { font-size: 22px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; }
-          .print-header p { font-size: 11px; color: #6b7280 !important; margin-top: 2px; }
+          /* KPI row */
+          .pr-kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid #374151 !important; margin-bottom: 10px; }
+          .pr-kpi { border: 1px solid #d1d5db !important; padding: 6px 8px; text-align: center; }
+          .pr-kpi-val { font-size: 20pt; font-weight: 900; line-height: 1.1; }
+          .pr-kpi-val span { font-size: 8pt; font-weight: 400; margin-left: 2px; }
+          .pr-kpi-label { font-size: 7pt; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280 !important; margin-top: 2px; }
 
-          /* KPI grid — bordered cells */
-          .print-kpi-grid {
-            display: grid !important;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 0;
-            border: 1px solid #374151 !important;
-            margin-bottom: 12px;
-          }
-          .print-kpi-cell {
-            border: 1px solid #d1d5db !important;
-            padding: 8px 10px !important;
-            text-align: center;
-          }
-          .print-kpi-cell p:first-child { font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280 !important; }
-          .print-kpi-cell p:last-child { font-size: 20px; font-weight: 800; margin-top: 2px; }
+          /* Location */
+          .pr-location { font-size: 9pt; margin: 0 0 8px 0; }
 
-          /* Alerts as text list */
-          .print-alert-list { padding: 0; margin: 0; }
-          .print-alert-item {
-            font-size: 11px;
-            padding: 3px 0;
-            border-bottom: 1px solid #e5e7eb !important;
-          }
+          /* Sections */
+          .pr-section { margin-bottom: 8px; }
+          .pr-section-head { font-size: 9pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid #9ca3af !important; padding-bottom: 1px; margin-bottom: 3px; }
 
-          /* Data tables (trips + engine vitals) */
-          .print-data-table {
-            display: table !important;
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 10px;
-            margin-top: 6px;
-          }
-          .print-data-table th {
-            background: #f3f4f6 !important;
-            color: #374151 !important;
-            font-weight: 700;
-            text-align: left;
-            padding: 4px 8px;
-            border: 1px solid #d1d5db !important;
-            font-size: 9px;
-            text-transform: uppercase;
-            letter-spacing: 0.03em;
-          }
-          .print-data-table td {
-            padding: 3px 8px;
-            border: 1px solid #e5e7eb !important;
-          }
+          /* Alerts */
+          .pr-alert { font-size: 8pt; padding: 1px 0; }
+          .pr-critical { color: #dc2626 !important; }
+          .pr-warning { color: #92400e !important; }
+          .pr-more { font-size: 7pt; color: #6b7280 !important; font-style: italic; margin-top: 1px; }
 
-          /* Section headings */
-          .print-section-head {
-            font-size: 12px;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            border-bottom: 1px solid #9ca3af !important;
-            padding-bottom: 2px;
-            margin-top: 14px;
-            margin-bottom: 6px;
-          }
+          /* Tables */
+          .pr-table { width: 100%; border-collapse: collapse; font-size: 8pt; margin-top: 2px; }
+          .pr-table th { background: #f3f4f6 !important; font-weight: 700; text-align: left; padding: 2px 6px; border: 1px solid #d1d5db !important; font-size: 7pt; text-transform: uppercase; }
+          .pr-table td { padding: 2px 6px; border: 1px solid #e5e7eb !important; }
 
-          /* Page breaks */
-          .print-break-before { page-break-before: always; }
-
-          /* Map prints with Voyager (light bg — readable on paper) */
-          .leaflet-container { border: 1px solid #d1d5db !important; }
+          /* Peaks + DTCs */
+          .pr-inline-data { font-size: 9pt; line-height: 1.5; }
 
           /* Footer */
-          .print-footer {
-            display: block !important;
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            text-align: center;
-            font-size: 8px;
-            color: #9ca3af !important;
-            border-top: 1px solid #d1d5db !important;
-            padding-top: 4px;
-          }
+          .pr-footer { font-size: 7pt; color: #9ca3af !important; text-align: center; border-top: 1px solid #d1d5db !important; padding-top: 4px; margin-top: 16px; }
 
-          /* Sparkline chart header still visible for labels */
-          .print-chart .flex { margin-bottom: 2px; }
-          .print-chart .flex span { font-size: 10px !important; color: #374151 !important; }
-
-          /* Trip details cards hidden in print (table replaces them) */
-          .screen-trip-cards { display: none !important; }
+          /* Tighten main */
+          main { gap: 0 !important; padding: 0 !important; }
         }
 
-        /* Hide print-only elements on screen */
+        /* Hide print elements on screen */
         @media screen {
           .print-only { display: none !important; }
+          .print-report { display: none !important; }
           .print-data-table { display: none !important; }
         }
       `}</style>
@@ -972,15 +909,118 @@ export default function ShiftReportPage() {
                 </section>
               )}
 
+              {/* ========== SINGLE-PAGE PRINT REPORT ========== */}
+              <div className="print-report">
+                {/* Header */}
+                <div className="pr-header">
+                  <h1>IRONSIGHT SHIFT REPORT</h1>
+                  <div className="pr-header-right">
+                    {fmtDateLong(report.periodStart)} &middot; {fmtHM(startH, startM)}–{fmtHM(endH, endM)} ET &middot; {report.truckId}
+                  </div>
+                </div>
+                <hr className="pr-rule" />
+
+                {/* KPI Row */}
+                <div className="pr-kpi-row">
+                  <div className="pr-kpi">
+                    <div className="pr-kpi-val">{report.engineHours.toFixed(1)}<span>hrs</span></div>
+                    <div className="pr-kpi-label">Engine Hours</div>
+                  </div>
+                  <div className="pr-kpi">
+                    <div className="pr-kpi-val">{report.idlePercent.toFixed(0)}<span>%</span></div>
+                    <div className="pr-kpi-label">Idle Time</div>
+                  </div>
+                  <div className="pr-kpi">
+                    <div className="pr-kpi-val">{report.totalPlates}<span>plates</span></div>
+                    <div className="pr-kpi-label">Plates Placed</div>
+                  </div>
+                  <div className="pr-kpi">
+                    <div className="pr-kpi-val">{report.platesPerHour.toFixed(0)}<span>/hr</span></div>
+                    <div className="pr-kpi-label">Plates / Hour</div>
+                  </div>
+                </div>
+
+                {/* Location */}
+                <p className="pr-location">
+                  <strong>Location:</strong> Louisville, KY
+                  {report.route.distanceMiles > 0 && ` \u2014 ${report.route.distanceMiles} mi${report.route.distanceSource === "speed_estimate" ? " (est.)" : ""}`}
+                  {report.route.movingMinutes > 0 && ` \u2014 ${report.route.movingMinutes} min moving, ${report.route.stoppedMinutes} min stopped`}
+                </p>
+
+                {/* Alerts */}
+                {report.alerts.length > 0 && (
+                  <div className="pr-section">
+                    <div className="pr-section-head">Alerts</div>
+                    {report.alerts.slice(0, 5).map((alert, i) => (
+                      <div key={i} className={`pr-alert ${alert.level === "critical" ? "pr-critical" : "pr-warning"}`}>
+                        {alert.level === "critical" ? "[!] CRITICAL" : "[*] WARNING"}: {alert.message} \u2014 {fmtTime(alert.timestamp)}
+                      </div>
+                    ))}
+                    {report.alerts.length > 5 && (
+                      <div className="pr-more">and {report.alerts.length - 5} more alert{report.alerts.length - 5 > 1 ? "s" : ""}</div>
+                    )}
+                  </div>
+                )}
+
+                {/* Trips */}
+                {report.trips.length > 0 && (
+                  <div className="pr-section">
+                    <div className="pr-section-head">Engine Activity ({report.trips.length} trip{report.trips.length > 1 ? "s" : ""})</div>
+                    <table className="pr-table">
+                      <thead>
+                        <tr><th>Trip</th><th>Start</th><th>End</th><th>Duration</th></tr>
+                      </thead>
+                      <tbody>
+                        {report.trips.slice(0, 8).map((trip, i) => (
+                          <tr key={i}>
+                            <td>{i + 1}</td>
+                            <td>{fmtTime(trip.startTime)}</td>
+                            <td>{fmtTime(trip.endTime)}</td>
+                            <td>{trip.durationMin} min</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {report.trips.length > 8 && (
+                      <div className="pr-more">{report.trips.length - 8} additional short trips</div>
+                    )}
+                  </div>
+                )}
+
+                {/* Peak Readings */}
+                <div className="pr-section">
+                  <div className="pr-section-head">Peak Readings</div>
+                  <div className="pr-inline-data">
+                    Peak Coolant: {report.peakCoolantTemp ? `${report.peakCoolantTemp.value}\u00B0F at ${fmtTime(report.peakCoolantTemp.timestamp)}` : "\u2014"}
+                    {" \u00A0|\u00A0 "}
+                    Peak Oil: {report.peakOilTemp ? `${report.peakOilTemp.value}\u00B0F at ${fmtTime(report.peakOilTemp.timestamp)}` : "\u2014"}
+                    {" \u00A0|\u00A0 "}
+                    Min Battery: {report.minBatteryVoltage ? `${report.minBatteryVoltage.value}V at ${fmtTime(report.minBatteryVoltage.timestamp)}` : "\u2014"}
+                  </div>
+                </div>
+
+                {/* DTCs */}
+                {report.dtcEvents.length > 0 && (
+                  <div className="pr-section">
+                    <div className="pr-section-head">Diagnostic Trouble Codes</div>
+                    <div className="pr-inline-data">
+                      {report.dtcEvents.map((dtc, i) => (
+                        <span key={i}>{i > 0 && " \u00A0|\u00A0 "}{dtc.code} (first seen {fmtTime(dtc.firstSeen)})</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Footer */}
+                <div className="pr-footer">
+                  IronSight Fleet Monitoring \u2014 Generated {fmtDateTime(new Date().toISOString())} \u2014 {report.dataPointCount.tps + report.dataPointCount.truck} readings \u2014 All times Eastern (Louisville, KY)
+                </div>
+              </div>
+
               {/* Footer (screen) */}
               <footer className="text-[10px] sm:text-xs text-gray-600 text-center py-4 border-t border-gray-800 no-print">
                 Report generated {fmtDateTime(new Date().toISOString())} | Data points: {report.dataPointCount.tps} TPS, {report.dataPointCount.truck} truck | All times Eastern (Louisville, KY) | IronSight Fleet Monitoring
               </footer>
-
-              {/* Footer (print — fixed at bottom of every page) */}
-              <div className="print-only print-footer">
-                IronSight Fleet Monitoring — Confidential | Generated {fmtDateTime(new Date().toISOString())} | All times Eastern (Louisville, KY)
-              </div>
             </>
           )}
         </main>
