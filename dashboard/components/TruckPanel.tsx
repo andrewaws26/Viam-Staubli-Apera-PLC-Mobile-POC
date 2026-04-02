@@ -311,33 +311,6 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
   // Background history fetch — runs every 5 minutes, caches to localStorage
   useEffect(() => {
     const fetchHistory = async () => {
-      // Primary: server-side command route (no WebRTC needed)
-      if (!simMode) {
-        try {
-          console.log("[HISTORY] Attempting get_history via server API...");
-          const resp = await fetch("/api/truck-command", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ command: "get_history", days: 1 }),
-          });
-          if (resp.ok) {
-            const data = await resp.json();
-            console.log("[HISTORY] Response:", data ? `${data.totalPoints} points` : "null");
-            if (data && data.totalPoints > 0) {
-              data._cachedAt = new Date().toISOString();
-              try { localStorage.setItem(HISTORY_CACHE_KEY, JSON.stringify(data)); } catch { /* quota */ }
-              setCachedHistory(data);
-              return;
-            } else if (data && data.error) {
-              console.log("[HISTORY] Error from Pi:", data.error);
-            }
-          }
-        } catch (err) {
-          console.log("[HISTORY] Server API failed:", err);
-        }
-      }
-
-      // Fallback: Viam Cloud Data API
       try {
         const resp = await fetch("/api/truck-history?hours=168");
         if (resp.ok) {
@@ -346,14 +319,13 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
             data._cachedAt = new Date().toISOString();
             try { localStorage.setItem(HISTORY_CACHE_KEY, JSON.stringify(data)); } catch { /* quota */ }
             setCachedHistory(data);
-            return;
           }
         }
       } catch { /* cloud unavailable */ }
     };
 
     // Fetch immediately, then every 5 minutes
-    const timer = setTimeout(fetchHistory, 3000); // slight delay for initial page load
+    const timer = setTimeout(fetchHistory, 3000); // delay 3s to let initial page load settle
     const id = setInterval(fetchHistory, 5 * 60 * 1000);
     return () => { clearTimeout(timer); clearInterval(id); };
   }, [simMode]);
@@ -517,16 +489,25 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
     }
 
     try {
-      const res = await fetch("/api/truck-readings?component=truck-engine");
-      if (!res.ok) {
-        throw new Error(`API returned ${res.status}`);
-      }
-      const data = await res.json();
+      const resp = await fetch("/api/truck-readings?component=truck-engine");
+      if (!resp.ok) throw new Error(`API error: ${resp.status}`);
+      const data = await resp.json();
+
+      // Handle offline state
       if (data._offline) {
         setConnected(false);
-        setError("No recent data from truck");
+        setError("Vehicle offline — no recent data");
         return;
       }
+
+      // Handle vehicle off
+      if (data._vehicle_off) {
+        setReadings(data as TruckReadings);
+        setConnected(true);
+        setError("Vehicle off — engine not running");
+        return;
+      }
+
       setReadings(data as TruckReadings);
       setConnected(true);
       setError(null);
@@ -661,27 +642,7 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
     // Fetch historical data — try client SDK, then cloud, then cache
     let history: { totalPoints: number; totalMinutes: number; periodStart: string; periodEnd: string; source?: string; summary: Record<string, Record<string, number>>; dtcEvents: { timestamp: string; code: string }[] } | null = null;
 
-    // Primary: server-side command route (no WebRTC needed)
-    if (!simMode) {
-      try {
-        const resp = await fetch("/api/truck-command", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ command: "get_history", days: 7 }),
-        });
-        if (resp.ok) {
-          const data = await resp.json();
-          if (data && data.totalPoints > 0) {
-            history = data;
-            data._cachedAt = new Date().toISOString();
-            try { localStorage.setItem(HISTORY_CACHE_KEY, JSON.stringify(data)); } catch { /* quota */ }
-            setCachedHistory(data);
-          }
-        }
-      } catch { /* server API unavailable */ }
-    }
-
-    // Fallback: Viam Cloud Data API
+    // Fetch from Viam Cloud Data API
     if (!history) {
       try {
         const resp = await fetch("/api/truck-history?hours=168");

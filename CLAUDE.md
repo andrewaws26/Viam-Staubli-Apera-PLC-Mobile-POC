@@ -117,6 +117,43 @@ This repo serves a fleet of trucks. Each truck has two Raspberry Pis forming one
 
 **Dashboard** is on Vercel (not the Pis). Push to `main` triggers Vercel auto-deploy.
 
+## Viam Data API Payload Structure
+
+**CRITICAL**: When querying `exportTabularData()`, results have nested payload structure:
+```
+row.payload = {
+  readings: {
+    engine_rpm: 1200,
+    coolant_temp_f: 195,
+    _protocol: "j1939",
+    ...
+  }
+}
+```
+Always unwrap to `row.payload.readings` -- NOT `row.payload` directly.
+
+## Credential Architecture (Fleet Scale)
+
+```
+Organization API Key (VIAM_API_KEY / VIAM_API_KEY_ID)
+  |-- Used by ALL dashboard Data API queries (exportTabularData)
+  |-- Single key reads data from ANY machine in the organization
+  +-- Set once in Vercel env vars -- never changes per truck
+
+Machine API Keys (TRUCK_VIAM_API_KEY / TRUCK_VIAM_API_KEY_ID)
+  |-- Per-machine, used ONLY for direct commands (do_command)
+  |-- Required for: DTC clear, PGN requests, bus stats
+  +-- Needs WebRTC connection to specific machine
+
+Part IDs:
+  |-- VIAM_PART_ID: Pi 5 TPS machine (plc-monitor component)
+  |-- TRUCK_VIAM_PART_ID: Pi Zero truck machine (truck-engine component)
+  +-- Each truck in the fleet has a unique Part ID
+```
+
+For 30+ truck fleet, the dashboard will need a truck registry (database or config)
+mapping truck identifiers to their Part IDs. The org-level API key queries all of them.
+
 ## Fleet Orchestration Rules
 
 Claude is the fleet orchestrator. When making ANY change:
