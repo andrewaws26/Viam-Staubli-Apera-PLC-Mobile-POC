@@ -30,10 +30,9 @@ export async function GET(request: NextRequest) {
     const reading = await getLatestReading(partId, componentName);
 
     if (!reading) {
-      return NextResponse.json(
-        { error: "no_recent_data", message: "No sensor data in last 30 seconds" },
-        { status: 404 }
-      );
+      // Return 200 with connected=false so the dashboard shows offline gracefully
+      // instead of a 404 that triggers console errors on every poll
+      return NextResponse.json({ connected: false, _offline: true, _message: "No sensor data in last 5 minutes" });
     }
 
     return NextResponse.json(reading.payload);

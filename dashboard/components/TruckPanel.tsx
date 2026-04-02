@@ -522,6 +522,11 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
         throw new Error(`API returned ${res.status}`);
       }
       const data = await res.json();
+      if (data._offline) {
+        setConnected(false);
+        setError("No recent data from truck");
+        return;
+      }
       setReadings(data as TruckReadings);
       setConnected(true);
       setError(null);

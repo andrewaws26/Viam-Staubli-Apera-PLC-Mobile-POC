@@ -34,10 +34,8 @@ export async function GET(request: NextRequest) {
     const reading = await getLatestReading(partId, componentName);
 
     if (!reading) {
-      return NextResponse.json(
-        { error: "no_recent_data", message: "No sensor data in last 30 seconds" },
-        { status: 404 }
-      );
+      // Return 200 with _bus_connected=false so TruckPanel shows offline gracefully
+      return NextResponse.json({ _bus_connected: false, _offline: true, _message: "No sensor data in last 5 minutes" });
     }
 
     return NextResponse.json(reading.payload);
