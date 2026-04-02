@@ -68,7 +68,6 @@ interface RouteData {
 
 interface ShiftReport {
   date: string;
-  shift: string;
   periodStart: string;
   periodEnd: string;
   truckId: string;
@@ -90,6 +89,50 @@ interface ShiftReport {
   dataPointCount: { tps: number; truck: number };
   hasTpsData: boolean;
   hasTruckData: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Presets for quick-select pills
+// ---------------------------------------------------------------------------
+
+interface TimePreset {
+  id: string;
+  label: string;
+  sub: string;
+  sh: number;
+  sm: number;
+  eh: number;
+  em: number;
+}
+
+const PRESETS: TimePreset[] = [
+  { id: "day",   label: "Day Shift",  sub: "6A – 6P", sh: 6,  sm: 0, eh: 18, em: 0 },
+  { id: "night", label: "Night Shift", sub: "6P – 6A", sh: 18, sm: 0, eh: 6,  em: 0 },
+  { id: "full",  label: "Full Day",   sub: "12A – 12A", sh: 0,  sm: 0, eh: 0,  em: 0 },
+];
+
+function matchPreset(sh: number, sm: number, eh: number, em: number): string {
+  for (const p of PRESETS) {
+    if (p.sh === sh && p.sm === sm && p.eh === eh && p.em === em) return p.id;
+  }
+  return "custom";
+}
+
+/** Convert HH:MM string to { h, m } */
+function parseTimeInput(val: string): { h: number; m: number } {
+  const [h, m] = val.split(":").map(Number);
+  return { h: h || 0, m: m || 0 };
+}
+
+/** Convert hours+minutes to HH:MM for input value */
+function toTimeInput(h: number, m: number): string {
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+/** Format hours+minutes as readable time */
+function fmtHM(h: number, m: number): string {
+  const date = new Date(2000, 0, 1, h, m);
+  return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
 }
 
 // ---------------------------------------------------------------------------
@@ -119,9 +162,9 @@ function Sparkline({
   const range = max - min || 1;
 
   const padL = 4;
-  const padR = 16; // extra right padding for time labels
+  const padR = 16;
   const padY = 4;
-  const labelH = 24; // room for bottom time labels
+  const labelH = 24;
   const plotW = width - padL - padR;
   const plotH = height - padY * 2 - labelH;
 
@@ -146,7 +189,7 @@ function Sparkline({
       </div>
       <svg
         viewBox={`0 0 ${width} ${height}`}
-        className="w-full"
+        className="w-full print-hide-svg"
         preserveAspectRatio="xMidYMid meet"
         style={{ height: height, maxHeight: height }}
       >
@@ -172,7 +215,81 @@ function Sparkline({
 }
 
 // ---------------------------------------------------------------------------
-// Trip Timeline
+// Print-only data table (replaces SVG charts in print)
+// ---------------------------------------------------------------------------
+
+function PrintDataTable({ timeSeries }: { timeSeries: TimeSeriesPoint[] }) {
+  if (timeSeries.length === 0) return null;
+
+  // Sample ~20 rows evenly for a clean table
+  const step = Math.max(1, Math.floor(timeSeries.length / 20));
+  const sampled = timeSeries.filter((_, i) => i % step === 0);
+  // Always include last point
+  if (sampled[sampled.length - 1] !== timeSeries[timeSeries.length - 1]) {
+    sampled.push(timeSeries[timeSeries.length - 1]);
+  }
+
+  return (
+    <table className="print-data-table">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>RPM</th>
+          <th>Coolant °F</th>
+          <th>Oil °F</th>
+          <th>Speed mph</th>
+          <th>Battery V</th>
+        </tr>
+      </thead>
+      <tbody>
+        {sampled.map((p, i) => (
+          <tr key={i}>
+            <td>{fmtTime(p.t)}</td>
+            <td>{Math.round(p.rpm)}</td>
+            <td>{Math.round(p.coolant_f)}</td>
+            <td>{Math.round(p.oil_f)}</td>
+            <td>{Math.round(p.speed_mph)}</td>
+            <td>{p.battery_v.toFixed(1)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Print-only trip table (replaces visual timeline in print)
+// ---------------------------------------------------------------------------
+
+function PrintTripTable({ trips }: { trips: Trip[] }) {
+  if (trips.length === 0) return null;
+
+  return (
+    <table className="print-data-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Start</th>
+          <th>End</th>
+          <th>Duration</th>
+        </tr>
+      </thead>
+      <tbody>
+        {trips.map((trip, i) => (
+          <tr key={i}>
+            <td>{i + 1}</td>
+            <td>{fmtTime(trip.startTime)}</td>
+            <td>{fmtTime(trip.endTime)}</td>
+            <td>{trip.durationMin} min</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Trip Timeline (screen only)
 // ---------------------------------------------------------------------------
 
 function TripTimeline({
@@ -194,7 +311,7 @@ function TripTimeline({
 
   return (
     <div>
-      <div className="relative h-8 bg-gray-800 rounded-lg overflow-hidden print-timeline">
+      <div className="relative h-8 bg-gray-800 rounded-lg overflow-hidden print-hide-visual">
         {trips.map((trip, i) => {
           const tripStartMs = new Date(trip.startTime).getTime();
           const tripEndMs = new Date(trip.endTime).getTime();
@@ -210,7 +327,7 @@ function TripTimeline({
           );
         })}
       </div>
-      <div className="flex justify-between text-[10px] text-gray-500 mt-1">
+      <div className="flex justify-between text-[10px] text-gray-500 mt-1 print-hide-visual">
         <span>{fmtTime(periodStart)}</span>
         <span className="flex items-center gap-2">
           <span className="inline-block w-3 h-2 bg-green-600/70 rounded-sm" /> Engine On
@@ -238,6 +355,12 @@ function fmtDate(iso: string): string {
   });
 }
 
+function fmtDateLong(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", {
+    month: "long", day: "numeric", year: "numeric", timeZone: TZ,
+  });
+}
+
 function fmtDateTime(iso: string): string {
   return new Date(iso).toLocaleString("en-US", {
     month: "short", day: "numeric", year: "numeric",
@@ -246,31 +369,22 @@ function fmtDateTime(iso: string): string {
 }
 
 function todayStr(): string {
-  // Today in Eastern time
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-  return parts; // YYYY-MM-DD
+  return new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 }
-
-const SHIFT_LABELS: Record<string, { label: string; range: string }> = {
-  day:   { label: "Day",   range: "6:00 AM – 6:00 PM ET" },
-  night: { label: "Night", range: "6:00 PM – 6:00 AM ET" },
-  full:  { label: "Full",  range: "12:00 AM – 12:00 AM ET" },
-};
 
 // ---------------------------------------------------------------------------
 // Loading skeleton
 // ---------------------------------------------------------------------------
 
-function LoadingSkeleton({ shift }: { shift: string }) {
-  const shiftInfo = SHIFT_LABELS[shift] || SHIFT_LABELS.full;
+function LoadingSkeleton({ rangeLabel }: { rangeLabel: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 gap-4">
       <div className="w-10 h-10 rounded-full border-2 border-gray-700 border-t-green-500 animate-spin" />
       <div className="text-center">
-        <p className="text-gray-300 font-semibold">Generating {shiftInfo.label} Shift Report</p>
+        <p className="text-gray-300 font-semibold">Generating Shift Report</p>
         <p className="text-gray-500 text-sm mt-1">Querying Viam Cloud for TPS + truck data...</p>
+        <p className="text-gray-600 text-xs mt-1">{rangeLabel}</p>
       </div>
-      {/* Skeleton summary cards */}
       <div className="w-full max-w-3xl grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 mt-4">
         {[1, 2, 3, 4].map((i) => (
           <div key={i} className="bg-gray-900 rounded-xl border border-gray-800 p-4 animate-pulse">
@@ -289,16 +403,29 @@ function LoadingSkeleton({ shift }: { shift: string }) {
 
 export default function ShiftReportPage() {
   const [date, setDate] = useState(todayStr);
-  const [shift, setShift] = useState<"day" | "night" | "full">("full");
+  const [startH, setStartH] = useState(6);
+  const [startM, setStartM] = useState(0);
+  const [endH, setEndH] = useState(18);
+  const [endM, setEndM] = useState(0);
   const [report, setReport] = useState<ShiftReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const activePreset = matchPreset(startH, startM, endH, endM);
+  const rangeLabel = `${fmtDateLong(date + "T12:00:00Z")} — ${fmtHM(startH, startM)} to ${fmtHM(endH, endM)} Eastern`;
 
   const fetchReport = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/shift-report?date=${date}&shift=${shift}`);
+      const params = new URLSearchParams({
+        date,
+        startHour: String(startH),
+        startMin: String(startM),
+        endHour: String(endH),
+        endMin: String(endM),
+      });
+      const res = await fetch(`/api/shift-report?${params}`);
       if (!res.ok) {
         const body = await res.json().catch(() => ({ message: res.statusText }));
         throw new Error(body.message || `HTTP ${res.status}`);
@@ -310,34 +437,166 @@ export default function ShiftReportPage() {
     } finally {
       setLoading(false);
     }
-  }, [date, shift]);
+  }, [date, startH, startM, endH, endM]);
 
   useEffect(() => {
     fetchReport();
   }, [fetchReport]);
 
+  function applyPreset(p: TimePreset) {
+    setStartH(p.sh);
+    setStartM(p.sm);
+    setEndH(p.eh);
+    setEndM(p.em);
+  }
+
+  function onStartChange(val: string) {
+    const { h, m } = parseTimeInput(val);
+    setStartH(h);
+    setStartM(m);
+  }
+
+  function onEndChange(val: string) {
+    const { h, m } = parseTimeInput(val);
+    setEndH(h);
+    setEndM(m);
+  }
+
   const noData = report && !report.hasTpsData && !report.hasTruckData;
-  const shiftInfo = SHIFT_LABELS[shift] || SHIFT_LABELS.full;
-  const shiftLabel = `${shiftInfo.label} Shift (${shiftInfo.range})`;
 
   return (
     <>
-      {/* Print styles */}
+      {/* ================================================================ */}
+      {/* Print styles — professional paper-ready report                   */}
+      {/* ================================================================ */}
       <style>{`
         @media print {
-          body { background: white !important; color: black !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          @page {
+            margin: 0.5in 0.6in;
+            size: letter;
+          }
+
+          /* Reset everything to paper */
+          *, *::before, *::after {
+            color: #111827 !important;
+            background: white !important;
+            border-color: #d1d5db !important;
+            box-shadow: none !important;
+            text-shadow: none !important;
+          }
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
           .no-print { display: none !important; }
-          .print-break { page-break-before: always; }
-          .print-card { border: 1px solid #d1d5db !important; background: white !important; color: #111827 !important; }
-          .print-card p, .print-card span { color: #374151 !important; }
-          .print-card .text-green-400, .print-card .text-yellow-400, .print-card .text-red-400 { color: #111827 !important; }
-          .print-chart svg polyline { stroke: #1f2937 !important; }
-          .print-chart svg line { stroke: #d1d5db !important; }
-          .print-chart svg text { fill: #374151 !important; }
-          .print-chart .text-gray-400, .print-chart .text-gray-500 { color: #374151 !important; }
-          .print-timeline { background: #e5e7eb !important; }
-          .print-timeline > div { background: #16a34a !important; }
+          .print-only { display: block !important; }
+
+          /* Hide SVG charts, show data table fallback */
+          .print-hide-svg { display: none !important; }
+          .print-hide-visual { display: none !important; }
+
+          /* Print header */
+          .print-header {
+            display: flex !important;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 2px solid #111827 !important;
+            padding-bottom: 8px;
+            margin-bottom: 16px;
+          }
+          .print-header h1 { font-size: 22px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; }
+          .print-header p { font-size: 11px; color: #6b7280 !important; margin-top: 2px; }
+
+          /* KPI grid — bordered cells */
+          .print-kpi-grid {
+            display: grid !important;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0;
+            border: 1px solid #374151 !important;
+            margin-bottom: 12px;
+          }
+          .print-kpi-cell {
+            border: 1px solid #d1d5db !important;
+            padding: 8px 10px !important;
+            text-align: center;
+          }
+          .print-kpi-cell p:first-child { font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280 !important; }
+          .print-kpi-cell p:last-child { font-size: 20px; font-weight: 800; margin-top: 2px; }
+
+          /* Alerts as text list */
+          .print-alert-list { padding: 0; margin: 0; }
+          .print-alert-item {
+            font-size: 11px;
+            padding: 3px 0;
+            border-bottom: 1px solid #e5e7eb !important;
+          }
+
+          /* Data tables (trips + engine vitals) */
+          .print-data-table {
+            display: table !important;
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 10px;
+            margin-top: 6px;
+          }
+          .print-data-table th {
+            background: #f3f4f6 !important;
+            color: #374151 !important;
+            font-weight: 700;
+            text-align: left;
+            padding: 4px 8px;
+            border: 1px solid #d1d5db !important;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+          }
+          .print-data-table td {
+            padding: 3px 8px;
+            border: 1px solid #e5e7eb !important;
+          }
+
+          /* Section headings */
+          .print-section-head {
+            font-size: 12px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            border-bottom: 1px solid #9ca3af !important;
+            padding-bottom: 2px;
+            margin-top: 14px;
+            margin-bottom: 6px;
+          }
+
+          /* Page breaks */
+          .print-break-before { page-break-before: always; }
+
+          /* Map hides in print */
           .leaflet-container { display: none !important; }
+
+          /* Footer */
+          .print-footer {
+            display: block !important;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 8px;
+            color: #9ca3af !important;
+            border-top: 1px solid #d1d5db !important;
+            padding-top: 4px;
+          }
+
+          /* Sparkline chart header still visible for labels */
+          .print-chart .flex { margin-bottom: 2px; }
+          .print-chart .flex span { font-size: 10px !important; color: #374151 !important; }
+
+          /* Trip details cards hidden in print (table replaces them) */
+          .screen-trip-cards { display: none !important; }
+        }
+
+        /* Hide print-only elements on screen */
+        @media screen {
+          .print-only { display: none !important; }
+          .print-data-table { display: none !important; }
         }
       `}</style>
 
@@ -363,52 +622,85 @@ export default function ShiftReportPage() {
           </button>
         </header>
 
-        {/* Controls */}
-        <div className="px-3 sm:px-6 py-3 sm:py-4 flex flex-wrap items-end gap-3 border-b border-gray-800 no-print">
-          <div>
-            <label className="block text-[10px] text-gray-500 uppercase tracking-widest mb-1">Date</label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white min-h-[44px] focus:outline-none focus:border-gray-500"
-            />
-          </div>
-          <div>
-            <label className="block text-[10px] text-gray-500 uppercase tracking-widest mb-1">Shift</label>
-            <div className="flex rounded-lg overflow-hidden border border-gray-700">
-              {(["day", "night", "full"] as const).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setShift(s)}
-                  title={SHIFT_LABELS[s].range}
-                  className={`px-3 sm:px-4 py-1.5 text-sm font-semibold min-h-[44px] transition-colors flex flex-col items-center justify-center ${
-                    shift === s
-                      ? "bg-gray-100 text-gray-900"
-                      : "bg-gray-900 text-gray-400 hover:text-white"
-                  }`}
-                >
-                  <span>{SHIFT_LABELS[s].label}</span>
-                  <span className={`text-[9px] font-normal ${shift === s ? "text-gray-500" : "text-gray-600"}`}>
-                    {SHIFT_LABELS[s].range}
-                  </span>
-                </button>
-              ))}
+        {/* Controls: date + time range + preset pills */}
+        <div className="px-3 sm:px-6 py-3 sm:py-4 border-b border-gray-800 no-print">
+          <div className="flex flex-wrap items-end gap-3">
+            {/* Date */}
+            <div>
+              <label className="block text-[10px] text-gray-500 uppercase tracking-widest mb-1">Date</label>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white min-h-[44px] focus:outline-none focus:border-gray-500"
+              />
             </div>
+
+            {/* Start time */}
+            <div>
+              <label className="block text-[10px] text-gray-500 uppercase tracking-widest mb-1">Start Time</label>
+              <input
+                type="time"
+                value={toTimeInput(startH, startM)}
+                onChange={(e) => onStartChange(e.target.value)}
+                className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white min-h-[44px] focus:outline-none focus:border-gray-500"
+              />
+            </div>
+
+            {/* End time */}
+            <div>
+              <label className="block text-[10px] text-gray-500 uppercase tracking-widest mb-1">End Time</label>
+              <input
+                type="time"
+                value={toTimeInput(endH, endM)}
+                onChange={(e) => onEndChange(e.target.value)}
+                className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white min-h-[44px] focus:outline-none focus:border-gray-500"
+              />
+            </div>
+
+            {/* Generate */}
+            <button
+              onClick={fetchReport}
+              disabled={loading}
+              className="min-h-[44px] px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-sm font-semibold transition-colors"
+            >
+              {loading ? "Loading..." : "Generate"}
+            </button>
           </div>
-          <button
-            onClick={fetchReport}
-            disabled={loading}
-            className="min-h-[44px] px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-sm font-semibold transition-colors"
-          >
-            {loading ? "Loading..." : "Generate"}
-          </button>
+
+          {/* Preset pills */}
+          <div className="flex flex-wrap gap-2 mt-3">
+            {PRESETS.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => applyPreset(p)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                  activePreset === p.id
+                    ? "bg-white text-gray-900"
+                    : "bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700"
+                }`}
+              >
+                {p.label}
+                <span className={`ml-1.5 ${activePreset === p.id ? "text-gray-500" : "text-gray-600"}`}>
+                  {p.sub}
+                </span>
+              </button>
+            ))}
+            {activePreset === "custom" && (
+              <span className="px-3 py-1.5 rounded-full text-xs font-semibold bg-blue-600 text-white">
+                Custom
+              </span>
+            )}
+          </div>
+
+          {/* Range label */}
+          <p className="text-xs text-gray-500 mt-2">{rangeLabel}</p>
         </div>
 
         {/* Content */}
         <main className="flex-1 px-3 sm:px-6 py-4 sm:py-6 flex flex-col gap-4 sm:gap-6">
           {/* Loading skeleton */}
-          {loading && <LoadingSkeleton shift={shift} />}
+          {loading && <LoadingSkeleton rangeLabel={rangeLabel} />}
 
           {/* Error state */}
           {!loading && error && (
@@ -420,9 +712,9 @@ export default function ShiftReportPage() {
           {/* No data */}
           {!loading && !error && noData && (
             <div className="flex flex-col items-center justify-center py-20 text-gray-500">
-              <p className="text-lg font-semibold">No data for this date</p>
+              <p className="text-lg font-semibold">No data for this period</p>
               <p className="text-sm mt-1">
-                No TPS or truck readings were recorded for {fmtDate(date + "T12:00:00Z")} ({shiftLabel}).
+                No TPS or truck readings were recorded for {rangeLabel}.
               </p>
             </div>
           )}
@@ -430,16 +722,22 @@ export default function ShiftReportPage() {
           {/* Report content */}
           {!loading && !error && report && !noData && (
             <>
-              {/* Print header */}
-              <div className="hidden print:block mb-4">
-                <h1 className="text-2xl font-black tracking-widest uppercase">Shift Report</h1>
-                <p className="text-sm text-gray-600 mt-1">
-                  {fmtDate(report.periodStart)} &middot; {shiftLabel} &middot; {report.truckId}
-                </p>
+              {/* ========== PRINT HEADER (hidden on screen) ========== */}
+              <div className="print-only print-header">
+                <div>
+                  <h1>Shift Report</h1>
+                  <p>
+                    {fmtDateLong(report.periodStart)} &middot; {fmtHM(startH, startM)} – {fmtHM(endH, endM)} Eastern &middot; {report.truckId}
+                  </p>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <p style={{ fontWeight: 700, fontSize: "13px" }}>IronSight</p>
+                  <p>Fleet Monitoring</p>
+                </div>
               </div>
 
               {/* Big summary numbers */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 print-kpi-grid">
                 <SummaryCard
                   label="Engine Hours"
                   value={report.engineHours.toFixed(1)}
@@ -469,12 +767,13 @@ export default function ShiftReportPage() {
               {/* Alerts */}
               {report.alerts.length > 0 && (
                 <section>
-                  <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-2">Alerts</h2>
-                  <div className="grid gap-2">
+                  <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-2 print-section-head">Alerts</h2>
+                  {/* Screen version */}
+                  <div className="grid gap-2 no-print">
                     {report.alerts.map((alert, i) => (
                       <div
                         key={i}
-                        className={`rounded-xl px-4 py-3 text-sm font-medium print-card ${
+                        className={`rounded-xl px-4 py-3 text-sm font-medium ${
                           alert.level === "critical"
                             ? "bg-red-900/30 border border-red-800 text-red-300"
                             : "bg-yellow-900/30 border border-yellow-800 text-yellow-300"
@@ -490,16 +789,27 @@ export default function ShiftReportPage() {
                       </div>
                     ))}
                   </div>
+                  {/* Print version — text list with symbols */}
+                  <div className="print-only print-alert-list">
+                    {report.alerts.map((alert, i) => (
+                      <div key={i} className="print-alert-item">
+                        {alert.level === "critical" ? "[!]" : "[*]"}{" "}
+                        <strong>{alert.level === "critical" ? "CRITICAL" : "WARNING"}:</strong>{" "}
+                        {alert.message} — {fmtTime(alert.timestamp)}
+                        {alert.value !== undefined && ` (${alert.value})`}
+                      </div>
+                    ))}
+                  </div>
                 </section>
               )}
 
               {/* DTCs */}
               {report.dtcEvents.length > 0 && (
                 <section>
-                  <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-2">
+                  <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-2 print-section-head">
                     Diagnostic Trouble Codes
                   </h2>
-                  <div className="bg-gray-900 rounded-xl border border-gray-800 divide-y divide-gray-800 print-card">
+                  <div className="bg-gray-900 rounded-xl border border-gray-800 divide-y divide-gray-800">
                     {report.dtcEvents.map((dtc, i) => (
                       <div key={i} className="px-4 py-2 flex justify-between items-center text-sm">
                         <span className="font-mono text-red-400">{dtc.code}</span>
@@ -512,17 +822,17 @@ export default function ShiftReportPage() {
 
               {/* Trip timeline */}
               <section>
-                <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-2">
+                <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-2 print-section-head">
                   Engine Activity
                 </h2>
-                <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 print-card">
+                <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
                   <TripTimeline
                     trips={report.trips}
                     periodStart={report.periodStart}
                     periodEnd={report.periodEnd}
                   />
                   {report.trips.length > 0 && (
-                    <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs text-gray-400">
+                    <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs text-gray-400 screen-trip-cards">
                       {report.trips.map((trip, i) => (
                         <div key={i} className="bg-gray-800/50 rounded-lg px-3 py-2">
                           <span className="text-gray-300 font-medium">Trip {i + 1}</span>
@@ -534,12 +844,14 @@ export default function ShiftReportPage() {
                       ))}
                     </div>
                   )}
+                  {/* Print: trip table */}
+                  <PrintTripTable trips={report.trips} />
                 </div>
               </section>
 
               {/* Location / Distance section */}
               <section>
-                <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-2">
+                <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-2 print-section-head">
                   {report.route.hasGps ? "Route" : "Distance"}
                 </h2>
 
@@ -558,7 +870,7 @@ export default function ShiftReportPage() {
                       <MiniStat label="Stops" value={`${report.route.stops.length}`} />
                     </div>
                     {report.route.stops.length > 0 && (
-                      <div className="mt-2 bg-gray-900 rounded-xl border border-gray-800 divide-y divide-gray-800 print-card">
+                      <div className="mt-2 bg-gray-900 rounded-xl border border-gray-800 divide-y divide-gray-800">
                         {report.route.stops.map((stop, i) => (
                           <div key={i} className="px-4 py-2 flex justify-between items-center text-sm">
                             <span className="text-yellow-400">Stop {i + 1}</span>
@@ -571,17 +883,14 @@ export default function ShiftReportPage() {
                     )}
                   </>
                 ) : (
-                  <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 print-card">
+                  <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                       <MiniStat label="Est. Distance" value={`${report.route.distanceMiles} mi`} sub="from speed data" />
                       <MiniStat label="Moving" value={`${report.route.movingMinutes} min`} />
                       <MiniStat label="Stopped" value={`${report.route.stoppedMinutes} min`} />
                     </div>
-                    {/* GPS not available notice */}
                     <p className="text-gray-600 text-xs mt-3 border-t border-gray-800 pt-3">
                       GPS data not available — install GPS module for route tracking.
-                      {/* SIM7600G-H cellular HAT on Pi 5 has built-in GNSS/GPS
-                         that can feed location data via AT commands once enabled. */}
                     </p>
                   </div>
                 )}
@@ -589,7 +898,7 @@ export default function ShiftReportPage() {
 
               {/* Engine peak readings */}
               <section>
-                <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-2">
+                <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-2 print-section-head">
                   Peak Readings
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
@@ -626,13 +935,13 @@ export default function ShiftReportPage() {
                 </div>
               </section>
 
-              {/* Charts */}
+              {/* Charts — page break before in print */}
               {report.timeSeries.length >= 2 && (
-                <section>
-                  <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-2">
+                <section className="print-break-before">
+                  <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-2 print-section-head">
                     Engine Vitals
                   </h2>
-                  <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 grid gap-6 print-card">
+                  <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 grid gap-6">
                     <Sparkline
                       data={report.timeSeries.map((p) => ({ t: p.t, v: p.coolant_f }))}
                       color="#f59e0b"
@@ -658,13 +967,20 @@ export default function ShiftReportPage() {
                       unit="V"
                     />
                   </div>
+                  {/* Print fallback: data table */}
+                  <PrintDataTable timeSeries={report.timeSeries} />
                 </section>
               )}
 
-              {/* Footer */}
-              <footer className="text-[10px] sm:text-xs text-gray-600 text-center py-4 border-t border-gray-800">
+              {/* Footer (screen) */}
+              <footer className="text-[10px] sm:text-xs text-gray-600 text-center py-4 border-t border-gray-800 no-print">
                 Report generated {fmtDateTime(new Date().toISOString())} | Data points: {report.dataPointCount.tps} TPS, {report.dataPointCount.truck} truck | All times Eastern (Louisville, KY) | IronSight Fleet Monitoring
               </footer>
+
+              {/* Footer (print — fixed at bottom of every page) */}
+              <div className="print-only print-footer">
+                IronSight Fleet Monitoring — Confidential | Generated {fmtDateTime(new Date().toISOString())} | All times Eastern (Louisville, KY)
+              </div>
             </>
           )}
         </main>
@@ -696,7 +1012,7 @@ function SummaryCard({
   };
 
   return (
-    <div className={`bg-gray-900 rounded-xl border p-3 sm:p-4 print-card ${colorMap[color]}`}>
+    <div className={`bg-gray-900 rounded-xl border p-3 sm:p-4 print-kpi-cell ${colorMap[color]}`}>
       <p className="text-[10px] sm:text-xs text-gray-500 uppercase tracking-widest">{label}</p>
       <p className={`text-2xl sm:text-4xl font-black mt-1 leading-none ${colorMap[color].split(" ")[0]}`}>
         {value}
@@ -731,7 +1047,7 @@ function PeakCard({
   };
 
   return (
-    <div className={`rounded-xl border p-3 sm:p-4 print-card ${bgMap[color]}`}>
+    <div className={`rounded-xl border p-3 sm:p-4 ${bgMap[color]}`}>
       <p className="text-[10px] sm:text-xs text-gray-500 uppercase tracking-widest">{label}</p>
       <p className={`text-xl sm:text-2xl font-bold mt-1 ${textMap[color]}`}>{value}</p>
       {time && <p className="text-[10px] text-gray-600 mt-0.5">at {fmtTime(time)}</p>}
@@ -741,7 +1057,7 @@ function PeakCard({
 
 function MiniStat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="bg-gray-800/50 rounded-lg px-3 py-2 print-card">
+    <div className="bg-gray-800/50 rounded-lg px-3 py-2">
       <p className="text-[10px] text-gray-500 uppercase tracking-widest">{label}</p>
       <p className="text-lg font-bold text-gray-200 mt-0.5">{value}</p>
       {sub && <p className="text-[9px] text-gray-600">{sub}</p>}

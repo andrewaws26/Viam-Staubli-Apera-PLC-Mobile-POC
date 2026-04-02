@@ -2,10 +2,15 @@
  * Shift Report API — aggregates TPS plate data + truck engine data for a
  * date/shift into a one-page summary a foreman can read in 10 seconds.
  *
- * GET /api/shift-report?date=2026-04-01&shift=day
- * GET /api/shift-report?date=2026-04-01&shift=night
- * GET /api/shift-report?date=2026-04-01               (full day)
- * GET /api/shift-report?date=2026-04-01&debug=1        (includes _debug object)
+ * New (custom time range):
+ *   GET /api/shift-report?date=2026-04-01&startHour=6&startMin=0&endHour=18&endMin=0
+ *
+ * Legacy (still supported):
+ *   GET /api/shift-report?date=2026-04-01&shift=day
+ *   GET /api/shift-report?date=2026-04-01&shift=night
+ *   GET /api/shift-report?date=2026-04-01&shift=full
+ *
+ * Optional: &debug=1  (includes _debug object)
  *
  * All times are interpreted in America/New_York (Louisville, KY).
  */
@@ -123,23 +128,30 @@ function getTimezoneOffsetMin(dateStr: string, tz: string): number {
   return (new Date(utcStr).getTime() - new Date(localStr).getTime()) / 60000;
 }
 
-/** Compute shift time boundaries in UTC from a local date string + shift */
-function shiftBounds(dateStr: string, shift: string): { start: Date; end: Date } {
+/** Compute time boundaries from date + arbitrary start/end hours in local TZ */
+function timeBounds(
+  dateStr: string,
+  startHour: number, startMin: number,
+  endHour: number, endMin: number,
+): { start: Date; end: Date } {
   const [y, m, d] = dateStr.split("-").map(Number);
   const offsetMin = getTimezoneOffsetMin(dateStr, TZ);
-
-  // Local midnight of the given date, expressed in UTC ms
   const localMidnightUtcMs = Date.UTC(y, m - 1, d) + offsetMin * 60000;
 
-  if (shift === "day") {
-    return { start: new Date(localMidnightUtcMs + 6 * 3600000), end: new Date(localMidnightUtcMs + 18 * 3600000) };
-  }
-  if (shift === "night") {
-    // 6 PM to next-day 6 AM (crosses midnight)
-    return { start: new Date(localMidnightUtcMs + 18 * 3600000), end: new Date(localMidnightUtcMs + 30 * 3600000) };
-  }
-  // full day: midnight to midnight
-  return { start: new Date(localMidnightUtcMs), end: new Date(localMidnightUtcMs + 24 * 3600000) };
+  const startMs = localMidnightUtcMs + (startHour * 60 + startMin) * 60000;
+  let endMs = localMidnightUtcMs + (endHour * 60 + endMin) * 60000;
+
+  // If end <= start, the range crosses midnight — add 24 hours to end
+  if (endMs <= startMs) endMs += 24 * 3600000;
+
+  return { start: new Date(startMs), end: new Date(endMs) };
+}
+
+/** Legacy shift presets → hours */
+function shiftToHours(shift: string): { sh: number; sm: number; eh: number; em: number } {
+  if (shift === "day") return { sh: 6, sm: 0, eh: 18, em: 0 };
+  if (shift === "night") return { sh: 18, sm: 0, eh: 6, em: 0 };
+  return { sh: 0, sm: 0, eh: 0, em: 0 }; // full day (0:00 to 0:00 = 24h)
 }
 
 function downsample<T>(data: T[], maxN: number): T[] {
@@ -153,7 +165,7 @@ function downsample<T>(data: T[], maxN: number): T[] {
 
 /** Haversine distance in miles between two lat/lon pairs */
 function haversineMiles(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 3958.8; // Earth radius in miles
+  const R = 3958.8;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const a = Math.sin(dLat / 2) ** 2 +
@@ -248,7 +260,6 @@ function buildShiftReport(
   tpsPoints: RawPoint[],
   truckPoints: RawPoint[],
   dateStr: string,
-  shift: string,
   periodStart: Date,
   periodEnd: Date,
   includeDebug: boolean,
@@ -307,13 +318,11 @@ function buildShiftReport(
       const lon = num(pt.payload.gps_longitude);
       const ts = pt.timeCaptured.toISOString();
 
-      // Time delta
       const dtSec = i < truckPoints.length - 1
         ? (truckPoints[i + 1].timeCaptured.getTime() - pt.timeCaptured.getTime()) / 1000
         : 1;
       const clampedDt = Math.min(dtSec, 60);
 
-      // Debug gap tracking
       if (i > 0) {
         const rawGap = (pt.timeCaptured.getTime() - truckPoints[i - 1].timeCaptured.getTime()) / 1000;
         dbg_totalGapSec += rawGap;
@@ -321,8 +330,6 @@ function buildShiftReport(
       }
 
       const running = rpm > 0;
-
-      // Debug counters
       if (running) dbg_rpmGtZeroCount++;
       if (running && speed === 0) dbg_rpmGtZeroAndSpeedZeroCount++;
 
@@ -331,16 +338,11 @@ function buildShiftReport(
         if (speed === 0) idleSeconds += clampedDt;
       }
 
-      // Moving vs stopped time
       if (speed > 0) movingSeconds += clampedDt;
       else stoppedSeconds += clampedDt;
 
-      // Speed-based distance: speed_mph * dt_hours
-      if (speed > 0) {
-        speedTotalMiles += speed * (clampedDt / 3600);
-      }
+      if (speed > 0) speedTotalMiles += speed * (clampedDt / 3600);
 
-      // GPS tracking
       if (lat !== 0 && lon !== 0 && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
         gpsPoints.push({ lat, lon, t: ts });
         if (prevGpsLat !== 0 && prevGpsLon !== 0) {
@@ -350,7 +352,6 @@ function buildShiftReport(
         prevGpsLon = lon;
       }
 
-      // Trip tracking
       if (running && !prevRunning) {
         tripStart = pt.timeCaptured;
       } else if (!running && prevRunning && tripStart) {
@@ -363,7 +364,6 @@ function buildShiftReport(
       }
       prevRunning = running;
 
-      // Peaks
       if (coolant > 0) {
         if (coolant < dbg_coolantMin) dbg_coolantMin = coolant;
         if (coolant > dbg_coolantMax) { dbg_coolantMax = coolant; dbg_coolantMaxTs = ts; }
@@ -384,7 +384,6 @@ function buildShiftReport(
         }
       }
 
-      // DTC tracking
       const dtcCount = num(pt.payload.active_dtc_count);
       if (dtcCount > 0) {
         for (let d = 0; d < Math.min(dtcCount, 5); d++) {
@@ -403,7 +402,6 @@ function buildShiftReport(
       }
     }
 
-    // Close open trip
     if (prevRunning && tripStart) {
       const lastPt = truckPoints[truckPoints.length - 1];
       trips.push({
@@ -423,7 +421,6 @@ function buildShiftReport(
     ? Math.round((idleHours / engineHours) * 1000) / 10
     : 0;
 
-  // --- TPS plate metrics ---
   let totalPlates = 0;
   let ejectFailures = 0;
 
@@ -452,48 +449,22 @@ function buildShiftReport(
         })()
       : 0;
 
-  // --- Alerts ---
   if (peakCoolant && peakCoolant.value > 220) {
-    alerts.push({
-      level: peakCoolant.value > 240 ? "critical" : "warning",
-      message: `Coolant temp reached ${peakCoolant.value}°F`,
-      timestamp: peakCoolant.timestamp,
-      value: peakCoolant.value,
-    });
+    alerts.push({ level: peakCoolant.value > 240 ? "critical" : "warning", message: `Coolant temp reached ${peakCoolant.value}°F`, timestamp: peakCoolant.timestamp, value: peakCoolant.value });
   }
   if (minBattery && minBattery.value < 12) {
-    alerts.push({
-      level: minBattery.value < 11 ? "critical" : "warning",
-      message: `Battery dropped to ${minBattery.value}V`,
-      timestamp: minBattery.timestamp,
-      value: minBattery.value,
-    });
+    alerts.push({ level: minBattery.value < 11 ? "critical" : "warning", message: `Battery dropped to ${minBattery.value}V`, timestamp: minBattery.timestamp, value: minBattery.value });
   }
   if (dtcMap.size > 0) {
-    alerts.push({
-      level: "critical",
-      message: `${dtcMap.size} diagnostic trouble code${dtcMap.size > 1 ? "s" : ""} detected`,
-      timestamp: [...dtcMap.values()][0],
-    });
+    alerts.push({ level: "critical", message: `${dtcMap.size} diagnostic trouble code${dtcMap.size > 1 ? "s" : ""} detected`, timestamp: [...dtcMap.values()][0] });
   }
   if (idlePercent > 40) {
-    alerts.push({
-      level: "warning",
-      message: `High idle time: ${idlePercent}%`,
-      timestamp: periodStart.toISOString(),
-      value: idlePercent,
-    });
+    alerts.push({ level: "warning", message: `High idle time: ${idlePercent}%`, timestamp: periodStart.toISOString(), value: idlePercent });
   }
   if (ejectFailures > 0) {
-    alerts.push({
-      level: ejectFailures > 5 ? "critical" : "warning",
-      message: `${ejectFailures} eject failure${ejectFailures > 1 ? "s" : ""} detected`,
-      timestamp: periodStart.toISOString(),
-      value: ejectFailures,
-    });
+    alerts.push({ level: ejectFailures > 5 ? "critical" : "warning", message: `${ejectFailures} eject failure${ejectFailures > 1 ? "s" : ""} detected`, timestamp: periodStart.toISOString(), value: ejectFailures });
   }
 
-  // --- Time series for charts (downsampled to 200) ---
   const sampled = downsample(truckPoints, 200);
   const timeSeries: TimeSeriesPoint[] = sampled.map((pt) => ({
     t: pt.timeCaptured.toISOString(),
@@ -504,25 +475,17 @@ function buildShiftReport(
     oil_f: Math.round(num(pt.payload.oil_temp_f) * 10) / 10,
   }));
 
-  // --- Route / location data ---
   const hasGps = gpsPoints.length > 10;
   const routeDownsampled = downsample(gpsPoints, 150);
 
-  // Detect stops: gaps between trips where engine was off > 5 min, with GPS location
   const stops: Stop[] = [];
   for (let i = 0; i < trips.length - 1; i++) {
     const gapStart = new Date(trips[i].endTime);
     const gapEnd = new Date(trips[i + 1].startTime);
     const gapMin = (gapEnd.getTime() - gapStart.getTime()) / 60000;
     if (gapMin >= 5) {
-      // Find GPS point nearest to the stop start
       const stopGps = gpsPoints.find((p) => new Date(p.t).getTime() >= gapStart.getTime());
-      stops.push({
-        lat: stopGps?.lat ?? 0,
-        lon: stopGps?.lon ?? 0,
-        t: gapStart.toISOString(),
-        durationMin: Math.round(gapMin),
-      });
+      stops.push({ lat: stopGps?.lat ?? 0, lon: stopGps?.lon ?? 0, t: gapStart.toISOString(), durationMin: Math.round(gapMin) });
     }
   }
 
@@ -531,66 +494,41 @@ function buildShiftReport(
     points: routeDownsampled,
     startLocation: hasGps ? { lat: gpsPoints[0].lat, lon: gpsPoints[0].lon } : null,
     endLocation: hasGps ? { lat: gpsPoints[gpsPoints.length - 1].lat, lon: gpsPoints[gpsPoints.length - 1].lon } : null,
-    distanceMiles: hasGps
-      ? Math.round(gpsTotalMiles * 10) / 10
-      : Math.round(speedTotalMiles * 10) / 10,
+    distanceMiles: hasGps ? Math.round(gpsTotalMiles * 10) / 10 : Math.round(speedTotalMiles * 10) / 10,
     distanceSource: hasGps ? "gps" : "speed_estimate",
     stops,
     movingMinutes: Math.round(movingSeconds / 60),
     stoppedMinutes: Math.round(stoppedSeconds / 60),
   };
 
-  // DTC events
-  const dtcEvents: DtcEvent[] = [...dtcMap.entries()].map(([code, firstSeen]) => ({
-    code, firstSeen,
-  }));
+  const dtcEvents: DtcEvent[] = [...dtcMap.entries()].map(([code, firstSeen]) => ({ code, firstSeen }));
 
-  // Build result
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const result: Record<string, any> = {
     date: dateStr,
-    shift,
     periodStart: periodStart.toISOString(),
     periodEnd: periodEnd.toISOString(),
     truckId: "Truck 1",
     timezone: TZ,
-
-    engineHours,
-    idleHours,
-    idlePercent,
-
-    totalPlates,
-    platesPerHour,
-    ejectFailures,
-
+    engineHours, idleHours, idlePercent,
+    totalPlates, platesPerHour, ejectFailures,
     peakCoolantTemp: peakCoolant,
     peakOilTemp: peakOilTemp,
     minBatteryVoltage: minBattery,
-
-    dtcEvents,
-    trips,
-    alerts,
-    route,
-
-    timeSeries,
-
+    dtcEvents, trips, alerts, route, timeSeries,
     dataPointCount: { tps: tpsPoints.length, truck: truckPoints.length },
     hasTpsData: tpsPoints.length > 0,
     hasTruckData: truckPoints.length > 0,
   };
 
-  // Debug data
   if (includeDebug) {
     const avgGap = truckPoints.length > 1 ? dbg_totalGapSec / (truckPoints.length - 1) : 0;
     const debug: DebugData = {
-      rawTruckPoints: truckPoints.length,
-      rawTpsPoints: tpsPoints.length,
+      rawTruckPoints: truckPoints.length, rawTpsPoints: tpsPoints.length,
       firstTruckTimestamp: truckPoints.length > 0 ? truckPoints[0].timeCaptured.toISOString() : null,
       lastTruckTimestamp: truckPoints.length > 0 ? truckPoints[truckPoints.length - 1].timeCaptured.toISOString() : null,
-      rpmGtZeroCount: dbg_rpmGtZeroCount,
-      rpmGtZeroAndSpeedZeroCount: dbg_rpmGtZeroAndSpeedZeroCount,
-      engineRunningSeconds: Math.round(dbg_engineRunningSeconds),
-      idleSeconds: Math.round(dbg_idleSeconds),
+      rpmGtZeroCount: dbg_rpmGtZeroCount, rpmGtZeroAndSpeedZeroCount: dbg_rpmGtZeroAndSpeedZeroCount,
+      engineRunningSeconds: Math.round(dbg_engineRunningSeconds), idleSeconds: Math.round(dbg_idleSeconds),
       coolantMin: dbg_coolantMin === Infinity ? 0 : Math.round(dbg_coolantMin * 10) / 10,
       coolantMax: dbg_coolantMax === -Infinity ? 0 : Math.round(dbg_coolantMax * 10) / 10,
       coolantMaxTimestamp: dbg_coolantMaxTs,
@@ -598,10 +536,8 @@ function buildShiftReport(
       oilTempMaxTimestamp: dbg_oilTempMaxTs,
       batteryMin: dbg_batteryMin === Infinity ? 0 : Math.round(dbg_batteryMin * 100) / 100,
       batteryMinTimestamp: dbg_batteryMinTs,
-      gapsOver60s: dbg_gapsOver60s,
-      avgGapSeconds: Math.round(avgGap * 10) / 10,
-      queryStartUtc: periodStart.toISOString(),
-      queryEndUtc: periodEnd.toISOString(),
+      gapsOver60s: dbg_gapsOver60s, avgGapSeconds: Math.round(avgGap * 10) / 10,
+      queryStartUtc: periodStart.toISOString(), queryEndUtc: periodEnd.toISOString(),
       timezoneOffset: getTimezoneOffsetMin(dateStr, TZ),
     };
     result._debug = debug;
@@ -617,22 +553,36 @@ function buildShiftReport(
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
   const dateStr = params.get("date") || new Date().toISOString().slice(0, 10);
-  const shift = params.get("shift") || "full";
   const includeDebug = params.get("debug") === "1";
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     return NextResponse.json({ error: "Invalid date format. Use YYYY-MM-DD." }, { status: 400 });
   }
-  if (!["day", "night", "full"].includes(shift)) {
-    return NextResponse.json({ error: "Invalid shift. Use day, night, or full." }, { status: 400 });
-  }
 
-  const { start, end } = shiftBounds(dateStr, shift);
+  // Determine time range: new params take precedence, fall back to legacy shift
+  let start: Date;
+  let end: Date;
+  const startHourParam = params.get("startHour");
+  const endHourParam = params.get("endHour");
+
+  if (startHourParam !== null && endHourParam !== null) {
+    const sh = Math.max(0, Math.min(23, parseInt(startHourParam, 10) || 0));
+    const sm = Math.max(0, Math.min(59, parseInt(params.get("startMin") || "0", 10) || 0));
+    const eh = Math.max(0, Math.min(23, parseInt(endHourParam, 10) || 0));
+    const em = Math.max(0, Math.min(59, parseInt(params.get("endMin") || "0", 10) || 0));
+    ({ start, end } = timeBounds(dateStr, sh, sm, eh, em));
+  } else {
+    const shift = params.get("shift") || "full";
+    if (!["day", "night", "full"].includes(shift)) {
+      return NextResponse.json({ error: "Invalid shift. Use day, night, or full." }, { status: 400 });
+    }
+    const { sh, sm, eh, em } = shiftToHours(shift);
+    ({ start, end } = timeBounds(dateStr, sh, sm, eh, em));
+  }
 
   try {
     const dc = await getDataClient();
 
-    // Fetch TPS and truck data in parallel
     const [tpsRows, truckRows] = await Promise.all([
       dc.exportTabularData(TPS_PART_ID, "plc-monitor", RESOURCE_SUBTYPE, METHOD_NAME, start, end)
         .catch(() => [] as TabularDataPoint[]),
@@ -643,14 +593,13 @@ export async function GET(request: NextRequest) {
     const tpsPoints = parseRows(tpsRows);
     const truckPoints = parseRows(truckRows);
 
-    const report = buildShiftReport(tpsPoints, truckPoints, dateStr, shift, start, end, includeDebug);
+    const report = buildShiftReport(tpsPoints, truckPoints, dateStr, start, end, includeDebug);
 
-    // Cache completed reports for the same day (immutable once the shift is over)
     const now = new Date();
     const isHistorical = end.getTime() < now.getTime();
     const cacheControl = isHistorical
-      ? "public, max-age=3600, s-maxage=3600" // Cache historical reports for 1 hour
-      : "public, max-age=60, s-maxage=60";     // Current-day reports cached 1 minute
+      ? "public, max-age=3600, s-maxage=3600"
+      : "public, max-age=60, s-maxage=60";
 
     return NextResponse.json(report, {
       headers: { "Cache-Control": cacheControl },
