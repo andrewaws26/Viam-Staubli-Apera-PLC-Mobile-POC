@@ -277,6 +277,7 @@ class OBD2Poller:
         self._bus_connected = False
         self._consecutive_empty_cycles = 0
         self._poll_count = 0
+        self._last_response_time = 0.0  # time.time() of last successful PID response
         self._rpm_history: list[float] = []
         self._dtc_reader = None
         self._advanced_diag = None
@@ -449,6 +450,7 @@ class OBD2Poller:
             if responses_this_cycle > 0:
                 self._bus_connected = True
                 self._consecutive_empty_cycles = 0
+                self._last_response_time = time.time()
             else:
                 self._consecutive_empty_cycles += 1
                 if self._consecutive_empty_cycles >= DISCONNECT_THRESHOLD:
