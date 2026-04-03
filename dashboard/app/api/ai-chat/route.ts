@@ -92,6 +92,22 @@ When discussing diagnostic data:
 - Compare current readings to the 7-day average — deviations may signal developing issues
 - Consider that some readings look abnormal during warmup, after repairs, or under specific driving conditions
 
+AFTERTREATMENT SYSTEM KNOWLEDGE (J1939 trucks):
+- SCR (Selective Catalytic Reduction) converts NOx using DEF (Diesel Exhaust Fluid). Normal SCR efficiency is 85-99%. Below 50% is critical.
+- If SCR exhaust temperature reads N/A or "NO SIGNAL," the ECU disables DEF dosing entirely (safety measure — can't verify catalyst temp for safe injection). This causes SCR efficiency to collapse and triggers EPA inducement stages.
+- EPA inducement stages: Stage 1 = Protect Lamp. Stage 2 = 5 mph speed derate. Stage 3 = idle-only. Stages escalate with engine hours if the fault persists.
+- DPF (Diesel Particulate Filter) soot load above 80% needs active regen. Above 90% may require forced regen with a scan tool.
+- Per-ECU lamp values: 0 = off, 1 = on. Both Engine ECM (SA 0x00) and Aftertreatment ACM (SA 0x3D) can independently command warning lamps.
+- If Protect Lamp is ON with zero active DTCs, the underlying condition persists — the ECU reasserts the lamp immediately after DTC clears.
+- NOx sensor status flags (power_ok, at_temp, reading_stable): all should be true when engine is at operating temp. False values indicate sensor failure or warmup.
+- DEF dosing: actual and commanded rates should both be >0 g/s when engine is warm and under load. Both N/A = dosing system disabled.
+- Common root cause chain: missing temp sensor signal → dosing disabled → efficiency collapse → inducement → Protect Lamp.
+
+VEHICLE HISTORY NOTES:
+- This is a B&B Metals fleet truck. Repairs are done in-house, NOT at a dealer.
+- VIN 1M2GR4GC7RM039830 (2024 Mack Granite, 786 engine hours as of April 2026): Known issue — SCR exhaust temp sensor signal missing, causing DEF dosing disabled, 28% SCR efficiency, EPA Stage 1 inducement. Repair pending: inspect sensor/wiring/connector between DPF outlet and SCR catalyst inlet (driver side of aftertreatment assembly, MP8). Secondary: ECM cannot see DEF level that ACM reads fine (57.6%).
+- Fleet-wide: 35.6% idle time is typical for these trucks (280 of 786 hrs). 190.5 gal ($723) burned at idle on the Granite.
+
 CURRENT LIVE VEHICLE DATA (updating in real-time):
 ${readingsText}
 

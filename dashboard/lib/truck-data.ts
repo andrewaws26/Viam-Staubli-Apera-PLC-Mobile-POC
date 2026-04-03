@@ -204,6 +204,8 @@ export function buildTruckSummary(points: RawPoint[], hours: number) {
     intake_f: num(pt.payload.intake_manifold_temp_f || pt.payload.intake_air_temp_f),
     dpf_soot: num(pt.payload.dpf_soot_load_pct),
     def_pct: num(pt.payload.def_level_pct),
+    scr_eff: num(pt.payload.scr_efficiency_pct),
+    def_dose: num(pt.payload.def_dose_rate_gs),
     // GPS
     lat: num(pt.payload.gps_latitude),
     lon: num(pt.payload.gps_longitude),

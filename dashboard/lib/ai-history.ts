@@ -39,6 +39,8 @@ interface TSPoint {
   intake_f: number;
   dpf_soot: number;
   def_pct: number;
+  scr_eff: number;
+  def_dose: number;
   throttle_pct: number;
   short_trim: number;
   long_trim: number;
@@ -83,6 +85,8 @@ const METRICS: MetricDef[] = [
   { key: "fuel_pct",     label: "Fuel",             unit: "%",   normalMin: 10,  normalMax: 100,  precision: 0, showTrend: true },
   { key: "dpf_soot",     label: "DPF Soot",         unit: "%",   normalMin: 0,   normalMax: 80,   precision: 0, showTrend: true },
   { key: "def_pct",      label: "DEF",              unit: "%",   normalMin: 10,  normalMax: 100,  precision: 0, showTrend: true },
+  { key: "scr_eff",      label: "SCR Efficiency",   unit: "%",   normalMin: 50,  normalMax: 100,  precision: 0, showTrend: true },
+  { key: "def_dose",     label: "DEF Dose Rate",    unit: "g/s", normalMin: 0,   normalMax: 50,   precision: 1, showTrend: true },
   { key: "short_trim",   label: "Short Fuel Trim",  unit: "%",   normalMin: -10, normalMax: 10,   precision: 1, showTrend: true },
   { key: "long_trim",    label: "Long Fuel Trim",   unit: "%",   normalMin: -10, normalMax: 10,   precision: 1, showTrend: true },
   { key: "throttle_pct", label: "Throttle",         unit: "%",   normalMin: 0,   normalMax: 90,   precision: 0, showTrend: false },
