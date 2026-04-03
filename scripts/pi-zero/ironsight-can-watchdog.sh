@@ -17,7 +17,7 @@ set -o pipefail
 STATE_FILE="/tmp/ironsight-can-watchdog.state"
 TAG="ironsight-can-watchdog"
 CAN_IF="can0"
-CAN_BITRATE=250000
+CAN_BITRATE=500000
 PROBE_INTERVAL=2  # probe every Nth check when down (2 checks = 1 min at 30s timer)
 PROBE_DURATION=10 # seconds to listen during probe
 
