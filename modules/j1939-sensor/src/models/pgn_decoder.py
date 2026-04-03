@@ -398,6 +398,12 @@ PGN_65226 = PGNDefinition(
     spns=[]  # handled specially by decode_dm1
 )
 
+PGN_65227 = PGNDefinition(
+    pgn=65227,
+    name="DM2 - Previously Active Diagnostic Trouble Codes",
+    spns=[]  # same format as DM1, handled specially
+)
+
 PGN_65260 = PGNDefinition(
     pgn=65260,
     name="Vehicle Identification (VI)",
@@ -860,6 +866,7 @@ PGN_REGISTRY: dict[int, PGNDefinition] = {
     65253: PGN_65253,           # HOURS: engine hours
     # DTCs
     65226: PGN_65226,           # DM1: active diagnostic trouble codes
+    65227: PGN_65227,           # DM2: previously active diagnostic trouble codes
     # Vehicle Identification
     65260: PGN_65260,           # VI: Vehicle Identification Number (VIN)
     # Aftertreatment
@@ -909,6 +916,18 @@ def decode_pgn(pgn: int, data: bytes) -> dict[str, Any]:
                 result[f"dtc_{i}_occurrence"] = dtc["occurrence"]
         else:
             result["active_dtc_count"] = 0
+        return result
+
+    # DM2 — same format as DM1 but for previously active (stored) DTCs
+    if pgn == 65227:
+        lamps = decode_dm1_lamps(data)
+        dtcs = decode_dm1(data)
+        result = {}
+        result["prev_dtc_count"] = len(dtcs)
+        for i, dtc in enumerate(dtcs[:5]):
+            result[f"prev_dtc_{i}_spn"] = dtc["spn"]
+            result[f"prev_dtc_{i}_fmi"] = dtc["fmi"]
+            result[f"prev_dtc_{i}_occurrence"] = dtc["occurrence"]
         return result
 
     # Standard PGN decoding via SPN definitions

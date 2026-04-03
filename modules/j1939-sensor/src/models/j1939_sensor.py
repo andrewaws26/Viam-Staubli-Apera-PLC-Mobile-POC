@@ -1438,6 +1438,16 @@ class J1939TruckSensor(Sensor):
             LOGGER.info("DM1 multi-frame from SA 0x%02X: %d DTCs, lamps=%s",
                         sa, len(dtcs), lamps)
 
+        elif pgn == 65227:  # DM2 — multi-frame previously active DTCs
+            from .pgn_decoder import decode_dm1, decode_dm1_lamps
+            dtcs = decode_dm1(data)
+            decoded["prev_dtc_count"] = len(dtcs)
+            for i, dtc in enumerate(dtcs[:10]):
+                decoded[f"prev_dtc_{i}_spn"] = dtc["spn"]
+                decoded[f"prev_dtc_{i}_fmi"] = dtc["fmi"]
+                decoded[f"prev_dtc_{i}_occurrence"] = dtc["occurrence"]
+            LOGGER.info("DM2 multi-frame from SA 0x%02X: %d previously active DTCs", sa, len(dtcs))
+
         if decoded:
             with self._readings_lock:
                 self._readings.update(decoded)
