@@ -381,6 +381,15 @@ class J1939TruckSensor(Sensor):
                 "DO NOT use on J1939 heavy-duty trucks — use 'j1939' protocol instead. "
                 "OBD-II polling sends request frames that can cause DTCs on truck ECUs."
             )
+            # Ensure can0 is in active mode — clear any listen-only set at boot
+            try:
+                self._set_can_bitrate(self._can_interface, self._bitrate)
+                LOGGER.info(
+                    "CAN interface reset: %s at %d bps, listen-only off",
+                    self._can_interface, self._bitrate,
+                )
+            except Exception as e:
+                LOGGER.error("Failed to reset CAN interface for OBD2: %s", e)
             self._obd2_poller = OBD2Poller(
                 can_interface=self._can_interface,
                 bus_type=self._bus_type,
@@ -468,7 +477,8 @@ class J1939TruckSensor(Sensor):
         )
         subprocess.run(
             ["ip", "link", "set", interface, "type", "can",
-             "bitrate", str(bitrate)],
+             "bitrate", str(bitrate), "listen-only", "off",
+             "restart-ms", "100"],
             check=True,
         )
         subprocess.run(
