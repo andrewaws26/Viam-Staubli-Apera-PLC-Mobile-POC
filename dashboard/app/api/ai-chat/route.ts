@@ -11,6 +11,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getAiHistorySummary } from "@/lib/ai-history";
+import { runDiagnostics, formatDiagnosticNotes } from "@/lib/ai-diagnostics";
 
 export async function POST(request: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -40,6 +41,10 @@ export async function POST(request: NextRequest) {
 
   // Fetch historical summary (cached, 5-min TTL — calls Viam Data API directly)
   const history = await getAiHistorySummary();
+
+  // Run automated diagnostic pattern detection on live readings
+  const diagnosticNotes = runDiagnostics(readings || {});
+  const diagnosticText = formatDiagnosticNotes(diagnosticNotes);
 
   const systemPrompt = `You are an AI diagnostic partner for mechanics and fleet managers. Think of yourself as a knowledgeable colleague sitting next to them at the shop, looking at live data together and working through problems as a team. You're NOT here to tell them what's wrong — you're here to help them figure it out faster by analyzing data they don't have time to stare at.
 
@@ -108,7 +113,7 @@ VEHICLE HISTORY NOTES:
 - VIN 1M2GR4GC7RM039830 (2024 Mack Granite, 786 engine hours as of April 2026): Known issue — SCR exhaust temp sensor signal missing, causing DEF dosing disabled, 28% SCR efficiency, EPA Stage 1 inducement. Repair pending: inspect sensor/wiring/connector between DPF outlet and SCR catalyst inlet (driver side of aftertreatment assembly, MP8). Secondary: ECM cannot see DEF level that ACM reads fine (57.6%).
 - Fleet-wide: 35.6% idle time is typical for these trucks (280 of 786 hrs). 190.5 gal ($723) burned at idle on the Granite.
 
-CURRENT LIVE VEHICLE DATA (updating in real-time):
+${diagnosticText ? diagnosticText + "\n\n" : ""}CURRENT LIVE VEHICLE DATA (updating in real-time):
 ${readingsText}
 
 ${history.text}
@@ -129,6 +134,7 @@ FOLLOW-UP QUESTIONS: At the end of EVERY response, include 2-3 suggested follow-
     return NextResponse.json({
       debug: true,
       systemPrompt,
+      diagnosticNotes,
       historyHasData: history.hasData,
       historyDebug: history.debug,
     });

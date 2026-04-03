@@ -11,6 +11,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getAiHistorySummary } from "@/lib/ai-history";
+import { runDiagnostics, formatDiagnosticNotes } from "@/lib/ai-diagnostics";
 
 export async function POST(request: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -37,6 +38,10 @@ export async function POST(request: NextRequest) {
 
   // Fetch historical summary (cached, 5-min TTL — calls Viam Data API directly)
   const history = await getAiHistorySummary();
+
+  // Run automated diagnostic pattern detection on live readings
+  const diagnosticNotes = runDiagnostics(readings);
+  const diagnosticText = formatDiagnosticNotes(diagnosticNotes);
 
   const prompt = `You are an AI diagnostic partner for mechanics and fleet managers. You have access to:
 1. LIVE vehicle data — current CAN bus readings (below)
@@ -98,7 +103,7 @@ VEHICLE HISTORY NOTES:
 - VIN 1M2GR4GC7RM039830 (2024 Mack Granite, 786 engine hours as of April 2026): Known issue — SCR exhaust temp sensor signal missing, causing DEF dosing disabled, 28% SCR efficiency, EPA Stage 1 inducement. Repair pending: inspect sensor/wiring/connector between DPF outlet and SCR catalyst inlet (driver side, MP8). Secondary: ECM cannot see DEF level that ACM reads fine (57.6%).
 - Fleet-wide: 35.6% idle time typical for these trucks. 190.5 gal ($723) burned at idle on the Granite.
 
-Here is the LIVE vehicle data:
+${diagnosticText ? diagnosticText + "\n\n" : ""}Here is the LIVE vehicle data:
 ${readingsText}
 
 ${history.text}`;
@@ -109,6 +114,7 @@ ${history.text}`;
     return NextResponse.json({
       debug: true,
       prompt,
+      diagnosticNotes,
       historyHasData: history.hasData,
       historyDebug: history.debug,
       readingsKeys: Object.keys(readings),
