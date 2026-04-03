@@ -933,3 +933,35 @@ def decode_can_frame(can_id: int, data: bytes) -> tuple[int, dict[str, Any]]:
 def get_supported_pgns() -> dict[int, str]:
     """Return a dict of supported PGN numbers to their names."""
     return {pgn: defn.name for pgn, defn in PGN_REGISTRY.items()}
+
+
+# ---------------------------------------------------------------------------
+# Proprietary PGN Classification
+# ---------------------------------------------------------------------------
+
+# Proprietary A: PGN 0xEF00 (61184) — peer-to-peer, destination-specific
+PROPRIETARY_A_PGN = 61184  # 0xEF00
+
+# Proprietary B: PGN 0xFF00-0xFFFF (65280-65535) — broadcast
+PROPRIETARY_B_START = 65280  # 0xFF00
+PROPRIETARY_B_END = 65535    # 0xFFFF
+
+
+def is_proprietary_pgn(pgn: int) -> bool:
+    """Check if a PGN falls in the J1939 proprietary ranges."""
+    if pgn == PROPRIETARY_A_PGN:
+        return True
+    if PROPRIETARY_B_START <= pgn <= PROPRIETARY_B_END:
+        return True
+    return False
+
+
+def classify_pgn(pgn: int) -> str:
+    """Classify a PGN: 'standard', 'proprietary_a', 'proprietary_b', or 'unknown'."""
+    if pgn in PGN_REGISTRY:
+        return "standard"
+    if pgn == PROPRIETARY_A_PGN:
+        return "proprietary_a"
+    if PROPRIETARY_B_START <= pgn <= PROPRIETARY_B_END:
+        return "proprietary_b"
+    return "unknown"
