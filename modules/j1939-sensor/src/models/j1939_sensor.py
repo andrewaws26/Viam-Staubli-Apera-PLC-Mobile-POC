@@ -1414,6 +1414,30 @@ class J1939TruckSensor(Sensor):
             if comp_id:
                 decoded["component_id"] = comp_id
 
+        elif pgn == 65226:  # DM1 — multi-frame (>2 active DTCs)
+            from .pgn_decoder import decode_dm1, decode_dm1_lamps
+            lamps = decode_dm1_lamps(data)
+            dtcs = decode_dm1(data)
+            decoded.update(lamps)
+            decoded["active_dtc_count"] = len(dtcs)
+            for i, dtc in enumerate(dtcs[:10]):
+                decoded[f"dtc_{i}_spn"] = dtc["spn"]
+                decoded[f"dtc_{i}_fmi"] = dtc["fmi"]
+                decoded[f"dtc_{i}_occurrence"] = dtc["occurrence"]
+            # Per-ECU lamp tracking
+            if sa == 0x00:  # Engine ECM
+                decoded["protect_lamp_engine"] = lamps.get("protect_lamp", 0)
+                decoded["red_stop_lamp_engine"] = lamps.get("red_stop_lamp", 0)
+                decoded["amber_lamp_engine"] = lamps.get("amber_warning_lamp", 0)
+                decoded["mil_engine"] = lamps.get("malfunction_lamp", 0)
+            elif sa == 0x3D:  # Aftertreatment ACM
+                decoded["protect_lamp_acm"] = lamps.get("protect_lamp", 0)
+                decoded["red_stop_lamp_acm"] = lamps.get("red_stop_lamp", 0)
+                decoded["amber_lamp_acm"] = lamps.get("amber_warning_lamp", 0)
+                decoded["mil_acm"] = lamps.get("malfunction_lamp", 0)
+            LOGGER.info("DM1 multi-frame from SA 0x%02X: %d DTCs, lamps=%s",
+                        sa, len(dtcs), lamps)
+
         if decoded:
             with self._readings_lock:
                 self._readings.update(decoded)
