@@ -616,7 +616,7 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
   useEffect(() => {
     if (!readings) return;
     const now = Date.now();
-    const trendKeys = ["engine_rpm", "coolant_temp_f", "oil_temp_f", "boost_pressure_psi", "battery_voltage_v", "vehicle_speed_mph", "throttle_position_pct", "fuel_level_pct"];
+    const trendKeys = ["engine_rpm", "coolant_temp_f", "oil_temp_f", "boost_pressure_psi", "battery_voltage_v", "vehicle_speed_mph", "throttle_position_pct", "fuel_level_pct", "scr_efficiency_pct", "def_level_pct"];
 
     setTrendHistory((prev) => {
       const updated = { ...prev };
@@ -1393,6 +1393,8 @@ ${aiSummary ? `<h2>AI Vehicle Health Summary</h2><div style="white-space:pre-wra
             <TrendChart label="Oil Temp" data={trendHistory.oil_temp_f || []} unit="°F" color="#fb923c" warnThreshold={230} critThreshold={266} />
             <TrendChart label="Manifold" data={trendHistory.boost_pressure_psi || []} unit=" PSI" color="#a78bfa" />
             <TrendChart label="Fuel Level" data={trendHistory.fuel_level_pct || []} unit="%" color="#2dd4bf" warnThreshold={20} critThreshold={10} inverted />
+            <TrendChart label="SCR Efficiency" data={trendHistory.scr_efficiency_pct || []} unit="%" color="#10b981" warnThreshold={80} critThreshold={50} inverted />
+            <TrendChart label="DEF Level" data={trendHistory.def_level_pct || []} unit="%" color="#06b6d4" warnThreshold={15} critThreshold={5} inverted />
           </div>
         </div>
       )}

@@ -588,6 +588,16 @@ PGN_64947 = PGNDefinition(
                       0, 16, 0.05, -200.0, "ppm"),
         SPNDefinition(4327, "Aftertreatment 1 Intake O2", "at1_intake_o2_pct",
                       5, 16, 0.0025, -12.0, "%"),
+        # Byte 7: NOx sensor status flags (2-bit fields)
+        SPNDefinition(3218, "Intake NOx Power In Range", "nox_inlet_power_ok",
+                      7, 8, 1.0, 0, "",
+                      decode_fn=lambda d: _decode_2bit_status(d, 7, 0)),
+        SPNDefinition(3219, "Intake NOx Sensor At Temp", "nox_inlet_at_temp",
+                      7, 8, 1.0, 0, "",
+                      decode_fn=lambda d: _decode_2bit_status(d, 7, 2)),
+        SPNDefinition(3220, "Intake NOx Reading Stable", "nox_inlet_reading_stable",
+                      7, 8, 1.0, 0, "",
+                      decode_fn=lambda d: _decode_2bit_status(d, 7, 4)),
     ]
 )
 
@@ -597,6 +607,16 @@ PGN_64948 = PGNDefinition(
     spns=[
         SPNDefinition(4331, "Aftertreatment 1 Outlet NOx", "nox_outlet_ppm",
                       0, 16, 0.05, -200.0, "ppm"),
+        # Byte 7: NOx sensor status flags (2-bit fields)
+        SPNDefinition(3228, "Outlet NOx Power In Range", "nox_outlet_power_ok",
+                      7, 8, 1.0, 0, "",
+                      decode_fn=lambda d: _decode_2bit_status(d, 7, 0)),
+        SPNDefinition(3229, "Outlet NOx Sensor At Temp", "nox_outlet_at_temp",
+                      7, 8, 1.0, 0, "",
+                      decode_fn=lambda d: _decode_2bit_status(d, 7, 2)),
+        SPNDefinition(3230, "Outlet NOx Reading Stable", "nox_outlet_reading_stable",
+                      7, 8, 1.0, 0, "",
+                      decode_fn=lambda d: _decode_2bit_status(d, 7, 4)),
     ]
 )
 
