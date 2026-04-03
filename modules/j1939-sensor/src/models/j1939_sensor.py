@@ -46,6 +46,8 @@ from .pgn_decoder import (
     extract_pgn_from_can_id,
     extract_source_address,
     get_supported_pgns,
+    is_proprietary_pgn,
+    classify_pgn,
 )
 from .obd2_poller import OBD2Poller
 from .vehicle_profiles import (
@@ -126,6 +128,150 @@ class OfflineBuffer:
                 LOGGER.info("OfflineBuffer pruned %s (%.1f KB)", oldest, size / 1024)
         except Exception as exc:
             LOGGER.warning("OfflineBuffer prune error: %s", exc)
+
+
+# Default proprietary PGN capture config
+_DEFAULT_PROP_LOG_DIR = "/home/andrew/.viam/proprietary-pgns"
+_DEFAULT_PROP_LOG_MAX_MB = 100.0
+_PROP_SAMPLE_INTERVAL = 10.0  # seconds between logging same PGN (avoid flooding)
+
+
+class ProprietaryPGNTracker:
+    """Tracks proprietary J1939 PGN traffic for reverse engineering.
+
+    Records statistics and raw payloads for PGNs in the proprietary ranges
+    (Proprietary A: 0xEF00, Proprietary B: 0xFF00-0xFFFF) that the standard
+    decoder cannot interpret. Writes raw captures to JSONL files for offline
+    analysis with SavvyCAN or CAN_Reverse_Engineering tools.
+    """
+
+    def __init__(self, log_dir: str = _DEFAULT_PROP_LOG_DIR,
+                 max_mb: float = _DEFAULT_PROP_LOG_MAX_MB):
+        self._stats: dict[int, dict] = {}  # pgn -> stats dict
+        self._log_dir = log_dir
+        self._max_bytes = int(max_mb * 1024 * 1024)
+        self._last_log_time: dict[int, float] = {}  # pgn -> last log timestamp
+        os.makedirs(self._log_dir, exist_ok=True)
+        LOGGER.info("ProprietaryPGNTracker: log_dir=%s max_mb=%.0f", log_dir, max_mb)
+
+    def record(self, pgn: int, sa: int, data: bytes, can_id: int) -> None:
+        """Record a proprietary PGN frame."""
+        now = time.time()
+        data_hex = data.hex()
+        pgn_type = classify_pgn(pgn)
+
+        # Update in-memory stats
+        if pgn not in self._stats:
+            self._stats[pgn] = {
+                "pgn": pgn,
+                "pgn_hex": f"0x{pgn:04X}",
+                "type": pgn_type,
+                "count": 0,
+                "source_addresses": set(),
+                "first_seen": now,
+                "last_seen": now,
+                "last_data": data_hex,
+                "data_length": len(data),
+                "unique_payloads": 0,
+                "_seen_payloads": set(),
+            }
+
+        s = self._stats[pgn]
+        s["count"] += 1
+        s["source_addresses"].add(sa)
+        s["last_seen"] = now
+        s["last_data"] = data_hex
+        if data_hex not in s["_seen_payloads"]:
+            s["_seen_payloads"].add(data_hex)
+            s["unique_payloads"] = len(s["_seen_payloads"])
+
+        # Rate-limited JSONL logging for offline analysis
+        last = self._last_log_time.get(pgn, 0)
+        if now - last >= _PROP_SAMPLE_INTERVAL:
+            self._last_log_time[pgn] = now
+            self._write_log(pgn, sa, can_id, data_hex, now)
+
+    def _write_log(self, pgn: int, sa: int, can_id: int,
+                   data_hex: str, ts: float) -> None:
+        """Append a raw capture line to the date-stamped JSONL log."""
+        date_str = time.strftime("%Y%m%d")
+        path = os.path.join(self._log_dir, f"prop_pgns_{date_str}.jsonl")
+        record = json.dumps({
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime(ts)),
+            "epoch": round(ts, 3),
+            "can_id": f"0x{can_id:08X}",
+            "pgn": pgn,
+            "pgn_hex": f"0x{pgn:04X}",
+            "sa": sa,
+            "sa_hex": f"0x{sa:02X}",
+            "data": data_hex,
+            "dlc": len(data_hex) // 2,
+        }, separators=(",", ":"))
+        try:
+            with open(path, "a") as f:
+                f.write(record + "\n")
+        except Exception as exc:
+            LOGGER.warning("Proprietary log write failed: %s", exc)
+            return
+        self._maybe_prune()
+
+    def _maybe_prune(self) -> None:
+        """Remove oldest log files if total size exceeds cap."""
+        try:
+            files = sorted(
+                (os.path.join(self._log_dir, f)
+                 for f in os.listdir(self._log_dir) if f.endswith(".jsonl")),
+                key=os.path.getmtime,
+            )
+            total = sum(os.path.getsize(f) for f in files)
+            while total > self._max_bytes and len(files) > 1:
+                oldest = files.pop(0)
+                size = os.path.getsize(oldest)
+                os.remove(oldest)
+                total -= size
+                LOGGER.info("Proprietary log pruned %s (%.1f KB)", oldest, size / 1024)
+        except Exception:
+            pass
+
+    def get_summary(self) -> dict[str, Any]:
+        """Return summary stats for get_readings() — lightweight."""
+        prop_a = sum(1 for s in self._stats.values() if s["type"] == "proprietary_a")
+        prop_b = sum(1 for s in self._stats.values() if s["type"] == "proprietary_b")
+        total_frames = sum(s["count"] for s in self._stats.values())
+        return {
+            "proprietary_pgn_count": len(self._stats),
+            "proprietary_a_count": prop_a,
+            "proprietary_b_count": prop_b,
+            "proprietary_total_frames": total_frames,
+        }
+
+    def get_detailed(self) -> list[dict]:
+        """Return detailed per-PGN stats for do_command — full info."""
+        result = []
+        for pgn in sorted(self._stats.keys()):
+            s = self._stats[pgn]
+            result.append({
+                "pgn": s["pgn"],
+                "pgn_hex": s["pgn_hex"],
+                "type": s["type"],
+                "count": s["count"],
+                "source_addresses": sorted(s["source_addresses"]),
+                "unique_payloads": s["unique_payloads"],
+                "data_length": s["data_length"],
+                "last_data": s["last_data"],
+                "first_seen": time.strftime(
+                    "%Y-%m-%dT%H:%M:%SZ", time.gmtime(s["first_seen"])),
+                "last_seen": time.strftime(
+                    "%Y-%m-%dT%H:%M:%SZ", time.gmtime(s["last_seen"])),
+                "rate_per_min": round(
+                    s["count"] / max(1, (s["last_seen"] - s["first_seen"]) / 60), 1),
+            })
+        return result
+
+    def reset(self) -> None:
+        """Clear all in-memory stats (logs on disk are preserved)."""
+        self._stats.clear()
+        self._last_log_time.clear()
 
 
 # J1939 broadcast address
@@ -221,6 +367,9 @@ class J1939TruckSensor(Sensor):
         self._vehicle_profile: VehicleProfile | None = None
         self._discovery_status: str = ""  # "", "cached", "running", "complete"
         self._profile_applied = False  # True once profile fields emitted
+        # Proprietary PGN capture
+        self._prop_tracker: ProprietaryPGNTracker | None = None
+        self._capture_proprietary = True
         # State inference
         self._prev_speed: float = 0.0
         self._prev_accel_pedal: float = 0.0
@@ -334,6 +483,21 @@ class J1939TruckSensor(Sensor):
         if "offline_buffer_max_mb" in fields and fields["offline_buffer_max_mb"].number_value:
             buf_max_mb = fields["offline_buffer_max_mb"].number_value
         self._offline_buffer = OfflineBuffer(buf_dir, buf_max_mb)
+
+        # Proprietary PGN capture — logs raw proprietary traffic for RE
+        self._capture_proprietary = True
+        if "capture_proprietary" in fields:
+            self._capture_proprietary = bool(fields["capture_proprietary"].bool_value)
+        if self._capture_proprietary:
+            prop_dir = _DEFAULT_PROP_LOG_DIR
+            prop_max = _DEFAULT_PROP_LOG_MAX_MB
+            if "proprietary_log_dir" in fields and fields["proprietary_log_dir"].string_value:
+                prop_dir = fields["proprietary_log_dir"].string_value
+            if "proprietary_log_max_mb" in fields and fields["proprietary_log_max_mb"].number_value:
+                prop_max = fields["proprietary_log_max_mb"].number_value
+            self._prop_tracker = ProprietaryPGNTracker(prop_dir, prop_max)
+        else:
+            self._prop_tracker = None
 
         # PGN filter (J1939 only, but parse regardless)
         if "pgn_filter" in fields and fields["pgn_filter"].list_value:
@@ -1179,6 +1343,10 @@ class J1939TruckSensor(Sensor):
                 # --- Standard single-frame PGN decode ---
                 _, decoded = decode_can_frame(msg.arbitration_id, msg.data)
 
+                # --- Proprietary PGN capture (runs even if not decoded) ---
+                if not decoded and self._prop_tracker and is_proprietary_pgn(pgn):
+                    self._prop_tracker.record(pgn, sa, msg.data, msg.arbitration_id)
+
                 # Apply PGN filter
                 if self._pgn_filter and pgn not in self._pgn_filter:
                     continue
@@ -1336,6 +1504,10 @@ class J1939TruckSensor(Sensor):
                         f"{p} ({pgn_names.get(p, '?')})"
                         for p in profile.unsupported_pgns
                     ]
+
+        # Proprietary PGN summary — lightweight stats in every reading
+        if self._prop_tracker:
+            readings.update(self._prop_tracker.get_summary())
 
         # ---------------------------------------------------------------
         # Task 2: Vehicle State Inference
@@ -1548,6 +1720,14 @@ class J1939TruckSensor(Sensor):
             {"command": "get_bus_stats"}
                 Return CAN bus statistics (frame count, uptime, etc.)
 
+            {"command": "get_proprietary_pgns"}
+                Return detailed stats on all proprietary PGNs seen on the bus.
+                Includes PGN type, frame count, source addresses, unique payloads,
+                and last raw data for each proprietary PGN.
+
+            {"command": "reset_proprietary_pgns"}
+                Clear in-memory proprietary PGN stats (disk logs preserved).
+
             {"command": "send_raw", "can_id": <int>, "data": <hex_string>}
                 Send a raw CAN frame (use with caution).
         """
@@ -1590,6 +1770,19 @@ class J1939TruckSensor(Sensor):
             return {"supported_pgns": get_supported_pgns()}
         elif cmd == "get_bus_stats":
             return self._get_bus_stats()
+        elif cmd == "get_proprietary_pgns":
+            if not self._prop_tracker:
+                return {"error": "Proprietary PGN capture is disabled"}
+            return {
+                "success": True,
+                "summary": self._prop_tracker.get_summary(),
+                "pgns": self._prop_tracker.get_detailed(),
+            }
+        elif cmd == "reset_proprietary_pgns":
+            if not self._prop_tracker:
+                return {"error": "Proprietary PGN capture is disabled"}
+            self._prop_tracker.reset()
+            return {"success": True, "message": "Proprietary PGN stats reset"}
         elif cmd == "send_raw":
             can_id = command.get("can_id")
             data_hex = command.get("data", "")
@@ -1602,7 +1795,8 @@ class J1939TruckSensor(Sensor):
                                   "get_readiness", "get_pending_dtcs",
                                   "get_permanent_dtcs", "get_vin",
                                   "request_pgn", "get_supported_pgns",
-                                  "get_bus_stats", "send_raw"]}
+                                  "get_bus_stats", "get_proprietary_pgns",
+                                  "reset_proprietary_pgns", "send_raw"]}
 
     async def _clear_dtcs(self) -> dict[str, Any]:
         """
