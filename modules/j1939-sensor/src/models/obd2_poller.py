@@ -427,11 +427,48 @@ class OBD2Poller:
 
             return readings
 
+    def _reconnect_bus(self) -> bool:
+        """Attempt to reopen the CAN bus after the interface was cycled."""
+        if self._bus:
+            try:
+                self._bus.shutdown()
+            except Exception:
+                pass
+            self._bus = None
+
+        try:
+            import can
+            self._bus = can.Bus(
+                channel=self._can_interface,
+                interface=self._bus_type,
+                bitrate=self._bitrate,
+                receive_own_messages=False,
+            )
+            self._dtc_reader = OBD2DTCReader(self._bus)
+            self._advanced_diag = OBD2AdvancedDiag(self._bus)
+            LOGGER.info("OBD-II bus reconnected on %s", self._can_interface)
+            return True
+        except Exception as e:
+            LOGGER.debug("OBD-II bus reconnect failed: %s", e)
+            return False
+
     def _poll_loop(self):
         """Background thread: poll all PIDs once per second."""
-        while self._running and self._bus:
+        reconnect_backoff = 0
+        while self._running:
+            if not self._bus:
+                # Bus was lost — wait and try to reconnect
+                reconnect_backoff = min(reconnect_backoff + 5, 30)
+                end = time.monotonic() + reconnect_backoff
+                while self._running and time.monotonic() < end:
+                    time.sleep(0.5)
+                if self._running:
+                    self._reconnect_bus()
+                continue
+
             cycle_start = time.monotonic()
             responses_this_cycle = 0
+            bus_error = False
 
             for pid in OBD2_PIDS:
                 if not self._running:
@@ -439,22 +476,46 @@ class OBD2Poller:
                 # Adaptive polling: skip PIDs the vehicle doesn't support
                 if self._supported_pids is not None and pid not in self._supported_pids:
                     continue
-                result = self._request_pid(pid)
+                try:
+                    result = self._request_pid(pid)
+                except OSError:
+                    # Socket died (can0 was cycled by watchdog or went down)
+                    bus_error = True
+                    break
                 if result is not None:
                     field_key = OBD2_PIDS[pid][1]
                     with self._readings_lock:
                         self._readings[field_key] = result
                     responses_this_cycle += 1
 
+            if bus_error:
+                LOGGER.warning("CAN bus socket error — will reconnect")
+                self._bus_connected = False
+                if self._bus:
+                    try:
+                        self._bus.shutdown()
+                    except Exception:
+                        pass
+                    self._bus = None
+                reconnect_backoff = 0
+                continue
+
             # Update bus connection status
             if responses_this_cycle > 0:
                 self._bus_connected = True
                 self._consecutive_empty_cycles = 0
                 self._last_response_time = time.time()
+                reconnect_backoff = 0
             else:
                 self._consecutive_empty_cycles += 1
                 if self._consecutive_empty_cycles >= DISCONNECT_THRESHOLD:
                     self._bus_connected = False
+                # After extended disconnection, try reopening the socket
+                # in case can0 was cycled by the watchdog
+                if self._consecutive_empty_cycles >= DISCONNECT_THRESHOLD * 6:
+                    LOGGER.info("Extended bus silence — reopening CAN socket")
+                    self._reconnect_bus()
+                    self._consecutive_empty_cycles = 0
 
             self._poll_count += 1
 
@@ -513,6 +574,8 @@ class OBD2Poller:
                 # Found our response — decode it
                 return self._decode_pid(pid, resp.data)
 
+        except OSError:
+            raise  # Bus socket died — let poll_loop handle reconnection
         except Exception as e:
             LOGGER.debug(f"OBD-II PID 0x{pid:02X} request failed: {e}")
 
