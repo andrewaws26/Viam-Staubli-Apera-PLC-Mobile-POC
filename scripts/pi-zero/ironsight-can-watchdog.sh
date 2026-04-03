@@ -50,12 +50,11 @@ get_rx() {
 }
 
 # --- Bring can0 UP with correct parameters ---
-# NOTE: Do NOT use "listen-only on" here — OBD-II requires transmitting request frames.
-# listen-only mode is only safe for J1939 (broadcast protocol) and kills OBD-II completely.
+# J1939 truck bus: MUST use listen-only to avoid interfering with ECU communication.
+# The MCP2515 in normal mode ACKs frames which disrupts the truck bus and triggers DTCs.
 can_up() {
     ip link set "$CAN_IF" down 2>/dev/null
-    ip link set "$CAN_IF" up type can bitrate "$CAN_BITRATE" 2>/dev/null
-    ifconfig "$CAN_IF" txqueuelen 65536 2>/dev/null
+    ip link set "$CAN_IF" up type can bitrate "$CAN_BITRATE" listen-only on 2>/dev/null
 }
 
 # --- Bring can0 DOWN ---
@@ -116,28 +115,13 @@ else
 
         probe_rx=$(get_rx)
         if [[ "$probe_rx" -gt 0 ]]; then
-            # Broadcast traffic found (J1939 truck) — leave can0 up
+            # J1939 broadcast traffic found — leave can0 up
             log "Vehicle active! can0 staying UP ($probe_rx frames in ${PROBE_DURATION}s)"
             save_state "$probe_rx" 0 0 false
             exit 0
         fi
 
-        # No broadcast traffic — try an OBD-II active probe.
-        # OBD-II is request-response: no traffic unless we ask.
-        # Send PID 0x00 (supported PIDs) and check for a response.
-        if command -v cansend &>/dev/null; then
-            pre_rx=$(get_rx)
-            cansend "$CAN_IF" "7DF#0201000000000000" 2>/dev/null
-            sleep 1
-            post_rx=$(get_rx)
-            if [[ "$post_rx" -gt "$pre_rx" ]]; then
-                log "OBD-II vehicle detected! can0 staying UP (got response to PID probe)"
-                save_state "$post_rx" 0 0 false
-                exit 0
-            fi
-        fi
-
-        # No traffic from either protocol — back down
+        # No traffic — truck is off, back down
         can_down
         log "can0 DOWN (probe found no traffic)"
         save_state 0 0 0 true
