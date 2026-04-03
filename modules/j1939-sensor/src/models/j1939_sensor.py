@@ -43,6 +43,7 @@ from system_health import get_system_health
 from .pgn_decoder import (
     PGN_REGISTRY,
     decode_can_frame,
+    decode_dm1_lamps,
     extract_pgn_from_can_id,
     extract_source_address,
     get_supported_pgns,
@@ -1346,6 +1347,11 @@ class J1939TruckSensor(Sensor):
                 # --- Proprietary PGN capture (runs even if not decoded) ---
                 if not decoded and self._prop_tracker and is_proprietary_pgn(pgn):
                     self._prop_tracker.record(pgn, sa, msg.data, msg.arbitration_id)
+                    # 0xFFCC: engine start counters (confirmed via RE)
+                    if pgn == 0xFFCC and len(msg.data) >= 8:
+                        with self._readings_lock:
+                            self._readings["prop_start_counter_a"] = int.from_bytes(msg.data[0:4], "little")
+                            self._readings["prop_start_counter_b"] = int.from_bytes(msg.data[4:8], "little")
 
                 # Apply PGN filter
                 if self._pgn_filter and pgn not in self._pgn_filter:
@@ -1362,6 +1368,20 @@ class J1939TruckSensor(Sensor):
                             self._readings[pgn_hex] = msg.data.hex()
 
                         self._readings[f"pgn_{pgn}_source_addr"] = sa
+
+                        # Per-ECU DM1 lamp tracking for aftertreatment diagnostics
+                        if pgn == 65226:
+                            lamps = decode_dm1_lamps(msg.data)
+                            if sa == 0x00:  # Engine ECM
+                                self._readings["protect_lamp_engine"] = lamps.get("protect_lamp", 0)
+                                self._readings["red_stop_lamp_engine"] = lamps.get("red_stop_lamp", 0)
+                                self._readings["amber_lamp_engine"] = lamps.get("amber_warning_lamp", 0)
+                                self._readings["mil_engine"] = lamps.get("malfunction_lamp", 0)
+                            elif sa == 0x3D:  # Aftertreatment ACM
+                                self._readings["protect_lamp_acm"] = lamps.get("protect_lamp", 0)
+                                self._readings["red_stop_lamp_acm"] = lamps.get("red_stop_lamp", 0)
+                                self._readings["amber_lamp_acm"] = lamps.get("amber_warning_lamp", 0)
+                                self._readings["mil_acm"] = lamps.get("malfunction_lamp", 0)
 
             except Exception as e:
                 if self._running:
@@ -1645,10 +1665,33 @@ class J1939TruckSensor(Sensor):
             else:
                 readings["dpf_health"] = "OK"
 
+        # Idle fuel percentage (of total lifetime fuel burned at idle)
+        if idle_fuel is not None and total_fuel is not None and total_fuel > 0:
+            readings["idle_fuel_pct"] = round((idle_fuel / total_fuel) * 100, 1)
+
         # DEF level alert
         def_level = readings.get("def_level_pct", None)
         if def_level is not None:
             readings["def_low"] = def_level < 15
+
+        # SCR health indicator
+        scr_eff = readings.get("scr_efficiency_pct", None)
+        if scr_eff is not None:
+            if scr_eff < 50:
+                readings["scr_health"] = "CRITICAL"
+            elif scr_eff < 80:
+                readings["scr_health"] = "WARNING"
+            else:
+                readings["scr_health"] = "OK"
+
+        # DEF dosing status
+        dose_rate = readings.get("def_dose_rate_gs", None)
+        dose_cmd = readings.get("def_dose_commanded_gs", None)
+        if dose_rate is not None or dose_cmd is not None:
+            readings["def_dosing_active"] = (
+                (dose_rate is not None and dose_rate > 0)
+                or (dose_cmd is not None and dose_cmd > 0)
+            )
 
         # Battery health — 12.0-12.6V is normal for engine-off, 13.5-14.5V for running
         batt = readings.get("battery_voltage_v", None)

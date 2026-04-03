@@ -34,6 +34,9 @@ const THRESHOLDS: Record<string, { warn: number; crit: number; inverted?: boolea
   oil_temp_f: { warn: 230, crit: 266 },
   fuel_level_pct: { warn: 20, crit: 10, inverted: true },
   boost_pressure_psi: { warn: 36, crit: 43.5 },
+  scr_efficiency_pct: { warn: 80, crit: 50, inverted: true },
+  def_level_pct: { warn: 15, crit: 5, inverted: true },
+  idle_fuel_pct: { warn: 25, crit: 35 },
 };
 
 function getValueColor(key: string, value: number): string {
@@ -92,7 +95,11 @@ function formatValue(key: string, value: unknown): string {
     }
     if (key === "distance_with_mil_mi" || key === "distance_since_clear_mi") return `${value.toFixed(1)} mi`;
     if (key === "timing_advance_deg") return `${value.toFixed(1)}°`;
-    if (key === "maf_flow_gps") return `${value.toFixed(1)} g/s`;
+    if (key === "maf_flow_gps" || key.endsWith("_gs")) return `${value.toFixed(1)} g/s`;
+    if (key.startsWith("protect_lamp_") || key.startsWith("red_stop_lamp_") || key.startsWith("amber_lamp_") || key.startsWith("mil_")) {
+      return value === 1 ? "ON" : value === 0 ? "OFF" : `${value}`;
+    }
+    if (key.startsWith("prop_start_counter")) return `${value.toFixed(0)}`;
     if (key === "commanded_equiv_ratio") return `${value.toFixed(3)}`;
     if (key === "evap_pressure_pa") return `${value.toFixed(0)} Pa`;
     if (key === "o2_voltage_b1s1_v") return `${value.toFixed(2)}V`;
@@ -160,16 +167,23 @@ const HYDRAULIC_FIELDS = [
 ];
 
 const AFTERTREATMENT_FIELDS = [
-  { key: "dpf_soot_load_pct", label: "DPF Soot Load", highlight: true },
+  { key: "scr_efficiency_pct", label: "SCR Efficiency", highlight: true },
+  { key: "scr_health", label: "SCR Health" },
+  { key: "def_level_pct", label: "DEF Level" },
+  { key: "def_dose_rate_gs", label: "DEF Dose Rate" },
+  { key: "def_dose_commanded_gs", label: "DEF Commanded" },
+  { key: "def_dosing_active", label: "DEF Dosing Active" },
+  { key: "def_temp_f", label: "DEF Temp" },
+  { key: "dpf_soot_load_pct", label: "DPF Soot Load" },
   { key: "dpf_regen_status", label: "DPF Regen Status" },
   { key: "dpf_diff_pressure_psi", label: "DPF Diff Pressure" },
   { key: "dpf_inlet_temp_f", label: "DPF Inlet Temp" },
   { key: "dpf_outlet_temp_f", label: "DPF Outlet Temp" },
-  { key: "def_level_pct", label: "DEF Level" },
-  { key: "def_temp_f", label: "DEF Temp" },
   { key: "nox_inlet_ppm", label: "NOx Inlet" },
   { key: "nox_outlet_ppm", label: "NOx Outlet" },
   { key: "scr_catalyst_temp_f", label: "SCR Catalyst Temp" },
+  { key: "protect_lamp_engine", label: "Protect (Engine)" },
+  { key: "protect_lamp_acm", label: "Protect (ACM)" },
 ];
 
 const BRAKES_FIELDS = [
@@ -220,17 +234,22 @@ const COST_FIELDS = [
 
 const HEALTH_FIELDS = [
   { key: "dpf_health", label: "DPF Filter", highlight: true },
+  { key: "scr_health", label: "SCR System" },
   { key: "battery_health", label: "Battery" },
   { key: "def_low", label: "DEF Fluid Low" },
   { key: "idle_pct", label: "Lifetime Idle %" },
+  { key: "idle_fuel_pct", label: "Idle Fuel %" },
 ];
 
 const TOTAL_FIELDS = [
   { key: "vin", label: "VIN", highlight: true },
   { key: "engine_hours", label: "Engine Hours" },
   { key: "total_fuel_used_gal", label: "Total Fuel Used" },
+  { key: "idle_fuel_used_gal", label: "Idle Fuel Used" },
   { key: "idle_engine_hours", label: "Idle Hours" },
   { key: "vehicle_distance_mi", label: "Odometer" },
+  { key: "prop_start_counter_a", label: "Start Count A" },
+  { key: "prop_start_counter_b", label: "Start Count B" },
 ];
 
 // Car-specific field overrides — OBD-II returns different fields

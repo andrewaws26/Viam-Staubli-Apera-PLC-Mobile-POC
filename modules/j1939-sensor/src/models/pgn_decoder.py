@@ -347,11 +347,11 @@ def decode_dm1(data: bytes) -> list[dict]:
     if len(data) < 2:
         return dtcs
 
-    # Lamp status
-    # byte 0 bits 7-6: Malfunction Indicator Lamp
-    # byte 0 bits 5-4: Red Stop Lamp
-    # byte 0 bits 3-2: Amber Warning Lamp
-    # byte 0 bits 1-0: Protect Lamp
+    # Lamp status (SAE J1939-73 Table A1)
+    # byte 0 bits 7-6: Protect Lamp
+    # byte 0 bits 5-4: Amber Warning Lamp
+    # byte 0 bits 3-2: Red Stop Lamp
+    # byte 0 bits 1-0: Malfunction Indicator Lamp (MIL)
 
     # Each DTC is 4 bytes starting at byte 2
     i = 2
@@ -380,15 +380,15 @@ def decode_dm1(data: bytes) -> list[dict]:
 
 
 def decode_dm1_lamps(data: bytes) -> dict:
-    """Decode DM1 lamp status from first 2 bytes."""
+    """Decode DM1 lamp status from first 2 bytes (SAE J1939-73 Table A1)."""
     if len(data) < 2:
         return {}
     lamp_byte = data[0]
     return {
-        "malfunction_lamp": (lamp_byte >> 6) & 0x03,
-        "red_stop_lamp": (lamp_byte >> 4) & 0x03,
-        "amber_warning_lamp": (lamp_byte >> 2) & 0x03,
-        "protect_lamp": lamp_byte & 0x03,
+        "protect_lamp": (lamp_byte >> 6) & 0x03,
+        "amber_warning_lamp": (lamp_byte >> 4) & 0x03,
+        "red_stop_lamp": (lamp_byte >> 2) & 0x03,
+        "malfunction_lamp": lamp_byte & 0x03,
     }
 
 
@@ -649,6 +649,17 @@ PGN_65252 = PGNDefinition(
     ]
 )
 
+PGN_64997 = PGNDefinition(
+    pgn=64997,
+    name="Aftertreatment 1 DEF Dosing (AT1DEF2)",
+    spns=[
+        SPNDefinition(4331, "DEF Actual Dosing Rate", "def_dose_rate_gs",
+                      0, 16, 0.1, 0, "g/s"),
+        SPNDefinition(4332, "DEF Commanded Dosing Rate", "def_dose_commanded_gs",
+                      2, 16, 0.1, 0, "g/s"),
+    ]
+)
+
 # ---------------------------------------------------------------------------
 # Brakes & Safety PGN Definitions
 # ---------------------------------------------------------------------------
@@ -858,6 +869,7 @@ PGN_REGISTRY: dict[int, PGNDefinition] = {
     64948: PGN_64948,           # AT1OG1: NOx outlet
     65110: PGN_65110,           # AT1DEF: DEF level, temp
     65252: PGN_65252,           # AT1SC: SCR efficiency, catalyst temp
+    64997: PGN_64997,           # AT1DEF2: DEF dosing rate (actual + commanded)
     # PTO / Hydraulic
     65091: PGN_65091,           # PTODE: PTO engagement, speed
     65098: PGN_65098,           # VF: hydraulic oil temp, pressure, level

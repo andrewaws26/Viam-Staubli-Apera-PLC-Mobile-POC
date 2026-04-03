@@ -90,6 +90,8 @@ Rolling signal metrics in `SignalMetrics` class: camera detection rate, eject ra
 
 ## Rules
 - **Never use DD1 for distance** — use DS10 countdown (see above)
+- **Never disable listen-only mode on the Pi Zero CAN bus** — normal mode ACKs truck frames and triggers DTCs/warning lights. OBD-II (which needs transmit) goes on a separate device.
+- **Pi Zero CAN = 250kbps J1939 only** — do not change bitrate to 500kbps or set protocol to obd2 on this device
 - Never add E-Cat, servo, robot, or vision code
 - Keep dashboard mobile-friendly
 - All Viam credentials stay server-side (Next.js API route), never in browser
@@ -104,7 +106,7 @@ This repo serves a fleet of trucks. Each truck has two Raspberry Pis forming one
 | Pi | Hostname | Tailscale IP | Role | Module |
 |----|----------|-------------|------|--------|
 | Pi 5 | viam-pi | 100.112.68.52 | TPS monitoring, uploads, touch display | `modules/plc-sensor/` |
-| Pi Zero 2 W | truck-diagnostics | 100.113.196.68 | J1939 CAN bus OBD-II diagnostics | `modules/j1939-sensor/` |
+| Pi Zero 2 W | truck-diagnostics | 100.113.196.68 | J1939 CAN bus truck diagnostics (passive, listen-only) | `modules/j1939-sensor/` |
 
 **Repo locations:**
 - Pi 5: `/home/andrew/Viam-Staubli-Apera-PLC-Mobile-POC` (origin)
@@ -198,19 +200,20 @@ The dashboard includes an AI-powered diagnostic system that uses Claude to help 
 
 **Env vars needed:** `ANTHROPIC_API_KEY`, `TRUCK_VIAM_MACHINE_ADDRESS`, `TRUCK_VIAM_API_KEY`, `TRUCK_VIAM_API_KEY_ID`
 
-## OBD-II Passenger Vehicle Support
+## OBD-II Passenger Vehicle Support (FUTURE — SEPARATE DEVICE)
 
-The system auto-detects J1939 (heavy trucks) vs OBD-II (passenger vehicles) and adapts the dashboard accordingly. The Pi Zero runs the same module for both — protocol detection is automatic based on CAN frame IDs.
+**The Pi Zero is J1939-only.** OBD-II support will live on a separate physical device and potentially a separate repo. Do NOT configure the Pi Zero for OBD-II — it must stay in listen-only mode at 250kbps for J1939 truck safety.
 
-**Tested and validated:** 2013 Nissan Altima — 6.6M CAN frames, zero drops, remote DTC clear successful (2026-03-29). SPI CAN HAT (MCP2515) confirmed production-ready.
+The OBD-II code remains in this repo for future use on a dedicated OBD-II device. The module auto-detects J1939 vs OBD-II based on CAN frame IDs when configured for the appropriate protocol.
+
+**Tested and validated (on separate vehicle):** 2013 Nissan Altima — 6.6M CAN frames, zero drops, remote DTC clear successful (2026-03-29). SPI CAN HAT (MCP2515) confirmed production-ready.
 
 **OBD-II features:** 33 PIDs (all imperial units), DTC read/clear, freeze frame, readiness monitors, VIN, pending/permanent DTCs.
 
-**CRITICAL: The full OBD-II poller lives in `modules/j1939-sensor/src/models/obd2_poller.py`.**
+**The full OBD-II poller lives in `modules/j1939-sensor/src/models/obd2_poller.py`.**
 This file contains ALL 33 PIDs, the OBD2DTCReader class (Mode 03/04), and the OBD2AdvancedDiag class
 (freeze frame, readiness, VIN, pending/permanent DTCs). The do_command routing in j1939_sensor.py
-forwards OBD-II commands to these classes. Never reduce the PID list or remove these classes —
-doing so breaks the dashboard display and DTC functionality.
+forwards OBD-II commands to these classes. Keep this code intact for the future OBD-II device.
 
 **All readings are US imperial:** temperatures in °F, pressures in PSI, speed in mph, distances in miles, fuel in gallons. Conversion happens in the decode lambdas, not in the dashboard.
 
@@ -219,15 +222,24 @@ doing so breaks the dashboard display and DTC functionality.
 Reads J1939 CAN bus data from heavy-duty trucks (2013+ Mack/Volvo) via Waveshare CAN HAT (B).
 Decodes 15 PGNs: engine RPM, temperatures, pressures, vehicle speed, fuel, battery, transmission, DTCs.
 
+**⚠️ CRITICAL: CAN Bus Safety — Listen-Only Mode Required**
+
+The Pi Zero MUST operate in **listen-only mode** on the J1939 truck bus. In normal mode, the MCP2515 ACKs every CAN frame, which adds an unauthorized node to the truck's bus. This disrupts ECU-to-ECU communication and triggers dashboard warning lights (DTCs). Listen-only mode makes the MCP2515 completely invisible on the bus.
+
+**All CAN interface commands must include `listen-only on`:**
+```bash
+ip link set can0 up type can bitrate 250000 listen-only on
+```
+
+**Never use normal mode on the truck bus.** OBD-II (which requires transmit) will use a separate physical device.
+
 **Key commands (via Viam do_command):**
-- `{"command": "clear_dtcs"}` — Send DM11 to clear dashboard warning lights
-- `{"command": "request_pgn", "pgn": 65262}` — Request specific PGN from ECU
 - `{"command": "get_bus_stats"}` — CAN bus connection stats
 
 **CAN HAT config** (`/boot/firmware/config.txt`):
 - `dtparam=spi=on`
 - `dtoverlay=mcp2515-can0,oscillator=12000000,interrupt=25,spimaxfrequency=2000000`
-- 12MHz crystal (NOT 8MHz), GPIO25 interrupt, 500kbps bitrate
+- 12MHz crystal (NOT 8MHz), GPIO25 interrupt, 250kbps bitrate, listen-only mode
 
 **Data capture** is enabled on the `truck-diagnostic` Viam machine:
 - Capture: `Readings` method at 1 Hz on `truck-engine` component

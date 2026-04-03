@@ -9,9 +9,9 @@
   "components": [
     {
       "attributes": {
-        "bitrate": 500000,
+        "bitrate": 250000,
         "can_interface": "can0",
-        "protocol": "obd2"
+        "protocol": "j1939"
       },
       "model": "ironsight:j1939-truck-sensor:can-sensor",
       "name": "truck-engine",

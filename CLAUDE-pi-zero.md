@@ -1,6 +1,6 @@
 # IronSight — Pi Zero 2 W "truck-diagnostics" Node
 
-**Role:** J1939 CAN bus truck OBD-II diagnostics sensor
+**Role:** J1939 CAN bus truck diagnostics sensor (passive, listen-only)
 
 **Tailscale IP:** 100.113.196.68
 **Local mDNS:** truck-diagnostics.local (on Verizon_X6JPH6 WiFi)
@@ -31,25 +31,25 @@ dtoverlay=mcp2515-can0,oscillator=12000000,interrupt=25,spimaxfrequency=2000000
 | Service | Description |
 |---------|-------------|
 | viam-server | Viam agent + j1939-truck-sensor module |
-| can0 | CAN interface at 500kbps (systemd oneshot, starts on boot) |
+| can0 | CAN interface at 250kbps listen-only (systemd oneshot, starts on boot) |
 | tailscaled | Tailscale VPN |
 
 ### can0 Service
 
 ```bash
-# Brings up CAN bus on boot
-ip link set can0 up type can bitrate 500000
+# Brings up CAN bus on boot — MUST be listen-only for J1939 truck safety
+ip link set can0 up type can bitrate 250000 listen-only on restart-ms 100
 ifconfig can0 txqueuelen 65536
 ```
 
-500kbps is the standard bitrate for 2013+ Mack/Volvo truck J1939 OBD-II.
+**⚠️ CRITICAL:** 250kbps listen-only mode is required for 2013+ Mack/Volvo J1939 truck bus. Normal mode (without `listen-only on`) causes the MCP2515 to ACK frames, disrupting truck ECU communication and triggering dashboard warning lights/DTCs. Never remove `listen-only on` on this device.
 
 ## Viam Module: j1939-truck-sensor
 
 - **Path:** `/home/andrew/j1939-truck-sensor/`
 - **Model:** `ironsight:j1939-truck-sensor:can-sensor`
 - **Component name:** `truck-engine` (sensor type)
-- **Protocol:** J1939 over SPI via mcp2515 → CAN bus at 500kbps
+- **Protocol:** J1939 over SPI via mcp2515 → CAN bus at 250kbps (listen-only, passive)
 - **Capabilities:**
   - Decodes **15 J1939 PGNs** with **30+ parameters**
   - Supports **DTC clearing** via DM11 (through Viam `do_command`)
@@ -89,7 +89,8 @@ This Pi has only **512MB RAM**. This is the single most important constraint:
 
 ### Other Constraints
 
-5. **CAN bus is physical** — the sensor only works when the OBD-II cable is plugged into the truck's diagnostic port.
+5. **CAN bus is physical** — the sensor only works when the J1939 cable is plugged into the truck's diagnostic port (pins 3/11).
+6. **Listen-only mode is mandatory** — never bring up can0 without `listen-only on`. Normal mode disrupts truck ECUs and causes dashboard warning lights. OBD-II (which needs transmit) goes on a separate device.
 6. **12MHz crystal** — if the CAN overlay is misconfigured with 8MHz, the bus will not sync and you'll get zero frames.
 7. **WiFi only** — no ethernet. If WiFi drops, data buffers locally until reconnection.
 8. **GPIO25 is reserved** for CAN interrupt — do not use for other purposes.
@@ -107,9 +108,9 @@ candump can0
 # Check for bus errors
 ip -details -statistics link show can0
 
-# Restart CAN interface
+# Restart CAN interface (MUST include listen-only on)
 sudo ip link set can0 down
-sudo ip link set can0 up type can bitrate 500000
+sudo ip link set can0 up type can bitrate 250000 listen-only on
 
 # Restart Viam server (after code changes)
 sudo systemctl restart viam-server
@@ -118,7 +119,7 @@ sudo systemctl restart viam-server
 ## Data Flow
 
 ```
-Truck ECM (J1939 CAN bus at 500kbps)
+Truck ECM (J1939 CAN bus at 250kbps, listen-only)
   -> OBD-II diagnostic port
   -> Waveshare CAN HAT (B) [SPI, mcp2515, GPIO25 interrupt]
   -> can0 interface on Pi Zero
