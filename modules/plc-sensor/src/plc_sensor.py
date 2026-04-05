@@ -50,6 +50,8 @@ from plc_utils import _read_chat_queue, _uint16
 from plc_offline import OfflineBuffer, _DEFAULT_BUFFER_MAX_MB
 from plc_metrics import ConnectionQualityMonitor, SignalMetrics
 from plc_weather import _weather_cache
+from plc_commands import dispatch_command
+from plc_readings import build_disconnected_readings, build_connected_readings
 
 LOGGER = getLogger(__name__)
 
@@ -263,105 +265,17 @@ class PlcSensor(Sensor):
             )
 
     def _disconnected_readings(self, reason: str) -> Mapping[str, SensorReading]:
-        """Return a full readings dict with connected=False and all values zeroed.
-
-        Must match the same keys returned by get_readings() so the dashboard
-        always receives a consistent schema.
-        """
-        readings: Dict[str, Any] = {
-            # Identity & session
-            "truck_id": self._truck_id,
-            "session_id": self._session_id,
-            # System health
-            "connected": False,
-            "fault": True,
-            "system_state": "disconnected",
-            "last_fault": reason,
-            "uptime_seconds": round(time.time() - self._start_time),
-            "shift_hours": round((time.time() - self._start_time) / 3600.0, 2),
-            "total_reads": self._total_reads,
-            "total_errors": self._total_errors,
-            # Encoder & Track Distance
-            "encoder_count": 0,
-            "dd1_frozen": True,
-            "ds10_frozen": True,
-            "encoder_direction": "forward",
-            "encoder_distance_ft": 0.0,
-            "encoder_speed_ftpm": 0.0,
-            "encoder_revolutions": 0.0,
-            # TPS Machine Status
-            "tps_power_loop": False,
-            "camera_signal": False,
-            "encoder_enabled": False,
-            "floating_zero": False,
-            "encoder_reset": False,
-            # TPS Eject System
-            "eject_tps_1": False,
-            "eject_left_tps_2": False,
-            "eject_right_tps_2": False,
-            "air_eagle_1_feedback": False,
-            "air_eagle_2_feedback": False,
-            "air_eagle_3_enable": False,
-            # TPS Production
-            "plate_drop_count": 0,
-            # Discrete inputs (raw)
-            "x1": False,
-            "x2": False,
-            "x8": False,
-        }
-        # DS Holding Registers — all 25 zeroed
-        for i in range(1, 26):
-            readings[f"ds{i}"] = 0
-        # Operating Mode defaults
-        readings["operating_mode"] = "None"
-        readings["mode_tps1_single"] = False
-        readings["mode_tps1_double"] = False
-        readings["mode_tps2_both"] = False
-        readings["mode_tps2_left"] = False
-        readings["mode_tps2_right"] = False
-        readings["mode_tie_team"] = False
-        readings["mode_2nd_pass"] = False
-        # Drop Pipeline defaults
-        readings["drop_enable"] = False
-        readings["drop_enable_latch"] = False
-        readings["drop_software_eject"] = False
-        readings["drop_detector_eject"] = False
-        readings["drop_encoder_eject"] = False
-        readings["first_tie_detected"] = False
-        # Detection defaults
-        readings["encoder_mode"] = False
-        readings["camera_positive"] = False
-        readings["backup_alarm"] = False
-        readings["lay_ties_set"] = False
-        readings["drop_ties"] = False
-        # TD Timer defaults
-        readings["td5_seconds_laying"] = 0
-        readings["td6_tie_travel"] = 0
-        # Drop spacing defaults
-        readings["last_drop_spacing_in"] = 0.0
-        readings["avg_drop_spacing_in"] = 0.0
-        readings["min_drop_spacing_in"] = 0.0
-        readings["max_drop_spacing_in"] = 0.0
-        readings["distance_since_last_drop_in"] = 0.0
-        readings["drop_count_in_window"] = 0
-        # Signal metrics defaults
-        readings["camera_detections_per_min"] = 0
-        readings["camera_rate_trend"] = "stable"
-        readings["camera_signal_duration_s"] = 0.0
-        readings["eject_rate_per_min"] = 0
-        readings["detector_eject_rate_per_min"] = 0
-        readings["encoder_noise"] = 0
-        readings["encoder_reversals_per_min"] = 0
-        readings["modbus_response_time_ms"] = 0.0
-        readings["tps_power_duration_s"] = 0.0
-        # Diagnostics defaults
-        readings["diagnostics"] = []
-        readings["diagnostics_count"] = 0
-        readings["diagnostics_critical"] = 0
-        readings["diagnostics_warning"] = 0
+        """Return a full readings dict with connected=False and all values zeroed."""
+        readings = build_disconnected_readings(
+            truck_id=self._truck_id,
+            session_id=self._session_id,
+            uptime_seconds=round(time.time() - self._start_time),
+            total_reads=self._total_reads,
+            total_errors=self._total_errors,
+        )
+        readings["last_fault"] = reason
         # Connection quality
-        conn_quality = self._conn_monitor.check()
-        readings.update(conn_quality)
+        readings.update(self._conn_monitor.check())
         # Chat events sync (even when PLC offline — operators still chat)
         chat_events = _read_chat_queue()
         if chat_events:
@@ -605,98 +519,39 @@ class PlcSensor(Sensor):
 
             # ── Build readings — everything the PLC exposes ──
             uptime_s = round(time.time() - self._start_time)
-            readings: Dict[str, Any] = {
-                # Identity & session — critical for fleet queries
-                "truck_id": self._truck_id,
-                "session_id": self._session_id,
-                # System health
-                "connected": True,
-                "fault": False,
-                "system_state": system_state,
-                "last_fault": "none",
-                "uptime_seconds": uptime_s,
-                "shift_hours": round(uptime_s / 3600.0, 2),
-                "total_reads": self._total_reads,
-                "total_errors": self._total_errors,
-                # Encoder & Track Distance (DD1 + derived)
-                "encoder_count": encoder_count,
-                "dd1_frozen": dd1_frozen,
-                "ds10_frozen": ds10_frozen,
-                "encoder_direction": "forward" if encoder_direction == 0 else "reverse",
-                "encoder_distance_ft": round(encoder_distance_ft, 2),
-                "encoder_speed_ftpm": round(encoder_speed_ftpm, 1),
-                "encoder_revolutions": round(encoder_revolutions, 2),
-                # TPS Machine Status (discrete inputs + internal coils)
-                "tps_power_loop": tps_power_loop,
-                "camera_signal": camera_signal,
-                "encoder_enabled": encoder_enabled,
-                "floating_zero": floating_zero,
-                "encoder_reset": encoder_reset_coil,
-                # TPS Eject System (output coils + air eagle feedback)
-                "eject_tps_1": eject_tps_1,
-                "eject_left_tps_2": eject_left_tps_2,
-                "eject_right_tps_2": eject_right_tps_2,
-                "air_eagle_1_feedback": air_eagle_1_feedback,
-                "air_eagle_2_feedback": air_eagle_2_feedback,
-                "air_eagle_3_enable": air_eagle_3_enable,
-                # TPS Production (derived from coil transitions)
-                "plate_drop_count": self._plate_drop_count,
-                # DS Holding Registers — all 25 from Click PLC ladder logic
-                "ds1": ds[0],
-                "ds2": ds[1],
-                "ds3": ds[2],
-                "ds4": ds[3],
-                "ds5": ds[4],
-                "ds6": ds[5],
-                "ds7": ds[6],
-                "ds8": ds[7],
-                "ds9": ds[8],
-                "ds10": ds[9],
-                "ds11": ds[10],
-                "ds12": ds[11],
-                "ds13": ds[12],
-                "ds14": ds[13],
-                "ds15": ds[14],
-                "ds16": ds[15],
-                "ds17": ds[16],
-                "ds18": ds[17],
-                "ds19": ds[18],
-                "ds20": ds[19],
-                "ds21": ds[20],
-                "ds22": ds[21],
-                "ds23": ds[22],
-                "ds24": ds[23],
-                "ds25": ds[24],
-                # Discrete inputs X1-X8 (raw, for completeness)
-                "x1": bool(discrete_bits[0]),
-                "x2": bool(discrete_bits[1]),
-                "x8": bool(discrete_bits[7]),
-                # Operating Mode (mutually exclusive C-bits)
-                "operating_mode": _mode,
-                "mode_tps1_single": bool(c_app_bits[19]),    # C20
-                "mode_tps1_double": bool(c_app_bits[20]),    # C21
-                "mode_tps2_both": bool(c_app_bits[21]),      # C22
-                "mode_tps2_left": bool(c_app_bits[22]),      # C23
-                "mode_tps2_right": bool(c_app_bits[23]),     # C24
-                "mode_tie_team": bool(c_app_bits[26]),       # C27
-                "mode_2nd_pass": bool(c_app_bits[30]),       # C31
-                # Drop Pipeline
-                "drop_enable": bool(c_app_bits[15]),         # C16
-                "drop_enable_latch": bool(c_app_bits[16]),   # C17
-                "drop_software_eject": bool(c_app_bits[28]), # C29
-                "drop_detector_eject": bool(c_app_bits[29]), # C30
-                "drop_encoder_eject": bool(c_app_bits[31]),  # C32
-                "first_tie_detected": bool(c_app_bits[33]),  # C34
-                # Detection
-                "encoder_mode": bool(c_app_bits[2]),         # C3
-                "camera_positive": bool(c_app_bits[11]),     # C12
-                "backup_alarm": bool(c_app_bits[6]),         # C7
-                "lay_ties_set": bool(c_app_bits[12]),        # C13
-                "drop_ties": bool(c_app_bits[13]),           # C14
-                # TD Timers
-                "td5_seconds_laying": td5_laying,
-                "td6_tie_travel": td6_travel,
-            }
+            readings: Dict[str, Any] = build_connected_readings(
+                truck_id=self._truck_id,
+                session_id=self._session_id,
+                uptime_seconds=uptime_s,
+                total_reads=self._total_reads,
+                total_errors=self._total_errors,
+                system_state=system_state,
+                encoder_count=encoder_count,
+                dd1_frozen=dd1_frozen,
+                ds10_frozen=ds10_frozen,
+                encoder_direction=encoder_direction,
+                encoder_distance_ft=encoder_distance_ft,
+                encoder_speed_ftpm=encoder_speed_ftpm,
+                encoder_revolutions=encoder_revolutions,
+                tps_power_loop=tps_power_loop,
+                camera_signal=camera_signal,
+                encoder_enabled=encoder_enabled,
+                floating_zero=floating_zero,
+                encoder_reset=encoder_reset_coil,
+                discrete_bits=discrete_bits,
+                eject_tps_1=eject_tps_1,
+                eject_left_tps_2=eject_left_tps_2,
+                eject_right_tps_2=eject_right_tps_2,
+                air_eagle_1_feedback=air_eagle_1_feedback,
+                air_eagle_2_feedback=air_eagle_2_feedback,
+                air_eagle_3_enable=air_eagle_3_enable,
+                plate_drop_count=self._plate_drop_count,
+                ds=ds,
+                c_app_bits=c_app_bits,
+                operating_mode=_mode,
+                td5_laying=td5_laying,
+                td6_travel=td6_travel,
+            )
 
             # ── Drop spacing metrics ──
             readings["last_drop_spacing_in"] = last_drop_spacing_in
@@ -809,469 +664,20 @@ class PlcSensor(Sensor):
     ) -> Dict[str, Any]:
         """Execute remote commands on the PLC via Modbus writes.
 
-        Supported commands:
-          {"action": "test_eject", "output": "Y1"}  — Fire Y1/Y2/Y3 solenoid
-          {"action": "software_eject"}               — Set C29 (Software Eject)
-          {"action": "reset_counters"}               — Pulse C1 (Reset Plates and Time)
-          {"action": "set_mode", "mode": "single"}   — Set operating mode C-bit
-
-        SAFETY: TPS power (X4) must be ON for eject commands to work.
-        The PLC ladder gates all solenoid outputs — we cannot bypass it.
+        Delegates to plc_commands.dispatch_command() for all command handling.
         """
-        action = command.get("action", "")
-        result: Dict[str, Any] = {"action": action, "status": "error"}
-
         if not self.client or not self._ensure_connected():
-            result["message"] = "PLC not connected"
-            return result
+            return {"action": command.get("action", ""), "status": "error",
+                    "message": "PLC not connected"}
 
-        # Check TPS power for eject commands
-        tps_on = False
-        try:
-            di = self.client.read_discrete_inputs(address=0, count=8)
-            if not di.isError():
-                tps_on = bool(di.bits[3])  # X4
-        except Exception:
-            LOGGER.debug("Failed to read TPS power state from discrete inputs")
+        def _reset_plate_count():
+            self._plate_drop_count = 0
 
-        if action == "test_eject":
-            output = command.get("output", "Y1").upper()
-            coil_map = {"Y1": 8192, "Y2": 8193, "Y3": 8194}
-            addr = coil_map.get(output)
-            if addr is None:
-                result["message"] = f"Unknown output: {output}. Use Y1, Y2, or Y3."
-                return result
-            if not tps_on:
-                result["message"] = "TPS power (X4) must be ON to fire eject. Turn on the TPS main switch first."
-                result["tps_power"] = False
-                return result
-            try:
-                self.client.write_coil(address=addr, value=True)
-                import asyncio
-                await asyncio.sleep(0.15)  # 150ms pulse
-                self.client.write_coil(address=addr, value=False)
-                result["status"] = "ok"
-                result["message"] = f"{output} eject pulse fired (150ms)"
-                result["tps_power"] = True
-                LOGGER.info("DO_COMMAND: test_eject %s — fired", output)
-            except Exception as e:
-                result["message"] = f"Modbus write failed: {e}"
-                LOGGER.error("DO_COMMAND: test_eject %s — error: %s", output, e, exc_info=True)
-
-        elif action == "software_eject":
-            if not tps_on:
-                result["message"] = "TPS power (X4) must be ON for software eject. Turn on the TPS main switch first."
-                result["tps_power"] = False
-                return result
-            try:
-                self.client.write_coil(address=28, value=True)  # C29 Software Eject
-                import asyncio
-                await asyncio.sleep(0.2)
-                self.client.write_coil(address=28, value=False)
-                result["status"] = "ok"
-                result["message"] = "Software eject (C29) pulse fired"
-                result["tps_power"] = True
-                LOGGER.info("DO_COMMAND: software_eject — fired")
-            except Exception as e:
-                result["message"] = f"Modbus write failed: {e}"
-
-        elif action == "reset_counters":
-            try:
-                self.client.write_coil(address=0, value=True)  # C1 Reset Plates and Time
-                import asyncio
-                await asyncio.sleep(0.2)
-                self.client.write_coil(address=0, value=False)
-                self._plate_drop_count = 0
-                result["status"] = "ok"
-                result["message"] = "Counters reset (C1 pulsed, Pi plate count zeroed)"
-                LOGGER.info("DO_COMMAND: reset_counters — done")
-            except Exception as e:
-                result["message"] = f"Modbus write failed: {e}"
-
-        elif action == "set_mode":
-            mode = command.get("mode", "").lower()
-            mode_map = {
-                "single": (19, "TPS-1 Single"),      # C20
-                "double": (20, "TPS-1 Double"),       # C21
-                "both": (21, "TPS-2 Both"),           # C22
-                "left": (22, "TPS-2 Left"),           # C23
-                "right": (23, "TPS-2 Right"),         # C24
-                "tie_team": (26, "TPS-2 Tie Team"),   # C27
-                "2nd_pass": (30, "TPS-1 2nd Pass"),   # C31
-            }
-            if mode not in mode_map:
-                result["message"] = f"Unknown mode: {mode}. Use: {', '.join(mode_map.keys())}"
-                return result
-            coil_addr, mode_name = mode_map[mode]
-            try:
-                # Clear all mode bits first
-                for addr, _ in mode_map.values():
-                    self.client.write_coil(address=addr, value=False)
-                # Set the requested mode
-                self.client.write_coil(address=coil_addr, value=True)
-                result["status"] = "ok"
-                result["message"] = f"Mode set to {mode_name}"
-                LOGGER.info("DO_COMMAND: set_mode %s — done", mode_name)
-            except Exception as e:
-                result["message"] = f"Modbus write failed: {e}"
-
-        elif action == "set_spacing":
-            value = command.get("value")
-            if value is None:
-                result["message"] = "Missing 'value' parameter (DS2 in 0.5\" units, e.g. 39 = 19.5\")"
-                return result
-            try:
-                value = int(value)
-            except (ValueError, TypeError):
-                result["message"] = f"Invalid value: {value}. Must be an integer."
-                return result
-            # Bounds: 10" to 30" (DS2 = 20 to 60)
-            if value < 20 or value > 60:
-                result["message"] = (
-                    f"Value {value} out of range. "
-                    f"Must be 20-60 (10.0\"-30.0\"). "
-                    f"Standard is 39 (19.5\")."
-                )
-                return result
-            spacing_in = value * 0.5
-            try:
-                # Read current value first for logging
-                old = self.client.read_holding_registers(address=1, count=1)
-                old_val = old.registers[0] if not old.isError() else "?"
-                self.client.write_register(address=1, value=value)
-                result["status"] = "ok"
-                result["message"] = (
-                    f"Tie spacing changed: DS2={old_val} ({float(old_val)*0.5 if old_val != '?' else '?'}\")"
-                    f" → DS2={value} ({spacing_in}\")"
-                )
-                LOGGER.warning(
-                    "DO_COMMAND: set_spacing DS2=%d (%.1f in) — was DS2=%s",
-                    value, spacing_in, old_val,
-                )
-            except Exception as e:
-                result["message"] = f"Modbus write failed: {e}"
-
-        elif action == "toggle_drop_enable":
-            try:
-                r = self.client.read_coils(address=15, count=1)
-                current = bool(r.bits[0]) if not r.isError() else False
-                new_val = not current
-                self.client.write_coil(address=15, value=new_val)
-                state = "ENABLED" if new_val else "DISABLED"
-                result["status"] = "ok"
-                result["message"] = f"Drop enable (C16) {state}"
-                result["value"] = new_val
-                LOGGER.warning("DO_COMMAND: toggle_drop_enable → %s", state)
-            except Exception as e:
-                result["message"] = f"Modbus write failed: {e}"
-
-        elif action == "toggle_encoder":
-            try:
-                r = self.client.read_coils(address=27, count=1)
-                current = bool(r.bits[0]) if not r.isError() else False
-                new_val = not current
-                self.client.write_coil(address=27, value=new_val)
-                state = "ON" if new_val else "OFF"
-                result["status"] = "ok"
-                result["message"] = f"Encoder (C28) {state}"
-                result["value"] = new_val
-                LOGGER.info("DO_COMMAND: toggle_encoder → %s", state)
-            except Exception as e:
-                result["message"] = f"Modbus write failed: {e}"
-
-        elif action == "toggle_lay_ties":
-            try:
-                r = self.client.read_coils(address=12, count=1)
-                current = bool(r.bits[0]) if not r.isError() else False
-                new_val = not current
-                self.client.write_coil(address=12, value=new_val)
-                state = "SET" if new_val else "CLEARED"
-                result["status"] = "ok"
-                result["message"] = f"Lay Ties (C13) {state}"
-                result["value"] = new_val
-                LOGGER.info("DO_COMMAND: toggle_lay_ties → %s", state)
-            except Exception as e:
-                result["message"] = f"Modbus write failed: {e}"
-
-        elif action == "toggle_drop_ties":
-            try:
-                r = self.client.read_coils(address=13, count=1)
-                current = bool(r.bits[0]) if not r.isError() else False
-                new_val = not current
-                self.client.write_coil(address=13, value=new_val)
-                state = "SET" if new_val else "CLEARED"
-                result["status"] = "ok"
-                result["message"] = f"Drop Ties (C14) {state}"
-                result["value"] = new_val
-                LOGGER.info("DO_COMMAND: toggle_drop_ties → %s", state)
-            except Exception as e:
-                result["message"] = f"Modbus write failed: {e}"
-
-        elif action == "set_detector_offset":
-            value = command.get("value")
-            if value is None:
-                result["message"] = "Missing 'value' (DS5 in encoder bits)"
-                return result
-            try:
-                value = int(value)
-            except (ValueError, TypeError):
-                result["message"] = f"Invalid value: {value}. Must be an integer."
-                return result
-            if value < 100 or value > 5000:
-                result["message"] = f"Value {value} out of range (100-5000 bits)."
-                return result
-            try:
-                old = self.client.read_holding_registers(address=4, count=1)
-                old_val = old.registers[0] if not old.isError() else "?"
-                self.client.write_register(address=4, value=value)
-                result["status"] = "ok"
-                result["message"] = f"Detector offset: DS5={old_val} → {value} bits"
-                LOGGER.warning("DO_COMMAND: set_detector_offset DS5=%d — was %s", value, old_val)
-            except Exception as e:
-                result["message"] = f"Modbus write failed: {e}"
-
-        elif action == "clear_data_counts":
-            try:
-                self.client.write_coil(address=14, value=True)  # C15 Clear DATA Counts
-                import asyncio
-                await asyncio.sleep(0.2)
-                self.client.write_coil(address=14, value=False)
-                result["status"] = "ok"
-                result["message"] = "PLC data counts cleared (C15 pulsed)"
-                LOGGER.info("DO_COMMAND: clear_data_counts — done")
-            except Exception as e:
-                result["message"] = f"Modbus write failed: {e}"
-
-        elif action == "list_profiles":
-            # List available PLC configuration profiles
-            import glob
-            profile_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
-                os.path.abspath(__file__)))), "config", "plc-profiles")
-            profiles = []
-            for f in sorted(glob.glob(os.path.join(profile_dir, "*.json"))):
-                try:
-                    with open(f) as fh:
-                        p = json.load(fh)
-                    profiles.append({
-                        "file": os.path.basename(f),
-                        "name": p.get("name", "?"),
-                        "description": p.get("description", ""),
-                        "version": p.get("version", "?"),
-                    })
-                except Exception as e:
-                    profiles.append({"file": os.path.basename(f), "error": str(e)})
-            result["status"] = "ok"
-            result["profiles"] = profiles
-            result["profile_dir"] = profile_dir
-            result["message"] = f"Found {len(profiles)} profile(s)"
-
-        elif action == "provision":
-            # Apply a PLC configuration profile
-            # Usage: {"action": "provision", "profile": "tps-standard.json"}
-            #    or: {"action": "provision", "profile": "tps-standard.json", "dry_run": true}
-            import glob
-            profile_name = command.get("profile", "")
-            dry_run = command.get("dry_run", False)
-
-            if not profile_name:
-                result["message"] = "Missing 'profile' parameter. Use list_profiles to see available profiles."
-                return result
-
-            profile_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
-                os.path.abspath(__file__)))), "config", "plc-profiles")
-            profile_path = os.path.join(profile_dir, profile_name)
-
-            if not os.path.exists(profile_path):
-                result["message"] = f"Profile not found: {profile_name}"
-                return result
-
-            try:
-                with open(profile_path) as f:
-                    profile = json.load(f)
-            except Exception as e:
-                result["message"] = f"Failed to read profile: {e}"
-                return result
-
-            profile_label = profile.get("name", profile_name)
-            verify = profile.get("verify_after_write", True)
-            steps = []
-            errors = []
-
-            LOGGER.warning("PROVISION: Starting profile '%s' (dry_run=%s)", profile_label, dry_run)
-
-            # Write registers
-            for reg_name, reg_def in profile.get("registers", {}).items():
-                addr = reg_def["address"]
-                value = reg_def["value"]
-                label = reg_def.get("label", reg_name)
-                step = {"type": "register", "name": reg_name, "address": addr,
-                        "value": value, "label": label, "status": "pending"}
-
-                if dry_run:
-                    step["status"] = "dry_run"
-                    steps.append(step)
-                    continue
-
-                try:
-                    # Read current value
-                    old = self.client.read_holding_registers(address=addr, count=1)
-                    old_val = old.registers[0] if not old.isError() else None
-                    step["old_value"] = old_val
-
-                    if old_val == value:
-                        step["status"] = "unchanged"
-                        step["message"] = f"Already set to {value}"
-                    else:
-                        self.client.write_register(address=addr, value=value)
-                        step["status"] = "written"
-                        step["message"] = f"Changed {old_val} → {value}"
-                        LOGGER.info("PROVISION: %s (addr %d): %s → %s", reg_name, addr, old_val, value)
-                except Exception as e:
-                    step["status"] = "error"
-                    step["message"] = str(e)
-                    errors.append(f"{reg_name}: {e}")
-                    LOGGER.error("PROVISION: %s write failed: %s", reg_name, e, exc_info=True)
-
-                steps.append(step)
-
-            # Write coils
-            for coil_name, coil_def in profile.get("coils", {}).items():
-                addr = coil_def["address"]
-                value = coil_def["value"]
-                label = coil_def.get("label", coil_name)
-                step = {"type": "coil", "name": coil_name, "address": addr,
-                        "value": value, "label": label, "status": "pending"}
-
-                if dry_run:
-                    step["status"] = "dry_run"
-                    steps.append(step)
-                    continue
-
-                try:
-                    # Read current value
-                    old = self.client.read_coils(address=addr, count=1)
-                    old_val = bool(old.bits[0]) if not old.isError() else None
-                    step["old_value"] = old_val
-
-                    if old_val == value:
-                        step["status"] = "unchanged"
-                        step["message"] = f"Already {'ON' if value else 'OFF'}"
-                    else:
-                        self.client.write_coil(address=addr, value=value)
-                        step["status"] = "written"
-                        step["message"] = f"{'OFF' if old_val else 'ON'} → {'ON' if value else 'OFF'}"
-                        LOGGER.info("PROVISION: %s (addr %d): %s → %s", coil_name, addr, old_val, value)
-                except Exception as e:
-                    step["status"] = "error"
-                    step["message"] = str(e)
-                    errors.append(f"{coil_name}: {e}")
-                    LOGGER.error("PROVISION: %s write failed: %s", coil_name, e, exc_info=True)
-
-                steps.append(step)
-
-            # Verify if requested
-            if verify and not dry_run and not errors:
-                import asyncio
-                await asyncio.sleep(0.3)  # Let PLC process writes
-                verify_errors = []
-
-                for step in steps:
-                    if step["status"] not in ("written", "unchanged"):
-                        continue
-                    try:
-                        if step["type"] == "register":
-                            check = self.client.read_holding_registers(address=step["address"], count=1)
-                            actual = check.registers[0] if not check.isError() else None
-                            if actual != step["value"]:
-                                verify_errors.append(f"{step['name']}: expected {step['value']}, got {actual}")
-                                step["verify"] = "FAIL"
-                            else:
-                                step["verify"] = "OK"
-                        elif step["type"] == "coil":
-                            check = self.client.read_coils(address=step["address"], count=1)
-                            actual = bool(check.bits[0]) if not check.isError() else None
-                            if actual != step["value"]:
-                                verify_errors.append(f"{step['name']}: expected {step['value']}, got {actual}")
-                                step["verify"] = "FAIL"
-                            else:
-                                step["verify"] = "OK"
-                    except Exception as e:
-                        step["verify"] = f"ERROR: {e}"
-                        verify_errors.append(f"{step['name']}: verify failed: {e}")
-
-                if verify_errors:
-                    result["status"] = "partial"
-                    result["verify_errors"] = verify_errors
-                    LOGGER.error("PROVISION: Verification failed: %s", verify_errors)
-                else:
-                    LOGGER.info("PROVISION: All values verified OK")
-
-            # Summary
-            written = sum(1 for s in steps if s["status"] == "written")
-            unchanged = sum(1 for s in steps if s["status"] == "unchanged")
-            errored = sum(1 for s in steps if s["status"] == "error")
-
-            if not errors:
-                result["status"] = "ok" if not dry_run else "dry_run"
-            result["profile"] = profile_label
-            result["steps"] = steps
-            result["summary"] = {
-                "written": written,
-                "unchanged": unchanged,
-                "errors": errored,
-                "total": len(steps),
-            }
-            if dry_run:
-                result["message"] = f"Dry run: {len(steps)} steps would be applied for '{profile_label}'"
-            elif errors:
-                result["message"] = f"Provisioned with {errored} error(s): {', '.join(errors)}"
-            else:
-                result["message"] = f"'{profile_label}' applied: {written} changed, {unchanged} already set"
-            LOGGER.warning("PROVISION: Complete — %s", result["message"])
-
-        elif action == "read_config":
-            # Read current PLC configuration (all writable registers and mode coils)
-            current = {}
-            try:
-                regs = self.client.read_holding_registers(address=0, count=25)
-                if not regs.isError():
-                    reg_names = ["DS1","DS2","DS3","DS4","DS5","DS6","DS7","DS8",
-                                 "DS9","DS10","DS11","DS12","DS13","DS14","DS15",
-                                 "DS16","DS17","DS18","DS19","DS20","DS21","DS22",
-                                 "DS23","DS24","DS25"]
-                    for i, name in enumerate(reg_names):
-                        current[name] = regs.registers[i]
-
-                coils = self.client.read_coils(address=0, count=32)
-                if not coils.isError():
-                    coil_names = {
-                        12: "C13_LayTies", 13: "C14_DropTies",
-                        14: "C15_ClearData", 15: "C16_DropEnable",
-                        19: "C20_TPS1_Single", 20: "C21_TPS1_Double",
-                        21: "C22_TPS2_Both", 22: "C23_TPS2_Left",
-                        23: "C24_TPS2_Right", 26: "C27_TieTeam",
-                        27: "C28_Encoder", 28: "C29_SoftwareEject",
-                        30: "C31_2ndPass",
-                    }
-                    for addr, name in coil_names.items():
-                        current[name] = bool(coils.bits[addr])
-
-                result["status"] = "ok"
-                result["config"] = current
-                result["message"] = f"Read {len(current)} PLC values"
-            except Exception as e:
-                result["message"] = f"Read failed: {e}"
-
-
-        else:
-            result["message"] = (
-                f"Unknown action: {action}. Use: software_eject, reset_counters, "
-                "set_mode, set_spacing, toggle_drop_enable, toggle_encoder, "
-                "toggle_lay_ties, toggle_drop_ties, set_detector_offset, clear_data_counts, "
-                "list_profiles, provision, read_config"
-            )
-
-        # Merge system health into readings
+        result = await dispatch_command(
+            self.client, command,
+            plate_drop_reset_cb=_reset_plate_count,
+        )
+        # Merge system health into result
         try:
             result.update(get_system_health())
         except Exception:
