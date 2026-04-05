@@ -1,9 +1,13 @@
 # TPS Remote Monitoring System
 
 ## What this is
-A production monitoring system for Tie Plate Systems (TPS) deployed on 30+ railroad trucks. Each truck has a Raspberry Pi 5 connected to a Click PLC C0-10DD2E-D via Modbus TCP. The Pi reads PLC registers, sends data to Viam Cloud, and a Next.js dashboard on Vercel displays live status.
+A fleet monitoring system for 30+ railroad trucks. Each truck has two Raspberry Pis:
+- **Pi 5**: Reads a Click PLC C0-10DD2E-D via Modbus TCP (TPS production monitoring)
+- **Pi Zero 2 W**: Reads J1939 CAN bus for truck engine/transmission diagnostics (passive, listen-only)
 
-**There is NO E-Cat, NO servo/robot, NO vision in this system. TPS only.**
+Both sync to Viam Cloud at 1 Hz. A Next.js dashboard on Vercel shows live status, AI diagnostics, shift reports, and fleet overview.
+
+**There is NO E-Cat, NO servo/robot, NO vision in this system.**
 
 ## Architecture
 - **Pi → PLC**: Modbus TCP (host: 169.168.10.21, port: 502) over Ethernet
@@ -13,17 +17,31 @@ A production monitoring system for Tie Plate Systems (TPS) deployed on 30+ railr
 - **Offline**: JSONL buffer at `/home/andrew/.viam/offline-buffer/` (50MB cap)
 
 ## Key directories
-- `modules/plc-sensor/src/plc_sensor.py` — Core sensor module (THE critical file)
-- `modules/plc-sensor/src/diagnostics.py` — Diagnostic rules engine (19 rules, standalone)
-- `dashboard/` — Next.js app deployed on Vercel
-- `dashboard/app/dev/page.tsx` — Dev mode page for testing/calibration
-- `dashboard/app/api/sensor-readings/route.ts` — Live sensor data proxy
-- `dashboard/app/api/sensor-history/route.ts` — Historical data via Viam Data API
-- `config/viam-server.json` — Local viam-server config
-- `config/fragment-tps-truck.json` — Fleet template for all trucks
+- `modules/plc-sensor/src/` — PLC sensor module: plc_sensor.py (main), plc_utils.py, plc_offline.py, plc_metrics.py, plc_weather.py, diagnostics.py, system_health.py
+- `modules/j1939-sensor/src/models/` — J1939 sensor module: j1939_sensor.py (main), j1939_can.py, j1939_dtc.py, j1939_discovery.py, pgn_decoder.py, pgn_utils.py, pgn_dm1.py, obd2_poller.py, obd2_pids.py, obd2_dtc.py, obd2_diagnostics.py, vehicle_profiles.py
+- `dashboard/` — Next.js 14 app on Vercel
+- `dashboard/components/` — TruckPanel, GaugeGrid, DTCPanel, AIChatPanel, Dashboard, TPS/, DevTruck/
+- `dashboard/app/api/` — 10 API routes (sensor-readings, truck-readings, fleet/status, ai-chat, ai-diagnose, shift-report, etc.)
+- `dashboard/lib/sensor-types.ts` — TypeScript interfaces for all sensor readings (100+ fields each)
+- `dashboard/hooks/useSensorPolling.ts` — Shared polling hook with sim mode + fault detection
+- `scripts/` — Pi tooling: touch UI, discovery, AI server, display, autodiscover
+- `scripts/lib/` — Shared utilities: ai_prompts, plc_discovery, display_pages, config_updater, modbus_scanner, network_scanner
+- `config/` — Viam server config + fleet fragment template
 - `docs/plc-register-map.md` — Complete PLC register map (478 registers decoded)
-- `docs/dashboard-guide.md` — Field guide for operators
-- `docs/analog-monitoring-spec.md` — Hardware upgrade spec for fuse/wire diagnosis
+- `docs/session-handoff.md` — Current dev status and next priorities for agents
+
+## Running tests
+```bash
+# Python (run separately — conftest collision if combined)
+python3 -m pytest modules/plc-sensor/tests/ -v     # 149 tests
+python3 -m pytest modules/j1939-sensor/tests/ -v    # 148 tests
+
+# Dashboard build check
+cd dashboard && npx next build
+
+# Playwright E2E (needs browser install first)
+cd dashboard && npx playwright install && npx playwright test
+```
 
 ## ⚠️ CRITICAL: Encoder Distance Calculation
 **DO NOT use DD1 for distance.** DD1 is NOT a cumulative counter.

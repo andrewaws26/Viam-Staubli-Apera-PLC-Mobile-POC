@@ -34,7 +34,10 @@ Viam-Staubli-Apera-PLC-Mobile-POC/
 |   +-- j1939-sensor/           # J1939 CAN bus truck diagnostics
 |       |-- src/
 |       |   |-- models/
-|       |   |   |-- j1939_sensor.py      # Main sensor (2268 lines, NEEDS SPLIT — highest priority)
+|       |   |   |-- j1939_sensor.py      # Main sensor orchestrator (2268 lines — NEEDS WIRING to sub-modules below)
+|       |   |   |-- j1939_can.py         # CAN bus mgmt, listener, bitrate negotiation (649 lines, NEW)
+|       |   |   |-- j1939_dtc.py         # DTC namespacing, DM11 clearing (214 lines, NEW)
+|       |   |   |-- j1939_discovery.py   # Protocol detect, VIN, vehicle profiles (489 lines, NEW)
 |       |   |   |-- pgn_decoder.py       # PGN decode registry (871 lines, imports from sub-modules)
 |       |   |   |-- pgn_utils.py         # Byte extraction, CAN ID parsing, dataclasses (150 lines)
 |       |   |   |-- pgn_dm1.py           # DM1/DM2 DTC + lamp decoding (67 lines)
@@ -118,11 +121,11 @@ Viam-Staubli-Apera-PLC-Mobile-POC/
 |-- scripts/                    # CLI tools and Pi display apps
 |   |-- ironsight-touch.py           # Thin launcher (18 lines) → touch_ui/
 |   |-- ironsight-discover.py        # Thin launcher (18 lines) → discovery/
-|   |-- ironsight-server.py          # AI analysis HTTP server (625 lines)
-|   |-- ironsight-display.py         # Headless display (631 lines, needs split)
-|   |-- ironsight-analyze.py         # PLC analysis CLI (721 lines, needs split)
-|   |-- ironsight-discovery-daemon.py # Discovery daemon (628 lines, needs split)
-|   |-- plc-autodiscover.py          # Auto-discovery (951 lines, needs split)
+|   |-- ironsight-server.py          # AI analysis HTTP server (638 lines, imports ai_prompts)
+|   |-- ironsight-display.py         # Headless display (104 lines, imports display_pages)
+|   |-- ironsight-analyze.py         # PLC analysis CLI (451 lines, imports plc_discovery)
+|   |-- ironsight-discovery-daemon.py # Discovery daemon (431 lines, imports config_updater)
+|   |-- plc-autodiscover.py          # Auto-discovery (414 lines, imports modbus/network_scanner)
 |   |-- touch_ui/                    # Touch display package
 |   |   |-- app.py                   # Main event loop (417 lines)
 |   |   |-- constants.py             # Layout/timing constants
@@ -136,10 +139,10 @@ Viam-Staubli-Apera-PLC-Mobile-POC/
 |   +-- lib/                         # Shared script utilities
 |       |-- ai_prompts.py           # AI analysis prompt templates (194 lines)
 |       |-- plc_discovery.py        # Unknown PLC register discovery (340 lines)
-|       |-- display_pages.py        # Display page renderers (539 lines)
+|       |-- display_pages.py        # Display page renderers (487 lines)
 |       |-- config_updater.py       # Config file updater (264 lines)
 |       |-- modbus_scanner.py       # Modbus scanning utilities (193 lines)
-|       +-- network_scanner.py      # Network scanning utilities (505 lines)
+|       +-- network_scanner.py      # Network scanning utilities (474 lines)
 |
 |-- config/                     # Viam server and fragment configs
 |-- docs/                       # Documentation files
@@ -257,11 +260,15 @@ Pre-2013 Mack/Volvo trucks may:
 
 ## Planned Architecture Changes
 
-These are approved but not yet implemented:
+Implemented:
+- **Fleet overview** -- `/fleet/page.tsx` + `/api/fleet/status` with truck status cards (DONE)
+- **PWA** -- manifest.json + service worker with cache-first + stale-while-revalidate (DONE)
+- **Auth scaffold** -- middleware.ts (no-op), lib/auth.ts (RBAC matrix), sign-in placeholder (DONE)
 
-1. **OBD2 separation** -- `modules/obd2-sensor/` will be a separate Viam module (currently embedded in j1939-sensor)
-2. **Pi consolidation** -- Both modules will run on Pi 5 only (Pi Zero being retired)
-3. **Auth** -- Clerk RBAC with 4 roles: admin, mechanic, driver, viewer
-4. **Fleet overview** -- `/fleet/page.tsx` with truck status cards (DONE, basic version)
-5. **PWA** -- Service worker + manifest for iOS home screen install (DONE)
-6. **Dev AI** -- Engineering-focused Claude AI at `/api/ai-dev-chat/` with tool-use capability
+Not yet implemented:
+1. **j1939_sensor.py wiring** -- Sub-modules exist (j1939_can/dtc/discovery.py) but parent still duplicates all code. Wire imports + delete duplication. HIGHEST PRIORITY.
+2. **OBD2 separation** -- `modules/obd2-sensor/` as separate Viam module (currently embedded in j1939-sensor)
+3. **Pi consolidation** -- Both modules will run on Pi 5 only (Pi Zero being retired)
+4. **Auth activation** -- Install @clerk/nextjs, uncomment middleware, wrap layout
+5. **Dev AI** -- Engineering-focused Claude AI at `/api/ai-dev-chat/` with tool-use capability
+6. **iOS app** -- Capacitor wrap of existing dashboard when App Store distribution needed
