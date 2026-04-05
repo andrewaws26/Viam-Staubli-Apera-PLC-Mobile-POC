@@ -71,6 +71,11 @@ ${historyText}`;
       }),
     });
 
+    if (!response.ok) {
+      console.error("[API-ERROR]", "/api/ai-report-summary", `Claude API ${response.status}:`, await response.text());
+      return NextResponse.json({ summary: "" });
+    }
+
     const result = await response.json();
     const summary = result.content?.[0]?.text || "";
 

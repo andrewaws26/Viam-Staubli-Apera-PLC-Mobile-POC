@@ -681,6 +681,7 @@ class J1939TruckSensor(Sensor):
                 LOGGER.error(
                     "Failed to set CAN bitrate %d on %s: %s",
                     bitrate, self._can_interface, e,
+                    exc_info=True,
                 )
                 continue
 
@@ -703,6 +704,7 @@ class J1939TruckSensor(Sensor):
             except Exception as e:
                 LOGGER.error(
                     "Error probing CAN at %d bps: %s", bitrate, e,
+                    exc_info=True,
                 )
             finally:
                 if bus:
@@ -737,7 +739,7 @@ class J1939TruckSensor(Sensor):
         try:
             self._set_can_bitrate(self._can_interface, self._configured_bitrate)
         except Exception as e:
-            LOGGER.error("Failed to restore configured bitrate: %s", e)
+            LOGGER.error("Failed to restore configured bitrate: %s", e, exc_info=True)
         self._current_bitrate = self._configured_bitrate
         self._bitrate = self._configured_bitrate
         self._last_negotiation_time = time.time()
@@ -1030,7 +1032,7 @@ class J1939TruckSensor(Sensor):
             self._run_discovery(profile)
 
         except Exception as e:
-            LOGGER.error("Vehicle profile error for %s: %s", vin, e)
+            LOGGER.error("Vehicle profile error for %s: %s", vin, e, exc_info=True)
 
     def _run_discovery(self, profile: VehicleProfile):
         """Execute PID or PGN discovery and persist the result."""
@@ -1047,7 +1049,7 @@ class J1939TruckSensor(Sensor):
             self._discovery_status = "complete"
             self._apply_profile(profile)
         except Exception as e:
-            LOGGER.error("Discovery failed for %s: %s", profile.vin, e)
+            LOGGER.error("Discovery failed for %s: %s", profile.vin, e, exc_info=True)
             self._discovery_status = "complete"
 
     def _run_pid_discovery(self, profile: VehicleProfile):
@@ -1080,7 +1082,7 @@ class J1939TruckSensor(Sensor):
                     [f"0x{p:02X}" for p in unsupported],
                 )
         except Exception as e:
-            LOGGER.error("PID discovery error: %s", e)
+            LOGGER.error("PID discovery error: %s", e, exc_info=True)
         finally:
             if bus:
                 try:
@@ -1119,7 +1121,7 @@ class J1939TruckSensor(Sensor):
                     "Missing PGNs for %s: %s", profile.vin, missing_desc,
                 )
         except Exception as e:
-            LOGGER.error("PGN discovery error: %s", e)
+            LOGGER.error("PGN discovery error: %s", e, exc_info=True)
         finally:
             if bus:
                 try:
@@ -1160,7 +1162,7 @@ class J1939TruckSensor(Sensor):
                 f"at {self._bitrate} bps"
             )
         except Exception as e:
-            LOGGER.error(f"Failed to start CAN listener: {e}")
+            LOGGER.error(f"Failed to start CAN listener: {e}", exc_info=True)
             self._bus = None
             self._running = False
 
@@ -1406,6 +1408,58 @@ class J1939TruckSensor(Sensor):
                     LOGGER.warning(f"CAN read error: {e}")
                     time.sleep(0.1)
 
+    def _apply_namespaced_dtcs(self, sa: int, decoded: dict):
+        """Write source-namespaced DTC keys and recompute combined count.
+
+        Must be called while self._readings_lock is held.
+
+        For each known source address (engine, trans, abs, etc.) we store
+        dtc_{suffix}_count, dtc_{suffix}_N_spn/fmi/occurrence. The flat
+        dtc_0_* keys are kept for backward compat, populated from the
+        engine ECU (SA 0x00) as primary, falling back to whichever source
+        has DTCs.
+        """
+        # Extract DTC list from decoded dict
+        dtc_count = decoded.get("active_dtc_count", 0)
+        dtcs = []
+        for i in range(min(dtc_count, 10)):
+            spn = decoded.get(f"dtc_{i}_spn")
+            if spn is None:
+                break
+            dtcs.append({
+                "spn": spn,
+                "fmi": decoded.get(f"dtc_{i}_fmi", 0),
+                "occurrence": decoded.get(f"dtc_{i}_occurrence", 0),
+            })
+
+        # Store per-source DTC list
+        self._dtc_by_source[sa] = dtcs
+
+        # Write source-namespaced keys
+        suffix = _SA_SUFFIX.get(sa, f"sa{sa:02x}")
+        self._readings[f"dtc_{suffix}_count"] = len(dtcs)
+        for i, dtc in enumerate(dtcs[:10]):
+            self._readings[f"dtc_{suffix}_{i}_spn"] = dtc["spn"]
+            self._readings[f"dtc_{suffix}_{i}_fmi"] = dtc["fmi"]
+            self._readings[f"dtc_{suffix}_{i}_occurrence"] = dtc["occurrence"]
+
+        # Recompute combined active_dtc_count across all sources
+        total = sum(len(d) for d in self._dtc_by_source.values())
+        self._readings["active_dtc_count"] = total
+
+        # Backward-compat flat dtc_0_* keys: prefer engine (SA 0x00),
+        # fall back to first source that has DTCs
+        primary_dtcs = self._dtc_by_source.get(0x00, [])
+        if not primary_dtcs:
+            for src_dtcs in self._dtc_by_source.values():
+                if src_dtcs:
+                    primary_dtcs = src_dtcs
+                    break
+        for i, dtc in enumerate(primary_dtcs[:10]):
+            self._readings[f"dtc_{i}_spn"] = dtc["spn"]
+            self._readings[f"dtc_{i}_fmi"] = dtc["fmi"]
+            self._readings[f"dtc_{i}_occurrence"] = dtc["occurrence"]
+
     def _decode_tp_message(self, pgn: int, sa: int, data: bytes):
         """Decode a reassembled multi-packet J1939 message."""
         decoded = {}
@@ -1437,22 +1491,19 @@ class J1939TruckSensor(Sensor):
             lamps = decode_dm1_lamps(data)
             dtcs = decode_dm1(data)
             decoded.update(lamps)
+            # Build flat dtc_N_* keys for decoded (will be namespaced below)
             decoded["active_dtc_count"] = len(dtcs)
             for i, dtc in enumerate(dtcs[:10]):
                 decoded[f"dtc_{i}_spn"] = dtc["spn"]
                 decoded[f"dtc_{i}_fmi"] = dtc["fmi"]
                 decoded[f"dtc_{i}_occurrence"] = dtc["occurrence"]
-            # Per-ECU lamp tracking
-            if sa == 0x00:  # Engine ECM
-                decoded["protect_lamp_engine"] = lamps.get("protect_lamp", 0)
-                decoded["red_stop_lamp_engine"] = lamps.get("red_stop_lamp", 0)
-                decoded["amber_lamp_engine"] = lamps.get("amber_warning_lamp", 0)
-                decoded["mil_engine"] = lamps.get("malfunction_lamp", 0)
-            elif sa == 0x3D:  # Aftertreatment ACM
-                decoded["protect_lamp_acm"] = lamps.get("protect_lamp", 0)
-                decoded["red_stop_lamp_acm"] = lamps.get("red_stop_lamp", 0)
-                decoded["amber_lamp_acm"] = lamps.get("amber_warning_lamp", 0)
-                decoded["mil_acm"] = lamps.get("malfunction_lamp", 0)
+            # Per-ECU lamp tracking (all known SAs)
+            suffix = _SA_SUFFIX.get(sa)
+            if suffix:
+                decoded[f"protect_lamp_{suffix}"] = lamps.get("protect_lamp", 0)
+                decoded[f"red_stop_lamp_{suffix}"] = lamps.get("red_stop_lamp", 0)
+                decoded[f"amber_lamp_{suffix}"] = lamps.get("amber_warning_lamp", 0)
+                decoded[f"mil_{suffix}"] = lamps.get("malfunction_lamp", 0)
             LOGGER.info("DM1 multi-frame from SA 0x%02X: %d DTCs, lamps=%s",
                         sa, len(dtcs), lamps)
 
@@ -1471,6 +1522,9 @@ class J1939TruckSensor(Sensor):
                 self._readings.update(decoded)
                 self._frame_count += 1
                 self._last_frame_time = time.time()
+                # Namespace DM1 DTCs per source so multiple ECUs don't overwrite
+                if pgn == 65226:
+                    self._apply_namespaced_dtcs(sa, decoded)
 
     async def get_readings(
         self,
@@ -1920,17 +1974,18 @@ class J1939TruckSensor(Sensor):
             self._bus.send(msg)
             LOGGER.info("DM11 clear DTCs command sent")
 
-            # Clear locally cached DTC readings
+            # Clear locally cached DTC readings (flat + namespaced)
             with self._readings_lock:
                 keys_to_remove = [k for k in self._readings
                                   if k.startswith("dtc_") or k == "active_dtc_count"
                                   or k.endswith("_lamp")]
                 for k in keys_to_remove:
                     del self._readings[k]
+                self._dtc_by_source.clear()
 
             return {"success": True, "message": "DM11 clear DTCs sent"}
         except Exception as e:
-            LOGGER.error(f"Failed to send DM11: {e}")
+            LOGGER.error(f"Failed to send DM11: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
     async def _request_pgn(self, pgn: int) -> dict[str, Any]:
@@ -1963,7 +2018,7 @@ class J1939TruckSensor(Sensor):
             LOGGER.info(f"PGN request sent for PGN {pgn}")
             return {"success": True, "message": f"Requested PGN {pgn}"}
         except Exception as e:
-            LOGGER.error(f"Failed to request PGN {pgn}: {e}")
+            LOGGER.error(f"Failed to request PGN {pgn}: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
     async def _send_raw(self, can_id: int, data_hex: str) -> dict[str, Any]:

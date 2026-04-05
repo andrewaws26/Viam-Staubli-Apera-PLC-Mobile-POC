@@ -522,7 +522,7 @@ ${history.dtcEvents.map(e => `<div class="dtc"><span class="dtc-code">${e.code}<
   <span class="badge">${r._bus_connected ? "LIVE" : "OFFLINE"}</span>
 </div>
 
-${r.vin ? `<p><strong>VIN:</strong> <span style="font-family:monospace">${r.vin}</span></p>` : ""}
+${(r.vehicle_vin || r.vin) ? `<p><strong>VIN:</strong> <span style="font-family:monospace">${r.vehicle_vin || r.vin}</span></p>` : ""}
 
 <h2>Current Readings (Live Snapshot)</h2>
 

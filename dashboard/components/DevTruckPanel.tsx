@@ -213,7 +213,7 @@ export default function DevTruckPanel() {
   const isOffline = data?._offline === true;
   const protocol = data?._protocol as string | undefined;
   const dataAge = data?._data_age_seconds as number | undefined;
-  const vin = data?.vin as string | undefined;
+  const vin = (data?.vehicle_vin ?? data?.vin) as string | undefined;
   const vehicleMake = data?.vehicle_make as string | undefined;
   const vehicleModel = data?.vehicle_model as string | undefined;
   const vehicleYear = data?.vehicle_year as number | undefined;

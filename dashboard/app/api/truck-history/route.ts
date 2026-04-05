@@ -79,6 +79,7 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     resetTruckDataClient();
     resetDataClient();
+    console.error("[API-ERROR]", "/api/truck-history", err);
     return NextResponse.json(
       { error: "truck_history_query_failed", message: err instanceof Error ? err.message : String(err) },
       { status: 502 },
