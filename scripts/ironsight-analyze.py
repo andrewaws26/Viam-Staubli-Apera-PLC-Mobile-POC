@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-IronSight AI Analysis Loop — Autonomous PLC reverse-engineering via Claude.
+IronSight AI Analysis Loop -- Autonomous PLC reverse-engineering via Claude.
 
 Takes the output of ironsight-discover.py (phases 1-3: scan, probe, sweep)
 and runs an iterative AI observation loop. Claude examines unknown registers,
 designs 60-second observation tests, interprets the results, and progressively
-builds a complete register map — even when you can't pull the ladder logic.
+builds a complete register map -- even when you can't pull the ladder logic.
 
 Architecture:
     1. Load register map from discovery sweep (or run a fresh sweep)
@@ -28,7 +28,7 @@ Requires:
     pip3 install pymodbus>=3.5
     Claude Code CLI (claude) must be installed and authenticated
 
-Requires a Claude Pro/Team/Enterprise subscription — no API key needed.
+Requires a Claude Pro/Team/Enterprise subscription -- no API key needed.
 """
 
 import argparse
@@ -37,25 +37,21 @@ import os
 import subprocess
 import sys
 import time
-from collections import defaultdict
 from datetime import datetime
-from typing import Optional
-
-try:
-    from pymodbus.client import ModbusTcpClient
-except ImportError:
-    print("ERROR: pymodbus not installed. Run: pip3 install pymodbus")
-    sys.exit(1)
 
 # Import from sibling modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
 from ironsight_memory import IronSightMemory
+from plc_discovery import (
+    claude_headless,
+    watch_specific_registers,
+    print_final_map,
+    CLAUDE_CLI,
+    SYSTEM_PROMPT,
+)
 
-# Also import watch/sweep functions from discovery
+# Also import sweep functions from discovery
 sys.path.insert(0, os.path.dirname(__file__))
-from importlib import import_module
-
-# We can't import ironsight-discover directly (hyphen in name), so load it
 _discover_path = os.path.join(os.path.dirname(__file__), "ironsight-discover.py")
 import importlib.util
 _spec = importlib.util.spec_from_file_location("ironsight_discover", _discover_path)
@@ -74,253 +70,10 @@ CYAN = _discover.CYAN
 DIM = _discover.DIM
 RESET = _discover.RESET
 
-# ─────────────────────────────────────────────────────────────
-#  Claude CLI Headless Interface
-# ─────────────────────────────────────────────────────────────
-
-# Claude CLI binary — override with CLAUDE_CLI env var if needed
-CLAUDE_CLI = os.environ.get("CLAUDE_CLI", "claude")
-
-
-def claude_headless(prompt: str, system: str = None) -> str:
-    """Send a prompt to Claude via the CLI in headless mode.
-
-    Uses `claude -p` (print mode) which takes a prompt on stdin,
-    sends it to Claude, and prints the response to stdout.
-    No API key needed — uses your Claude subscription.
-    """
-    cmd = [CLAUDE_CLI, "-p", "--output-format", "text"]
-
-    if system:
-        cmd.extend(["--system-prompt", system])
-
-    result = subprocess.run(
-        cmd,
-        input=prompt,
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
-
-    if result.returncode != 0:
-        stderr = result.stderr.strip()
-        raise RuntimeError(f"Claude CLI failed (exit {result.returncode}): {stderr}")
-
-    return result.stdout.strip()
-
-
-# ─────────────────────────────────────────────────────────────
-#  Targeted Register Watcher
-# ─────────────────────────────────────────────────────────────
-
-def watch_specific_registers(ip: str, registers: list, duration: int = 60,
-                             interval: float = 0.5, port: int = 502) -> dict:
-    """Watch a specific set of registers and return detailed observations.
-
-    Args:
-        ip: PLC IP address
-        registers: List of register names like ["HR_7", "HR_10", "COIL_20"]
-        duration: How long to observe in seconds
-        interval: Sample interval in seconds
-        port: Modbus TCP port
-
-    Returns:
-        Dict with per-register statistics and raw timeline
-    """
-    client = ModbusTcpClient(ip, port=port, timeout=3)
-    if not client.connect():
-        return {"error": "Cannot connect to PLC"}
-
-    # Parse register names to figure out what to read
-    holding_addrs = set()
-    coil_addrs = set()
-    discrete_addrs = set()
-    input_addrs = set()
-
-    for reg in registers:
-        parts = reg.split("_", 1)
-        prefix = parts[0]
-        addr = int(parts[1]) if len(parts) > 1 else 0
-
-        if prefix == "HR":
-            holding_addrs.add(addr)
-        elif prefix == "COIL":
-            coil_addrs.add(addr)
-        elif prefix == "DI":
-            discrete_addrs.add(addr)
-        elif prefix == "IR":
-            input_addrs.add(addr)
-
-    # Build read plan — group contiguous addresses
-    def _read_range(addrs):
-        if not addrs:
-            return 0, 0
-        mn, mx = min(addrs), max(addrs)
-        return mn, mx - mn + 1
-
-    timeline = []  # list of (timestamp, {reg: val}) snapshots
-    start_time = time.time()
-
-    try:
-        while (time.time() - start_time) < duration:
-            snap = {}
-            ts = time.time() - start_time
-
-            # Read holding registers
-            if holding_addrs:
-                start, count = _read_range(holding_addrs)
-                # Read extra context around the target registers
-                ctx_start = max(0, start - 5)
-                ctx_count = count + 10
-                try:
-                    r = client.read_holding_registers(address=ctx_start, count=ctx_count)
-                    if not r.isError():
-                        for i, val in enumerate(r.registers):
-                            a = ctx_start + i
-                            snap[f"HR_{a}"] = val & 0xFFFF
-                except Exception:
-                    pass
-
-            # Read coils
-            if coil_addrs:
-                start, count = _read_range(coil_addrs)
-                ctx_start = max(0, start - 5)
-                ctx_count = count + 10
-                try:
-                    r = client.read_coils(address=ctx_start, count=ctx_count)
-                    if not r.isError():
-                        for i in range(min(ctx_count, len(r.bits))):
-                            snap[f"COIL_{ctx_start + i}"] = int(r.bits[i])
-                except Exception:
-                    pass
-
-            # Read discrete inputs
-            if discrete_addrs:
-                start, count = _read_range(discrete_addrs)
-                ctx_start = max(0, start - 5)
-                ctx_count = count + 10
-                try:
-                    r = client.read_discrete_inputs(address=ctx_start, count=ctx_count)
-                    if not r.isError():
-                        for i in range(min(ctx_count, len(r.bits))):
-                            snap[f"DI_{ctx_start + i}"] = int(r.bits[i])
-                except Exception:
-                    pass
-
-            # Read input registers
-            if input_addrs:
-                start, count = _read_range(input_addrs)
-                ctx_start = max(0, start - 5)
-                ctx_count = count + 10
-                try:
-                    r = client.read_input_registers(address=ctx_start, count=ctx_count)
-                    if not r.isError():
-                        for i, val in enumerate(r.registers):
-                            snap[f"IR_{ctx_start + i}"] = val & 0xFFFF
-                except Exception:
-                    pass
-
-            timeline.append({"t": round(ts, 2), "values": snap})
-            time.sleep(interval)
-
-    except KeyboardInterrupt:
-        pass
-    finally:
-        client.close()
-
-    # Compute per-register statistics
-    stats = {}
-    for reg in registers:
-        values = [s["values"].get(reg) for s in timeline if reg in s["values"]]
-        if not values:
-            stats[reg] = {"error": "no data"}
-            continue
-
-        numeric = [v for v in values if isinstance(v, (int, float))]
-        if not numeric:
-            stats[reg] = {"samples": len(values), "all_values": values[:20]}
-            continue
-
-        changes = sum(1 for i in range(1, len(numeric)) if numeric[i] != numeric[i - 1])
-        deltas = [numeric[i] - numeric[i - 1] for i in range(1, len(numeric)) if numeric[i] != numeric[i - 1]]
-
-        stats[reg] = {
-            "samples": len(numeric),
-            "min": min(numeric),
-            "max": max(numeric),
-            "first": numeric[0],
-            "last": numeric[-1],
-            "net_change": numeric[-1] - numeric[0],
-            "changes": changes,
-            "change_rate_hz": round(changes / duration, 3) if duration > 0 else 0,
-            "unique_values": len(set(numeric)),
-            "deltas": deltas[:50],  # First 50 deltas for pattern analysis
-        }
-
-    # Find correlations — registers that change at the same time
-    correlations = []
-    for i, reg_a in enumerate(registers):
-        for reg_b in registers[i + 1:]:
-            co_changes = 0
-            for j in range(1, len(timeline)):
-                a_changed = (timeline[j]["values"].get(reg_a) !=
-                             timeline[j - 1]["values"].get(reg_a))
-                b_changed = (timeline[j]["values"].get(reg_b) !=
-                             timeline[j - 1]["values"].get(reg_b))
-                if a_changed and b_changed:
-                    co_changes += 1
-            if co_changes > 0:
-                correlations.append({
-                    "registers": [reg_a, reg_b],
-                    "co_changes": co_changes,
-                })
-
-    return {
-        "duration_seconds": round(time.time() - start_time, 1),
-        "total_samples": len(timeline),
-        "register_stats": stats,
-        "correlations": correlations,
-        "timeline_sample": timeline[:10] + timeline[-10:],  # First/last 10 for context
-    }
-
 
 # ─────────────────────────────────────────────────────────────
 #  AI Analysis Loop
 # ─────────────────────────────────────────────────────────────
-
-SYSTEM_PROMPT = """\
-You are IronSight, an AI that reverse-engineers PLC (Programmable Logic Controller) \
-programs by observing register behavior over Modbus TCP.
-
-You CANNOT read the PLC's ladder logic program — it's locked inside the PLC. But you \
-CAN read every register, coil, and input at 1Hz+ and watch how they change over time. \
-By correlating inputs, outputs, timers, and counters, you can reconstruct what the \
-program does.
-
-Your approach:
-1. Look at the register map and any prior observations
-2. Pick the most promising unknown registers to investigate
-3. Design a focused observation test (which registers to watch, what to look for)
-4. After observing, interpret the results — what does each register do?
-5. Label registers with confidence levels (high/medium/low)
-
-Register naming convention:
-- HR_N = Holding Register at address N (FC03)
-- IR_N = Input Register at address N (FC04)
-- COIL_N = Coil at address N (FC01)
-- DI_N = Discrete Input at address N (FC02)
-
-When labeling registers, consider common PLC patterns:
-- Counters (monotonically increasing values)
-- Timers (count up/down then reset)
-- Setpoints (rarely change, operator-configured)
-- Status flags (binary on/off)
-- Calculated values (derived from other registers)
-- Countdown registers (count down to zero then reload)
-- HMI screen selectors
-- Error/alarm codes
-"""
-
 
 def analyze_unknown_plc(ip: str, port: int = 502, max_rounds: int = 10,
                         observation_duration: int = 60,
@@ -336,14 +89,14 @@ def analyze_unknown_plc(ip: str, port: int = 502, max_rounds: int = 10,
     """
     print(f"""
 {CYAN}╔══════════════════════════════════════════════════════════════╗
-║  {BOLD}🧠 IronSight AI Analysis Loop{RESET}{CYAN}                               ║
+║  {BOLD}IronSight AI Analysis Loop{RESET}{CYAN}                                  ║
 ║  Autonomous PLC reverse-engineering via Claude                ║
 ╚══════════════════════════════════════════════════════════════╝{RESET}
 """)
 
     memory = IronSightMemory()
 
-    # ── Step 1: Get the register map ──────────────────────────
+    # -- Step 1: Get the register map --
     if existing_report:
         log(f"Loading existing discovery report: {existing_report}")
         with open(existing_report, "r") as f:
@@ -376,14 +129,13 @@ def analyze_unknown_plc(ip: str, port: int = 502, max_rounds: int = 10,
 
     log(f"Total registers to analyze: {len(all_registers)}", "ok")
 
-    # ── Step 2: Load prior knowledge ──────────────────────────
+    # -- Step 2: Load prior knowledge --
     known_labels = memory.read("register-labels.md")
     prior_observations = memory.read("observations.md")
 
     labeled = {}  # reg_name -> label
     unknowns = [r["name"] for r in all_registers]
 
-    # Parse any existing labels from memory
     if known_labels:
         for line in known_labels.split("\n"):
             line = line.strip()
@@ -398,22 +150,22 @@ def analyze_unknown_plc(ip: str, port: int = 502, max_rounds: int = 10,
 
     if not unknowns:
         log("All registers are already labeled!", "ok")
-        _print_final_map(labeled, all_registers)
+        print_final_map(labeled, all_registers, GREEN, YELLOW, DIM, BOLD, RESET)
         return labeled
 
     log(f"Unknown registers remaining: {len(unknowns)}")
 
-    # ── Step 3: AI observation loop ───────────────────────────
+    # -- Step 3: AI observation loop --
     for round_num in range(1, max_rounds + 1):
         if not unknowns:
             log("All registers labeled!", "ok")
             break
 
-        print(f"\n{BOLD}{'═' * 60}{RESET}")
-        print(f"{BOLD}  Round {round_num}/{max_rounds} — {len(unknowns)} unknown registers{RESET}")
-        print(f"{'═' * 60}\n")
+        print(f"\n{BOLD}{'=' * 60}{RESET}")
+        print(f"{BOLD}  Round {round_num}/{max_rounds} -- {len(unknowns)} unknown registers{RESET}")
+        print(f"{'=' * 60}\n")
 
-        # ── 3a: Ask Claude what to investigate ────────────────
+        # -- 3a: Ask Claude what to investigate --
         context = {
             "plc_ip": ip,
             "total_registers": len(all_registers),
@@ -461,7 +213,6 @@ def analyze_unknown_plc(ip: str, port: int = 502, max_rounds: int = 10,
 
         # Parse Claude's plan
         try:
-            # Extract JSON from response (Claude may wrap it in markdown)
             json_str = plan_response
             if "```json" in json_str:
                 json_str = json_str.split("```json")[1].split("```")[0]
@@ -470,7 +221,6 @@ def analyze_unknown_plc(ip: str, port: int = 502, max_rounds: int = 10,
             plan = json.loads(json_str.strip())
         except (json.JSONDecodeError, IndexError):
             log(f"Could not parse Claude's plan, using fallback", "warn")
-            # Fallback: watch the first 8 unknowns
             plan = {
                 "registers_to_watch": unknowns[:8],
                 "hypothesis": "Exploratory scan of unknown registers",
@@ -488,7 +238,7 @@ def analyze_unknown_plc(ip: str, port: int = 502, max_rounds: int = 10,
         print(f"  {CYAN}Looking for:{RESET} {plan.get('what_to_look_for', 'N/A')}")
         print()
 
-        # ── 3b: Run the observation ───────────────────────────
+        # -- 3b: Run the observation --
         log(f"Observing {len(all_watch)} registers for {observation_duration}s...")
         observation = watch_specific_registers(
             ip, all_watch,
@@ -504,7 +254,6 @@ def analyze_unknown_plc(ip: str, port: int = 502, max_rounds: int = 10,
         log(f"Collected {observation['total_samples']} samples over "
             f"{observation['duration_seconds']}s", "ok")
 
-        # Print quick summary
         for reg, stats in observation.get("register_stats", {}).items():
             if "error" in stats:
                 continue
@@ -512,7 +261,7 @@ def analyze_unknown_plc(ip: str, port: int = 502, max_rounds: int = 10,
             val_info = f"range {stats['min']}-{stats['max']}" if stats.get('min') is not None else ""
             print(f"    {reg:<20} {change_info:<18} {val_info}")
 
-        # ── 3c: Ask Claude to interpret results ───────────────
+        # -- 3c: Ask Claude to interpret results --
         interpret_prompt = (
             f"Here are the observation results from round {round_num}.\n\n"
             f"Hypothesis was: {plan.get('hypothesis', 'N/A')}\n"
@@ -554,7 +303,7 @@ def analyze_unknown_plc(ip: str, port: int = 502, max_rounds: int = 10,
                 "next_suggestion": "Retry with longer observation",
             }
 
-        # ── 3d: Update labels and memory ──────────────────────
+        # -- 3d: Update labels and memory --
         newly_labeled = findings.get("labeled", {})
         if newly_labeled:
             print(f"\n  {GREEN}{BOLD}New labels:{RESET}")
@@ -563,7 +312,7 @@ def analyze_unknown_plc(ip: str, port: int = 502, max_rounds: int = 10,
                     label = info.get("label", "?")
                     confidence = info.get("confidence", "?")
                     evidence = info.get("evidence", "")
-                    full_label = f"{label} [{confidence}] — {evidence}"
+                    full_label = f"{label} [{confidence}] -- {evidence}"
                 else:
                     label = str(info)
                     full_label = label
@@ -572,7 +321,7 @@ def analyze_unknown_plc(ip: str, port: int = 502, max_rounds: int = 10,
                 labeled[reg] = full_label
                 if reg in unknowns:
                     unknowns.remove(reg)
-                print(f"    {GREEN}{reg:<20} → {label} ({confidence}){RESET}")
+                print(f"    {GREEN}{reg:<20} -> {label} ({confidence}){RESET}")
 
         findings_text = findings.get("findings", "No summary available")
         print(f"\n  {BOLD}Summary:{RESET} {findings_text}")
@@ -582,7 +331,7 @@ def analyze_unknown_plc(ip: str, port: int = 502, max_rounds: int = 10,
 
         # Save to persistent memory
         round_entry = (
-            f"## Round {round_num} — {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
+            f"## Round {round_num} -- {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
             f"**Target:** {ip}\n"
             f"**Watched:** {', '.join(watch_list)}\n"
             f"**Findings:** {findings_text}\n"
@@ -597,13 +346,11 @@ def analyze_unknown_plc(ip: str, port: int = 502, max_rounds: int = 10,
 
         memory.append("observations.md", round_entry)
 
-        # Update register labels file
         labels_md = "# Register Labels\n\nLabeled by IronSight AI Analysis Loop.\n\n"
         for reg_name in sorted(labeled.keys()):
             labels_md += f"- {reg_name}: {labeled[reg_name]}\n"
         memory.write("register-labels.md", labels_md)
 
-        # Log the event
         memory.log_event("ai-analysis", "round_complete", {
             "round": round_num,
             "ip": ip,
@@ -615,18 +362,16 @@ def analyze_unknown_plc(ip: str, port: int = 502, max_rounds: int = 10,
         log(f"Round {round_num} complete: {len(newly_labeled)} new labels, "
             f"{len(unknowns)} still unknown", "ok")
 
-        # Brief pause between rounds
         if unknowns and round_num < max_rounds:
             time.sleep(2)
 
-    # ── Step 4: Final report ──────────────────────────────────
-    print(f"\n{'═' * 60}")
+    # -- Step 4: Final report --
+    print(f"\n{'=' * 60}")
     print(f"{BOLD}  ANALYSIS COMPLETE{RESET}")
-    print(f"{'═' * 60}\n")
+    print(f"{'=' * 60}\n")
 
-    _print_final_map(labeled, all_registers)
+    print_final_map(labeled, all_registers, GREEN, YELLOW, DIM, BOLD, RESET)
 
-    # Save final report
     report_data = {
         "generated": datetime.now().isoformat(),
         "plc_ip": ip,
@@ -650,28 +395,13 @@ def analyze_unknown_plc(ip: str, port: int = 502, max_rounds: int = 10,
     return labeled
 
 
-def _print_final_map(labeled: dict, all_registers: list):
-    """Pretty-print the final labeled register map."""
-    print(f"  {BOLD}Labeled Registers ({len(labeled)}):{RESET}\n")
-    for reg in sorted(labeled.keys()):
-        print(f"    {GREEN}{reg:<20}{RESET} {labeled[reg]}")
-
-    unlabeled = [r["name"] for r in all_registers if r["name"] not in labeled]
-    if unlabeled:
-        print(f"\n  {YELLOW}Still Unknown ({len(unlabeled)}):{RESET}\n")
-        for reg in sorted(unlabeled):
-            initial = next((r["initial_value"] for r in all_registers if r["name"] == reg), "?")
-            print(f"    {DIM}{reg:<20}{RESET} initial={initial}")
-    print()
-
-
 # ─────────────────────────────────────────────────────────────
 #  CLI
 # ─────────────────────────────────────────────────────────────
 
 def main():
     parser = argparse.ArgumentParser(
-        description="IronSight AI Analysis — Autonomous PLC reverse-engineering via Claude",
+        description="IronSight AI Analysis -- Autonomous PLC reverse-engineering via Claude",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
