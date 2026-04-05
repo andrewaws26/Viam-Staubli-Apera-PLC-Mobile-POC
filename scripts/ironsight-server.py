@@ -8,17 +8,17 @@ Lightweight HTTP server that runs on the Pi and accepts:
   - Commands (trigger analysis, get status)
 
 Endpoints:
-  POST /upload          — Upload photo or video for AI analysis
-  POST /analyze         — Upload + immediately analyze with Claude
-  GET  /status          — Current IronSight system status (JSON)
-  GET  /               — Simple upload page (works in iPhone Safari)
+  POST /upload          -- Upload photo or video for AI analysis
+  POST /analyze         -- Upload + immediately analyze with Claude
+  GET  /status          -- Current IronSight system status (JSON)
+  GET  /               -- Simple upload page (works in iPhone Safari)
 
 The server listens on all interfaces so it works via:
   - USB tethering (172.20.10.2:8420)
   - WiFi (whatever IP the Pi has)
   - Tailscale (100.112.68.52:8420)
 
-Port: 8420 (IRON → 1R0N → 8420)
+Port: 8420 (IRON -> 1R0N -> 8420)
 
 Usage:
   python3 scripts/ironsight-server.py              # Start server
@@ -31,21 +31,24 @@ From iPhone:
 """
 
 import datetime
-import email.parser
-import io
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
-import tempfile
 import time
-import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
+
+# Add scripts/ to path for lib imports
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from lib.ai_prompts import (
+    post_status,
+    analyze_with_claude,
+)
 
 # ─────────────────────────────────────────────────────────────
 #  Config
@@ -57,148 +60,9 @@ UPLOAD_DIR = PROJECT_DIR / "uploads" / "photos"
 ANALYSIS_DIR = PROJECT_DIR / "uploads" / "analyses"
 LATEST_UPLOAD = Path("/tmp/ironsight-latest-upload")
 MAX_UPLOAD_MB = 100
-STATUS_SCRIPT = PROJECT_DIR / "scripts" / "ironsight-status.py"
 
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 ANALYSIS_DIR.mkdir(parents=True, exist_ok=True)
-
-# ─────────────────────────────────────────────────────────────
-#  Analysis helpers
-# ─────────────────────────────────────────────────────────────
-
-def post_status(phase: str, message: str, level: str = "info"):
-    """Post to the IronSight display status bus."""
-    try:
-        subprocess.Popen(
-            ["python3", str(STATUS_SCRIPT), "upload", phase, message, "--level", level],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-        )
-    except Exception:
-        pass
-
-
-def extract_video_frames(video_path: str, max_frames: int = 5) -> list:
-    """Extract key frames from a video using ffmpeg."""
-    frames = []
-    frame_dir = tempfile.mkdtemp(prefix="ironsight-frames-")
-
-    try:
-        # Get video duration
-        probe = subprocess.check_output([
-            "ffprobe", "-v", "quiet", "-print_format", "json",
-            "-show_format", video_path
-        ], text=True, timeout=30)
-        duration = float(json.loads(probe)["format"].get("duration", 10))
-
-        # Extract frames evenly spaced through the video
-        interval = max(1, duration / max_frames)
-
-        subprocess.run([
-            "ffmpeg", "-i", video_path,
-            "-vf", f"fps=1/{interval}",
-            "-frames:v", str(max_frames),
-            "-q:v", "2",
-            f"{frame_dir}/frame_%03d.jpg"
-        ], capture_output=True, timeout=60)
-
-        # Collect frame paths
-        for f in sorted(Path(frame_dir).glob("frame_*.jpg")):
-            frames.append(str(f))
-
-    except Exception as e:
-        print(f"Frame extraction error: {e}")
-
-    return frames, frame_dir
-
-
-def analyze_with_claude(file_path: str, prompt: str = None,
-                        is_video: bool = False) -> dict:
-    """Send an image or video to Claude for analysis."""
-    timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    result = {
-        "file": os.path.basename(file_path),
-        "timestamp": timestamp,
-        "type": "video" if is_video else "image",
-        "analysis": "",
-        "error": None,
-    }
-
-    if not prompt:
-        prompt = """You are IronSight, an AI monitoring system for TPS (Tie Plate System)
-equipment on railroad trucks. Analyze this image and describe what you see.
-Focus on:
-- Any PLC equipment, wiring, or industrial components
-- Tie plates, railroad track, or dropper mechanisms
-- Any visible issues, damage, or anomalies
-- Encoder or sensor equipment
-- Cable connections or loose components
-Be specific and technical. If you see register values or screen displays, read them."""
-
-    frame_dir = None
-    try:
-        if is_video:
-            post_status("analyzing", "Extracting video frames...", "info")
-            frames, frame_dir = extract_video_frames(file_path)
-            if not frames:
-                result["error"] = "Could not extract frames from video"
-                return result
-
-            # Build prompt with all frames
-            frame_refs = " ".join(frames)
-            full_prompt = f"""{prompt}
-
-This is a video. I've extracted {len(frames)} key frames for you to analyze.
-Describe what's happening across the frames — any motion, changes, or patterns.
-Frame files: {frame_refs}"""
-
-            # Run Claude with the frames
-            cmd = ["/usr/local/bin/claude", "-p", full_prompt,
-                   "--dangerously-skip-permissions", "--output-format", "text"]
-            # Add each frame as a file for Claude to read
-            for frame in frames:
-                cmd.extend(["--file", frame])
-
-        else:
-            # Single image
-            full_prompt = f"""{prompt}
-
-Analyze the image at: {file_path}"""
-            cmd = ["/usr/local/bin/claude", "-p", full_prompt,
-                   "--dangerously-skip-permissions", "--output-format", "text"]
-
-        post_status("analyzing", f"Claude analyzing {result['type']}...", "info")
-
-        proc = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=120,
-            cwd=str(PROJECT_DIR)
-        )
-
-        if proc.returncode == 0:
-            result["analysis"] = proc.stdout.strip()
-            post_status("complete", "Analysis complete", "success")
-        else:
-            result["error"] = proc.stderr.strip()[:500]
-            post_status("error", "Analysis failed", "error")
-
-    except subprocess.TimeoutExpired:
-        result["error"] = "Analysis timed out (120s)"
-        post_status("timeout", "Analysis timed out", "warning")
-    except Exception as e:
-        result["error"] = str(e)
-        post_status("error", f"Analysis error: {e}", "error")
-    finally:
-        # Clean up temp frames
-        if frame_dir and os.path.exists(frame_dir):
-            shutil.rmtree(frame_dir, ignore_errors=True)
-
-    # Save analysis result
-    result_path = ANALYSIS_DIR / f"analysis-{timestamp}.json"
-    try:
-        result_path.write_text(json.dumps(result, indent=2))
-    except Exception:
-        pass
-
-    return result
 
 
 # ─────────────────────────────────────────────────────────────
@@ -489,7 +353,6 @@ class IronSightHandler(BaseHTTPRequestHandler):
         content_length = int(self.headers.get("Content-Length", 0))
 
         if "multipart/form-data" in content_type:
-            # Parse boundary from content-type
             boundary = None
             for part in content_type.split(";"):
                 part = part.strip()
@@ -498,10 +361,7 @@ class IronSightHandler(BaseHTTPRequestHandler):
             if not boundary:
                 return None, None
 
-            # Read the entire body
             body = self.rfile.read(content_length)
-
-            # Split by boundary
             boundary_bytes = f"--{boundary}".encode()
             parts = body.split(boundary_bytes)
 
@@ -513,18 +373,15 @@ class IronSightHandler(BaseHTTPRequestHandler):
                 if not part or part == b"--\r\n" or part == b"--":
                     continue
 
-                # Split headers from body (separated by \r\n\r\n)
                 header_end = part.find(b"\r\n\r\n")
                 if header_end < 0:
                     continue
 
                 headers_raw = part[:header_end].decode("utf-8", errors="replace")
                 part_body = part[header_end + 4:]
-                # Remove trailing \r\n
                 if part_body.endswith(b"\r\n"):
                     part_body = part_body[:-2]
 
-                # Parse Content-Disposition
                 name_match = re.search(r'name="([^"]*)"', headers_raw)
                 filename_match = re.search(r'filename="([^"]*)"', headers_raw)
 
@@ -545,11 +402,9 @@ class IronSightHandler(BaseHTTPRequestHandler):
                 with open(save_path, "wb") as f:
                     f.write(file_data)
 
-                # Write latest upload pointer so the current CLI session can find it
                 LATEST_UPLOAD.write_text(str(save_path))
                 return str(save_path), prompt
 
-        # Raw body upload (from iOS Shortcuts)
         elif content_length > 0:
             ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
             ext_map = {
@@ -558,7 +413,6 @@ class IronSightHandler(BaseHTTPRequestHandler):
                 "video/mp4": ".mp4", "application/octet-stream": ".bin",
             }
             ext = ext_map.get(content_type.split(";")[0], ".bin")
-            # Preserve original extension for unknown types
             orig_name = self.headers.get("X-Filename", "")
             if ext == ".bin" and "." in orig_name:
                 ext = "." + orig_name.rsplit(".", 1)[-1].lower()
@@ -574,7 +428,6 @@ class IronSightHandler(BaseHTTPRequestHandler):
                     f.write(chunk)
                     remaining -= len(chunk)
 
-            # Write latest upload pointer
             LATEST_UPLOAD.write_text(str(save_path))
             prompt = parse_qs(urlparse(self.path).query).get("prompt", [None])[0]
             return str(save_path), prompt
@@ -588,12 +441,10 @@ class IronSightHandler(BaseHTTPRequestHandler):
             self._send_html(UPLOAD_PAGE)
 
         elif path == "/status":
-            # Return system status as JSON
             status = self._get_system_status()
             self._send_json(status)
 
         elif path == "/analyses":
-            # List recent analyses
             analyses = []
             for f in sorted(ANALYSIS_DIR.glob("analysis-*.json"), reverse=True)[:20]:
                 try:
