@@ -1,13 +1,4 @@
-"""
-Network scanning utilities for IronSight PLC Auto-Discovery.
-
-Extracted from plc-autodiscover.py. Contains:
-  - eth0 carrier and IP address detection
-  - Temporary IP management for cross-subnet scanning
-  - Windows PC detection via SMB port scanning
-  - SMB file grabbing (anonymous/guest)
-  - Click PLC .ckp project file analysis
-"""
+"""Network scanning utilities for IronSight PLC Auto-Discovery."""
 
 import logging
 import os
@@ -18,21 +9,11 @@ from pathlib import Path
 from typing import Optional
 
 log = logging.getLogger("ironsight-discover")
-
 IFACE = "eth0"
 SCAN_TIMEOUT = 0.3
-
-# Project directory (resolved from this file's location)
 PROJECT_DIR = Path(__file__).resolve().parent.parent.parent
 GRABBED_DIR = PROJECT_DIR / "uploads" / "grabbed"
-
-# File extensions we care about from Windows PCs
 INTERESTING_FILES = {".ckp", ".csv", ".pdf", ".txt", ".xlsx", ".docx", ".dwg"}
-
-
-# ─────────────────────────────────────────────────────────────
-#  eth0 utilities
-# ─────────────────────────────────────────────────────────────
 
 def check_eth0_carrier() -> bool:
     """Check if eth0 has physical link (carrier detected).
@@ -153,10 +134,6 @@ def set_eth0_permanent_ip(pi_ip: str) -> None:
             log.warning("  Could not set eth0 IP %s: %s", pi_ip, e)
 
 
-# ─────────────────────────────────────────────────────────────
-#  Windows PC detection
-# ─────────────────────────────────────────────────────────────
-
 def probe_smb_port(host: str, timeout: float = SCAN_TIMEOUT) -> bool:
     """Check if SMB (port 445) is open -- indicates a Windows PC.
 
@@ -216,10 +193,6 @@ def find_windows_pcs(write_status_fn: callable) -> list[str]:
 
     return pcs
 
-
-# ─────────────────────────────────────────────────────────────
-#  SMB file grabbing
-# ─────────────────────────────────────────────────────────────
 
 def grab_files_from_pc(host: str, write_status_fn: callable) -> list[str]:
     """Connect to a Windows PC via SMB and grab any interesting files.
@@ -392,10 +365,6 @@ def _grab_file(host: str, share: str, remote_path: str,
 
     return grabbed
 
-
-# ─────────────────────────────────────────────────────────────
-#  Click PLC .ckp project analysis
-# ─────────────────────────────────────────────────────────────
 
 def analyze_ckp(filepath: str) -> None:
     """Try to extract useful information from a Click PLC .ckp project file.

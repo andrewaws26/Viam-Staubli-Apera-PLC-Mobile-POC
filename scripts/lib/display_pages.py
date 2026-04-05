@@ -1,11 +1,4 @@
-"""
-Individual display pages/screens for IronSight Status Display.
-
-Extracted from ironsight-display.py. Contains:
-  - Pillow-rendered page functions (live, activity, health, registers)
-  - Terminal fallback renderer
-  - Common header and health bar drawing
-"""
+"""Display pages/screens for IronSight Status Display (framebuffer + terminal)."""
 
 import os
 import time
@@ -24,40 +17,22 @@ from lib.plc_constants import (
 )
 from lib.system_status import get_system_status, get_activity_history, get_component_status
 
-# ─────────────────────────────────────────────────────────────
-#  Configuration
-# ─────────────────────────────────────────────────────────────
-
 NUM_PAGES = 4
-
 COMPONENT_COLORS = {
-    "watchdog": ORANGE,
-    "discovery": CYAN,
-    "claude": YELLOW,
-    "plc": GREEN,
-    "system": BLUE,
-    "display": LIGHT_GRAY,
+    "watchdog": ORANGE, "discovery": CYAN, "claude": YELLOW,
+    "plc": GREEN, "system": BLUE, "display": LIGHT_GRAY,
 }
 
-
-# ─────────────────────────────────────────────────────────────
-#  Font helper
-# ─────────────────────────────────────────────────────────────
-
 _font_cache: dict = {}
-
 
 def find_font(size: int):
     """Find and cache a TrueType font at the given size."""
     if size in _font_cache:
         return _font_cache[size]
-    font_paths = [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationMono-Bold.ttf",
-    ]
-    for fp in font_paths:
+    for fp in ["/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf",
+               "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+               "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+               "/usr/share/fonts/truetype/liberation/LiberationMono-Bold.ttf"]:
         if os.path.exists(fp):
             font = ImageFont.truetype(fp, size)
             _font_cache[size] = font
@@ -66,14 +41,8 @@ def find_font(size: int):
     _font_cache[size] = font
     return font
 
-
-# ─────────────────────────────────────────────────────────────
-#  Common drawing helpers
-# ─────────────────────────────────────────────────────────────
-
-def _draw_header(draw: "ImageDraw.Draw", width: int, scale: float,
-                 page_num: int, page_name: str, status_color: tuple) -> int:
-    """Draw the common header bar across all pages. Returns y offset below header."""
+def _draw_header(draw, width, scale, page_num, page_name, status_color):
+    """Draw the common header bar. Returns y offset below header."""
     margin = int(10 * scale)
     bar_h = int(28 * scale)
     font_title = find_font(int(16 * scale))
@@ -101,8 +70,7 @@ def _draw_header(draw: "ImageDraw.Draw", width: int, scale: float,
     return bar_h + int(4 * scale)
 
 
-def _draw_health_bar(draw: "ImageDraw.Draw", width: int, height: int,
-                     scale: float, sys_status: dict) -> None:
+def _draw_health_bar(draw, width, height, scale, sys_status):
     """Draw the health indicator bar at the bottom of any page."""
     margin = int(10 * scale)
     bar_y = height - int(18 * scale)
@@ -131,10 +99,6 @@ def _draw_health_bar(draw: "ImageDraw.Draw", width: int, height: int,
     tw = draw.textlength(now_str, font=font_tiny)
     draw.text((width - margin - tw, bar_y + int(4 * scale)), now_str, fill=LIGHT_GRAY, font=font_tiny)
 
-
-# ─────────────────────────────────────────────────────────────
-#  Page 1: LIVE
-# ─────────────────────────────────────────────────────────────
 
 def render_page_live(width: int, height: int, sys_status: dict) -> "Image.Image":
     """Page 1: Live PLC data."""
@@ -200,10 +164,6 @@ def render_page_live(width: int, height: int, sys_status: dict) -> "Image.Image"
     _draw_health_bar(draw, width, height, scale, sys_status)
     return img
 
-
-# ─────────────────────────────────────────────────────────────
-#  Page 2: ACTIVITY
-# ─────────────────────────────────────────────────────────────
 
 def render_page_activity(width: int, height: int, sys_status: dict) -> "Image.Image":
     """Page 2: Activity log -- what IronSight is doing."""
@@ -289,10 +249,6 @@ def render_page_activity(width: int, height: int, sys_status: dict) -> "Image.Im
     return img
 
 
-# ─────────────────────────────────────────────────────────────
-#  Page 3: HEALTH
-# ─────────────────────────────────────────────────────────────
-
 def render_page_health(width: int, height: int, sys_status: dict) -> "Image.Image":
     """Page 3: System health details."""
     scale = min(width, height) / 320
@@ -363,10 +319,6 @@ def render_page_health(width: int, height: int, sys_status: dict) -> "Image.Imag
     return img
 
 
-# ─────────────────────────────────────────────────────────────
-#  Page 4: REGISTERS
-# ─────────────────────────────────────────────────────────────
-
 def render_page_registers(width: int, height: int, sys_status: dict) -> "Image.Image":
     """Page 4: Live DS register values."""
     scale = min(width, height) / 320
@@ -431,10 +383,6 @@ def render_page_registers(width: int, height: int, sys_status: dict) -> "Image.I
 
     return img
 
-
-# ─────────────────────────────────────────────────────────────
-#  Terminal fallback renderer
-# ─────────────────────────────────────────────────────────────
 
 def render_terminal(page: int, width: int = 55) -> None:
     """Render status to terminal with ANSI color."""
