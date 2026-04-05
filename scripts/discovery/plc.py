@@ -25,10 +25,6 @@ from discovery.modbus import (
 )
 
 
-# ─────────────────────────────────────────────────────────────
-#  Phase 4: Live Watch Mode (Reverse Engineering)
-# ─────────────────────────────────────────────────────────────
-
 def watch_registers(ip: str, port: int = 502, protocol: str = "modbus",
                     duration: int = 60, interval: float = 0.5) -> dict:
     """Watch registers in real-time to identify dynamic behavior.
@@ -217,9 +213,7 @@ def watch_registers(ip: str, port: int = 502, protocol: str = "modbus",
     }
 
 
-# ─────────────────────────────────────────────────────────────
-#  Phase 5: Report Generation
-# ─────────────────────────────────────────────────────────────
+# ── Report Generation ──
 
 def generate_report(ip: str, vendor: str, protocols: dict,
                     register_map: dict, watch_analysis: Optional[dict] = None,
@@ -339,19 +333,10 @@ def _build_briefing(ip: str, vendor: str, protocols: dict,
     return "\n".join(lines)
 
 
-# ─────────────────────────────────────────────────────────────
-#  Discovery Pipelines
-# ─────────────────────────────────────────────────────────────
+# ── Discovery Pipelines ──
 
 def full_discovery(subnet: Optional[str] = None) -> Optional[str]:
-    """Run the full discovery pipeline: scan -> probe -> sweep -> watch -> report.
-
-    Args:
-        subnet: Optional CIDR subnet to scan.
-
-    Returns:
-        Path to the briefing file, or None on failure.
-    """
+    """Run full discovery pipeline: scan -> probe -> sweep -> watch -> report."""
     banner()
     print(f"  Scanning network, looking for PLCs...\n")
 

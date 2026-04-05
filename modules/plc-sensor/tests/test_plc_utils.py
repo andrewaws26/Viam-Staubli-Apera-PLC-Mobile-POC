@@ -9,7 +9,8 @@ import pytest
 
 # Insert source directory so we can import module-internal symbols.
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-from plc_sensor import _serialise, _uint16, OfflineBuffer, _read_chat_queue
+from plc_utils import _serialise, _uint16, _read_chat_queue
+from plc_offline import OfflineBuffer
 
 
 # ---------------------------------------------------------------------------
@@ -189,7 +190,7 @@ class TestOfflineBuffer:
 class TestReadChatQueue:
     def test_returns_empty_when_file_missing(self, monkeypatch):
         monkeypatch.setattr(
-            "plc_sensor._CHAT_QUEUE_FILE", "/tmp/_test_nonexistent_queue.jsonl"
+            "plc_utils._CHAT_QUEUE_FILE", "/tmp/_test_nonexistent_queue.jsonl"
         )
         # Ensure file does not exist
         if os.path.exists("/tmp/_test_nonexistent_queue.jsonl"):
@@ -200,7 +201,7 @@ class TestReadChatQueue:
         queue_file = str(tmp_path / "queue.jsonl")
         with open(queue_file, "w") as f:
             pass  # empty file
-        monkeypatch.setattr("plc_sensor._CHAT_QUEUE_FILE", queue_file)
+        monkeypatch.setattr("plc_utils._CHAT_QUEUE_FILE", queue_file)
         assert _read_chat_queue() == []
 
     def test_parses_jsonl_lines(self, tmp_path, monkeypatch):
@@ -212,7 +213,7 @@ class TestReadChatQueue:
         with open(queue_file, "w") as f:
             for ev in events:
                 f.write(json.dumps(ev) + "\n")
-        monkeypatch.setattr("plc_sensor._CHAT_QUEUE_FILE", queue_file)
+        monkeypatch.setattr("plc_utils._CHAT_QUEUE_FILE", queue_file)
         result = _read_chat_queue()
         assert len(result) == 2
         assert result[0]["type"] == "voice"
@@ -222,7 +223,7 @@ class TestReadChatQueue:
         queue_file = str(tmp_path / "queue.jsonl")
         with open(queue_file, "w") as f:
             f.write(json.dumps({"ts": "now", "type": "voice"}) + "\n")
-        monkeypatch.setattr("plc_sensor._CHAT_QUEUE_FILE", queue_file)
+        monkeypatch.setattr("plc_utils._CHAT_QUEUE_FILE", queue_file)
         _read_chat_queue()
         # File should still exist but be empty (truncated, not deleted)
         assert os.path.exists(queue_file)
@@ -235,7 +236,7 @@ class TestReadChatQueue:
             f.write('{"good": true}\n')
             f.write("this is not json\n")
             f.write('{"also_good": true}\n')
-        monkeypatch.setattr("plc_sensor._CHAT_QUEUE_FILE", queue_file)
+        monkeypatch.setattr("plc_utils._CHAT_QUEUE_FILE", queue_file)
         result = _read_chat_queue()
         assert len(result) == 2
         assert result[0]["good"] is True
@@ -248,6 +249,6 @@ class TestReadChatQueue:
             f.write("\n")
             f.write("   \n")
             f.write('{"b": 2}\n')
-        monkeypatch.setattr("plc_sensor._CHAT_QUEUE_FILE", queue_file)
+        monkeypatch.setattr("plc_utils._CHAT_QUEUE_FILE", queue_file)
         result = _read_chat_queue()
         assert len(result) == 2

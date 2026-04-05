@@ -384,6 +384,8 @@ class J1939TruckSensor(Sensor):
         # Proprietary PGN capture
         self._prop_tracker: ProprietaryPGNTracker | None = None
         self._capture_proprietary = True
+        # Per-ECU DTC tracking
+        self._dtc_by_source: dict[int, list[dict]] = {}
         # State inference
         self._prev_speed: float = 0.0
         self._prev_accel_pedal: float = 0.0

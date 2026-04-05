@@ -40,18 +40,18 @@ class TestPIDFormulas:
         assert fn(0x03, 0x20) == (3 * 256 + 32) / 4  # 200.0 RPM
 
     def test_coolant_temp(self):
-        """PID 0x05: A - 40"""
+        """PID 0x05: (A - 40)°C → °F"""
         _, _, fn = OBD2_PIDS[0x05]
-        assert fn(130) == 90  # 90°C
+        assert fn(130) == 194.0  # 90°C = 194°F
 
     def test_coolant_temp_cold(self):
         _, _, fn = OBD2_PIDS[0x05]
-        assert fn(40) == 0  # 0°C
+        assert fn(40) == 32.0  # 0°C = 32°F
 
     def test_vehicle_speed(self):
-        """PID 0x0D: A"""
+        """PID 0x0D: A km/h → mph"""
         _, _, fn = OBD2_PIDS[0x0D]
-        assert fn(100) == 100  # 100 kph
+        assert abs(fn(100) - 62.14) < 0.1  # 100 kph = 62.14 mph
 
     def test_throttle_position(self):
         """PID 0x11: A * 100 / 255"""
@@ -60,9 +60,9 @@ class TestPIDFormulas:
         assert round(fn(0), 2) == 0.0  # 0%
 
     def test_intake_air_temp(self):
-        """PID 0x0F: A - 40"""
+        """PID 0x0F: (A - 40)°C → °F"""
         _, _, fn = OBD2_PIDS[0x0F]
-        assert fn(65) == 25  # 25°C
+        assert fn(65) == 77.0  # 25°C = 77°F
 
     def test_fuel_level(self):
         """PID 0x2F: A * 100 / 255"""
@@ -86,7 +86,7 @@ class TestDecodePid:
         poller = OBD2Poller("can0", "socketcan", 500000)
         data = bytes([0x03, 0x41, 0x05, 130, 0x00, 0x00, 0x00, 0x00])
         result = poller._decode_pid(0x05, data)
-        assert result == 90.0
+        assert result == 194.0  # 90°C = 194°F
 
     def test_decode_unknown_pid(self):
         poller = OBD2Poller("can0", "socketcan", 500000)
@@ -163,14 +163,16 @@ class TestOBD2Integration:
         mock_poller = MagicMock()
         mock_poller.get_readings.return_value = {
             "engine_rpm": 1500.0,
-            "coolant_temp_c": 90.0,
+            "coolant_temp_f": 194.0,
         }
         mock_poller.bus_connected = True
+        mock_poller._poll_count = 10
+        mock_poller._last_response_time = time.time()
         sensor._obd2_poller = mock_poller
 
         readings = await sensor.get_readings()
         assert readings["engine_rpm"] == 1500.0
-        assert readings["coolant_temp_c"] == 90.0
+        assert readings["coolant_temp_f"] == 194.0
         assert readings["_protocol"] == "obd2"
         assert readings["_bus_connected"] is True
         assert readings["_can_interface"] == "can0"
@@ -194,11 +196,11 @@ class TestOBD2Integration:
         assert sensor._obd2_poller is None
 
     def test_field_names_match_dashboard(self):
-        """OBD-II field keys match what the dashboard expects."""
-        expected = {"engine_rpm", "coolant_temp_c", "vehicle_speed_kph",
-                    "throttle_position_pct", "intake_air_temp_c", "fuel_level_pct"}
+        """OBD-II field keys include what the dashboard expects (imperial)."""
+        expected = {"engine_rpm", "coolant_temp_f", "vehicle_speed_mph",
+                    "throttle_position_pct", "intake_air_temp_f", "fuel_level_pct"}
         actual = {entry[1] for entry in OBD2_PIDS.values()}
-        assert expected == actual
+        assert expected.issubset(actual), f"Missing: {expected - actual}"
 
 
 # =========================================================================

@@ -22,15 +22,7 @@ from discovery.network import (
 
 
 def try_modbus(ip: str, port: int = 502) -> dict:
-    """Try Modbus TCP communication and read device identity.
-
-    Args:
-        ip: Target IP address.
-        port: Modbus TCP port (default 502).
-
-    Returns:
-        Dict with protocol, success flag, and data payload.
-    """
+    """Try Modbus TCP communication and read device identity."""
     print(f"\n  {BOLD}── Modbus TCP ({ip}:{port}) ──{RESET}")
     result: dict = {"protocol": "Modbus TCP", "success": False, "data": {}}
 
@@ -105,15 +97,7 @@ def try_modbus(ip: str, port: int = 502) -> dict:
 # ── Modbus Register Sweep ──
 
 def sweep_modbus(ip: str, port: int = 502) -> Dict[str, dict]:
-    """Sweep all Modbus register ranges to find populated addresses.
-
-    Args:
-        ip: Target IP address.
-        port: Modbus TCP port (default 502).
-
-    Returns:
-        Dict mapping register space names to {address: value} dicts.
-    """
+    """Sweep all Modbus register ranges to find populated addresses."""
     print(f"\n{BOLD}═══ Phase 3: Register Sweep (Modbus) — {ip}:{port} ═══{RESET}\n")
 
     client = ModbusTcpClient(ip, port=port, timeout=3)
@@ -130,20 +114,12 @@ def sweep_modbus(ip: str, port: int = 502) -> Dict[str, dict]:
 
     # Sweep holding registers in blocks
     log("Sweeping holding registers (FC03)...")
-    ranges = [
-        (0, 100, "Standard range"),
-        (100, 100, "Extended range 100-199"),
-        (200, 100, "Extended range 200-299"),
-        (500, 100, "Extended range 500-599"),
-        (1000, 100, "Range 1000-1099"),
-        (4000, 100, "Range 4000-4099"),
-        (4096, 100, "Range 4096-4195"),
-        (8192, 100, "Range 8192-8291"),
-        (16384, 10, "32-bit register range"),
-        (40000, 100, "Range 40000-40099"),
+    hr_ranges = [
+        (0, 100), (100, 100), (200, 100), (500, 100), (1000, 100),
+        (4000, 100), (4096, 100), (8192, 100), (16384, 10), (40000, 100),
     ]
 
-    for start, count, label in ranges:
+    for start, count in hr_ranges:
         try:
             r = client.read_holding_registers(address=start, count=count)
             if not r.isError():
@@ -215,14 +191,7 @@ def sweep_modbus(ip: str, port: int = 502) -> Dict[str, dict]:
 
 
 def read_all_modbus(client: ModbusTcpClient) -> dict:
-    """Read all Modbus register spaces for a single snapshot.
-
-    Args:
-        client: Connected ModbusTcpClient instance.
-
-    Returns:
-        Dict mapping register labels (e.g. "HR_0") to values.
-    """
+    """Read all Modbus register spaces for a single snapshot."""
     snap: dict = {}
     try:
         # Holding registers 0-99
@@ -276,15 +245,7 @@ def read_all_modbus(client: ModbusTcpClient) -> dict:
 # ── Mitsubishi MC Protocol (MELSEC Binary) ──
 
 def try_mc_protocol(ip: str, port: int = 5000) -> dict:
-    """Try Mitsubishi MC Protocol (MELSEC binary) communication.
-
-    Args:
-        ip: Target IP address.
-        port: MC Protocol port (default 5000).
-
-    Returns:
-        Dict with protocol, success flag, and data payload.
-    """
+    """Try Mitsubishi MC Protocol (MELSEC binary) communication."""
     print(f"\n  {BOLD}── MC Protocol / MELSEC ({ip}:{port}) ──{RESET}")
     result: dict = {"protocol": "MC Protocol (MELSEC)", "success": False, "data": {}}
 
@@ -356,17 +317,7 @@ def try_mc_protocol(ip: str, port: int = 5000) -> dict:
 
 def mc_read_device(sock: socket.socket, device_code_byte: int,
                    start: int, count: int) -> List[int]:
-    """Read registers via MC Protocol.
-
-    Args:
-        sock: Connected TCP socket to the PLC.
-        device_code_byte: Mitsubishi device code byte.
-        start: Starting address.
-        count: Number of points to read.
-
-    Returns:
-        List of register values, or empty list on failure.
-    """
+    """Read registers via MC Protocol. Returns list of values or empty list."""
     subheader = struct.pack("<H", 0x0050)
     route = struct.pack("<BBHB", 0x00, 0xFF, 0x03FF, 0x00)
     timer = struct.pack("<H", 0x000A)
@@ -394,15 +345,7 @@ def mc_read_device(sock: socket.socket, device_code_byte: int,
 
 
 def sweep_mc_protocol(ip: str, port: int = 5000) -> Dict[str, dict]:
-    """Sweep Mitsubishi MC Protocol device memory.
-
-    Args:
-        ip: Target IP address.
-        port: MC Protocol port (default 5000).
-
-    Returns:
-        Dict mapping device names to {address: value} dicts.
-    """
+    """Sweep Mitsubishi MC Protocol device memory."""
     print(f"\n{BOLD}═══ Phase 3: Register Sweep (MC Protocol) — {ip}:{port} ═══{RESET}\n")
 
     register_map: Dict[str, dict] = {}
@@ -486,14 +429,7 @@ def sweep_mc_protocol(ip: str, port: int = 5000) -> Dict[str, dict]:
 
 
 def read_all_mc(sock: socket.socket) -> dict:
-    """Read all Mitsubishi device memory via MC Protocol for a single snapshot.
-
-    Args:
-        sock: Connected TCP socket to the PLC.
-
-    Returns:
-        Dict mapping device labels (e.g. "D0") to values.
-    """
+    """Read all Mitsubishi device memory via MC Protocol for a single snapshot."""
     snap: dict = {}
     for dev_name in ["D", "W", "T", "C", "SD"]:
         dev_code = MITSUB_DEVICES[dev_name][0]

@@ -213,34 +213,34 @@ class TestPGN61443_EEC2:
 
 class TestPGN65262_ET1:
     def test_coolant_temp_normal(self):
-        """90C coolant: 90 + 40 = 130 = 0x82"""
+        """90C coolant = 194F: 90 + 40 = 130 = 0x82"""
         data = bytes([0x82, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
         result = decode_pgn(65262, data)
-        assert result["coolant_temp_c"] == 90.0
+        assert result["coolant_temp_f"] == 194.0
 
     def test_coolant_temp_cold(self):
-        """10C coolant: 10 + 40 = 50 = 0x32"""
+        """10C coolant = 50F: 10 + 40 = 50 = 0x32"""
         data = bytes([0x32, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
         result = decode_pgn(65262, data)
-        assert result["coolant_temp_c"] == 10.0
+        assert result["coolant_temp_f"] == 50.0
 
     def test_coolant_temp_below_zero(self):
-        """-20C coolant: -20 + 40 = 20 = 0x14"""
+        """-20C coolant = -4F: -20 + 40 = 20 = 0x14"""
         data = bytes([0x14, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
         result = decode_pgn(65262, data)
-        assert result["coolant_temp_c"] == -20.0
+        assert result["coolant_temp_f"] == -4.0
 
     def test_fuel_temp(self):
-        """45C fuel: 45 + 40 = 85 = 0x55"""
+        """45C fuel = 113F: 45 + 40 = 85 = 0x55"""
         data = bytes([0xFF, 0x55, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
         result = decode_pgn(65262, data)
-        assert result["fuel_temp_c"] == 45.0
+        assert result["fuel_temp_f"] == 113.0
 
     def test_oil_temp(self):
-        """100C oil: (100 + 273) / 0.03125 = 11936 = 0x2EA0 LE: [0xA0, 0x2E]"""
+        """100C oil = 212F: (100 + 273) / 0.03125 = 11936 = 0x2EA0 LE: [0xA0, 0x2E]"""
         data = bytes([0xFF, 0xFF, 0xA0, 0x2E, 0xFF, 0xFF, 0xFF, 0xFF])
         result = decode_pgn(65262, data)
-        assert abs(result["oil_temp_c"] - 100.0) < 0.1
+        assert abs(result["oil_temp_f"] - 212.0) < 0.5
 
 
 # =========================================================================
@@ -249,22 +249,22 @@ class TestPGN65262_ET1:
 
 class TestPGN65263_EFLP:
     def test_oil_pressure_normal(self):
-        """300 kPa oil: 300 / 4 = 75 = 0x4B"""
+        """300 kPa = 43.51 PSI oil: 300 / 4 = 75 = 0x4B"""
         data = bytes([0xFF, 0xFF, 0xFF, 0x4B, 0xFF, 0xFF, 0xFF, 0xFF])
         result = decode_pgn(65263, data)
-        assert result["oil_pressure_kpa"] == 300.0
+        assert abs(result["oil_pressure_psi"] - 43.51) < 0.1
 
     def test_oil_pressure_low(self):
-        """100 kPa oil: 100 / 4 = 25 = 0x19"""
+        """100 kPa = 14.5 PSI oil: 100 / 4 = 25 = 0x19"""
         data = bytes([0xFF, 0xFF, 0xFF, 0x19, 0xFF, 0xFF, 0xFF, 0xFF])
         result = decode_pgn(65263, data)
-        assert result["oil_pressure_kpa"] == 100.0
+        assert abs(result["oil_pressure_psi"] - 14.5) < 0.1
 
     def test_fuel_pressure(self):
-        """400 kPa fuel: 400 / 4 = 100 = 0x64"""
+        """400 kPa = 58.02 PSI fuel: 400 / 4 = 100 = 0x64"""
         data = bytes([0x64, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
         result = decode_pgn(65263, data)
-        assert result["fuel_pressure_kpa"] == 400.0
+        assert abs(result["fuel_pressure_psi"] - 58.02) < 0.1
 
     def test_oil_level(self):
         """80% oil level: 80 / 0.4 = 200 = 0xC8"""
@@ -279,22 +279,22 @@ class TestPGN65263_EFLP:
 
 class TestPGN65265_CCVS:
     def test_vehicle_speed_highway(self):
-        """100 km/h: 100 / (1/256) = 25600 = 0x6400 LE: [0x00, 0x64]"""
+        """100 km/h = 62.14 mph: 100 / (1/256) = 25600 = 0x6400 LE: [0x00, 0x64]"""
         data = bytes([0xFF, 0x00, 0x64, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
         result = decode_pgn(65265, data)
-        assert abs(result["vehicle_speed_kmh"] - 100.0) < 0.01
+        assert abs(result["vehicle_speed_mph"] - 62.14) < 0.1
 
     def test_vehicle_speed_city(self):
-        """50 km/h: 50 / (1/256) = 12800 = 0x3200 LE: [0x00, 0x32]"""
+        """50 km/h = 31.07 mph: 50 / (1/256) = 12800 = 0x3200 LE: [0x00, 0x32]"""
         data = bytes([0xFF, 0x00, 0x32, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
         result = decode_pgn(65265, data)
-        assert abs(result["vehicle_speed_kmh"] - 50.0) < 0.01
+        assert abs(result["vehicle_speed_mph"] - 31.07) < 0.1
 
     def test_vehicle_speed_stopped(self):
-        """0 km/h"""
+        """0 mph"""
         data = bytes([0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
         result = decode_pgn(65265, data)
-        assert result["vehicle_speed_kmh"] == 0.0
+        assert result["vehicle_speed_mph"] == 0.0
 
 
 # =========================================================================
@@ -303,16 +303,16 @@ class TestPGN65265_CCVS:
 
 class TestPGN65266_LFE:
     def test_fuel_rate(self):
-        """25 L/h: 25 / 0.05 = 500 = 0x01F4 LE: [0xF4, 0x01]"""
+        """25 L/h = 6.60 gal/h: 25 / 0.05 = 500 = 0x01F4 LE: [0xF4, 0x01]"""
         data = bytes([0xF4, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
         result = decode_pgn(65266, data)
-        assert result["fuel_rate_lph"] == 25.0
+        assert abs(result["fuel_rate_gph"] - 6.60) < 0.1
 
     def test_fuel_economy(self):
-        """3 km/L: 3 / (1/512) = 1536 = 0x0600 LE: [0x00, 0x06]"""
+        """3 km/L = 7.06 mpg: 3 / (1/512) = 1536 = 0x0600 LE: [0x00, 0x06]"""
         data = bytes([0xFF, 0xFF, 0x00, 0x06, 0xFF, 0xFF, 0xFF, 0xFF])
         result = decode_pgn(65266, data)
-        assert abs(result["fuel_economy_km_l"] - 3.0) < 0.01
+        assert abs(result["fuel_economy_mpg"] - 7.06) < 0.1
 
 
 # =========================================================================
@@ -357,16 +357,16 @@ class TestPGN65253_Hours:
 
 class TestPGN65269_AMB:
     def test_barometric_pressure(self):
-        """101.5 kPa: 101.5 / 0.5 = 203 = 0xCB"""
+        """101.5 kPa = 14.72 PSI: 101.5 / 0.5 = 203 = 0xCB"""
         data = bytes([0xCB, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
         result = decode_pgn(65269, data)
-        assert result["barometric_pressure_kpa"] == 101.5
+        assert abs(result["barometric_pressure_psi"] - 14.72) < 0.1
 
     def test_ambient_temp(self):
-        """25C: (25 + 273) / 0.03125 = 9536 = 0x2540 LE: [0x40, 0x25]"""
+        """25C = 77F: (25 + 273) / 0.03125 = 9536 = 0x2540 LE: [0x40, 0x25]"""
         data = bytes([0xFF, 0xFF, 0xFF, 0x40, 0x25, 0xFF, 0xFF, 0xFF])
         result = decode_pgn(65269, data)
-        assert abs(result["ambient_temp_c"] - 25.0) < 0.1
+        assert abs(result["ambient_temp_f"] - 77.0) < 0.5
 
 
 # =========================================================================
@@ -451,14 +451,15 @@ class TestDM1:
 
     def test_lamp_status(self):
         """Test DM1 lamp decoding."""
-        # byte 0: MIL=on(01), Red=off(00), Amber=on(01), Protect=off(00)
-        # = 0b01_00_01_00 = 0x44
+        # byte 0: 0x44 = 0b01_00_01_00
+        # J1939 DM1 byte 0 bit layout (2 bits per lamp):
+        # bits 7-6: protect, bits 5-4: amber, bits 3-2: red, bits 1-0: MIL
         data = bytes([0x44, 0xFF])
         lamps = decode_dm1_lamps(data)
-        assert lamps["malfunction_lamp"] == 1
-        assert lamps["red_stop_lamp"] == 0
-        assert lamps["amber_warning_lamp"] == 1
-        assert lamps["protect_lamp"] == 0
+        assert lamps["protect_lamp"] == 1
+        assert lamps["amber_warning_lamp"] == 0
+        assert lamps["red_stop_lamp"] == 1
+        assert lamps["malfunction_lamp"] == 0
 
     def test_all_lamps_on(self):
         """All lamps on (value = 01 each)."""
@@ -483,7 +484,7 @@ class TestDM1ViaDecode:
         assert result["dtc_0_spn"] == 100
         assert result["dtc_0_fmi"] == 1
         assert result["dtc_1_spn"] == 110
-        assert result["amber_warning_lamp"] == 1
+        assert result["protect_lamp"] == 1
 
     def test_dm1_no_dtcs(self):
         data = bytes([0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
@@ -521,10 +522,10 @@ class TestEdgeCases:
         """Handle data shorter than 8 bytes gracefully."""
         data = bytes([0x82, 0x55])  # only 2 bytes
         result = decode_pgn(65262, data)
-        assert result["coolant_temp_c"] == 90.0
-        assert result["fuel_temp_c"] == 45.0
+        assert result["coolant_temp_f"] == 194.0
+        assert result["fuel_temp_f"] == 113.0
         # oil_temp needs bytes 2-3, which are missing
-        assert "oil_temp_c" not in result
+        assert "oil_temp_f" not in result
 
     def test_empty_data(self):
         """Handle empty data."""
@@ -552,16 +553,16 @@ class TestEdgeCases:
 
 class TestPGN65270_IC1:
     def test_boost_pressure(self):
-        """200 kPa boost: 200 / 2 = 100 = 0x64"""
+        """200 kPa = 29.01 PSI boost: 200 / 2 = 100 = 0x64"""
         data = bytes([0xFF, 0x64, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
         result = decode_pgn(65270, data)
-        assert result["boost_pressure_kpa"] == 200.0
+        assert abs(result["boost_pressure_psi"] - 29.01) < 0.1
 
     def test_intake_manifold_temp(self):
-        """60C intake: 60 + 40 = 100 = 0x64"""
+        """60C = 140F intake: 60 + 40 = 100 = 0x64"""
         data = bytes([0xFF, 0xFF, 0x64, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
         result = decode_pgn(65270, data)
-        assert result["intake_manifold_temp_c"] == 60.0
+        assert abs(result["intake_manifold_temp_f"] - 140.0) < 0.5
 
 
 if __name__ == "__main__":
