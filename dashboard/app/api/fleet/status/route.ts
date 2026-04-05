@@ -42,12 +42,18 @@ const RESOURCE_SUBTYPE = "rdk:component:sensor";
 const METHOD_NAME = "Readings";
 const DATA_WINDOW_SECONDS = 300; // 5-minute lookback
 
+function getCachedClient(): CachedViamClient | null {
+  return _viamClient;
+}
+
 async function getDataClient(): Promise<CachedViamClient["dataClient"]> {
-  if (_viamClient) return _viamClient.dataClient;
+  const existing = getCachedClient();
+  if (existing) return existing.dataClient;
 
   if (_connecting) {
     await new Promise((r) => setTimeout(r, 500));
-    if (_viamClient) return _viamClient.dataClient;
+    const retried = getCachedClient();
+    if (retried) return retried.dataClient;
     throw new Error("Connection in progress");
   }
 
