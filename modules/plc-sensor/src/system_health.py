@@ -117,4 +117,50 @@ def get_system_health() -> dict:
     except Exception:
         health["uptime_seconds"] = None
 
+    # Viam data capture sync status
+    try:
+        import time as _time
+        # viam-server runs as root but capture dir is under the andrew user home
+        capture_dir = "/home/andrew/.viam/capture"
+        failed_dir = os.path.join(capture_dir, "failed")
+        pending_count = 0
+        pending_bytes = 0
+        oldest_ts = None
+        now = _time.time()
+
+        if os.path.isdir(capture_dir):
+            for root, _dirs, files in os.walk(capture_dir):
+                # Skip the failed subdirectory
+                if root.startswith(failed_dir):
+                    continue
+                for f in files:
+                    if f.endswith(".prog") or f.endswith(".capture"):
+                        pending_count += 1
+                        fpath = os.path.join(root, f)
+                        try:
+                            st = os.stat(fpath)
+                            pending_bytes += st.st_size
+                            if oldest_ts is None or st.st_mtime < oldest_ts:
+                                oldest_ts = st.st_mtime
+                        except OSError:
+                            pass
+
+        failed_count = 0
+        if os.path.isdir(failed_dir):
+            for root, _dirs, files in os.walk(failed_dir):
+                failed_count += len(files)
+
+        health["sync_pending_files"] = pending_count
+        health["sync_pending_mb"] = round(pending_bytes / (1024 * 1024), 2)
+        health["sync_oldest_age_min"] = (
+            round((now - oldest_ts) / 60, 1) if oldest_ts else 0
+        )
+        health["sync_failed_files"] = failed_count
+        health["sync_ok"] = pending_count < 10 and (
+            oldest_ts is None or (now - oldest_ts) < 300
+        )
+    except Exception:
+        health["sync_pending_files"] = None
+        health["sync_ok"] = None
+
     return health

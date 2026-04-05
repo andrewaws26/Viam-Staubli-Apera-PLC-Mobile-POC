@@ -98,7 +98,7 @@ def _read_chat_queue() -> list:
                 try:
                     events.append(json.loads(line))
                 except json.JSONDecodeError:
-                    pass
+                    LOGGER.debug("Failed to parse chat queue line")
         return events
     except Exception:
         return []
@@ -359,7 +359,7 @@ class ConnectionQualityMonitor:
                     if key in error_keys:
                         stats[key] = int(val.strip())
         except Exception:
-            pass
+            LOGGER.debug("Failed to read ethtool stats for %s", self._iface)
         return stats
 
     def _current_state(self) -> Dict[str, Any]:
@@ -717,7 +717,7 @@ class PlcSensor(Sensor):
             try:
                 self.client.close()
             except Exception:
-                pass
+                LOGGER.debug("Failed to close Modbus client")
             self.client = None
 
     def _ensure_connected(self) -> bool:
@@ -938,7 +938,7 @@ class PlcSensor(Sensor):
                     enc_lo = _uint16(enc_result.registers[0])
                     enc_hi = _uint16(enc_result.registers[1])
             except Exception:
-                pass
+                LOGGER.debug("Failed to read encoder DD1 registers")
             encoder_count = (enc_hi << 16) | enc_lo
             if encoder_count > 0x7FFFFFFF:
                 encoder_count -= 0x100000000
@@ -1071,7 +1071,7 @@ class PlcSensor(Sensor):
                 if not cb_result.isError():
                     c_app_bits = list(cb_result.bits[:34])
             except Exception:
-                pass
+                LOGGER.debug("Failed to read C-bits application coils")
 
             # Derived operating mode name from mutually-exclusive C-bits
             _mode_map = [
@@ -1094,7 +1094,7 @@ class PlcSensor(Sensor):
                     td5_laying = (td_result.registers[9] << 16) | td_result.registers[8]
                     td6_travel = (td_result.registers[11] << 16) | td_result.registers[10]
             except Exception:
-                pass
+                LOGGER.debug("Failed to read TD timer registers")
 
             # ── Modbus elapsed time ──
             _modbus_elapsed_ms = (time.time() - _modbus_start) * 1000
@@ -1359,7 +1359,7 @@ class PlcSensor(Sensor):
             if not di.isError():
                 tps_on = bool(di.bits[3])  # X4
         except Exception:
-            pass
+            LOGGER.debug("Failed to read TPS power state from discrete inputs")
 
         if action == "test_eject":
             output = command.get("output", "Y1").upper()
@@ -1802,7 +1802,7 @@ class PlcSensor(Sensor):
         try:
             result.update(get_system_health())
         except Exception:
-            pass  # health data is optional
+            LOGGER.debug("Failed to collect system health for do_command result")
         return result
 
     async def close(self):

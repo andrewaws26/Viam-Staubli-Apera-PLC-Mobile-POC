@@ -232,7 +232,7 @@ class ProprietaryPGNTracker:
                 total -= size
                 LOGGER.info("Proprietary log pruned %s (%.1f KB)", oldest, size / 1024)
         except Exception:
-            pass
+            LOGGER.debug("Failed to prune proprietary log files")
 
     def get_summary(self) -> dict[str, Any]:
         """Return summary stats for get_readings() — lightweight."""
@@ -695,7 +695,7 @@ class J1939TruckSensor(Sensor):
                     try:
                         bus.shutdown()
                     except Exception:
-                        pass
+                        LOGGER.debug("Failed to shutdown CAN bus after bitrate probe")
 
             if found:
                 old = self._current_bitrate
@@ -962,7 +962,7 @@ class J1939TruckSensor(Sensor):
                 if vin and len(vin) >= 10:
                     return vin
         except (OSError, json.JSONDecodeError, ValueError):
-            pass
+            LOGGER.debug("Failed to load VIN cache from disk")
         return None
 
     def _save_vin_cache(self):
@@ -1071,7 +1071,7 @@ class J1939TruckSensor(Sensor):
                 try:
                     bus.shutdown()
                 except Exception:
-                    pass
+                    LOGGER.debug("Failed to shutdown CAN bus after PID discovery")
 
     def _run_pgn_discovery(self, profile: VehicleProfile):
         """Discover broadcast PGNs by listening passively for 60 seconds."""
@@ -1110,7 +1110,7 @@ class J1939TruckSensor(Sensor):
                 try:
                     bus.shutdown()
                 except Exception:
-                    pass
+                    LOGGER.debug("Failed to shutdown CAN bus after PGN discovery")
 
     def _apply_profile(self, profile: VehicleProfile):
         """Apply discovered capabilities to the running protocol handler."""
@@ -1158,7 +1158,7 @@ class J1939TruckSensor(Sensor):
             try:
                 self._bus.shutdown()
             except Exception:
-                pass
+                LOGGER.debug("Failed to shutdown CAN bus in stop_listener")
             self._bus = None
 
     def _maybe_check_redetect(self):
@@ -1616,7 +1616,7 @@ class J1939TruckSensor(Sensor):
             try:
                 minimal.update(get_system_health())
             except Exception:
-                pass
+                LOGGER.debug("Failed to collect system health for minimal readings")
             return minimal
 
         # ---------------------------------------------------------------
@@ -1754,7 +1754,7 @@ class J1939TruckSensor(Sensor):
         try:
             readings.update(get_system_health())
         except Exception:
-            pass  # health data is optional
+            LOGGER.debug("Failed to collect system health for readings")
 
         # Ensure core fields exist for both protocols (dashboard expects these)
         core_fields = [
@@ -2018,9 +2018,9 @@ class J1939TruckSensor(Sensor):
                                     if len(all_points) >= 3600:
                                         break
                             except (json.JSONDecodeError, ValueError):
-                                pass
+                                LOGGER.debug("Failed to parse offline buffer JSON line")
                 except OSError:
-                    pass
+                    LOGGER.debug("Failed to read offline buffer file: %s", path)
 
         if not all_points:
             return {"totalPoints": 0, "source": "offline-buffer", "summary": None}

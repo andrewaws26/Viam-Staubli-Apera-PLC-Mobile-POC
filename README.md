@@ -14,7 +14,7 @@ All data comes directly from the Click PLC C0-10DD2E-D ladder logic — no simul
 | **Discrete Inputs** (X1-X8) | TPS power loop, camera signal, Air Eagle 1/2/3 feedback |
 | **Output Coils** (Y1-Y3) | Eject TPS-1, Eject Left TPS-2, Eject Right TPS-2 |
 | **Internal Coils** (C1999-C2000) | Encoder reset, floating zero |
-| **DS Registers** (DS1-DS14) | Encoder ignore, tie spacing, detector offset, and more |
+| **DS Registers** (DS1-DS25) | Encoder ignore, tie spacing, plate count, detector offset, HMI control, and more |
 | **Derived** | Plates per minute (rolling 60s window), plate drop count, encoder enabled state |
 
 ## What It Does NOT Collect
