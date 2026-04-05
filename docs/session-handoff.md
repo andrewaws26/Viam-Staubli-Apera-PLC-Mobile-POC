@@ -2,7 +2,7 @@
 
 **Date**: 2026-04-05
 **Branch**: `claude/code-review-suggestions-RiQah`
-**Status**: In progress — Wave 2 (file splits) running, Waves 3-4 pending
+**Status**: Waves 1-4 mostly complete. 3 file split agents may still be running. See "Remaining" below.
 
 ## What's Done (Committed & Pushed)
 
@@ -30,12 +30,27 @@
 6. **Lamp indicators**: Added check engine/MIL/amber/red/protect badges to TruckPanel header
 7. **AGENTS.md**: Created comprehensive agent development guide
 
-### Wave 2 — File Splits (In Progress)
-Agents launched for:
-- [ ] `pgn_decoder.py` (1,018 lines) → pgn_utils.py + pgn_dm1.py + pgn_decoder.py
-- [ ] `shift-report/page.tsx` (1,111 lines) → types.ts + utils/ + components/
-- [ ] `DevTPSPanel.tsx` (999 lines) → TPS/ directory with sub-components
-- [ ] `plc_sensor.py` (1,827 lines) → plc_utils.py + plc_offline.py + plc_metrics.py + plc_weather.py
+### Wave 2 — File Splits
+- [x] `shift-report/page.tsx` (1,111 → 415 lines) + 10 extracted sub-modules
+- [x] `plc_sensor.py` sub-modules extracted: plc_utils.py, plc_offline.py, plc_metrics.py, plc_weather.py
+- [x] `pgn_decoder.py` sub-modules extracted: pgn_utils.py, pgn_dm1.py
+- [x] `DevTPSPanel.tsx` sub-components extracted: TPS/TPSFields.ts, TPSSimulator.tsx, TPSRegisterTable.tsx, TPSDiagnosticsPanel.tsx
+- **NOTE**: Parent files (plc_sensor.py, pgn_decoder.py, DevTPSPanel.tsx) may not yet be updated to import from extracted modules — split agents were still running at session end. Check if parent files still contain the code that was extracted.
+
+### Wave 4 — Features (Done)
+- [x] **PWA**: manifest.json + service worker (cache-first static, stale-while-revalidate API) + iOS meta tags
+- [x] **Auth scaffold**: middleware.ts (no-op until Clerk installed), lib/auth.ts (RBAC matrix), sign-in page placeholder
+- [x] **Fleet overview**: /fleet page with truck status cards + /api/fleet/status route
+- [x] **DTC clearing fix**: Interface toggle (listen-only → normal → send DM11 → restore), 0xF9 source address, DM12 confirmation, audit logging, try/finally safety
+- [x] **Middleware fix**: Commented out Clerk imports so build passes without @clerk/nextjs
+
+### Test Infrastructure (Done)
+- [x] **Playwright E2E**: 18 tests across 3 suites (dashboard, truck-panel, fleet) with route interception mocking
+- [x] **Python integration tests**: 25 diagnostic integration tests + 31 PGN decode tests
+- [x] **Mock fixtures**: CAN bus mocks, Modbus mocks, realistic sensor data factories
+- [x] **Test runner**: scripts/run-all-tests.sh
+- [x] **Total**: 180 Python tests pass, 18 Playwright tests configured
+- [x] **.gitignore**: Playwright report/results dirs excluded
 
 ## What's NOT Done Yet
 
