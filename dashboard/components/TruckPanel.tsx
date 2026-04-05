@@ -705,6 +705,35 @@ ${aiSummary ? `<h2>AI Vehicle Health Summary</h2><div style="white-space:pre-wra
             HARSH EVENT
           </span>
         )}
+
+        {/* Lamp Indicator Badges — always visible when active */}
+        {(readings?.malfunction_lamp as number) > 0 && (
+          <span className="px-2 py-1 rounded-full text-xs font-bold bg-yellow-600 text-white animate-pulse shadow-lg shadow-yellow-600/30">
+            CHECK ENGINE
+          </span>
+        )}
+        {(readings?.amber_warning_lamp as number) > 0 && (
+          <span className="px-2 py-1 rounded-full text-xs font-bold bg-amber-500 text-white animate-pulse shadow-lg shadow-amber-500/30">
+            WARNING
+          </span>
+        )}
+        {(readings?.red_stop_lamp as number) > 0 && (
+          <span className="px-2 py-1 rounded-full text-xs font-bold bg-red-600 text-white animate-pulse shadow-lg shadow-red-600/30">
+            STOP
+          </span>
+        )}
+        {(readings?.protect_lamp as number) > 0 && (
+          <span className="px-2 py-1 rounded-full text-xs font-bold bg-orange-500 text-white animate-pulse shadow-lg shadow-orange-500/30">
+            PROTECT
+          </span>
+        )}
+
+        {/* DTC flash alert — appears briefly when DTCs first appear */}
+        {dtcFlash && (
+          <span className="px-2 py-1 rounded-full text-xs font-bold bg-red-500 text-white animate-bounce shadow-lg shadow-red-500/50">
+            NEW DTC DETECTED
+          </span>
+        )}
       </div>
 
       {/* Live Map */}

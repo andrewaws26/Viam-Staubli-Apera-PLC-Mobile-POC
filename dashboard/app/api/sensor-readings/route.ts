@@ -141,6 +141,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (err) {
     _viamClient = null;
+    console.error("[API-ERROR]", "/api/sensor-readings", err);
     return NextResponse.json(
       { error: "sensor_read_failed", message: err instanceof Error ? err.message : String(err) },
       { status: 502 },

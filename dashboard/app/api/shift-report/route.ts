@@ -580,6 +580,8 @@ export async function GET(request: NextRequest) {
     ({ start, end } = timeBounds(dateStr, sh, sm, eh, em));
   }
 
+  const startTime_timer = Date.now();
+
   try {
     const dc = await getDataClient();
 
@@ -601,11 +603,13 @@ export async function GET(request: NextRequest) {
       ? "public, max-age=3600, s-maxage=3600"
       : "public, max-age=60, s-maxage=60";
 
+    console.log("[API-TIMING]", "/api/shift-report", Date.now() - startTime_timer, "ms");
     return NextResponse.json(report, {
       headers: { "Cache-Control": cacheControl },
     });
   } catch (err) {
     _viamClient = null;
+    console.error("[API-ERROR]", "/api/shift-report", err);
     return NextResponse.json(
       { error: "shift_report_failed", message: err instanceof Error ? err.message : String(err) },
       { status: 502 },

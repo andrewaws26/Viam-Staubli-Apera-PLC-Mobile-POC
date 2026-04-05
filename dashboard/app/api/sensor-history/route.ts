@@ -446,6 +446,7 @@ export async function GET(request: NextRequest) {
     // Reset client on connection errors so the next request retries
     _viamClient = null;
 
+    console.error("[API-ERROR]", "/api/sensor-history", err);
     return NextResponse.json(
       {
         error: "data_query_failed",

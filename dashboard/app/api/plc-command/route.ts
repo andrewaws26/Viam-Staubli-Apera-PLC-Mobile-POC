@@ -70,6 +70,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const startTime = Date.now();
   let fleetClient: RobotClient | null = null;
 
   try {
@@ -94,9 +95,11 @@ export async function POST(request: NextRequest) {
     const sensor = new SensorClient(client, "plc-monitor");
     const result = await sensor.doCommand({ action, ...params });
 
+    console.log("[API-TIMING]", "/api/plc-command", Date.now() - startTime, "ms");
     return NextResponse.json(result);
   } catch (err) {
     if (!truckId) _client = null;
+    console.error("[API-ERROR]", "/api/plc-command", err);
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
       { error: "command_failed", message: msg },

@@ -189,6 +189,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (err) {
     _viamClient = null;
+    console.error("[API-ERROR]", "/api/pi-health", err);
     return NextResponse.json({
       hostname: config.hostname,
       online: false,

@@ -69,6 +69,19 @@ _DEFAULT_BUFFER_MAX_MB = 50.0
 # VIN cache — persists last successful VIN read across restarts
 _VIN_CACHE_PATH = "/home/andrew/.viam/last-vin.json"
 
+# J1939 source address → human suffix mapping for DTC and lamp namespacing.
+# Pre-2013 Mack/Volvo trucks may only broadcast from SA 0x00 (engine) and
+# SA 0x3D (aftertreatment). The code is tolerant of missing SAs — readings
+# only get populated when frames actually arrive on the bus.
+_SA_SUFFIX = {
+    0x00: "engine",
+    0x03: "trans",
+    0x0B: "abs",
+    0x17: "inst",
+    0x21: "body",
+    0x3D: "acm",
+}
+
 
 def _serialise(value: Any) -> Any:
     """Make a value JSON-safe."""
@@ -511,6 +524,7 @@ class J1939TruckSensor(Sensor):
         # Reset readings
         with self._readings_lock:
             self._readings = {}
+            self._dtc_by_source = {}  # SA -> list of DTC dicts, for per-ECU tracking
             self._frame_count = 0
 
         # Bitrate auto-negotiation on startup
@@ -814,6 +828,7 @@ class J1939TruckSensor(Sensor):
         # Reset readings for clean start
         with self._readings_lock:
             self._readings = {}
+            self._dtc_by_source = {}
             self._frame_count = 0
         self._last_any_frame_time = 0
         self._obd2_bus_lost_time = 0
@@ -1254,6 +1269,7 @@ class J1939TruckSensor(Sensor):
         # Reset readings for clean protocol start
         with self._readings_lock:
             self._readings = {}
+            self._dtc_by_source = {}
             self._frame_count = 0
 
         # Start new protocol handler
@@ -1369,19 +1385,21 @@ class J1939TruckSensor(Sensor):
 
                         self._readings[f"pgn_{pgn}_source_addr"] = sa
 
-                        # Per-ECU DM1 lamp tracking for aftertreatment diagnostics
+                        # Per-ECU DM1 lamp and DTC tracking.
+                        # Pre-2013 trucks may only broadcast from SA 0x00
+                        # and SA 0x3D; other SAs are silently ignored if absent.
                         if pgn == 65226:
                             lamps = decode_dm1_lamps(msg.data)
-                            if sa == 0x00:  # Engine ECM
-                                self._readings["protect_lamp_engine"] = lamps.get("protect_lamp", 0)
-                                self._readings["red_stop_lamp_engine"] = lamps.get("red_stop_lamp", 0)
-                                self._readings["amber_lamp_engine"] = lamps.get("amber_warning_lamp", 0)
-                                self._readings["mil_engine"] = lamps.get("malfunction_lamp", 0)
-                            elif sa == 0x3D:  # Aftertreatment ACM
-                                self._readings["protect_lamp_acm"] = lamps.get("protect_lamp", 0)
-                                self._readings["red_stop_lamp_acm"] = lamps.get("red_stop_lamp", 0)
-                                self._readings["amber_lamp_acm"] = lamps.get("amber_warning_lamp", 0)
-                                self._readings["mil_acm"] = lamps.get("malfunction_lamp", 0)
+                            suffix = _SA_SUFFIX.get(sa)
+                            if suffix:
+                                self._readings[f"protect_lamp_{suffix}"] = lamps.get("protect_lamp", 0)
+                                self._readings[f"red_stop_lamp_{suffix}"] = lamps.get("red_stop_lamp", 0)
+                                self._readings[f"amber_lamp_{suffix}"] = lamps.get("amber_warning_lamp", 0)
+                                self._readings[f"mil_{suffix}"] = lamps.get("malfunction_lamp", 0)
+                            # Single-frame DM1 DTCs are in `decoded`
+                            # (from decode_can_frame → pgn_decoder).
+                            # Namespace them per-source and recompute combined count.
+                            self._apply_namespaced_dtcs(sa, decoded)
 
             except Exception as e:
                 if self._running:

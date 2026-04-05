@@ -1692,7 +1692,7 @@ class PlcSensor(Sensor):
                     step["status"] = "error"
                     step["message"] = str(e)
                     errors.append(f"{coil_name}: {e}")
-                    LOGGER.error("PROVISION: %s write failed: %s", coil_name, e)
+                    LOGGER.error("PROVISION: %s write failed: %s", coil_name, e, exc_info=True)
 
                 steps.append(step)
 
