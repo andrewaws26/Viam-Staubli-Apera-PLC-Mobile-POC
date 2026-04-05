@@ -20,38 +20,56 @@ Viam-Staubli-Apera-PLC-Mobile-POC/
 |-- modules/                    # Viam sensor modules (Python, run on Raspberry Pi)
 |   |-- plc-sensor/             # TPS PLC monitoring via Modbus TCP
 |   |   |-- src/
-|   |   |   |-- plc_sensor.py       # Main Viam Sensor class (~1800 lines, NEEDS SPLIT)
+|   |   |   |-- plc_sensor.py       # Main Viam Sensor class (1300 lines, needs further split)
+|   |   |   |-- plc_utils.py        # Helpers: _serialise, _uint16, _read_chat_queue (59 lines)
+|   |   |   |-- plc_offline.py      # OfflineBuffer JSONL persistence (72 lines)
+|   |   |   |-- plc_metrics.py      # ConnectionQualityMonitor + SignalMetrics (365 lines)
+|   |   |   |-- plc_weather.py      # _LocationWeatherCache (90 lines)
 |   |   |   |-- diagnostics.py      # 19-rule diagnostic engine (532 lines)
 |   |   |   +-- system_health.py    # Pi health metrics (166 lines)
-|   |   +-- tests/
-|   |       |-- test_diagnostics.py  # 86 tests for diagnostic rules
-|   |       +-- test_plc_utils.py    # 36 tests for utilities
+|   |   +-- tests/                   # 149 tests passing
+|   |       |-- test_diagnostics.py  # 86 tests + 25 integration tests
+|   |       +-- test_plc_utils.py    # 36 tests for utils + offline buffer + chat queue
 |   |
 |   +-- j1939-sensor/           # J1939 CAN bus truck diagnostics
 |       |-- src/
 |       |   |-- models/
-|       |   |   |-- j1939_sensor.py      # Main sensor (~2100 lines, NEEDS SPLIT)
-|       |   |   |-- pgn_decoder.py       # PGN decode functions (~1018 lines, BEING SPLIT)
-|       |   |   |   +-- pgn_utils.py     # Byte extraction utilities (NEW)
-|       |   |   |   +-- pgn_dm1.py       # DM1/DM2 DTC decoding (NEW)
-|       |   |   |-- obd2_poller.py       # OBD-II polling (918 lines, FUTURE: separate module)
+|       |   |   |-- j1939_sensor.py      # Main sensor (2268 lines, NEEDS SPLIT — highest priority)
+|       |   |   |-- pgn_decoder.py       # PGN decode registry (871 lines, imports from sub-modules)
+|       |   |   |-- pgn_utils.py         # Byte extraction, CAN ID parsing, dataclasses (150 lines)
+|       |   |   |-- pgn_dm1.py           # DM1/DM2 DTC + lamp decoding (67 lines)
+|       |   |   |-- obd2_poller.py       # OBD-II orchestrator (398 lines, imports sub-modules)
+|       |   |   |-- obd2_pids.py         # 40 PID definitions + decode lambdas (234 lines)
+|       |   |   |-- obd2_dtc.py          # DTC read/clear Mode 03/04 (117 lines)
+|       |   |   |-- obd2_diagnostics.py  # Freeze frame, readiness, VIN (243 lines)
 |       |   |   +-- vehicle_profiles.py  # Vehicle profile data (286 lines)
 |       |   +-- system_health.py         # Pi health metrics (166 lines)
-|       +-- tests/
-|           |-- test_j1939_sensor.py
-|           |-- test_obd2_poller.py
-|           +-- test_pgn_decoder.py
+|       +-- tests/                   # 148 tests passing
+|           |-- test_j1939_sensor.py     # 24 tests (config, readings, commands, resilience)
+|           |-- test_obd2_poller.py      # 24 tests (PID formulas, bus tracking, integration)
+|           |-- test_pgn_decoder.py      # 69 tests (all PGNs, DM1, edge cases)
+|           +-- test_pgn_integration.py  # 31 tests (multi-PGN scenarios, malformed data)
 |
 |-- dashboard/                  # Next.js 14 app on Vercel
 |   |-- app/
 |   |   |-- page.tsx                 # Landing/home page
 |   |   |-- dev/page.tsx             # Dev mode diagnostics page
-|   |   |-- shift-report/page.tsx    # Shift summary reports (BEING SPLIT)
+|   |   |-- fleet/page.tsx           # Fleet overview with truck status cards (378 lines)
+|   |   |-- sign-in/                 # Auth placeholder (Clerk not yet installed)
+|   |   |-- shift-report/
+|   |   |   |-- page.tsx             # Shift reports UI (415 lines)
+|   |   |   |-- types.ts             # Shared types
+|   |   |   |-- utils/               # timezone.ts, time-presets.ts
+|   |   |   +-- components/          # Extracted sub-components
 |   |   +-- api/                     # Server-side API routes (credentials stay here)
 |   |       |-- sensor-readings/     # Live PLC data proxy
 |   |       |-- truck-readings/      # Live J1939 data proxy
 |   |       |-- sensor-history/      # Historical data via Viam Data API
-|   |       |-- shift-report/        # Shift summary aggregation
+|   |       |-- shift-report/
+|   |       |   |-- route.ts         # Thin orchestrator (165 lines)
+|   |       |   |-- aggregation.ts   # Pure data transformation functions (399 lines)
+|   |       |   +-- types.ts         # Request/response types (146 lines)
+|   |       |-- fleet/status/        # Fleet status with Promise.allSettled (334 lines)
 |   |       |-- ai-chat/             # Claude AI mechanic chat
 |   |       |-- ai-diagnose/         # Claude AI one-shot diagnosis
 |   |       |-- plc-command/         # PLC do_command proxy
@@ -59,30 +77,73 @@ Viam-Staubli-Apera-PLC-Mobile-POC/
 |   |       +-- pi-health/           # Pi system health proxy
 |   |
 |   |-- components/
-|   |   |-- TruckPanel.tsx           # Main truck monitoring orchestrator (773 lines)
+|   |   |-- TruckPanel.tsx           # Main truck monitoring orchestrator (811 lines, needs split)
 |   |   |-- GaugeGrid.tsx            # Gauge field definitions + rendering (382 lines)
 |   |   |-- DTCPanel.tsx             # DTC display + clearing (396 lines)
 |   |   |-- AIChatPanel.tsx          # AI chat + diagnosis UI (231 lines)
-|   |   |-- Dashboard.tsx            # TPS dashboard (512 lines)
-|   |   |-- DevTPSPanel.tsx          # Dev TPS panel (999 lines, BEING SPLIT)
-|   |   |-- DevTruckPanel.tsx        # Dev truck panel (767 lines)
-|   |   +-- TPS/                     # Extracted TPS sub-components (NEW)
+|   |   |-- Dashboard.tsx            # TPS dashboard orchestrator (185 lines)
+|   |   |-- DashboardAudio.tsx       # Alarm hook + flash overlay (70 lines)
+|   |   |-- DevTPSPanel.tsx          # Re-exports from TPS/ (3 lines)
+|   |   |-- DevTruckPanel.tsx        # Dev truck panel orchestrator (222 lines)
+|   |   |-- TPS/                     # TPS sub-components
+|   |   |   |-- index.tsx            # TPS orchestrator (459 lines)
+|   |   |   |-- TPSFields.ts         # Types, constants, register groups (240 lines)
+|   |   |   |-- TPSSimulator.tsx     # Simulator controls (97 lines)
+|   |   |   |-- TPSRegisterTable.tsx # Register display (66 lines)
+|   |   |   |-- TPSDiagnosticsPanel.tsx # Diagnostics display (43 lines)
+|   |   |   +-- TPSRemoteControl.tsx # PLC remote commands (182 lines)
+|   |   +-- DevTruck/                # Dev truck sub-components
+|   |       |-- BusStatsPanel.tsx    # Connection + health display (216 lines)
+|   |       |-- CommandPanel.tsx     # DTC + command interface (191 lines)
+|   |       +-- DebugControls.tsx    # Live readings + raw JSON (148 lines)
 |   |
-|   +-- lib/
-|       |-- sensor-types.ts          # TypeScript interfaces for all sensor readings
-|       |-- machines.ts              # Fleet truck registry
-|       +-- truck-data.ts            # Truck data utilities
+|   |-- hooks/
+|   |   +-- useSensorPolling.ts      # Polling, sim mode, fault detection (330 lines)
+|   |
+|   |-- lib/
+|   |   |-- sensor-types.ts          # TypeScript interfaces for all sensor readings
+|   |   |-- machines.ts              # Fleet truck registry (FLEET_TRUCKS env var)
+|   |   |-- auth.ts                  # RBAC role definitions + route permissions
+|   |   +-- truck-data.ts            # Truck data utilities
+|   |
+|   |-- public/
+|   |   |-- manifest.json            # PWA manifest
+|   |   +-- sw.js                    # Service worker (cache-first + stale-while-revalidate)
+|   |
+|   |-- middleware.ts                # No-op until Clerk installed
+|   +-- tests/                       # 18 Playwright E2E tests configured
+|       |-- e2e/                     # dashboard, truck-panel, fleet specs
+|       +-- mocks/                   # Realistic sensor data factories
 |
 |-- scripts/                    # CLI tools and Pi display apps
-|   |-- ironsight-touch.py           # Touch display app (2085 lines, NEEDS SPLIT)
-|   |-- ironsight-discover.py        # Network/PLC discovery (1281 lines, NEEDS SPLIT)
-|   |-- ironsight-server.py          # AI analysis HTTP server (787 lines)
-|   |-- ironsight-display.py         # Headless display (631 lines)
-|   |-- plc-autodiscover.py          # Auto-discovery daemon (951 lines, NEEDS SPLIT)
+|   |-- ironsight-touch.py           # Thin launcher (18 lines) → touch_ui/
+|   |-- ironsight-discover.py        # Thin launcher (18 lines) → discovery/
+|   |-- ironsight-server.py          # AI analysis HTTP server (625 lines)
+|   |-- ironsight-display.py         # Headless display (631 lines, needs split)
+|   |-- ironsight-analyze.py         # PLC analysis CLI (721 lines, needs split)
+|   |-- ironsight-discovery-daemon.py # Discovery daemon (628 lines, needs split)
+|   |-- plc-autodiscover.py          # Auto-discovery (951 lines, needs split)
+|   |-- touch_ui/                    # Touch display package
+|   |   |-- app.py                   # Main event loop (417 lines)
+|   |   |-- constants.py             # Layout/timing constants
+|   |   |-- screens/                 # 8 screen modules (home, live, commands, logs, etc.)
+|   |   +-- widgets/                 # Button, status bar, common drawing
+|   |-- discovery/                   # Network/PLC discovery package
+|   |   |-- network.py              # IP/port/ARP scanning (301 lines)
+|   |   |-- modbus.py               # Modbus TCP probing (484 lines)
+|   |   |-- plc.py                  # PLC identification + reports (494 lines)
+|   |   +-- cli.py                  # CLI entry point (81 lines)
 |   +-- lib/                         # Shared script utilities
+|       |-- ai_prompts.py           # AI analysis prompt templates (194 lines)
+|       |-- plc_discovery.py        # Unknown PLC register discovery (340 lines)
+|       |-- display_pages.py        # Display page renderers (539 lines)
+|       |-- config_updater.py       # Config file updater (264 lines)
+|       |-- modbus_scanner.py       # Modbus scanning utilities (193 lines)
+|       +-- network_scanner.py      # Network scanning utilities (505 lines)
 |
 |-- config/                     # Viam server and fragment configs
-|-- docs/                       # 19 documentation files
+|-- docs/                       # Documentation files
+|   +-- session-handoff.md      # Detailed handoff for next agent session
 +-- CLAUDE.md                   # Primary agent instructions (READ THIS FIRST)
 ```
 
@@ -201,6 +262,6 @@ These are approved but not yet implemented:
 1. **OBD2 separation** -- `modules/obd2-sensor/` will be a separate Viam module (currently embedded in j1939-sensor)
 2. **Pi consolidation** -- Both modules will run on Pi 5 only (Pi Zero being retired)
 3. **Auth** -- Clerk RBAC with 4 roles: admin, mechanic, driver, viewer
-4. **Fleet overview** -- `/fleet/page.tsx` with multi-truck map and alerts
-5. **PWA** -- Service worker + manifest for iOS home screen install
+4. **Fleet overview** -- `/fleet/page.tsx` with truck status cards (DONE, basic version)
+5. **PWA** -- Service worker + manifest for iOS home screen install (DONE)
 6. **Dev AI** -- Engineering-focused Claude AI at `/api/ai-dev-chat/` with tool-use capability
