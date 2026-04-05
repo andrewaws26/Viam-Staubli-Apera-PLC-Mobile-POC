@@ -1,10 +1,15 @@
 """Readings assembly helpers for the PLC sensor module.
 
-Builds the disconnected-readings template and the connected-readings dict
-from raw Modbus values.  Extracted from plc_sensor.py to reduce its size.
+Builds the disconnected-readings template, the connected-readings dict
+from raw Modbus values, Modbus I/O helpers, and diagnostic log tracking.
+Extracted from plc_sensor.py to reduce its size.
 """
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Set, Tuple
+
+from viam.logging import getLogger
+
+LOGGER = getLogger(__name__)
 
 
 def build_disconnected_readings(
@@ -227,3 +232,161 @@ def build_connected_readings(
         readings[f"ds{i + 1}"] = ds[i]
 
     return readings
+
+
+def read_modbus_io(client, uint16_fn) -> Dict[str, Any]:
+    """Read all Modbus registers/coils from the PLC in one pass.
+
+    Returns a dict with keys: ds, encoder_count, discrete_bits,
+    output_coils, internal_coils, c_app_bits, td5_laying, td6_travel,
+    operating_mode, modbus_elapsed_ms.
+
+    Raises IOError on DS register read error (caller should handle).
+    """
+    import time
+    _modbus_start = time.time()
+
+    # -- DS holding registers (0-24) -- all 25 TPS registers
+    ds_result = client.read_holding_registers(address=0, count=25)
+    if ds_result.isError():
+        raise IOError(f"DS register read error: {ds_result}")
+    ds = [uint16_fn(v) for v in ds_result.registers]
+
+    # -- Encoder count from DD1 (Modbus address 16384, 2 registers) --
+    enc_lo, enc_hi = 0, 0
+    try:
+        enc_result = client.read_holding_registers(address=16384, count=2)
+        if not enc_result.isError():
+            enc_lo = uint16_fn(enc_result.registers[0])
+            enc_hi = uint16_fn(enc_result.registers[1])
+    except Exception:
+        pass
+    encoder_count = (enc_hi << 16) | enc_lo
+    if encoder_count > 0x7FFFFFFF:
+        encoder_count -= 0x100000000
+
+    # -- Discrete inputs (X1-X8) --
+    discrete_bits = [False] * 8
+    try:
+        di_result = client.read_discrete_inputs(address=0, count=8)
+        if not di_result.isError():
+            discrete_bits = list(di_result.bits[:8])
+    except Exception as exc:
+        LOGGER.warning("Error reading discrete inputs: %s", exc, exc_info=True)
+
+    # -- Output coils (Y1-Y3) --
+    output_coils = [False] * 3
+    try:
+        oc_result = client.read_coils(address=8192, count=3)
+        if not oc_result.isError():
+            output_coils = list(oc_result.bits[:3])
+    except Exception as exc:
+        LOGGER.warning("Error reading output coils: %s", exc, exc_info=True)
+
+    # -- Internal coils (C1999, C2000) --
+    internal_coils = [False] * 2
+    try:
+        ic_result = client.read_coils(address=1998, count=2)
+        if not ic_result.isError():
+            internal_coils = list(ic_result.bits[:2])
+    except Exception as exc:
+        LOGGER.warning("Error reading internal coils: %s", exc, exc_info=True)
+
+    # -- C-bits C1-C34 for operating mode, drop pipeline, detection --
+    c_app_bits = [False] * 34
+    try:
+        cb_result = client.read_coils(address=0, count=34)
+        if not cb_result.isError():
+            c_app_bits = list(cb_result.bits[:34])
+    except Exception:
+        pass
+
+    # Derived operating mode name
+    _mode_map = [
+        (c_app_bits[19], "TPS-1 Single"), (c_app_bits[20], "TPS-1 Double"),
+        (c_app_bits[21], "TPS-2 Both"), (c_app_bits[26], "Tie Team"),
+        (c_app_bits[30], "2nd Pass"),
+    ]
+    _mode = next((name for active, name in _mode_map if active), "None")
+    if c_app_bits[22]:
+        _mode += " L"
+    if c_app_bits[23]:
+        _mode += " R"
+
+    # -- TD timers --
+    td5_laying = 0
+    td6_travel = 0
+    try:
+        td_result = client.read_holding_registers(address=24576, count=12)
+        if not td_result.isError():
+            td5_laying = (td_result.registers[9] << 16) | td_result.registers[8]
+            td6_travel = (td_result.registers[11] << 16) | td_result.registers[10]
+    except Exception:
+        pass
+
+    _modbus_elapsed_ms = (time.time() - _modbus_start) * 1000
+
+    return {
+        "ds": ds,
+        "encoder_count": encoder_count,
+        "discrete_bits": discrete_bits,
+        "output_coils": output_coils,
+        "internal_coils": internal_coils,
+        "c_app_bits": c_app_bits,
+        "operating_mode": _mode,
+        "td5_laying": td5_laying,
+        "td6_travel": td6_travel,
+        "modbus_elapsed_ms": _modbus_elapsed_ms,
+    }
+
+
+def evaluate_and_log_diagnostics(
+    readings: Dict[str, Any],
+    prev_diag_rules: Set[str],
+) -> Tuple[Set[str], str]:
+    """Run the diagnostic engine and log state transitions.
+
+    Returns (current_rules_set, diagnostic_log_string).
+    Also mutates readings in-place to add diagnostics keys.
+    """
+    from diagnostics import evaluate as evaluate_diagnostics
+    diagnostics = evaluate_diagnostics(readings)
+    readings["diagnostics"] = diagnostics
+    readings["diagnostics_count"] = len(diagnostics)
+    readings["diagnostics_critical"] = sum(
+        1 for d in diagnostics if d["severity"] == "critical"
+    )
+    readings["diagnostics_warning"] = sum(
+        1 for d in diagnostics if d["severity"] == "warning"
+    )
+
+    current_rules = {d["rule"] for d in diagnostics}
+    fired = current_rules - prev_diag_rules
+    cleared = prev_diag_rules - current_rules
+    diag_log = ""
+    if fired or cleared:
+        log_parts = []
+        for rule in fired:
+            diag = next((d for d in diagnostics if d["rule"] == rule), None)
+            evidence = diag.get("evidence", "") if diag else ""
+            severity = diag.get("severity", "?") if diag else "?"
+            log_parts.append(f"+{rule}({severity}): {evidence}")
+            LOGGER.info("DIAG FIRED: %s [%s] %s", rule, severity, evidence)
+        for rule in cleared:
+            log_parts.append(f"-{rule}")
+            LOGGER.info("DIAG CLEARED: %s", rule)
+        diag_log = " | ".join(log_parts)
+
+    readings["diagnostic_log"] = diag_log
+
+    # Key metrics snapshot for threshold tuning
+    readings["diag_metrics"] = (
+        f"cam_rate={readings.get('camera_detections_per_min', 0):.1f} "
+        f"cam_trend={readings.get('camera_rate_trend', '?')} "
+        f"eject_rate={readings.get('eject_rate_per_min', 0):.1f} "
+        f"enc_noise={readings.get('encoder_noise', 0)} "
+        f"modbus_ms={readings.get('modbus_response_time_ms', 0):.1f} "
+        f"speed={readings.get('encoder_speed_ftpm', 0):.1f}"
+    )
+
+    return current_rules, diag_log

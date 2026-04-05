@@ -49,7 +49,10 @@ from plc_offline import OfflineBuffer, _DEFAULT_BUFFER_MAX_MB
 from plc_metrics import ConnectionQualityMonitor, SignalMetrics
 from plc_weather import _weather_cache
 from plc_commands import dispatch_command
-from plc_readings import build_disconnected_readings, build_connected_readings
+from plc_readings import (
+    build_disconnected_readings, build_connected_readings,
+    read_modbus_io, evaluate_and_log_diagnostics,
+)
 
 LOGGER = getLogger(__name__)
 
@@ -301,32 +304,38 @@ class PlcSensor(Sensor):
             return self._disconnected_readings("connection_failed")
 
         try:
-            # ── Modbus timing for diagnostic engine ──
-            _modbus_start = time.time()
-
-            # ── Read DS holding registers (0-24) — all 25 TPS registers ──
-            ds_result = self.client.read_holding_registers(address=0, count=25)
-            if ds_result.isError():
-                LOGGER.warning("Error reading DS registers: %s", ds_result)
+            # ── Read all Modbus I/O in one pass ──
+            try:
+                io = read_modbus_io(self.client, _uint16)
+            except IOError:
+                LOGGER.warning("Error reading DS registers")
                 self._disconnect()
                 return self._disconnected_readings("ds_read_error")
 
-            ds = [_uint16(v) for v in ds_result.registers]
+            ds = io["ds"]
+            encoder_count = io["encoder_count"]
+            discrete_bits = io["discrete_bits"]
+            c_app_bits = io["c_app_bits"]
+            _mode = io["operating_mode"]
+            _modbus_elapsed_ms = io["modbus_elapsed_ms"]
+            td5_laying = io["td5_laying"]
+            td6_travel = io["td6_travel"]
 
-            # ── Read encoder count from DD1 (Modbus address 16384, 2 registers) ──
-            # DD1 is the HSC current value — 32-bit signed, quadrature x1
-            # 1000 counts per encoder revolution.
-            enc_lo, enc_hi = 0, 0
-            try:
-                enc_result = self.client.read_holding_registers(address=16384, count=2)
-                if not enc_result.isError():
-                    enc_lo = _uint16(enc_result.registers[0])
-                    enc_hi = _uint16(enc_result.registers[1])
-            except Exception:
-                LOGGER.debug("Failed to read encoder DD1 registers")
-            encoder_count = (enc_hi << 16) | enc_lo
-            if encoder_count > 0x7FFFFFFF:
-                encoder_count -= 0x100000000
+            # Unpack discrete signals
+            tps_power_loop = bool(discrete_bits[3])       # X4
+            camera_signal = bool(discrete_bits[2])         # X3 — plate flipper
+            air_eagle_1_feedback = bool(discrete_bits[4])  # X5
+            air_eagle_2_feedback = bool(discrete_bits[5])  # X6
+            air_eagle_3_enable = bool(discrete_bits[6])    # X7
+
+            # Unpack output coils
+            eject_tps_1 = bool(io["output_coils"][0])       # Y1
+            eject_left_tps_2 = bool(io["output_coils"][1])   # Y2
+            eject_right_tps_2 = bool(io["output_coils"][2])  # Y3
+
+            # Unpack internal coils
+            encoder_reset_coil = bool(io["internal_coils"][0])  # C1999
+            floating_zero = bool(io["internal_coils"][1])        # C2000
 
             # ── DD1 hardware health: is the encoder producing any pulses? ──
             # Only matters when TPS is on (production). When TPS is off,
@@ -408,81 +417,6 @@ class PlcSensor(Sensor):
 
             # Speed in feet per minute (common railroad unit)
             encoder_speed_ftpm = (self._encoder_speed_mmps / 304.8) * 60.0
-
-            # ── Read TPS discrete inputs (X1-X8) — FC02, address 0-7 ──
-            discrete_bits = [False] * 8
-            try:
-                di_result = self.client.read_discrete_inputs(address=0, count=8)
-                if not di_result.isError():
-                    discrete_bits = list(di_result.bits[:8])
-            except Exception as exc:
-                LOGGER.warning("Error reading discrete inputs: %s", exc, exc_info=True)
-
-            tps_power_loop = bool(discrete_bits[3])       # X4
-            camera_signal = bool(discrete_bits[2])         # X3 — plate flipper (labeled "Camera" in PLC)
-            air_eagle_1_feedback = bool(discrete_bits[4])  # X5
-            air_eagle_2_feedback = bool(discrete_bits[5])  # X6
-            air_eagle_3_enable = bool(discrete_bits[6])    # X7
-
-            # ── Read TPS output coils (Y1-Y3) — FC01, address 8192-8194 ──
-            output_coils = [False] * 3
-            try:
-                oc_result = self.client.read_coils(address=8192, count=3)
-                if not oc_result.isError():
-                    output_coils = list(oc_result.bits[:3])
-            except Exception as exc:
-                LOGGER.warning("Error reading output coils: %s", exc, exc_info=True)
-
-            eject_tps_1 = bool(output_coils[0])       # Y1
-            eject_left_tps_2 = bool(output_coils[1])   # Y2
-            eject_right_tps_2 = bool(output_coils[2])  # Y3
-
-            # ── Read TPS internal coils (C1999, C2000) — FC01, address 1998-1999 ──
-            internal_coils = [False] * 2
-            try:
-                ic_result = self.client.read_coils(address=1998, count=2)
-                if not ic_result.isError():
-                    internal_coils = list(ic_result.bits[:2])
-            except Exception as exc:
-                LOGGER.warning("Error reading internal coils: %s", exc, exc_info=True)
-
-            encoder_reset_coil = bool(internal_coils[0])  # C1999
-            floating_zero = bool(internal_coils[1])        # C2000
-
-            # ── Read C-bits C1-C34 for operating mode, drop pipeline, detection state ──
-            c_app_bits = [False] * 34
-            try:
-                cb_result = self.client.read_coils(address=0, count=34)
-                if not cb_result.isError():
-                    c_app_bits = list(cb_result.bits[:34])
-            except Exception:
-                LOGGER.debug("Failed to read C-bits application coils")
-
-            # Derived operating mode name from mutually-exclusive C-bits
-            _mode_map = [
-                (c_app_bits[19], "TPS-1 Single"), (c_app_bits[20], "TPS-1 Double"),
-                (c_app_bits[21], "TPS-2 Both"), (c_app_bits[26], "Tie Team"),
-                (c_app_bits[30], "2nd Pass"),
-            ]
-            _mode = next((name for active, name in _mode_map if active), "None")
-            if c_app_bits[22]:
-                _mode += " L"
-            if c_app_bits[23]:
-                _mode += " R"
-
-            # ── Read TD timers (HR 24576, 12 registers) ──
-            td5_laying = 0
-            td6_travel = 0
-            try:
-                td_result = self.client.read_holding_registers(address=24576, count=12)
-                if not td_result.isError():
-                    td5_laying = (td_result.registers[9] << 16) | td_result.registers[8]
-                    td6_travel = (td_result.registers[11] << 16) | td_result.registers[10]
-            except Exception:
-                LOGGER.debug("Failed to read TD timer registers")
-
-            # ── Modbus elapsed time ──
-            _modbus_elapsed_ms = (time.time() - _modbus_start) * 1000
 
             # ── TPS plate drop counter — detect OFF→ON on Y1 (Eject TPS_1) ──
             # Also compute drop spacing (distance between consecutive drops)
@@ -583,50 +517,11 @@ class PlcSensor(Sensor):
             # Location & weather (cached, refreshes every 15 min in background)
             readings.update(_weather_cache.get())
 
-            # ── Diagnostic rules engine ──
-            from diagnostics import evaluate as evaluate_diagnostics
-            diagnostics = evaluate_diagnostics(readings)
-            readings["diagnostics"] = diagnostics
-            readings["diagnostics_count"] = len(diagnostics)
-            readings["diagnostics_critical"] = sum(
-                1 for d in diagnostics if d["severity"] == "critical"
-            )
-            readings["diagnostics_warning"] = sum(
-                1 for d in diagnostics if d["severity"] == "warning"
-            )
-
-            # ── Diagnostic state change log ──
-            # Track which rules are active and log transitions (fire/clear).
-            # This flows to Viam Cloud for post-shift threshold tuning.
-            current_rules = {d["rule"] for d in diagnostics}
+            # ── Diagnostic rules engine + state change log ──
             if not hasattr(self, "_prev_diag_rules"):
                 self._prev_diag_rules: set = set()
-            fired = current_rules - self._prev_diag_rules
-            cleared = self._prev_diag_rules - current_rules
-            if fired or cleared:
-                log_parts = []
-                for rule in fired:
-                    diag = next((d for d in diagnostics if d["rule"] == rule), None)
-                    evidence = diag.get("evidence", "") if diag else ""
-                    severity = diag.get("severity", "?") if diag else "?"
-                    log_parts.append(f"+{rule}({severity}): {evidence}")
-                    LOGGER.info("DIAG FIRED: %s [%s] %s", rule, severity, evidence)
-                for rule in cleared:
-                    log_parts.append(f"-{rule}")
-                    LOGGER.info("DIAG CLEARED: %s", rule)
-                readings["diagnostic_log"] = " | ".join(log_parts)
-            else:
-                readings["diagnostic_log"] = ""
-            self._prev_diag_rules = current_rules
-
-            # Key metrics snapshot for threshold tuning (always logged)
-            readings["diag_metrics"] = (
-                f"cam_rate={readings.get('camera_detections_per_min', 0):.1f} "
-                f"cam_trend={readings.get('camera_rate_trend', '?')} "
-                f"eject_rate={readings.get('eject_rate_per_min', 0):.1f} "
-                f"enc_noise={readings.get('encoder_noise', 0)} "
-                f"modbus_ms={readings.get('modbus_response_time_ms', 0):.1f} "
-                f"speed={readings.get('encoder_speed_ftpm', 0):.1f}"
+            self._prev_diag_rules, _ = evaluate_and_log_diagnostics(
+                readings, self._prev_diag_rules,
             )
 
             # ── Voice chat events (synced to Viam Cloud for fleet analysis) ──
