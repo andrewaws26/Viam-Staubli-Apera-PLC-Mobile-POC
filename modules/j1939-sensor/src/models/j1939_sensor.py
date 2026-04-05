@@ -1953,40 +1953,131 @@ class J1939TruckSensor(Sensor):
 
         DM11 is sent as a broadcast with 8 bytes of 0xFF (per J1939-73).
         The ECU should respond with DM12 (PGN 65236) confirming the clear.
+
+        Because the CAN interface runs in listen-only mode (cannot transmit),
+        this method temporarily switches to normal mode to send the frame,
+        then restores listen-only mode in a finally block to guarantee safety.
         """
         if not self._bus:
             return {"success": False, "error": "CAN bus not connected"}
 
+        # Log active DTCs before clearing (audit trail)
+        with self._readings_lock:
+            active_dtcs = dict(self._dtc_by_source)
+        LOGGER.info(f"DTC clear requested. Active DTCs before clear: {active_dtcs}")
+
+        DM12_PGN = 65236
+        dm12_received = False
+        iface = self._can_interface
+        bitrate = str(self._bitrate)
+
         try:
             import can
-            # DM11 clear request: 8 bytes of 0xFF
-            can_id = _build_can_id(
-                priority=6,
-                pgn=DM11_PGN,
-                source_address=self._source_address,
-                destination_address=J1939_GLOBAL_ADDRESS,
-            )
-            msg = can.Message(
-                arbitration_id=can_id,
-                data=bytes([0xFF] * 8),
-                is_extended_id=True,
-            )
-            self._bus.send(msg)
-            LOGGER.info("DM11 clear DTCs command sent")
 
-            # Clear locally cached DTC readings (flat + namespaced)
-            with self._readings_lock:
-                keys_to_remove = [k for k in self._readings
-                                  if k.startswith("dtc_") or k == "active_dtc_count"
-                                  or k.endswith("_lamp")]
-                for k in keys_to_remove:
-                    del self._readings[k]
-                self._dtc_by_source.clear()
+            # --- Tear down existing bus and switch to normal mode ---
+            # Close the current listen-only bus so we can reconfigure the interface
+            if self._bus:
+                self._bus.shutdown()
+                self._bus = None
 
-            return {"success": True, "message": "DM11 clear DTCs sent"}
+            # Bring interface down, then back up in normal mode (no listen-only)
+            subprocess.run(
+                ["ip", "link", "set", iface, "down"], check=True
+            )
+            subprocess.run(
+                ["ip", "link", "set", iface, "up", "type", "can",
+                 "bitrate", bitrate],
+                check=True,
+            )
+            LOGGER.info(f"CAN interface {iface} switched to normal mode for DTC clear")
+
+            # Open a temporary bus in normal mode for transmitting
+            tx_bus = can.interface.Bus(
+                channel=iface, bustype=self._bus_type
+            )
+
+            try:
+                # Build and send DM11 frame with service tool SA 0xF9
+                msg = can.Message(
+                    arbitration_id=0x18FED3F9,  # Priority 6, PGN 65235 (DM11), SA 0xF9
+                    data=[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF],
+                    is_extended_id=True,
+                )
+                tx_bus.send(msg)
+                LOGGER.info("DM11 clear DTCs command sent (SA=0xF9, normal mode)")
+
+                # Listen for DM12 confirmation (PGN 65236) for up to 2 seconds
+                deadline = time.time() + 2.0
+                while time.time() < deadline:
+                    rx_msg = tx_bus.recv(timeout=0.5)
+                    if rx_msg and rx_msg.is_extended_id:
+                        # Extract PGN from the 29-bit CAN ID
+                        rx_pgn = (rx_msg.arbitration_id >> 8) & 0x3FFFF
+                        pdu_format = (rx_pgn >> 8) & 0xFF
+                        if pdu_format >= 240:
+                            rx_pgn_final = rx_pgn
+                        else:
+                            rx_pgn_final = rx_pgn & 0xFF00
+                        if rx_pgn_final == DM12_PGN:
+                            dm12_received = True
+                            LOGGER.info(
+                                "DM12 confirmation received from SA=0x%02X",
+                                rx_msg.arbitration_id & 0xFF,
+                            )
+                            break
+
+                if not dm12_received:
+                    LOGGER.warning(
+                        "No DM12 confirmation received within 2s (clear may still have succeeded)"
+                    )
+            finally:
+                tx_bus.shutdown()
+
         except Exception as e:
             LOGGER.error(f"Failed to send DM11: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
+        finally:
+            # ALWAYS restore listen-only mode — this is safety-critical
+            try:
+                import can as _can_restore  # re-import in case outer import failed
+                subprocess.run(
+                    ["ip", "link", "set", iface, "down"], check=True
+                )
+                subprocess.run(
+                    ["ip", "link", "set", iface, "up", "type", "can",
+                     "bitrate", bitrate, "listen-only", "on"],
+                    check=True,
+                )
+                LOGGER.info(f"CAN interface {iface} restored to listen-only mode")
+
+                # Re-open the bus in listen-only mode for continued monitoring
+                self._bus = _can_restore.interface.Bus(
+                    channel=iface, bustype=self._bus_type
+                )
+            except Exception as restore_err:
+                LOGGER.critical(
+                    f"FAILED to restore listen-only mode on {iface}: {restore_err}. "
+                    "CAN bus may be in normal mode — manual intervention required!",
+                    exc_info=True,
+                )
+
+        # Clear locally cached DTC readings (flat + namespaced)
+        with self._readings_lock:
+            keys_to_remove = [k for k in self._readings
+                              if k.startswith("dtc_") or k == "active_dtc_count"
+                              or k.endswith("_lamp")]
+            for k in keys_to_remove:
+                del self._readings[k]
+            self._dtc_by_source.clear()
+
+        return {
+            "success": True,
+            "message": "DM11 clear DTCs sent",
+            "dm12_confirmed": dm12_received,
+            "dtcs_before_clear": {
+                str(sa): len(dtcs) for sa, dtcs in active_dtcs.items()
+            },
+        }
 
     async def _request_pgn(self, pgn: int) -> dict[str, Any]:
         """
