@@ -121,6 +121,8 @@ ${history.text}`;
     });
   }
 
+  const startTime = Date.now();
+
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -138,6 +140,7 @@ ${history.text}`;
 
     if (!response.ok) {
       const errText = await response.text();
+      console.error("[API-ERROR]", "/api/ai-diagnose", `Claude API ${response.status}:`, errText);
       return NextResponse.json(
         { error: "Claude API error", details: errText },
         { status: 502 }
@@ -163,8 +166,10 @@ ${history.text}`;
     };
     console.log("[AI-DIAGNOSIS-LOG]", JSON.stringify(logEntry));
 
+    console.log("[API-TIMING]", "/api/ai-diagnose", Date.now() - startTime, "ms");
     return NextResponse.json({ success: true, diagnosis });
   } catch (err) {
+    console.error("[API-ERROR]", "/api/ai-diagnose", err);
     return NextResponse.json(
       { error: "Failed to reach Claude API", message: err instanceof Error ? err.message : String(err) },
       { status: 502 }

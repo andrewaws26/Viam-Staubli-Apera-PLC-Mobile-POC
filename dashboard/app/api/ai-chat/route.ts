@@ -140,6 +140,8 @@ FOLLOW-UP QUESTIONS: At the end of EVERY response, include 2-3 suggested follow-
     });
   }
 
+  const startTime = Date.now();
+
   try {
     const apiMessages = messages.map((m) => ({
       role: m.role as "user" | "assistant",
@@ -163,6 +165,7 @@ FOLLOW-UP QUESTIONS: At the end of EVERY response, include 2-3 suggested follow-
 
     if (!response.ok) {
       const errText = await response.text();
+      console.error("[API-ERROR]", "/api/ai-chat", `Claude API ${response.status}:`, errText);
       return NextResponse.json(
         { error: "Claude API error", details: errText },
         { status: 502 }
@@ -175,8 +178,10 @@ FOLLOW-UP QUESTIONS: At the end of EVERY response, include 2-3 suggested follow-
     // Log conversation to cloud for analysis and refinement
     logConversation(apiMessages, reply, readings).catch(() => {});
 
+    console.log("[API-TIMING]", "/api/ai-chat", Date.now() - startTime, "ms");
     return NextResponse.json({ success: true, reply });
   } catch (err) {
+    console.error("[API-ERROR]", "/api/ai-chat", err);
     return NextResponse.json(
       {
         error: "Failed to reach Claude API",

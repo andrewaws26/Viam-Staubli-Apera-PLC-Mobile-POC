@@ -89,6 +89,10 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
 
   // Driver behavior scoring
   const [driverScore, setDriverScore] = useState(100);
+
+  // DTC alert flash state
+  const [prevDtcCount, setPrevDtcCount] = useState(0);
+  const [dtcFlash, setDtcFlash] = useState(false);
   const driverEventsRef = React.useRef<{ type: string; time: number }[]>([]);
   const prevReadingsRef = React.useRef<TruckReadings | null>(null);
 
@@ -332,6 +336,18 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
     }
     prevReadingsRef.current = readings;
   }, [readings]);
+
+  // DTC count change detection — flash when new DTCs appear
+  useEffect(() => {
+    if (!readings) return;
+    const currentDtcCount = readings.active_dtc_count as number ?? 0;
+    if (currentDtcCount > 0 && prevDtcCount === 0) {
+      setDtcFlash(true);
+      const timer = setTimeout(() => setDtcFlash(false), 3000);
+      return () => clearTimeout(timer);
+    }
+    setPrevDtcCount(currentDtcCount);
+  }, [readings, prevDtcCount]);
 
   // Generate PDF report with historical data
   const [reportLoading, setReportLoading] = useState(false);

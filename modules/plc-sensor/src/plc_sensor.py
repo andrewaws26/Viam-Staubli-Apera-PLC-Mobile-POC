@@ -1046,7 +1046,7 @@ class PlcSensor(Sensor):
                 if not oc_result.isError():
                     output_coils = list(oc_result.bits[:3])
             except Exception as exc:
-                LOGGER.warning("Error reading output coils: %s", exc)
+                LOGGER.warning("Error reading output coils: %s", exc, exc_info=True)
 
             eject_tps_1 = bool(output_coils[0])       # Y1
             eject_left_tps_2 = bool(output_coils[1])   # Y2
@@ -1059,7 +1059,7 @@ class PlcSensor(Sensor):
                 if not ic_result.isError():
                     internal_coils = list(ic_result.bits[:2])
             except Exception as exc:
-                LOGGER.warning("Error reading internal coils: %s", exc)
+                LOGGER.warning("Error reading internal coils: %s", exc, exc_info=True)
 
             encoder_reset_coil = bool(internal_coils[0])  # C1999
             floating_zero = bool(internal_coils[1])        # C2000
@@ -1322,7 +1322,7 @@ class PlcSensor(Sensor):
             self._total_errors += 1
             LOGGER.error(
                 "🔴 Error reading PLC registers: %s | total_reads=%d errors=%d",
-                e, self._total_reads, self._total_errors,
+                e, self._total_reads, self._total_errors, exc_info=True,
             )
             self._disconnect()
             return self._disconnected_readings(str(e))
@@ -1383,7 +1383,7 @@ class PlcSensor(Sensor):
                 LOGGER.info("DO_COMMAND: test_eject %s — fired", output)
             except Exception as e:
                 result["message"] = f"Modbus write failed: {e}"
-                LOGGER.error("DO_COMMAND: test_eject %s — error: %s", output, e)
+                LOGGER.error("DO_COMMAND: test_eject %s — error: %s", output, e, exc_info=True)
 
         elif action == "software_eject":
             if not tps_on:
@@ -1657,7 +1657,7 @@ class PlcSensor(Sensor):
                     step["status"] = "error"
                     step["message"] = str(e)
                     errors.append(f"{reg_name}: {e}")
-                    LOGGER.error("PROVISION: %s write failed: %s", reg_name, e)
+                    LOGGER.error("PROVISION: %s write failed: %s", reg_name, e, exc_info=True)
 
                 steps.append(step)
 
