@@ -2,7 +2,7 @@
 
 **Date**: 2026-04-05
 **Branch**: `claude/code-review-suggestions-RiQah`
-**Status**: Waves 1-4 complete. File splits ~70% done. All tests passing. Dashboard builds clean.
+**Status**: Waves 1-4 complete. File splits ~85% done. All tests passing. Dashboard builds clean. README fully updated.
 
 ## Current State Summary
 
@@ -11,8 +11,8 @@
 | Python tests | **297 passing** (148 j1939 + 149 plc) |
 | Dashboard build | **Clean** (all routes compile) |
 | Playwright E2E | 18 tests configured (need `npx playwright install` to run) |
-| Files over 500 lines | 14 remaining (was 20+) |
-| Total commits on branch | ~25 |
+| Files over 500 lines | **8 remaining** (was 20+) |
+| Total commits on branch | ~30 |
 
 ## What's Done (Committed & Pushed)
 
@@ -45,20 +45,14 @@
 - [x] `ironsight-discover.py` (1281 → 18 lines) extracted to discovery/ package
 - [x] `ironsight-touch.py` extracted to touch_ui/ package (screens + widgets)
 - [x] `plc_sensor.py` sub-modules: plc_utils.py, plc_offline.py, plc_metrics.py, plc_weather.py
-- [x] `pgn_decoder.py` sub-modules: pgn_utils.py, pgn_dm1.py
-- [x] `scripts/lib/` additions: ai_prompts.py, plc_discovery.py
-
-### Wave 2 — File Splits (NOT YET DONE)
-- [ ] `j1939_sensor.py` (2,268 lines) — Needs split into j1939_can.py, j1939_dtc.py, j1939_discovery.py + orchestrator
-- [ ] `plc_sensor.py` (1,300 lines) — Needs further extraction (down from 1827 but still over 500)
-- [ ] `pgn_decoder.py` (1,018 lines) — Sub-modules exist but parent not yet updated to import from them
-- [ ] `plc-autodiscover.py` (951 lines) — Partially extracted (modbus_scanner, network_scanner pending)
-- [ ] `ironsight-server.py` (787 lines) — ai_prompts.py extracted but parent not updated
-- [ ] `ironsight-analyze.py` (721 lines) — plc_discovery.py extracted but parent not updated
-- [ ] `ironsight-display.py` (631 lines) — display_pages.py not yet extracted
-- [ ] `ironsight-discovery-daemon.py` (628 lines) — config_updater.py not yet extracted
-- [ ] `TruckPanel.tsx` (811 lines) — Needs further extraction
-- [ ] `diagnostics.py` (532 lines) — Optional split into detector plugins
+- [x] `pgn_decoder.py` (1018 → 871 lines) imports from pgn_utils.py + pgn_dm1.py
+- [x] `scripts/lib/` additions: ai_prompts.py, plc_discovery.py, display_pages.py, config_updater.py, modbus_scanner.py, network_scanner.py
+- [x] `ironsight-server.py` (787 → 638 lines) imports from ai_prompts.py
+- [x] `ironsight-analyze.py` (721 → 451 lines) imports from plc_discovery.py
+- [x] `ironsight-display.py` (631 → 104 lines) imports from display_pages.py
+- [x] `ironsight-discovery-daemon.py` (628 → 431 lines) imports from config_updater.py
+- [x] `plc-autodiscover.py` (951 → 414 lines) imports from modbus_scanner.py + network_scanner.py
+- [x] `j1939_sensor.py` sub-modules CREATED: j1939_can.py (649), j1939_dtc.py (214), j1939_discovery.py (489)
 
 ### Wave 4 — Features (Done)
 - [x] **PWA**: manifest.json + service worker (cache-first static, stale-while-revalidate API) + iOS meta tags
@@ -67,6 +61,11 @@
 - [x] **DTC clearing fix**: Interface toggle (listen-only → normal → send DM11 → restore), 0xF9 SA, DM12 confirmation
 - [x] **Middleware fix**: No-op until @clerk/nextjs installed
 - [x] **Fleet registry**: dashboard/lib/machines.ts with FLEET_TRUCKS env var support
+
+### Documentation (Done)
+- [x] **README.md**: Comprehensive rewrite — covers both sensors, fleet architecture, AI diagnostics, PWA, auth, 315 tests, all modules
+- [x] **AGENTS.md**: Complete file map with every file, line count, test count, ownership rules
+- [x] **session-handoff.md**: This file — accurate status for next session
 
 ### Test Infrastructure (Done)
 - [x] **Playwright E2E**: 18 tests across 3 suites (dashboard, truck-panel, fleet) with route interception
@@ -78,7 +77,7 @@
   - 24 j1939_sensor tests (config, readings, do_command, resilience)
   - 24 OBD2 poller tests (PID formulas, bus tracking, integration)
   - 31 PGN integration tests
-- [x] **Test fixes applied this session**:
+- [x] **Test fixes applied**:
   - All PGN decoder tests updated from metric (°C, kPa, km/h) to imperial (°F, PSI, mph)
   - DM1 lamp bit ordering corrected to match J1939 standard
   - OBD2 tests updated for imperial field names
@@ -89,30 +88,41 @@
 
 ## What's NOT Done Yet
 
-### Priority 1 — File Splits (Carry Over)
-The following files are over 500 lines and need splitting. Sub-modules have been extracted for some but parent files haven't been updated to import from them:
+### Priority 1 — Wire j1939_sensor.py to Sub-Modules (HIGHEST PRIORITY)
 
-| File | Lines | Status |
+The sub-modules exist but j1939_sensor.py (2268 lines) has NOT been updated to import from them. The code is still duplicated. This is the single most important remaining task:
+
+| Sub-module | Lines | Contains |
+|-----------|-------|----------|
+| j1939_can.py | 649 | CAN bus management, listener, bitrate negotiation, _start_listener, _listen_loop |
+| j1939_dtc.py | 214 | _SA_SUFFIX, _apply_namespaced_dtcs, _clear_dtcs |
+| j1939_discovery.py | 489 | Protocol auto-detect, VIN reading/caching, vehicle profiles, PGN/PID discovery |
+
+**How to wire it:**
+1. Read j1939_sensor.py and each sub-module carefully
+2. Replace duplicated methods in j1939_sensor.py with imports/calls to sub-modules
+3. Run `python3 -m pytest modules/j1939-sensor/tests/ -v` — all 148 tests must pass
+4. Target: j1939_sensor.py under 500 lines (orchestrator only)
+
+### Priority 2 — Remaining Files Over 500 Lines
+
+| File | Lines | Action |
 |------|-------|--------|
-| j1939_sensor.py | 2,268 | Highest priority. Split into j1939_can/dtc/discovery + orchestrator |
-| plc_sensor.py | 1,300 | Needs more extraction (was 1827, sub-modules exist) |
-| pgn_decoder.py | 1,018 | pgn_utils.py + pgn_dm1.py exist, parent needs refactor |
-| plc-autodiscover.py | 951 | Partially done |
-| TruckPanel.tsx | 811 | Extract more sub-components |
-| ironsight-server.py | 787 | ai_prompts.py extracted, parent needs update |
-| ironsight-analyze.py | 721 | plc_discovery.py extracted, parent needs update |
-| ironsight-display.py | 631 | Needs display_pages.py extraction |
-| ironsight-discovery-daemon.py | 628 | Needs config_updater.py extraction |
-| diagnostics.py | 532 | Optional |
+| j1939_sensor.py | 2,268 | Wire to sub-modules (Priority 1 above) |
+| plc_sensor.py | 1,300 | Extract more methods to plc_utils/plc_offline/new sub-modules |
+| pgn_decoder.py | 871 | Already imports from sub-modules, could extract more PGN groups |
+| TruckPanel.tsx | 811 | Extract gauge sections, header, connection status into sub-components |
+| ironsight-server.py | 638 | 390 Python + 248 HTML template — may be hard to split further |
+| diagnostics.py | 532 | Optional: split into detector plugins per category |
 
-### Priority 2 — OBD2 Separation
+### Priority 3 — OBD2 Separation
 - Create `modules/obd2-sensor/` as separate Viam module
 - Move obd2_poller.py + obd2_pids.py + obd2_dtc.py + obd2_diagnostics.py
 - Extract shared code to `modules/common/` (vehicle_profiles.py)
 - Remove OBD-II routing from j1939_sensor.py (~400 lines)
 - Create new run.sh, meta.json, requirements.txt
 
-### Priority 3 — Features
+### Priority 4 — Features
 - **Auth**: Install @clerk/nextjs, uncomment middleware, wrap layout
 - **Dev diagnostics + Claude Dev AI**: Register Inspector, /api/ai-dev-chat
 - **Logging**: JSON structured logging, remaining request timing
@@ -139,11 +149,13 @@ cd dashboard && npx next build
 cd .. && python3 -m pytest modules/plc-sensor/tests/ -v
 python3 -m pytest modules/j1939-sensor/tests/ -v
 
-# 3. Continue with file splits (priority order):
-#    a) j1939_sensor.py (2268 lines) → j1939_can.py + j1939_dtc.py + j1939_discovery.py
-#    b) pgn_decoder.py → update parent to import from pgn_utils.py + pgn_dm1.py
-#    c) plc_sensor.py → extract more code to sub-modules
-#    d) scripts/ files → update parents to import from lib/
+# 3. FIRST: Wire j1939_sensor.py to import from sub-modules
+#    - Read j1939_sensor.py (2268 lines)
+#    - Read j1939_can.py, j1939_dtc.py, j1939_discovery.py
+#    - Replace duplicated code with imports
+#    - Run tests: python3 -m pytest modules/j1939-sensor/tests/ -v (148 must pass)
+#    - Target: j1939_sensor.py under 500 lines
 
-# 4. Then OBD2 separation, then remaining features
+# 4. Then: plc_sensor.py further extraction, TruckPanel.tsx split
+# 5. Then: OBD2 separation, then remaining features
 ```
