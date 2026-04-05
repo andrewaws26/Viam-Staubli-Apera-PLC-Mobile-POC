@@ -14,9 +14,9 @@ from unittest.mock import MagicMock, patch, PropertyMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from src.models.j1939_sensor import (
-    J1939TruckSensor,
-    _build_can_id,
+from src.models.j1939_sensor import J1939TruckSensor
+from src.models.j1939_can import (
+    build_can_id,
     J1939_GLOBAL_ADDRESS,
     DM11_PGN,
     REQUEST_PGN,
@@ -32,7 +32,7 @@ class TestBuildCanId:
     def test_broadcast_pgn(self):
         """Build CAN ID for broadcast PGN (PDU2, PF >= 240)."""
         # DM11 = PGN 65235 = 0xFED3
-        can_id = _build_can_id(priority=6, pgn=DM11_PGN,
+        can_id = build_can_id(priority=6, pgn=DM11_PGN,
                                source_address=0xFE)
         extracted_pgn = extract_pgn_from_can_id(can_id)
         assert extracted_pgn == DM11_PGN
@@ -40,7 +40,7 @@ class TestBuildCanId:
     def test_request_pgn(self):
         """Build CAN ID for request PGN (PDU1, PF < 240)."""
         # Request PGN 59904 = 0xEA00, destination=0xFF
-        can_id = _build_can_id(priority=6, pgn=REQUEST_PGN,
+        can_id = build_can_id(priority=6, pgn=REQUEST_PGN,
                                source_address=0xFE,
                                destination_address=0xFF)
         extracted_pgn = extract_pgn_from_can_id(can_id)
@@ -48,13 +48,13 @@ class TestBuildCanId:
 
     def test_source_address_preserved(self):
         """Source address is in the lowest byte."""
-        can_id = _build_can_id(priority=6, pgn=DM11_PGN,
+        can_id = build_can_id(priority=6, pgn=DM11_PGN,
                                source_address=0x42)
         assert (can_id & 0xFF) == 0x42
 
     def test_priority_preserved(self):
         """Priority is in bits 28-26."""
-        can_id = _build_can_id(priority=3, pgn=DM11_PGN,
+        can_id = build_can_id(priority=3, pgn=DM11_PGN,
                                source_address=0xFE)
         priority = (can_id >> 26) & 0x07
         assert priority == 3
