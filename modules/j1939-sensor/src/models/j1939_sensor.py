@@ -57,6 +57,7 @@ from .j1939_can import (
     get_bus_stats,
     set_can_bitrate,
 )
+from .j1939_fleet_metrics import infer_vehicle_state, get_minimal_off_readings, compute_fleet_metrics, get_history
 from .j1939_dtc import clear_dtcs
 from .j1939_discovery import (
     auto_detect_protocol,
@@ -626,52 +627,11 @@ class J1939TruckSensor(Sensor):
         # ---------------------------------------------------------------
         # Vehicle State Inference
         # ---------------------------------------------------------------
-        rpm = readings.get("engine_rpm", None)
-        secs_since = readings.get("_seconds_since_last_frame", -1)
-        frame_count = readings.get("_frame_count", 0)
+        infer_vehicle_state(readings)
 
-        if frame_count == 0 or secs_since > 60 or secs_since == -1:
-            readings["vehicle_state"] = "Truck Off"
-        elif rpm is not None and rpm > 0:
-            readings["vehicle_state"] = "Engine On"
-        elif rpm is not None and rpm == 0:
-            readings["vehicle_state"] = "Ignition On"
-        elif rpm is None and secs_since >= 0 and secs_since < 60:
-            # Receiving frames but no RPM decoded -- could be KOEO
-            has_any_data = any(
-                k in readings for k in ("battery_voltage_v", "coolant_temp_f", "oil_pressure_psi")
-            )
-            readings["vehicle_state"] = "Ignition On" if has_any_data else "Unknown"
-        else:
-            readings["vehicle_state"] = "Unknown"
-
-        # Vehicle-off detection for data capture optimization
-        # If vehicle is off (no CAN traffic) for >30 seconds, flag it
-        bus_connected = readings.get("_bus_connected", False)
-        vehicle_off = (
-            readings["vehicle_state"] == "Truck Off"
-            or (not bus_connected and (secs_since > 30 or secs_since == -1))
-        )
-        readings["_vehicle_off"] = vehicle_off
-
-        if readings.get("_vehicle_off", False):
-            # When vehicle is off, return minimal readings to save cloud storage
-            # Viam data_manager still captures at 1Hz but the payloads are tiny
-            minimal = {
-                "_vehicle_off": True,
-                "_protocol": readings.get("_protocol", "j1939"),
-                "_bus_connected": bus_connected,
-                "_can_interface": readings.get("_can_interface", "can0"),
-                "can_bitrate": self._current_bitrate,
-                "vehicle_state": readings["vehicle_state"],
-                "battery_voltage_v": readings.get("battery_voltage_v", 0),
-                "vehicle_vin": self._vehicle_vin,
-                "vehicle_protocol": self._protocol,
-            }
-            if self._vehicle_profile:
-                minimal["vehicle_make"] = self._vehicle_profile.make
-                minimal["vehicle_model"] = self._vehicle_profile.model
-                minimal["vehicle_year"] = self._vehicle_profile.year
+        # When vehicle is off, return minimal readings to save cloud storage
+        minimal = get_minimal_off_readings(readings, self)
+        if minimal is not None:
             # Always include Pi system health -- dashboard needs it even when vehicle is off
             try:
                 minimal.update(get_system_health())
@@ -682,131 +642,9 @@ class J1939TruckSensor(Sensor):
         # ---------------------------------------------------------------
         # Derived Fleet Metrics
         # ---------------------------------------------------------------
-        now = time.time()
-        speed = readings.get("vehicle_speed_mph", 0) or 0
-        accel = readings.get("accel_pedal_pos_pct", 0) or 0
-        pto = readings.get("pto_engaged", None)
-
-        # Idle Waste: engine on, not moving, PTO not engaged
-        readings["idle_waste_active"] = (
-            readings["vehicle_state"] == "Engine On"
-            and speed == 0
-            and (pto is None or pto == 0)
+        self._prev_speed, self._prev_accel_pedal, self._prev_readings_time = (
+            compute_fleet_metrics(readings, self._prev_speed, self._prev_accel_pedal, self._prev_readings_time)
         )
-
-        # Harsh Behavior: rapid delta in speed or accelerator pedal
-        dt = now - self._prev_readings_time if self._prev_readings_time > 0 else 1.0
-        if dt > 0 and dt < 10:  # only valid for consecutive 1Hz readings
-            speed_delta = abs(speed - self._prev_speed)
-            accel_delta = abs(accel - self._prev_accel_pedal)
-            # Thresholds: >7 mph/s decel = hard brake, >30% pedal change/s = aggressive
-            readings["harsh_braking"] = speed_delta > 7 and speed < self._prev_speed
-            readings["harsh_acceleration"] = accel_delta > 30
-            readings["harsh_behavior_flag"] = readings["harsh_braking"] or readings["harsh_acceleration"]
-        else:
-            readings["harsh_braking"] = False
-            readings["harsh_acceleration"] = False
-            readings["harsh_behavior_flag"] = False
-
-        self._prev_speed = speed
-        self._prev_accel_pedal = accel
-        self._prev_readings_time = now
-
-        # ---------------------------------------------------------------
-        # Additional Derived Fleet Metrics
-        # ---------------------------------------------------------------
-        fuel_rate = readings.get("fuel_rate_gph", None)
-        engine_hours = readings.get("engine_hours", None)
-        idle_hours = readings.get("idle_engine_hours", None)
-        idle_fuel = readings.get("idle_fuel_used_gal", None)
-        total_fuel = readings.get("total_fuel_used_gal", None)
-        distance = readings.get("vehicle_distance_hr_mi", None) or readings.get("vehicle_distance_mi", None)
-
-        # Fuel cost per hour (assume $3.80/gal diesel)
-        FUEL_PRICE = 3.80
-        if fuel_rate is not None and fuel_rate > 0:
-            readings["fuel_cost_per_hour"] = round(fuel_rate * FUEL_PRICE, 2)
-
-        # Idle waste dollars
-        if idle_fuel is not None:
-            readings["idle_waste_dollars"] = round(idle_fuel * FUEL_PRICE, 2)
-
-        # Idle percentage
-        if idle_hours is not None and engine_hours is not None and engine_hours > 0:
-            readings["idle_pct"] = round((idle_hours / engine_hours) * 100, 1)
-
-        # Cost per mile -- use instantaneous fuel economy, not lifetime totals
-        fuel_econ = readings.get("fuel_economy_mpg", None)
-        if fuel_econ is not None and fuel_econ > 0:
-            readings["fuel_cost_per_mile"] = round(FUEL_PRICE / fuel_econ, 3)
-        elif total_fuel is not None and distance is not None and distance > 100:
-            # Fallback to lifetime average only if we have significant distance
-            readings["fuel_cost_per_mile"] = round((total_fuel * FUEL_PRICE) / distance, 3)
-
-        # PTO duty cycle
-        pto_status = readings.get("pto_engaged", None)
-        if pto_status is not None and engine_hours is not None and engine_hours > 0:
-            # We track PTO state -- can estimate from idle vs PTO
-            readings["pto_active"] = pto_status > 0
-
-        # DPF health indicator
-        soot = readings.get("dpf_soot_load_pct", None)
-        if soot is not None:
-            if soot > 80:
-                readings["dpf_health"] = "CRITICAL"
-            elif soot > 60:
-                readings["dpf_health"] = "WARNING"
-            else:
-                readings["dpf_health"] = "OK"
-
-        # Idle fuel percentage (of total lifetime fuel burned at idle)
-        if idle_fuel is not None and total_fuel is not None and total_fuel > 0:
-            readings["idle_fuel_pct"] = round((idle_fuel / total_fuel) * 100, 1)
-
-        # DEF level alert
-        def_level = readings.get("def_level_pct", None)
-        if def_level is not None:
-            readings["def_low"] = def_level < 15
-
-        # SCR health indicator
-        scr_eff = readings.get("scr_efficiency_pct", None)
-        if scr_eff is not None:
-            if scr_eff < 50:
-                readings["scr_health"] = "CRITICAL"
-            elif scr_eff < 80:
-                readings["scr_health"] = "WARNING"
-            else:
-                readings["scr_health"] = "OK"
-
-        # DEF dosing status
-        dose_rate = readings.get("def_dose_rate_gs", None)
-        dose_cmd = readings.get("def_dose_commanded_gs", None)
-        if dose_rate is not None or dose_cmd is not None:
-            readings["def_dosing_active"] = (
-                (dose_rate is not None and dose_rate > 0)
-                or (dose_cmd is not None and dose_cmd > 0)
-            )
-
-        # Battery health -- 12.0-12.6V is normal for engine-off, 13.5-14.5V for running
-        batt = readings.get("battery_voltage_v", None)
-        rpm = readings.get("engine_rpm", 0) or 0
-        if batt is not None:
-            if rpm > 0:
-                # Engine running -- alternator should be charging
-                if batt < 13.0:
-                    readings["battery_health"] = "LOW"
-                elif batt > 15.0:
-                    readings["battery_health"] = "OVERCHARGE"
-                else:
-                    readings["battery_health"] = "OK"
-            else:
-                # Engine off -- resting voltage
-                if batt < 11.5:
-                    readings["battery_health"] = "CRITICAL"
-                elif batt < 12.0:
-                    readings["battery_health"] = "LOW"
-                else:
-                    readings["battery_health"] = "OK"
 
         # ---------------------------------------------------------------
         # System health + offline buffer
