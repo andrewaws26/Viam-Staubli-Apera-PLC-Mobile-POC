@@ -81,9 +81,7 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
     return () => { clearTimeout(timer); clearInterval(id); };
   }, [simMode, selectedHistoryVin]);
 
-  // Advanced diagnostics state
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-
+  // Trend history — stores last 100 readings per metric
   const MAX_TREND_POINTS = 100;
   const [trendHistory, setTrendHistory] = useState<Record<string, { time: number; value: number }[]>>({});
 
@@ -590,11 +588,6 @@ ${aiSummary ? `<h2>AI Vehicle Health Summary</h2><div style="white-space:pre-wra
   // GPS data
   const gpsLat = readings?.gps_latitude as number ?? null;
   const gpsLon = readings?.gps_longitude as number ?? null;
-  const gpsHeading = readings?.compass_bearing_deg as number ?? null;
-  const gpsSpeed = readings?.nav_speed_mph as number ?? null;
-  const gpsAlt = readings?.altitude_ft as number ?? null;
-
-  // Render a section of fields
 
   return (
     <div className="bg-gray-900/30 rounded-2xl border border-gray-800 p-3 sm:p-5">
