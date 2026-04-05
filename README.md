@@ -1,76 +1,149 @@
-# TPS Remote Monitoring System
+# IronSight — Fleet Monitoring for TPS Railroad Trucks
 
-Remote production monitoring for the Tie Plate System (TPS) using [Viam Robotics](https://www.viam.com/). A Raspberry Pi 5 connects to a Click PLC via Modbus TCP, captures encoder and I/O data at 1 Hz, and syncs to Viam Cloud. A Next.js dashboard on Vercel displays live production data from any browser.
+Production monitoring system for Tie Plate Systems (TPS) deployed on 30+ railroad trucks. Each truck has two Raspberry Pis: a **Pi 5** reading PLC registers via Modbus TCP, and a **Pi Zero 2 W** reading J1939 CAN bus truck diagnostics. Data syncs to Viam Cloud at 1 Hz, and a Next.js dashboard on Vercel provides live status, AI-powered diagnostics, shift reports, and fleet overview.
 
-**Designed for fleet deployment** — plug a Pi into the PLC's Ethernet port, power it on, and it starts observing. Self-healing connections, offline buffering, and zero manual configuration per truck.
+**Designed for fleet deployment** — plug in, power on, starts observing. Self-healing connections, offline buffering, zero manual configuration per truck.
 
 ## What It Monitors
 
-All data comes directly from the Click PLC C0-10DD2E-D ladder logic — no simulated or placeholder values:
+### TPS Production (PLC Sensor — Pi 5)
+
+All data from a Click PLC C0-10DD2E-D via Modbus TCP:
 
 | Signal Type | Details |
 |---|---|
-| **Encoder** (SICK DBS60E) | Pulse count, distance (ft/mm), speed (ft/min), direction, revolutions |
-| **Discrete Inputs** (X1-X8) | TPS power loop, camera signal, Air Eagle 1/2/3 feedback |
-| **Output Coils** (Y1-Y3) | Eject TPS-1, Eject Left TPS-2, Eject Right TPS-2 |
-| **Internal Coils** (C1999-C2000) | Encoder reset, floating zero |
-| **DS Registers** (DS1-DS25) | Encoder ignore, tie spacing, plate count, detector offset, HMI control, and more |
-| **Derived** | Plates per minute (rolling 60s window), plate drop count, encoder enabled state |
+| **Encoder** (SICK DBS60E) | Pulse count, distance (ft), speed (ft/min), direction, revolutions |
+| **Discrete Inputs** (X1-X8) | TPS power loop, camera signal, Air Eagle feedback |
+| **Output Coils** (Y1-Y3) | Eject TPS-1, Eject Left/Right TPS-2 |
+| **DS Registers** (DS1-DS25) | Tie spacing, plate count, detector offset, HMI control |
+| **Diagnostics** | 19-rule engine across 5 categories (camera, encoder, eject, PLC, operation) |
 
-## What It Does NOT Collect
+### Truck Diagnostics (J1939 Sensor — Pi Zero 2 W)
 
-No camera feeds, no operator identity, no shift data, no audio. Fixed schema — expanding data requires new code, not config changes.
+Passive CAN bus monitoring of heavy-duty trucks (2013+ Mack/Volvo):
+
+| Signal Type | Details |
+|---|---|
+| **Engine** | RPM, coolant temp (°F), oil pressure (PSI), fuel rate (gal/hr) |
+| **Vehicle** | Speed (mph), odometer (mi), battery voltage |
+| **Transmission** | Gear, oil temp (°F), oil pressure (PSI) |
+| **DTCs** | Per-ECU fault codes (engine, trans, ABS, body, ACM, instrument) |
+| **Lamps** | MIL, amber warning, red stop, protect — per ECU source |
+| **Aftertreatment** | DPF pressure, DEF level, SCR catalyst temp |
+
+15 PGNs decoded. All readings in US imperial units.
+
+### OBD-II Support (Future — Separate Device)
+
+33 PIDs, DTC read/clear, freeze frame, readiness monitors, VIN. Code is in-repo and validated (6.6M CAN frames, zero drops on 2013 Nissan Altima) but will deploy on a dedicated OBD-II device, not the Pi Zero.
 
 ## Architecture
 
 ```
-Click PLC ──Modbus TCP──▶ Raspberry Pi 5 ──Viam Cloud──▶ Vercel Dashboard
-                           │
-                           ├─ plc-sensor module (1 Hz reads)
-                           ├─ offline buffer (JSONL, survives reboots)
-                           ├─ viam-server (data capture + cloud sync)
-                           └─ health-check (HTTP :8081)
+Click PLC ──Modbus TCP──▶ Pi 5 ──Viam Cloud──▶ Vercel Dashboard
+                           │                         │
+                           ├─ plc-sensor (1 Hz)       ├─ Live monitoring
+                           ├─ offline buffer (JSONL)  ├─ AI diagnostics (Claude)
+                           ├─ touch display (pygame)  ├─ Shift reports
+                           └─ health-check (:8081)    ├─ Fleet overview
+                                                      └─ PWA (iOS/Android)
+CAN Bus (J1939) ──▶ Pi Zero 2 W ──Viam Cloud──▶
+                     │
+                     ├─ j1939-sensor (listen-only, 250kbps)
+                     ├─ 15 PGN decoders
+                     └─ DTC tracking (per-ECU namespace)
 ```
 
 ## Project Structure
 
 ```
-.
-├── config/
-│   ├── viam-server.json              # Single-truck Viam config
-│   ├── fragment-tps-truck.json       # Fleet fragment template
-│   └── tps-health-check.service      # systemd unit for health endpoint
-├── dashboard/                        # Next.js on Vercel
-│   ├── app/
-│   │   ├── api/sensor-readings/      # Server-side Viam API proxy
-│   │   ├── page.tsx                  # Main page
-│   │   └── layout.tsx
-│   ├── components/                   # Dashboard, StatusCard, PlcDetailPanel
-│   ├── lib/                          # Viam client, sensor configs, types
-│   └── .env.local.example            # Credential template
 ├── modules/
-│   └── plc-sensor/                   # Viam sensor module
-│       ├── src/plc_sensor.py         # Core module (Modbus reads + offline buffer)
-│       ├── run.sh                    # Entry point (venv + validation)
-│       ├── setup.sh                  # One-time setup
-│       ├── requirements.txt          # Pinned: viam-sdk==0.69.0, pymodbus==3.7.4
-│       └── meta.json
+│   ├── plc-sensor/                    # TPS PLC monitoring via Modbus TCP
+│   │   ├── src/
+│   │   │   ├── plc_sensor.py          # Main Viam Sensor class
+│   │   │   ├── plc_utils.py           # Helpers: serialise, uint16, chat queue
+│   │   │   ├── plc_offline.py         # OfflineBuffer JSONL persistence
+│   │   │   ├── plc_metrics.py         # ConnectionQualityMonitor + SignalMetrics
+│   │   │   ├── plc_weather.py         # Location weather cache
+│   │   │   ├── diagnostics.py         # 19-rule diagnostic engine
+│   │   │   └── system_health.py       # Pi health metrics
+│   │   └── tests/                     # 149 tests passing
+│   │
+│   └── j1939-sensor/                  # J1939 CAN bus truck diagnostics
+│       ├── src/models/
+│       │   ├── j1939_sensor.py        # Main sensor (orchestrator)
+│       │   ├── pgn_decoder.py         # PGN decode registry (15 PGNs)
+│       │   ├── pgn_utils.py           # Byte extraction, CAN ID parsing
+│       │   ├── pgn_dm1.py             # DM1/DM2 DTC + lamp decoding
+│       │   ├── obd2_poller.py         # OBD-II orchestrator
+│       │   ├── obd2_pids.py           # 40 PID definitions + decode lambdas
+│       │   ├── obd2_dtc.py            # DTC read/clear Mode 03/04
+│       │   ├── obd2_diagnostics.py    # Freeze frame, readiness, VIN
+│       │   └── vehicle_profiles.py    # Vehicle profile data
+│       └── tests/                     # 148 tests passing
+│
+├── dashboard/                         # Next.js 14 on Vercel
+│   ├── app/
+│   │   ├── page.tsx                   # Landing page
+│   │   ├── dev/page.tsx               # Dev mode diagnostics
+│   │   ├── fleet/page.tsx             # Fleet overview with truck cards
+│   │   ├── shift-report/             # Shift reports with time presets
+│   │   ├── sign-in/                  # Auth placeholder (Clerk)
+│   │   └── api/
+│   │       ├── sensor-readings/      # Live PLC data proxy
+│   │       ├── truck-readings/       # Live J1939 data proxy
+│   │       ├── sensor-history/       # Historical data (Viam Data API)
+│   │       ├── shift-report/         # Shift report aggregation
+│   │       ├── fleet/status/         # Fleet status (Promise.allSettled)
+│   │       ├── ai-chat/             # Claude AI mechanic chat
+│   │       ├── ai-diagnose/         # Claude AI one-shot diagnosis
+│   │       ├── plc-command/         # PLC do_command proxy
+│   │       ├── truck-command/       # J1939 do_command proxy
+│   │       └── pi-health/           # Pi system health proxy
+│   │
+│   ├── components/
+│   │   ├── TruckPanel.tsx            # Truck monitoring orchestrator
+│   │   ├── GaugeGrid.tsx             # Gauge field definitions + rendering
+│   │   ├── DTCPanel.tsx              # DTC display + clearing
+│   │   ├── AIChatPanel.tsx           # AI chat + diagnosis UI
+│   │   ├── Dashboard.tsx             # TPS dashboard orchestrator
+│   │   ├── DashboardAudio.tsx        # Alarm hook + flash overlay
+│   │   ├── TPS/                      # TPS sub-components (5 modules)
+│   │   └── DevTruck/                 # Dev truck sub-components (3 modules)
+│   │
+│   ├── hooks/useSensorPolling.ts     # Polling, sim mode, fault detection
+│   ├── lib/
+│   │   ├── sensor-types.ts           # TypeScript interfaces (100+ fields each)
+│   │   ├── machines.ts               # Fleet truck registry (FLEET_TRUCKS env)
+│   │   ├── auth.ts                   # RBAC role definitions + route permissions
+│   │   └── truck-data.ts             # Truck data utilities
+│   ├── public/
+│   │   ├── manifest.json             # PWA manifest
+│   │   └── sw.js                     # Service worker (cache-first + SWR)
+│   ├── middleware.ts                  # No-op until Clerk installed
+│   └── tests/                        # 18 Playwright E2E tests
+│
 ├── scripts/
-│   ├── test_plc_modbus.py            # Manual PLC connectivity test
-│   └── health-check.py              # Fleet health endpoint
-├── docs/
-│   ├── architecture.md
-│   ├── deploy-rpi5.md
-│   ├── click-plc-setup-guide.md
-│   ├── encoder-setup-guide.md
-│   ├── fleet-deployment-plan.md
-│   └── data-management.md
-└── requirements.txt                  # Top-level pinned deps
+│   ├── ironsight-touch.py            # Touch display launcher → touch_ui/
+│   ├── ironsight-discover.py         # Discovery launcher → discovery/
+│   ├── ironsight-server.py           # AI analysis HTTP server
+│   ├── ironsight-display.py          # Headless Pi display
+│   ├── ironsight-analyze.py          # PLC analysis CLI
+│   ├── ironsight-discovery-daemon.py # Discovery daemon
+│   ├── plc-autodiscover.py           # Auto-discovery
+│   ├── touch_ui/                     # Touch display package (8 screens)
+│   ├── discovery/                    # Network/PLC discovery package
+│   └── lib/                          # Shared utilities (6 modules)
+│
+├── config/                           # Viam server and fragment configs
+├── docs/                             # Documentation
+├── CLAUDE.md                         # AI agent instructions
+└── AGENTS.md                         # Agent development guide
 ```
 
 ## Quick Start
 
-### Mock mode (no hardware)
+### Dashboard — Mock mode (no hardware)
 
 ```bash
 cd dashboard
@@ -79,57 +152,112 @@ cp .env.local.example .env.local
 npm install && npm run dev
 ```
 
-### Live mode (Pi + PLC)
+Open http://localhost:3000 for TPS monitoring, http://localhost:3000/fleet for fleet overview.
+
+### Dashboard — Live mode
 
 1. **Deploy the Pi** — follow [docs/deploy-rpi5.md](docs/deploy-rpi5.md)
-2. **Set Vercel env vars** — in Vercel Project Settings → Environment Variables:
-   - `VIAM_MACHINE_ADDRESS` — your machine's cloud address
-   - `VIAM_API_KEY_ID` — API key ID from Viam app
-   - `VIAM_API_KEY` — API key value
-   - `NEXT_PUBLIC_MOCK_MODE` — set to `false`
-3. **Deploy** — push to main, Vercel builds automatically
+2. **Set Vercel env vars:**
+   - `VIAM_API_KEY` / `VIAM_API_KEY_ID` — Organization API key (reads all machines)
+   - `VIAM_MACHINE_ADDRESS` / `VIAM_PART_ID` — Pi 5 TPS machine
+   - `TRUCK_VIAM_MACHINE_ADDRESS` / `TRUCK_VIAM_API_KEY` / `TRUCK_VIAM_API_KEY_ID` — Pi Zero truck machine
+   - `ANTHROPIC_API_KEY` — For AI diagnostics
+   - `FLEET_TRUCKS` — JSON array of truck configs (fleet page)
+   - `NEXT_PUBLIC_MOCK_MODE=false`
+3. **Push to main** — Vercel auto-deploys
 
-### Health check
+### Run tests
 
 ```bash
-# From the Pi or any machine on the same network:
-curl http://<pi-ip>:8081/health
+# Python tests (297 total)
+python3 -m pytest modules/plc-sensor/tests/ -v    # 149 tests
+python3 -m pytest modules/j1939-sensor/tests/ -v   # 148 tests
+
+# Dashboard build verification
+cd dashboard && npx next build
+
+# Playwright E2E (requires browser install)
+cd dashboard && npx playwright install && npx playwright test
 ```
-
-## Fleet Deployment
-
-For 30+ trucks, use the Viam Fragment workflow:
-
-1. Create a fragment in app.viam.com using `config/fragment-tps-truck.json`
-2. For each truck machine, add the fragment and override `host` with the truck's PLC IP
-3. Install the health check service: `sudo cp config/tps-health-check.service /etc/systemd/system/ && sudo systemctl enable --now tps-health-check`
-
-See [docs/fleet-deployment-plan.md](docs/fleet-deployment-plan.md) for the full rollout plan.
 
 ## Key Features
 
-- **Plug and play** — Pi auto-connects to PLC on boot, self-heals on disconnect
-- **Offline buffering** — JSONL files on local disk, auto-pruned at 50 MB cap
-- **Self-healing** — exponential backoff (1s → 30s), auto-reconnect with diagnostic logs
-- **Secure dashboard** — Viam credentials stay server-side (Vercel serverless functions)
-- **Fleet-ready** — Viam Fragments for per-truck config, health endpoint on every Pi
-- **Zero data loss** — Viam data manager buffers locally when cloud is unreachable
+- **Dual-sensor monitoring** — PLC production data + J1939 truck diagnostics on every truck
+- **AI-powered diagnostics** — Claude-based mechanic chat and one-shot diagnosis from live readings
+- **19-rule diagnostic engine** — Real-time fault detection across camera, encoder, eject, PLC, and operation categories
+- **Fleet overview** — All trucks on one page with status cards and health indicators
+- **Shift reports** — Historical data aggregation with time presets and timezone support
+- **DTC management** — View per-ECU fault codes with lamp indicators, clear via DM11
+- **PWA** — Installable on iOS/Android home screen, offline-capable with service worker
+- **Offline buffering** — JSONL files on Pi, auto-pruned at 50 MB, zero data loss
+- **Self-healing** — Exponential backoff (1s → 30s), auto-reconnect on both Modbus and CAN
+- **Secure** — All Viam and API credentials stay server-side (Vercel serverless functions)
+- **Fleet-ready** — Viam Fragments for per-truck config, FLEET_TRUCKS env var for dashboard
+
+## Fleet Deployment
+
+Each truck runs two Pis:
+
+| Pi | Role | Module | Connection |
+|----|------|--------|------------|
+| **Pi 5** | TPS monitoring, uploads, touch display | `modules/plc-sensor/` | Modbus TCP to PLC |
+| **Pi Zero 2 W** | J1939 truck diagnostics (passive) | `modules/j1939-sensor/` | CAN bus (listen-only, 250kbps) |
+
+Both Pis sync to Viam Cloud. The dashboard reads from all machines using an organization-level API key.
+
+For 30+ trucks:
+1. Create a Viam Fragment from `config/fragment-tps-truck.json`
+2. Add fragment to each truck machine, override PLC IP
+3. Set `FLEET_TRUCKS` env var in Vercel with truck registry
+4. See [docs/fleet-deployment-plan.md](docs/fleet-deployment-plan.md)
+
+## Auth (Scaffold — Clerk Not Yet Installed)
+
+RBAC with 4 roles defined in `dashboard/lib/auth.ts`:
+- **Admin** — Full access, DTC clearing, PLC commands
+- **Mechanic** — Diagnostics, DTC viewing/clearing, AI chat
+- **Driver** — Read-only dashboard, shift reports
+- **Viewer** — Read-only, no commands
+
+Middleware is a no-op until `@clerk/nextjs` is installed.
 
 ## Troubleshooting
 
 ```bash
-# View live module logs
+# PLC sensor logs
 sudo journalctl -u viam-server -f | grep plc
 
-# Check for connection errors
-sudo journalctl -u viam-server --since "1 hour ago" | grep "🔴"
+# J1939 sensor logs
+ssh andrew@100.113.196.68 "sudo journalctl -u viam-server -n 50"
 
-# Check for self-heal events
-sudo journalctl -u viam-server | grep "self-healed"
-
-# Test PLC connectivity directly
-python3 scripts/test_plc_modbus.py --host 192.168.0.10 --watch
+# Test PLC connectivity
+python3 scripts/test_plc_modbus.py --host 169.168.10.21 --watch
 
 # Full health report
 curl http://localhost:8081/health | python3 -m json.tool
+
+# Fleet health (from Pi 5)
+/usr/local/bin/fleet-health.sh
 ```
+
+## Test Infrastructure
+
+| Suite | Count | Coverage |
+|-------|-------|----------|
+| PLC sensor (pytest) | 149 | Diagnostics (86), utils (36), integration (25), chat queue |
+| J1939 sensor (pytest) | 148 | PGN decoder (69), integration (31), sensor (24), OBD2 (24) |
+| Playwright E2E | 18 | Dashboard, truck panel, fleet page |
+| **Total** | **315** | |
+
+All Python tests verify imperial units (°F, PSI, mph) per project conventions.
+
+## Contributing
+
+See [AGENTS.md](AGENTS.md) for the complete file map, ownership boundaries, data flow, conventions, and instructions for adding new features. See [docs/session-handoff.md](docs/session-handoff.md) for current development status and next priorities.
+
+**Rules:**
+- Branch and PR for all code changes (docs excepted)
+- Files must stay under 500 lines — split if approaching
+- All readings in US imperial units
+- Viam credentials stay server-side, never in browser
+- Mobile-friendly, dark theme, Tailwind CSS only in dashboard
