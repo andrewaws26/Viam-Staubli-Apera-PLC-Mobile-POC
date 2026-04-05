@@ -11,85 +11,11 @@ import { PrintDataTable, PrintTripTable } from "./components/PrintTables";
 import { TripTimeline } from "./components/TripTimeline";
 import { SummaryCard, PeakCard, MiniStat } from "./components/SummaryCards";
 import { LoadingSkeleton } from "./components/LoadingSkeleton";
+import { PrintReport } from "./components/PrintReport";
+import { PRINT_STYLES } from "./print-styles";
 import type { TimePreset } from "./types";
 
 const ShiftRouteMap = dynamic(() => import("../../components/ShiftRouteMap"), { ssr: false });
-
-// ---------------------------------------------------------------------------
-// Print styles
-// ---------------------------------------------------------------------------
-
-const PRINT_STYLES = `
-  @media print {
-    @page { size: letter portrait; margin: 0.6in 0.75in; }
-
-    /* White paper reset */
-    *, *::before, *::after {
-      color: #1f2937 !important;
-      background: white !important;
-      border-color: #d1d5db !important;
-      box-shadow: none !important;
-      text-shadow: none !important;
-    }
-    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; padding: 0; }
-
-    /* Hide ALL screen content — only .print-report shows */
-    .no-print { display: none !important; }
-    main > *:not(.print-report) { display: none !important; }
-    .print-report { display: block !important; padding: 0 4px; }
-
-    /* Container resets */
-    main { gap: 0 !important; padding: 0 !important; }
-    .min-h-screen { min-height: 0 !important; }
-
-    /* ---- Header ---- */
-    .pr-header { display: flex; justify-content: space-between; align-items: flex-end; margin: 0 0 6px 0; }
-    .pr-header h1 { font-size: 15pt; font-weight: 900; letter-spacing: 0.1em; margin: 0; line-height: 1; color: #111827 !important; }
-    .pr-header-right { font-size: 9pt; color: #4b5563 !important; text-align: right; line-height: 1.4; }
-    .pr-rule { border: none; border-top: 2.5pt solid #111827 !important; margin: 0 0 14px 0; }
-
-    /* ---- KPI row ---- */
-    .pr-kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); border: 2px solid #374151 !important; border-radius: 4px; margin-bottom: 14px; overflow: hidden; }
-    .pr-kpi { border-right: 1px solid #d1d5db !important; padding: 10px 12px; text-align: center; }
-    .pr-kpi:last-child { border-right: none !important; }
-    .pr-kpi-val { font-size: 22pt; font-weight: 900; line-height: 1.1; color: #111827 !important; }
-    .pr-kpi-val span { font-size: 9pt; font-weight: 400; margin-left: 2px; color: #6b7280 !important; }
-    .pr-kpi-label { font-size: 7.5pt; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280 !important; margin-top: 3px; }
-
-    /* ---- Location ---- */
-    .pr-location { font-size: 9.5pt; margin: 0 0 12px 0; color: #374151 !important; }
-    .pr-location strong { color: #111827 !important; }
-
-    /* ---- Sections ---- */
-    .pr-section { margin-bottom: 12px; }
-    .pr-section-head { font-size: 9pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 1.5px solid #9ca3af !important; padding-bottom: 2px; margin-bottom: 5px; color: #374151 !important; }
-
-    /* ---- Alerts ---- */
-    .pr-alert { font-size: 8.5pt; padding: 2px 0; line-height: 1.4; }
-    .pr-critical { color: #dc2626 !important; }
-    .pr-warning { color: #92400e !important; }
-    .pr-more { font-size: 7.5pt; color: #6b7280 !important; font-style: italic; margin-top: 2px; }
-
-    /* ---- Tables ---- */
-    .pr-table { width: 100%; border-collapse: collapse; font-size: 8.5pt; margin-top: 4px; }
-    .pr-table th { background: #f3f4f6 !important; font-weight: 700; text-align: left; padding: 3px 8px; border: 1px solid #d1d5db !important; font-size: 7.5pt; text-transform: uppercase; letter-spacing: 0.03em; }
-    .pr-table td { padding: 3px 8px; border: 1px solid #e5e7eb !important; }
-    .pr-table tr:nth-child(even) td { background: #f9fafb !important; }
-
-    /* ---- Peaks + DTCs ---- */
-    .pr-inline-data { font-size: 9.5pt; line-height: 1.6; color: #374151 !important; }
-
-    /* ---- Footer ---- */
-    .pr-footer { font-size: 7.5pt; color: #9ca3af !important; text-align: center; border-top: 1px solid #d1d5db !important; padding-top: 6px; margin-top: 20px; }
-  }
-
-  /* Hide print elements on screen */
-  @media screen {
-    .print-only { display: none !important; }
-    .print-report { display: none !important; }
-    .print-data-table { display: none !important; }
-  }
-`;
 
 // ---------------------------------------------------------------------------
 // Page
@@ -477,86 +403,8 @@ function ReportContent({
         </section>
       )}
 
-      {/* ========== SINGLE-PAGE PRINT REPORT ========== */}
-      <div className="print-report">
-        <div className="pr-header">
-          <h1>IRONSIGHT SHIFT REPORT</h1>
-          <div className="pr-header-right">
-            {fmtDateLong(report.periodStart)} &middot; {fmtHM(startH, startM)}–{fmtHM(endH, endM)} ET &middot; {report.truckId}
-          </div>
-        </div>
-        <hr className="pr-rule" />
-
-        <div className="pr-kpi-row">
-          <div className="pr-kpi"><div className="pr-kpi-val">{report.engineHours.toFixed(1)}<span>hrs</span></div><div className="pr-kpi-label">Engine Hours</div></div>
-          <div className="pr-kpi"><div className="pr-kpi-val">{report.idlePercent.toFixed(0)}<span>%</span></div><div className="pr-kpi-label">Idle Time</div></div>
-          <div className="pr-kpi"><div className="pr-kpi-val">{report.totalPlates}<span>plates</span></div><div className="pr-kpi-label">Plates Placed</div></div>
-          <div className="pr-kpi"><div className="pr-kpi-val">{report.platesPerHour.toFixed(0)}<span>/hr</span></div><div className="pr-kpi-label">Plates / Hour</div></div>
-        </div>
-
-        <p className="pr-location">
-          <strong>Location:</strong> Louisville, KY
-          {report.route.distanceMiles > 0 && ` \u2014 ${report.route.distanceMiles} mi${report.route.distanceSource === "speed_estimate" ? " (est.)" : ""}`}
-          {report.route.movingMinutes > 0 && ` \u2014 ${report.route.movingMinutes} min moving, ${report.route.stoppedMinutes} min stopped`}
-        </p>
-
-        {report.alerts.length > 0 && (
-          <div className="pr-section">
-            <div className="pr-section-head">Alerts</div>
-            {report.alerts.slice(0, 5).map((alert, i) => (
-              <div key={i} className={`pr-alert ${alert.level === "critical" ? "pr-critical" : "pr-warning"}`}>
-                {alert.level === "critical" ? "[!] CRITICAL" : "[*] WARNING"}: {alert.message} \u2014 {fmtTime(alert.timestamp)}
-              </div>
-            ))}
-            {report.alerts.length > 5 && (
-              <div className="pr-more">and {report.alerts.length - 5} more alert{report.alerts.length - 5 > 1 ? "s" : ""}</div>
-            )}
-          </div>
-        )}
-
-        {report.trips.length > 0 && (
-          <div className="pr-section">
-            <div className="pr-section-head">Engine Activity ({report.trips.length} trip{report.trips.length > 1 ? "s" : ""})</div>
-            <table className="pr-table">
-              <thead><tr><th>Trip</th><th>Start</th><th>End</th><th>Duration</th></tr></thead>
-              <tbody>
-                {report.trips.slice(0, 8).map((trip, i) => (
-                  <tr key={i}><td>{i + 1}</td><td>{fmtTime(trip.startTime)}</td><td>{fmtTime(trip.endTime)}</td><td>{trip.durationMin} min</td></tr>
-                ))}
-              </tbody>
-            </table>
-            {report.trips.length > 8 && (
-              <div className="pr-more">{report.trips.length - 8} additional short trips</div>
-            )}
-          </div>
-        )}
-
-        <div className="pr-section">
-          <div className="pr-section-head">Peak Readings</div>
-          <div className="pr-inline-data">
-            Peak Coolant: {report.peakCoolantTemp ? `${report.peakCoolantTemp.value}\u00B0F at ${fmtTime(report.peakCoolantTemp.timestamp)}` : "\u2014"}
-            {" \u00A0|\u00A0 "}
-            Peak Oil: {report.peakOilTemp ? `${report.peakOilTemp.value}\u00B0F at ${fmtTime(report.peakOilTemp.timestamp)}` : "\u2014"}
-            {" \u00A0|\u00A0 "}
-            Min Battery: {report.minBatteryVoltage ? `${report.minBatteryVoltage.value}V at ${fmtTime(report.minBatteryVoltage.timestamp)}` : "\u2014"}
-          </div>
-        </div>
-
-        {report.dtcEvents.length > 0 && (
-          <div className="pr-section">
-            <div className="pr-section-head">Diagnostic Trouble Codes</div>
-            <div className="pr-inline-data">
-              {report.dtcEvents.map((dtc, i) => (
-                <span key={i}>{i > 0 && " \u00A0|\u00A0 "}{dtc.code} (first seen {fmtTime(dtc.firstSeen)})</span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="pr-footer">
-          IronSight Fleet Monitoring \u2014 Generated {fmtDateTime(new Date().toISOString())} \u2014 {report.dataPointCount.tps + report.dataPointCount.truck} readings \u2014 All times Eastern (Louisville, KY)
-        </div>
-      </div>
+      {/* Print-only full report */}
+      <PrintReport report={report} startH={startH} startM={startM} endH={endH} endM={endM} />
 
       {/* Footer (screen) */}
       <footer className="text-[10px] sm:text-xs text-gray-600 text-center py-4 border-t border-gray-800 no-print">
