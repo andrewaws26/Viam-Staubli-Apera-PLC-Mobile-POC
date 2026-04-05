@@ -3,6 +3,7 @@ AI analysis prompts and utilities for IronSight Upload & Analysis Server.
 
 Extracted from ironsight-server.py. Contains:
   - Default analysis prompts
+  - Upload page HTML template
   - Video frame extraction
   - Claude CLI analysis integration
   - Status bus posting
