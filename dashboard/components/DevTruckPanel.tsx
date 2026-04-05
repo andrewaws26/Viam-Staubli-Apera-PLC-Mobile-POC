@@ -1,6 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
+import BusStatsPanel from "./DevTruck/BusStatsPanel";
+import CommandPanel from "./DevTruck/CommandPanel";
+import DebugControls from "./DevTruck/DebugControls";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -33,82 +36,39 @@ const DTC_KEYS = new Set([
   "readiness_monitors",
 ]);
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+const CONNECTION_KEYS = new Set([
+  "vin",
+  "vehicle_make",
+  "vehicle_model",
+  "vehicle_year",
+  "can_bitrate",
+  "frames_per_second",
+  "bus_load_pct",
+]);
 
-function inferUnit(key: string): string {
-  if (/_f$/.test(key) || /temp_f/.test(key)) return "\u00B0F";
-  if (/_c$/.test(key)) return "\u00B0C";
-  if (/_psi$/.test(key) || /pressure_psi/.test(key)) return "PSI";
-  if (/_mph$/.test(key) || /speed_mph/.test(key)) return "mph";
-  if (/_rpm$/.test(key) || /engine_rpm/.test(key)) return "RPM";
-  if (/voltage/.test(key)) return "V";
-  if (/_gph$/.test(key)) return "gal/hr";
-  if (/_pct$/.test(key) || /percent/.test(key)) return "%";
-  if (/_deg$/.test(key)) return "\u00B0";
-  if (/_gps$/.test(key)) return "g/s";
-  return "";
-}
-
-function fmtVal(v: unknown): string {
-  if (v === undefined || v === null) return "\u2014";
-  if (typeof v === "boolean") return v ? "ON" : "OFF";
-  if (typeof v === "number") {
-    if (Number.isInteger(v)) return v.toLocaleString();
-    return v.toFixed(2);
-  }
-  return String(v);
-}
-
-function freshnessDot(ts: number | undefined): string {
-  if (!ts) return "bg-gray-600";
-  const age = Date.now() - ts;
-  if (age < 5000) return "bg-green-500";
-  if (age < 10000) return "bg-green-700";
-  if (age < 30000) return "bg-yellow-500";
-  return "bg-red-500";
-}
-
-function freshnessAge(ts: number | undefined): string {
-  if (!ts) return "never";
-  const s = Math.round((Date.now() - ts) / 1000);
-  if (s < 1) return "now";
-  return `${s}s`;
-}
-
-function extractDtcs(
-  data: Readings | null,
-  key: string
-): { code: string; desc: string }[] {
-  if (!data || !data[key]) return [];
-  let raw = data[key];
-  if (typeof raw === "string") {
-    try {
-      raw = JSON.parse(
-        raw
-          .replace(/'/g, '"')
-          .replace(/True/g, "true")
-          .replace(/False/g, "false")
-          .replace(/None/g, "null")
-      );
-    } catch {
-      return [];
-    }
-  }
-  if (!Array.isArray(raw)) return [];
-  return raw.map((item: unknown) => {
-    if (typeof item === "string") return { code: item, desc: "" };
-    if (typeof item === "object" && item !== null) {
-      const obj = item as Record<string, unknown>;
-      return {
-        code: String(obj.code || obj.dtc || obj.spn || ""),
-        desc: String(obj.description || obj.desc || obj.message || ""),
-      };
-    }
-    return { code: String(item), desc: "" };
-  });
-}
+const HEALTH_KEYS = new Set([
+  "cpu_temp_c",
+  "cpu_usage_pct",
+  "load_1m",
+  "load_5m",
+  "memory_total_mb",
+  "memory_used_mb",
+  "memory_used_pct",
+  "disk_used_pct",
+  "disk_free_gb",
+  "wifi_ssid",
+  "wifi_signal_pct",
+  "wifi_signal_dbm",
+  "tailscale_ip",
+  "tailscale_online",
+  "internet",
+  "uptime_seconds",
+  "sync_pending_files",
+  "sync_pending_mb",
+  "sync_oldest_age_min",
+  "sync_failed_files",
+  "sync_ok",
+]);
 
 // ---------------------------------------------------------------------------
 // Component
@@ -124,17 +84,6 @@ export default function DevTruckPanel() {
   const lastChangeRef = useRef<Record<string, number>>({});
   const prevDataRef = useRef<Readings | null>(null);
 
-  // DTC clear
-  const [clearingDtc, setClearingDtc] = useState(false);
-  const [dtcResult, setDtcResult] = useState<{
-    ok: boolean;
-    msg: string;
-  } | null>(null);
-
-  // Raw JSON
-  const [showRaw, setShowRaw] = useState(false);
-  const [copied, setCopied] = useState(false);
-
   // -----------------------------------------------------------------------
   // Polling
   // -----------------------------------------------------------------------
@@ -143,9 +92,7 @@ export default function DevTruckPanel() {
     let cancelled = false;
     const poll = async () => {
       try {
-        const res = await fetch(
-          "/api/truck-readings?component=truck-engine"
-        );
+        const res = await fetch("/api/truck-readings?component=truck-engine");
         const json: Readings = await res.json();
         if (cancelled) return;
 
@@ -181,97 +128,18 @@ export default function DevTruckPanel() {
   }, [expanded]);
 
   // -----------------------------------------------------------------------
-  // Clear DTCs
-  // -----------------------------------------------------------------------
-  const clearDtcs = useCallback(async () => {
-    setClearingDtc(true);
-    setDtcResult(null);
-    try {
-      const res = await fetch("/api/truck-command", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command: "clear_dtcs" }),
-      });
-      const json = await res.json();
-      setDtcResult({
-        ok: !json.error,
-        msg: json.error || json.message || "DTCs cleared successfully",
-      });
-    } catch (err) {
-      setDtcResult({
-        ok: false,
-        msg: err instanceof Error ? err.message : "Failed",
-      });
-    } finally {
-      setClearingDtc(false);
-    }
-  }, []);
-
-  // -----------------------------------------------------------------------
   // Derived state
   // -----------------------------------------------------------------------
   const isOffline = data?._offline === true;
   const protocol = data?._protocol as string | undefined;
-  const dataAge = data?._data_age_seconds as number | undefined;
-  const vin = (data?.vehicle_vin ?? data?.vin) as string | undefined;
-  const vehicleMake = data?.vehicle_make as string | undefined;
-  const vehicleModel = data?.vehicle_model as string | undefined;
-  const vehicleYear = data?.vehicle_year as number | undefined;
-  const canBitrate = data?.can_bitrate as number | undefined;
-  const framesPerSec = data?.frames_per_second as number | undefined;
-  const busLoad = data?.bus_load_pct as number | undefined;
 
-  const activeDtcs = extractDtcs(data, "active_dtcs");
-  const pendingDtcs = extractDtcs(data, "pending_dtcs");
-  const permanentDtcs = extractDtcs(data, "permanent_dtcs");
-  const dtcCount =
-    typeof data?.active_dtc_count === "number"
-      ? data.active_dtc_count
-      : typeof data?.dtc_count === "number"
-        ? data.dtc_count
-        : activeDtcs.length;
-  const milOn = data?.dtc_mil_status === true;
-
-  // Reading keys: exclude meta, DTC, connection, and health fields
-  const connectionKeys = new Set([
-    "vin",
-    "vehicle_make",
-    "vehicle_model",
-    "vehicle_year",
-    "can_bitrate",
-    "frames_per_second",
-    "bus_load_pct",
-  ]);
-  const HEALTH_KEYS = new Set([
-    "cpu_temp_c",
-    "cpu_usage_pct",
-    "load_1m",
-    "load_5m",
-    "memory_total_mb",
-    "memory_used_mb",
-    "memory_used_pct",
-    "disk_used_pct",
-    "disk_free_gb",
-    "wifi_ssid",
-    "wifi_signal_pct",
-    "wifi_signal_dbm",
-    "tailscale_ip",
-    "tailscale_online",
-    "internet",
-    "uptime_seconds",
-    "sync_pending_files",
-    "sync_pending_mb",
-    "sync_oldest_age_min",
-    "sync_failed_files",
-    "sync_ok",
-  ]);
   const readingKeys = data
     ? Object.keys(data)
         .filter(
           (k) =>
             !META_KEYS.has(k) &&
             !DTC_KEYS.has(k) &&
-            !connectionKeys.has(k) &&
+            !CONNECTION_KEYS.has(k) &&
             !HEALTH_KEYS.has(k) &&
             !k.startsWith("_")
         )
@@ -290,7 +158,7 @@ export default function DevTruckPanel() {
       {/* Header */}
       <button
         onClick={() => setExpanded((e) => !e)}
-        className="w-full p-4 sm:p-5 flex items-center justify-between gap-3 text-left hover:bg-gray-900/30 transition-colors"
+        className="w-full min-h-[44px] p-4 sm:p-5 flex items-center justify-between gap-3 text-left hover:bg-gray-900/30 transition-colors"
       >
         <div className="flex items-center gap-2 min-w-0">
           <span
@@ -333,435 +201,22 @@ export default function DevTruckPanel() {
             </div>
           )}
 
-          {/* ============================================================= */}
-          {/* Connection & Protocol                                          */}
-          {/* ============================================================= */}
-          <div>
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
-              Connection &amp; Protocol
-            </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-2">
-              <KV
-                label="Protocol"
-                value={
-                  protocol
-                    ? protocol.toUpperCase()
-                    : isOffline
-                      ? "Offline"
-                      : "Detecting\u2026"
-                }
-              />
-              <KV
-                label="CAN Bitrate"
-                value={
-                  canBitrate
-                    ? `${canBitrate / 1000}k`
-                    : "\u2014"
-                }
-              />
-              <KV label="VIN" value={vin || "\u2014"} mono />
-              {vehicleMake && (
-                <KV
-                  label="Vehicle"
-                  value={`${vehicleYear || ""} ${vehicleMake} ${vehicleModel || ""}`.trim()}
-                />
-              )}
-              <KV
-                label="Frames/sec"
-                value={
-                  framesPerSec !== undefined
-                    ? framesPerSec.toLocaleString()
-                    : "\u2014"
-                }
-              />
-              <KV
-                label="Bus Load"
-                value={
-                  busLoad !== undefined ? `${busLoad.toFixed(1)}%` : "\u2014"
-                }
-              />
-              <KV
-                label="Data Age"
-                value={
-                  dataAge !== undefined
-                    ? dataAge < 5
-                      ? "live"
-                      : `${Math.round(dataAge)}s`
-                    : "\u2014"
-                }
-              />
-              <KV label="Poll #" value={String(pollCount)} />
-            </div>
-          </div>
+          <BusStatsPanel
+            data={data}
+            isOffline={isOffline}
+            protocol={protocol}
+            pollCount={pollCount}
+          />
 
-          {/* ============================================================= */}
-          {/* Pi System Health                                               */}
-          {/* ============================================================= */}
-          <div>
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
-              Pi System Health
-            </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-2">
-              <KV
-                label="CPU Temp"
-                value={
-                  data?.cpu_temp_c != null
-                    ? `${(data.cpu_temp_c as number).toFixed(1)}\u00B0C / ${((data.cpu_temp_c as number) * 9/5 + 32).toFixed(0)}\u00B0F`
-                    : "\u2014"
-                }
-              />
-              <KV
-                label="CPU Usage"
-                value={
-                  data?.cpu_usage_pct != null
-                    ? `${(data.cpu_usage_pct as number).toFixed(1)}%`
-                    : "\u2014"
-                }
-              />
-              <KV
-                label="RAM"
-                value={
-                  data?.memory_used_mb != null && data?.memory_total_mb != null
-                    ? `${Math.round(data.memory_used_mb as number)}/${Math.round(data.memory_total_mb as number)} MB (${(data.memory_used_pct as number)?.toFixed(0) ?? "?"}%)`
-                    : "\u2014"
-                }
-              />
-              <KV
-                label="Disk Free"
-                value={
-                  data?.disk_free_gb != null
-                    ? `${(data.disk_free_gb as number).toFixed(1)} GB (${(data.disk_used_pct as number)?.toFixed(0) ?? "?"}% used)`
-                    : "\u2014"
-                }
-              />
-              <KV
-                label="WiFi"
-                value={
-                  data?.wifi_ssid
-                    ? `${data.wifi_ssid} (${data.wifi_signal_dbm != null ? `${Math.round(data.wifi_signal_dbm as number)} dBm` : "?"})`
-                    : "\u2014"
-                }
-              />
-              <KV
-                label="Tailscale"
-                value={
-                  data?.tailscale_ip
-                    ? String(data.tailscale_ip)
-                    : data?.tailscale_online === false
-                      ? "Offline"
-                      : "\u2014"
-                }
-                mono
-              />
-              <KV
-                label="Internet"
-                value={
-                  data?.internet === true
-                    ? "Connected"
-                    : data?.internet === false
-                      ? "No Internet"
-                      : "\u2014"
-                }
-              />
-              <KV
-                label="Uptime"
-                value={
-                  data?.uptime_seconds != null
-                    ? `${((data.uptime_seconds as number) / 3600).toFixed(1)}h`
-                    : "\u2014"
-                }
-              />
-              <KV
-                label="Load Avg"
-                value={
-                  data?.load_1m != null
-                    ? `${(data.load_1m as number).toFixed(2)} / ${(data.load_5m as number)?.toFixed(2) ?? "?"}`
-                    : "\u2014"
-                }
-              />
-            </div>
-          </div>
+          <DebugControls
+            data={data}
+            readingKeys={readingKeys}
+            lastChangeTimestamps={lastChangeRef.current}
+          />
 
-          {/* ============================================================= */}
-          {/* Viam Data Sync                                                 */}
-          {/* ============================================================= */}
-          <div>
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
-              Viam Data Sync
-              {data?.sync_ok === true && (
-                <span className="ml-2 text-green-400 normal-case tracking-normal font-normal">
-                  &mdash; OK
-                </span>
-              )}
-              {data?.sync_ok === false && (
-                <span className="ml-2 text-red-400 normal-case tracking-normal font-normal">
-                  &mdash; BEHIND
-                </span>
-              )}
-            </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2">
-              <KV
-                label="Pending Files"
-                value={
-                  data?.sync_pending_files != null
-                    ? String(data.sync_pending_files)
-                    : "\u2014"
-                }
-              />
-              <KV
-                label="Pending Size"
-                value={
-                  data?.sync_pending_mb != null
-                    ? `${(data.sync_pending_mb as number).toFixed(2)} MB`
-                    : "\u2014"
-                }
-              />
-              <KV
-                label="Oldest File"
-                value={
-                  data?.sync_oldest_age_min != null
-                    ? (data.sync_oldest_age_min as number) > 60
-                      ? `${((data.sync_oldest_age_min as number) / 60).toFixed(1)}h`
-                      : `${Math.round(data.sync_oldest_age_min as number)} min`
-                    : "\u2014"
-                }
-              />
-              <KV
-                label="Failed Files"
-                value={
-                  data?.sync_failed_files != null
-                    ? String(data.sync_failed_files)
-                    : "\u2014"
-                }
-              />
-            </div>
-          </div>
-
-          {/* ============================================================= */}
-          {/* Live Readings Table                                            */}
-          {/* ============================================================= */}
-          <div>
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
-              Live Readings ({readingKeys.length} fields)
-            </h3>
-            {readingKeys.length === 0 ? (
-              <p className="text-xs text-gray-700 animate-pulse">
-                {data ? "No reading fields available" : "Waiting for first reading\u2026"}
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="text-gray-700 text-left">
-                      <th className="py-1 pr-2 font-normal w-4"></th>
-                      <th className="py-1 pr-3 font-normal">Field</th>
-                      <th className="py-1 pr-3 font-normal">Value</th>
-                      <th className="py-1 pr-3 font-normal hidden sm:table-cell">
-                        Unit
-                      </th>
-                      <th className="py-1 font-normal hidden sm:table-cell">
-                        Updated
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {readingKeys.map((key) => {
-                      const val = data![key];
-                      const lastTs = lastChangeRef.current[key];
-                      return (
-                        <tr
-                          key={key}
-                          className="border-t border-gray-900/50"
-                        >
-                          <td className="py-1 pr-2">
-                            <span
-                              className={`inline-block w-1.5 h-1.5 rounded-full ${freshnessDot(lastTs)}`}
-                            />
-                          </td>
-                          <td className="py-1 pr-3 font-mono text-gray-500 whitespace-nowrap">
-                            {key}
-                          </td>
-                          <td className="py-1 pr-3 font-mono font-bold text-gray-200 whitespace-nowrap">
-                            {fmtVal(val)}
-                          </td>
-                          <td className="py-1 pr-3 text-gray-600 hidden sm:table-cell">
-                            {inferUnit(key)}
-                          </td>
-                          <td className="py-1 text-gray-600 font-mono hidden sm:table-cell">
-                            {freshnessAge(lastTs)}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          {/* ============================================================= */}
-          {/* DTC Panel                                                      */}
-          {/* ============================================================= */}
-          <div>
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
-              Diagnostic Trouble Codes
-              {(dtcCount as number) > 0 && (
-                <span className="ml-2 text-red-400 normal-case tracking-normal font-normal">
-                  &mdash; {dtcCount} active
-                </span>
-              )}
-              {milOn && (
-                <span className="ml-2 text-yellow-400 normal-case tracking-normal font-normal">
-                  (MIL ON)
-                </span>
-              )}
-            </h3>
-
-            {/* Active DTCs */}
-            {activeDtcs.length > 0 ? (
-              <div className="space-y-1 mb-3">
-                {activeDtcs.map((dtc, i) => (
-                  <div
-                    key={`a-${i}`}
-                    className="flex items-start gap-2 py-1.5 px-2 rounded bg-red-950/20 text-xs"
-                  >
-                    <span className="font-mono font-bold text-red-400 shrink-0">
-                      [{dtc.code}]
-                    </span>
-                    <span className="text-gray-400">
-                      {dtc.desc || "No description"}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-gray-700 mb-3">
-                No active DTCs
-              </p>
-            )}
-
-            {/* Pending DTCs */}
-            {pendingDtcs.length > 0 && (
-              <div className="mb-3">
-                <p className="text-[10px] uppercase tracking-wider text-yellow-600 font-bold mb-1">
-                  Pending
-                </p>
-                <div className="space-y-1">
-                  {pendingDtcs.map((dtc, i) => (
-                    <div
-                      key={`p-${i}`}
-                      className="flex items-start gap-2 py-1 px-2 rounded bg-yellow-950/20 text-xs"
-                    >
-                      <span className="font-mono font-bold text-yellow-400 shrink-0">
-                        [{dtc.code}]
-                      </span>
-                      <span className="text-gray-400">{dtc.desc}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Permanent DTCs */}
-            {permanentDtcs.length > 0 && (
-              <div className="mb-3">
-                <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-1">
-                  Permanent
-                </p>
-                <div className="space-y-1">
-                  {permanentDtcs.map((dtc, i) => (
-                    <div
-                      key={`pm-${i}`}
-                      className="flex items-start gap-2 py-1 px-2 rounded bg-gray-900/30 text-xs"
-                    >
-                      <span className="font-mono font-bold text-gray-400 shrink-0">
-                        [{dtc.code}]
-                      </span>
-                      <span className="text-gray-500">{dtc.desc}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Clear DTCs */}
-            <div className="flex items-center gap-3">
-              <button
-                onClick={clearDtcs}
-                disabled={clearingDtc}
-                className="px-4 py-2 bg-red-800 hover:bg-red-700 disabled:bg-gray-800 disabled:text-gray-600 text-white text-xs font-bold uppercase tracking-wider rounded-lg transition-colors"
-              >
-                {clearingDtc ? "Clearing\u2026" : "Clear DTCs"}
-              </button>
-              {dtcResult && (
-                <span
-                  className={`text-xs ${dtcResult.ok ? "text-green-400" : "text-red-400"}`}
-                >
-                  {dtcResult.ok ? "\u2713" : "\u2715"} {dtcResult.msg}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* ============================================================= */}
-          {/* Raw JSON                                                       */}
-          {/* ============================================================= */}
-          <div>
-            <button
-              onClick={() => setShowRaw((r) => !r)}
-              className="text-[10px] font-bold uppercase tracking-widest text-gray-600 hover:text-gray-400 transition-colors"
-            >
-              {showRaw ? "\u25BC" : "\u25B6"} Raw JSON
-            </button>
-            {showRaw && data && (
-              <div className="mt-2 relative">
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(
-                      JSON.stringify(data, null, 2)
-                    );
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 2000);
-                  }}
-                  className="absolute top-2 right-2 px-2 py-1 bg-gray-800 hover:bg-gray-700 text-gray-400 text-[10px] rounded transition-colors"
-                >
-                  {copied ? "Copied!" : "Copy"}
-                </button>
-                <pre className="bg-gray-900/50 border border-gray-800 rounded-lg p-3 text-[10px] sm:text-xs text-gray-400 font-mono overflow-x-auto max-h-96 overflow-y-auto">
-                  {JSON.stringify(data, null, 2)}
-                </pre>
-              </div>
-            )}
-          </div>
+          <CommandPanel data={data} />
         </div>
       )}
     </section>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Sub-components
-// ---------------------------------------------------------------------------
-
-function KV({
-  label,
-  value,
-  mono,
-}: {
-  label: string;
-  value: string;
-  mono?: boolean;
-}) {
-  return (
-    <div className="flex flex-col min-w-0">
-      <span className="text-[10px] text-gray-600 uppercase tracking-wide truncate">
-        {label}
-      </span>
-      <span
-        className={`text-xs sm:text-sm text-gray-300 truncate ${mono ? "font-mono" : ""}`}
-      >
-        {value}
-      </span>
-    </div>
   );
 }
