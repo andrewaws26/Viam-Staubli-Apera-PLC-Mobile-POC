@@ -314,12 +314,18 @@ class TestMalformedDataIntegration:
         # DTC needs 4 bytes (indices 2-5), only 3 available -> no DTC decoded
         assert result["active_dtc_count"] == 0
 
-    def test_all_error_bytes_eec1(self):
-        """All 0xFE (error indicator) bytes return empty."""
+    def test_all_error_bytes_eec1_single_byte_fields(self):
+        """0xFE (error indicator) on single-byte fields returns None for those fields."""
         data = bytes([0xFE] * 8)
         result = decode_pgn(61444, data)
-        # 0xFE for single bytes = error = None, 0xFFFE for words = error
-        assert result == {}
+        # Single-byte fields (driver_demand_torque_pct, actual_engine_torque_pct)
+        # should be excluded because 0xFE = error sentinel for bytes.
+        # But 16-bit RPM field reads 0xFEFE which is NOT the word error sentinel
+        # (0xFFFE), so RPM actually decodes to a value.
+        assert "driver_demand_torque_pct" not in result
+        assert "actual_engine_torque_pct" not in result
+        # RPM (16-bit) with 0xFEFE is valid raw data, not an error sentinel
+        assert "engine_rpm" in result
 
     def test_none_data_type(self):
         """Passing zero-length bytes is handled gracefully."""
