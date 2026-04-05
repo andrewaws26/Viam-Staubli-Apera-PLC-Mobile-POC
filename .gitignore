@@ -19,3 +19,5 @@ dashboard/next-env.d.ts
 scripts/incidents/archive/
 .vercel
 .claude/
+dashboard/playwright-report/
+dashboard/test-results/
