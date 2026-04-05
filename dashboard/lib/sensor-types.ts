@@ -180,6 +180,13 @@ export interface PlcSensorReadings {
   tailscale_ip?: string | null;
   tailscale_online?: boolean;
   internet?: boolean;
+
+  // -- Sync Health --
+  sync_pending_files?: number | null;
+  sync_pending_mb?: number | null;
+  sync_oldest_age_min?: number | null;
+  sync_failed_files?: number | null;
+  sync_ok?: boolean | null;
 }
 
 // ---------------------------------------------------------------------
@@ -298,15 +305,60 @@ export interface TruckSensorReadings {
   nav_speed_mph?: number;
   vehicle_pitch_deg?: number;
 
-  // -- DM1 Lamp Status --
+  // -- DM1 Lamp Status (aggregate) --
   protect_lamp?: number;
   amber_warning_lamp?: number;
   red_stop_lamp?: number;
   malfunction_lamp?: number;
 
-  // -- DTC / Trouble Codes --
-  active_dtcs?: ActiveDTC[];
+  // -- Per-ECU Lamp Status --
+  mil_engine?: number;
+  amber_lamp_engine?: number;
+  red_stop_lamp_engine?: number;
+  protect_lamp_engine?: number;
+  mil_acm?: number;
+  amber_lamp_acm?: number;
+  red_stop_lamp_acm?: number;
+  protect_lamp_acm?: number;
+  mil_trans?: number;
+  amber_lamp_trans?: number;
+  red_stop_lamp_trans?: number;
+  protect_lamp_trans?: number;
+  mil_abs?: number;
+  amber_lamp_abs?: number;
+  red_stop_lamp_abs?: number;
+  protect_lamp_abs?: number;
+
+  // -- DTC / Trouble Codes (flat fields emitted by Python) --
   active_dtc_count?: number;
+  dtc_0_spn?: number;
+  dtc_0_fmi?: number;
+  dtc_0_occurrence?: number;
+  dtc_1_spn?: number;
+  dtc_1_fmi?: number;
+  dtc_1_occurrence?: number;
+  dtc_2_spn?: number;
+  dtc_2_fmi?: number;
+  dtc_2_occurrence?: number;
+  dtc_3_spn?: number;
+  dtc_3_fmi?: number;
+  dtc_3_occurrence?: number;
+  dtc_4_spn?: number;
+  dtc_4_fmi?: number;
+  dtc_4_occurrence?: number;
+  prev_dtc_count?: number;
+  prev_dtc_0_spn?: number;
+  prev_dtc_0_fmi?: number;
+  prev_dtc_0_occurrence?: number;
+  prev_dtc_1_spn?: number;
+  prev_dtc_1_fmi?: number;
+  prev_dtc_1_occurrence?: number;
+  prev_dtc_2_spn?: number;
+  prev_dtc_2_fmi?: number;
+  prev_dtc_2_occurrence?: number;
+  prev_dtc_3_spn?: number;
+  prev_dtc_3_fmi?: number;
+  prev_dtc_3_occurrence?: number;
 
   // -- Fan / Turbo / Misc --
   fan_speed_pct?: number;
@@ -326,7 +378,6 @@ export interface TruckSensorReadings {
   pto_active?: boolean;
 
   // -- Vehicle Identity --
-  vin?: string;
   vehicle_vin?: string;
   vehicle_protocol?: "j1939" | "obd2";
   vehicle_make?: string;
@@ -336,10 +387,6 @@ export interface TruckSensorReadings {
   // -- Proprietary PGNs --
   prop_start_counter_a?: number;
   prop_start_counter_b?: number;
-
-  // -- Aftertreatment Lamp Fields (per-subsystem) --
-  protect_lamp_engine?: number;
-  protect_lamp_acm?: number;
 
   // -- CAN Bus Metadata --
   _protocol?: "j1939" | "obd2";
@@ -367,17 +414,13 @@ export interface TruckSensorReadings {
   tailscale_online?: boolean;
   internet?: boolean;
   uptime_seconds?: number | null;
-}
 
-// ---------------------------------------------------------------------
-// Active DTC (Diagnostic Trouble Code) from J1939 DM1
-// ---------------------------------------------------------------------
-
-export interface ActiveDTC {
-  spn: number;
-  fmi: number;
-  oc: number;       // occurrence count
-  source?: number;  // source address
+  // -- Sync Health --
+  sync_pending_files?: number | null;
+  sync_pending_mb?: number | null;
+  sync_oldest_age_min?: number | null;
+  sync_failed_files?: number | null;
+  sync_ok?: boolean | null;
 }
 
 // ---------------------------------------------------------------------

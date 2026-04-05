@@ -86,7 +86,7 @@ The plc-sensor module's `get_readings` connects to the Click PLC via Modbus TCP 
 
 1. viam-server on the Pi calls `get_readings()` on the plc-sensor module at 1 Hz.
 2. The module connects to the Click PLC at 169.168.10.21:502 via Modbus TCP and reads coils, input registers, and DS registers.
-3. Raw register values are translated into ~55 named fields (encoder counts, TPS status, eject state, production counters, DS1–DS25) and returned to viam-server as a dictionary.
+3. Raw register values are translated into ~100+ named fields (encoder counts, TPS status, eject state, production counters, DS1–DS25) and returned to viam-server as a dictionary.
 4. viam-server makes the readings available via its gRPC API. The data_manager service captures them to a persistent directory and syncs to Viam Cloud. If the Pi is offline, readings are buffered to JSONL files and synced when connectivity returns.
 5. The Vercel-hosted dashboard's browser calls `/api/sensor-readings`, a Next.js server-side API route.
 6. The API route uses Viam credentials from server-side environment variables (VIAM_MACHINE_ADDRESS, VIAM_API_KEY_ID, VIAM_API_KEY) to connect to Viam Cloud and fetch the latest sensor readings. Credentials never reach the browser.
@@ -98,7 +98,7 @@ The plc-sensor module's `get_readings` connects to the Click PLC via Modbus TCP 
 ### Working
 
 - PLC sensor module deployed on Pi 5, reading real Click PLC C0-10DD2E-D at 169.168.10.21:502 via Modbus TCP
-- All ~55 fields flowing to Viam Cloud at 1 Hz: encoder data, TPS machine status, eject system, production counters, DS1–DS25
+- All ~100+ fields flowing to Viam Cloud at 1 Hz: encoder data, TPS machine status, eject system, production counters, DS1–DS25
 - Dashboard deployed on Vercel, mobile-responsive, single TPS Controller status card with detail panels
 - Server-side API route (`/api/sensor-readings`) proxies Viam credentials — nothing sensitive in the browser (env vars: VIAM_MACHINE_ADDRESS, VIAM_API_KEY_ID, VIAM_API_KEY; only NEXT_PUBLIC_MOCK_MODE uses the public prefix)
 - Offline JSONL buffering with Viam data manager using persistent capture directory — readings sync when connectivity returns

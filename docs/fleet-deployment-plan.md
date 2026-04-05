@@ -34,7 +34,7 @@ Compare estimated vs actual:
 
 | Metric | Estimated | Actual (fill in) |
 |---|---|---|
-| PLC reading size (single, ~55 fields) | ~1.5 KB | |
+| PLC reading size (single, ~100+ fields) | ~1.5 KB | |
 | Daily data (10-hr, plc-sensor at 1 Hz) | ~54 MB | |
 | Sync time for 1-hour backlog | ~20 seconds | |
 

@@ -135,7 +135,7 @@ class OfflineBuffer:
             with open(path, "a") as f:
                 f.write(json.dumps(record, separators=(",", ":")) + "\n")
         except Exception as exc:
-            LOGGER.warning("OfflineBuffer write failed: %s", exc)
+            LOGGER.warning("OfflineBuffer write failed: %s", exc, exc_info=True)
             return
         self._maybe_prune()
 
@@ -154,7 +154,7 @@ class OfflineBuffer:
                 total -= size
                 LOGGER.info("OfflineBuffer pruned %s (%.1f KB)", oldest, size / 1024)
         except Exception as exc:
-            LOGGER.warning("OfflineBuffer prune error: %s", exc)
+            LOGGER.warning("OfflineBuffer prune error: %s", exc, exc_info=True)
 
 
 def _serialise(value: Any) -> Any:
@@ -1031,7 +1031,7 @@ class PlcSensor(Sensor):
                 if not di_result.isError():
                     discrete_bits = list(di_result.bits[:8])
             except Exception as exc:
-                LOGGER.warning("Error reading discrete inputs: %s", exc)
+                LOGGER.warning("Error reading discrete inputs: %s", exc, exc_info=True)
 
             tps_power_loop = bool(discrete_bits[3])       # X4
             camera_signal = bool(discrete_bits[2])         # X3 — plate flipper (labeled "Camera" in PLC)
