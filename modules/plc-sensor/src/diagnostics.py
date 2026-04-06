@@ -20,12 +20,12 @@ THRESHOLD NOTES (2026-03-23):
   adjustment after field testing.
 """
 
-from typing import Any, Dict, List
+from typing import Any
 
-Diagnostic = Dict[str, Any]
+Diagnostic = dict[str, Any]
 
 
-def evaluate(readings: Dict[str, Any]) -> List[Diagnostic]:
+def evaluate(readings: dict[str, Any]) -> list[Diagnostic]:
     """Run all diagnostic rules. Returns list sorted by severity.
 
     Each diagnostic includes:
@@ -59,8 +59,8 @@ def evaluate(readings: Dict[str, Any]) -> List[Diagnostic]:
 # of a 5-pin connector. Internal field names still use "camera_*" for
 # Viam Cloud data compatibility.
 
-def _check_camera(r: Dict[str, Any]) -> List[Diagnostic]:
-    out: List[Diagnostic] = []
+def _check_camera(r: dict[str, Any]) -> list[Diagnostic]:
+    out: list[Diagnostic] = []
 
     trend = r.get("camera_rate_trend", "stable")
     cam_rate = r.get("camera_detections_per_min", 0)
@@ -154,8 +154,8 @@ def _check_camera(r: Dict[str, Any]) -> List[Diagnostic]:
 
 # ── Encoder rules ───────────────────────────────────────────────────
 
-def _check_encoder(r: Dict[str, Any]) -> List[Diagnostic]:
-    out: List[Diagnostic] = []
+def _check_encoder(r: dict[str, Any]) -> list[Diagnostic]:
+    out: list[Diagnostic] = []
 
     speed = r.get("encoder_speed_ftpm", 0)
     tps_power = r.get("tps_power_loop", False)
@@ -343,8 +343,8 @@ def _check_encoder(r: Dict[str, Any]) -> List[Diagnostic]:
 
 # ── Eject system rules ──────────────────────────────────────────────
 
-def _check_eject(r: Dict[str, Any]) -> List[Diagnostic]:
-    out: List[Diagnostic] = []
+def _check_eject(r: dict[str, Any]) -> list[Diagnostic]:
+    out: list[Diagnostic] = []
 
     eject_rate = r.get("eject_rate_per_min", 0)
     ae1 = r.get("air_eagle_1_feedback", False)
@@ -402,8 +402,8 @@ def _check_eject(r: Dict[str, Any]) -> List[Diagnostic]:
 
 # ── PLC communication rules ─────────────────────────────────────────
 
-def _check_plc(r: Dict[str, Any]) -> List[Diagnostic]:
-    out: List[Diagnostic] = []
+def _check_plc(r: dict[str, Any]) -> list[Diagnostic]:
+    out: list[Diagnostic] = []
 
     modbus_ms = r.get("modbus_response_time_ms", 0)
     total_reads = r.get("total_reads", 0)
@@ -452,8 +452,8 @@ def _check_plc(r: Dict[str, Any]) -> List[Diagnostic]:
 
 # ── Operational rules ────────────────────────────────────────────────
 
-def _check_operation(r: Dict[str, Any]) -> List[Diagnostic]:
-    out: List[Diagnostic] = []
+def _check_operation(r: dict[str, Any]) -> list[Diagnostic]:
+    out: list[Diagnostic] = []
 
     ds2 = r.get("ds2", 0)
     backup = r.get("backup_alarm", False)
@@ -470,14 +470,14 @@ def _check_operation(r: Dict[str, Any]) -> List[Diagnostic]:
             "severity": "info",
             "category": "operation",
             "title": (
-                "Tie spacing set to {:.1f}\" \u2014 verify this is correct"
-                .format(spacing_in)
+                f"Tie spacing set to {spacing_in:.1f}\" \u2014 verify this is correct"
+
             ),
             "action": (
-                "The PLC tie spacing is set to {:.1f} inches. Standard is "
+                f"The PLC tie spacing is set to {spacing_in:.1f} inches. Standard is "
                 "19.5 inches (DS2=39). If this is intentional for this job, "
                 "no action needed."
-                .format(spacing_in)
+
             ),
             "evidence": f"ds2={ds2} (standard: 39)",
         })

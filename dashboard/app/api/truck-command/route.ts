@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createRobotClient, SensorClient } from "@viamrobotics/sdk";
 import type { RobotClient } from "@viamrobotics/sdk";
 import { getTruckById, getDefaultTruck } from "@/lib/machines";
+import { TruckCommandBody, parseBody } from "@/lib/api-schemas";
 
 let _client: RobotClient | null = null;
 let _connecting = false;
@@ -42,8 +43,6 @@ async function getDefaultClient(): Promise<RobotClient> {
       reconnectMaxAttempts: 3,
     });
     return _client;
-  } catch (err) {
-    throw err;
   } finally {
     _connecting = false;
   }
@@ -73,18 +72,17 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const startTime = Date.now();
   let fleetClient: RobotClient | null = null;
 
   try {
     const body = await request.json();
-    const { command, ...params } = body;
-
-    if (!command) {
-      return NextResponse.json(
-        { error: "Missing 'command' in request body" },
-        { status: 400 }
-      );
+    const parsed = parseBody(TruckCommandBody, body);
+    if (parsed.error) {
+      return NextResponse.json(parsed.error, { status: 400 });
     }
+    // Validation passed — forward the original body to Viam doCommand
+    const { command } = parsed.data;
 
     let client: RobotClient;
     if (truckId && truck.truckMachineAddress) {
@@ -95,7 +93,8 @@ export async function POST(request: NextRequest) {
     }
 
     const sensor = new SensorClient(client, "truck-engine");
-    const result = await sensor.doCommand({ command, ...params });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await sensor.doCommand(body as any);
 
     // Log DTC clears and diagnostic commands for audit trail
     if (command === "clear_dtcs" || command === "get_freeze_frame" || command === "get_readiness" || command === "get_vin") {
@@ -104,14 +103,16 @@ export async function POST(request: NextRequest) {
         timestamp: new Date().toISOString(),
         truck_id: truck.id,
         command,
-        params,
+        params: body,
         result: JSON.stringify(result).substring(0, 1000),
       }));
     }
 
+    console.log("[API-TIMING]", "/api/truck-command", Date.now() - startTime, "ms");
     return NextResponse.json(result);
   } catch (err) {
     if (!truckId) _client = null;
+    console.error("[API-ERROR]", "/api/truck-command", err);
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
       { error: "command_failed", message: msg },

@@ -1,105 +1,25 @@
 /**
  * Server-side API route for historical sensor data via Viam Data API.
  *
- * Uses createViamClient + dataClient.exportTabularData() to query historical
+ * Uses the shared Viam Data client (lib/viam-data.ts) to query historical
  * readings captured by the plc-monitor sensor component.
- *
- * Credentials (VIAM_API_KEY, VIAM_API_KEY_ID) are server-only env vars.
  *
  * GET /api/sensor-history?type=recent&hours=1
  * GET /api/sensor-history?type=summary&hours=8
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createViamClient } from "@viamrobotics/sdk";
+import { fetchSensorData, resetDataClient, type RawPoint } from "@/lib/viam-data";
 import { getTruckById, getDefaultTruck } from "@/lib/machines";
 
-// ---------------------------------------------------------------------------
-// Cached ViamClient — same pattern as sensor-readings route caches RobotClient.
-//
-// The SDK exports ViamClient as a type-only export, so we cache the instance
-// with an interface matching the properties we actually use.
-// ---------------------------------------------------------------------------
-
-interface CachedViamClient {
-  dataClient: {
-    exportTabularData(
-      partId: string,
-      resourceName: string,
-      resourceSubtype: string,
-      methodName: string,
-      startTime?: Date,
-      endTime?: Date,
-    ): Promise<TabularDataPoint[]>;
-  };
-}
-
-interface TabularDataPoint {
-  timeCaptured: Date;
-  payload: unknown;
-  [key: string]: unknown;
-}
-
-let _viamClient: CachedViamClient | null = null;
-let _connecting = false;
-let _lastError: string | null = null;
-
-const RESOURCE_NAME = "plc-monitor";
-const RESOURCE_SUBTYPE = "rdk:component:sensor";
-const METHOD_NAME = "Readings";
 const MAX_POINTS = 500;
-
-function getCachedClient(): CachedViamClient | null {
-  return _viamClient;
-}
-
-async function getDataClient(): Promise<CachedViamClient["dataClient"]> {
-  const cached = getCachedClient();
-  if (cached) return cached.dataClient;
-
-  if (_connecting) {
-    await new Promise((r) => setTimeout(r, 500));
-    const retried = getCachedClient();
-    if (retried) return retried.dataClient;
-    throw new Error(_lastError || "Connection in progress");
-  }
-
-  const apiKey = process.env.VIAM_API_KEY;
-  const apiKeyId = process.env.VIAM_API_KEY_ID;
-
-  if (!apiKey || !apiKeyId) {
-    throw new Error(
-      "Missing server-side Viam credentials. " +
-        "Set VIAM_API_KEY and VIAM_API_KEY_ID in environment variables."
-    );
-  }
-
-  _connecting = true;
-  _lastError = null;
-  try {
-    const client = await createViamClient({
-      credentials: {
-        type: "api-key",
-        authEntity: apiKeyId,
-        payload: apiKey,
-      },
-    });
-    _viamClient = client as unknown as CachedViamClient;
-    return _viamClient.dataClient;
-  } catch (err) {
-    _lastError = err instanceof Error ? err.message : String(err);
-    throw err;
-  } finally {
-    _connecting = false;
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Types for the response payloads
 // ---------------------------------------------------------------------------
 
 interface RecentDataPoint {
-  timestamp: string; // ISO 8601
+  timestamp: string;
   encoder_distance_ft?: number;
   encoder_speed_ftpm?: number;
   plates_per_minute?: number;
@@ -145,7 +65,6 @@ interface HistoryEvent {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Safely extract a number from a JSON payload field */
 function num(val: unknown): number {
   if (typeof val === "number") return val;
   if (typeof val === "string") {
@@ -155,14 +74,12 @@ function num(val: unknown): number {
   return 0;
 }
 
-/** Safely extract a boolean from a JSON payload field */
 function bool(val: unknown): boolean {
   if (typeof val === "boolean") return val;
   if (val === 1 || val === "true") return true;
   return false;
 }
 
-/** Downsample an array to at most maxN evenly-spaced points */
 function downsample<T>(data: T[], maxN: number): T[] {
   if (data.length <= maxN) return data;
   const step = data.length / maxN;
@@ -170,7 +87,6 @@ function downsample<T>(data: T[], maxN: number): T[] {
   for (let i = 0; i < maxN; i++) {
     result.push(data[Math.floor(i * step)]);
   }
-  // Always include the last point
   if (result[result.length - 1] !== data[data.length - 1]) {
     result.push(data[data.length - 1]);
   }
@@ -178,49 +94,10 @@ function downsample<T>(data: T[], maxN: number): T[] {
 }
 
 // ---------------------------------------------------------------------------
-// Data fetching
-// ---------------------------------------------------------------------------
-
-interface RawDataPoint {
-  timeCaptured: Date;
-  payload: Record<string, unknown>;
-}
-
-async function fetchData(hours: number, partId: string): Promise<RawDataPoint[]> {
-  const dc = await getDataClient();
-
-  const endTime = new Date();
-  const startTime = new Date(endTime.getTime() - hours * 60 * 60 * 1000);
-
-  const rows = await dc.exportTabularData(
-    partId,
-    RESOURCE_NAME,
-    RESOURCE_SUBTYPE,
-    METHOD_NAME,
-    startTime,
-    endTime
-  );
-
-  // Map to a simpler structure and sort by time
-  // Viam Cloud stores readings at payload.readings, not payload directly
-  const points: RawDataPoint[] = rows.map((row) => {
-    const raw = (typeof row.payload === "object" && row.payload !== null ? row.payload : {}) as Record<string, unknown>;
-    const readings = (typeof raw.readings === "object" && raw.readings !== null ? raw.readings : raw) as Record<string, unknown>;
-    return {
-      timeCaptured: row.timeCaptured instanceof Date ? row.timeCaptured : new Date(String(row.timeCaptured)),
-      payload: readings,
-    };
-  });
-
-  points.sort((a, b) => a.timeCaptured.getTime() - b.timeCaptured.getTime());
-  return points;
-}
-
-// ---------------------------------------------------------------------------
 // Query handlers
 // ---------------------------------------------------------------------------
 
-function buildRecentResponse(points: RawDataPoint[]): RecentDataPoint[] {
+function buildRecentResponse(points: RawPoint[]): RecentDataPoint[] {
   const sampled = downsample(points, MAX_POINTS);
 
   return sampled.map((pt) => {
@@ -240,7 +117,7 @@ function buildRecentResponse(points: RawDataPoint[]): RecentDataPoint[] {
   });
 }
 
-function buildSummaryResponse(points: RawDataPoint[], hours: number): ShiftSummary {
+function buildSummaryResponse(points: RawPoint[], hours: number): ShiftSummary {
   if (points.length === 0) {
     const now = new Date();
     return {
@@ -274,15 +151,12 @@ function buildSummaryResponse(points: RawDataPoint[], hours: number): ShiftSumma
   const totalSpanMs = last.timeCaptured.getTime() - first.timeCaptured.getTime();
   const totalMinutes = totalSpanMs / 60000;
 
-  // Distance: max - min of encoder_distance_ft
   const distances = points.map((p) => num(p.payload.encoder_distance_ft));
   const totalDistance_ft = Math.max(0, Math.max(...distances) - Math.min(...distances));
 
-  // Plates: max - min of plate_drop_count
   const plateCounts = points.map((p) => num(p.payload.plate_drop_count));
   const totalPlatesDropped = Math.max(0, Math.max(...plateCounts) - Math.min(...plateCounts));
 
-  // Speed
   const speeds = points.map((p) => num(p.payload.encoder_speed_ftpm));
   const nonZeroSpeeds = speeds.filter((s) => s > 0);
   const avgSpeed_ftpm = nonZeroSpeeds.length > 0
@@ -290,7 +164,6 @@ function buildSummaryResponse(points: RawDataPoint[], hours: number): ShiftSumma
     : 0;
   const maxSpeed_ftpm = Math.max(0, ...speeds);
 
-  // Plate rate
   const rates = points.map((p) => num(p.payload.plates_per_minute));
   const nonZeroRates = rates.filter((r) => r > 0);
   const avgPlateRate = nonZeroRates.length > 0
@@ -298,7 +171,6 @@ function buildSummaryResponse(points: RawDataPoint[], hours: number): ShiftSumma
     : 0;
   const maxPlateRate = Math.max(0, ...rates);
 
-  // TPS power on/off time and events
   let tpsPowerOnCount = 0;
   let cameraActiveCount = 0;
   let backupAlarmCount = 0;
@@ -324,7 +196,6 @@ function buildSummaryResponse(points: RawDataPoint[], hours: number): ShiftSumma
     if (camera) cameraActiveCount++;
     if (alarm) backupAlarmCount++;
 
-    // Count rising edges for eject transitions
     if (detEject && !prevDetEject) detectorEjectTransitions++;
     if (encEject && !prevEncEject) encoderEjectTransitions++;
     prevDetEject = detEject;
@@ -332,7 +203,6 @@ function buildSummaryResponse(points: RawDataPoint[], hours: number): ShiftSumma
 
     const ts = pt.timeCaptured.toISOString();
 
-    // State change events
     if (prevPower !== null && power !== prevPower) {
       events.push({
         timestamp: ts,
@@ -372,7 +242,6 @@ function buildSummaryResponse(points: RawDataPoint[], hours: number): ShiftSumma
     ? (backupAlarmCount / points.length) * totalMinutes
     : 0;
 
-  // Limit events to the most recent 50
   const trimmedEvents = events.slice(-50);
 
   return {
@@ -410,7 +279,7 @@ function buildSummaryResponse(points: RawDataPoint[], hours: number): ShiftSumma
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
   const type = params.get("type") || "summary";
-  const hours = Math.min(Math.max(parseFloat(params.get("hours") || "8") || 8, 0.1), 168); // cap at 7 days
+  const hours = Math.min(Math.max(parseFloat(params.get("hours") || "8") || 8, 0.1), 168);
 
   const truckId = params.get("truck_id");
   const truck = truckId ? getTruckById(truckId) : getDefaultTruck();
@@ -422,7 +291,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const points = await fetchData(hours, truck.tpsPartId);
+    const points = await fetchSensorData(truck.tpsPartId, "plc-monitor", hours);
 
     if (type === "recent") {
       const data = buildRecentResponse(points);
@@ -434,22 +303,18 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Default: summary
     const summary = buildSummaryResponse(points, hours);
     return NextResponse.json({
       type: "summary",
       ...summary,
     });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-
-    // Reset client on connection errors so the next request retries
-    _viamClient = null;
-
+    resetDataClient();
+    console.error("[API-ERROR]", "/api/sensor-history", err);
     return NextResponse.json(
       {
         error: "data_query_failed",
-        message: msg,
+        message: err instanceof Error ? err.message : String(err),
       },
       { status: 502 }
     );

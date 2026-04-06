@@ -7,10 +7,10 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
-const PI_HOST = "100.113.196.68";
-const PI_USER = "andrew";
-const PI_PASS = "1111";
-const BUFFER_PATH = "/home/andrew/.viam/offline-buffer/truck";
+const PI_HOST = process.env.PI_SSH_HOST || "100.113.196.68";
+const PI_USER = process.env.PI_SSH_USER || "andrew";
+const PI_PASS = process.env.PI_SSH_PASS || "";
+const BUFFER_PATH = process.env.PI_BUFFER_PATH || "/home/andrew/.viam/offline-buffer/truck";
 
 async function fetchFromPi(minutes: number) {
   // Use SSH to read recent lines from the JSONL buffer
@@ -36,7 +36,8 @@ async function fetchFromPi(minutes: number) {
       try { points.push(JSON.parse(line)); } catch { /* skip bad lines */ }
     }
     return points;
-  } catch {
+  } catch (err) {
+    console.error("[API-ERROR] /api/truck-history-local SSH fetch failed:", err);
     return [];
   }
 }

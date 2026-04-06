@@ -1,18 +1,31 @@
 /**
  * Shared Viam Data API client — connects to Viam Cloud directly (no WebRTC).
  *
+ * This is the SINGLE source of truth for all Viam Data API access in the
+ * dashboard. Every API route that reads sensor data should import from here
+ * instead of creating its own client.
+ *
  * Uses createViamClient which communicates over HTTPS/gRPC to the Viam Cloud
  * API, bypassing WebRTC entirely. This works reliably through any NAT,
  * including carrier-grade NAT from iPhone tethering.
  *
  * Data captured by viam-server syncs to the cloud every ~6 seconds, so
  * readings fetched here may be up to 6 seconds old.
+ *
+ * Exports:
+ *   - getDataClient()     — cached singleton Viam Data API client
+ *   - resetDataClient()   — reset on connection errors
+ *   - getLatestReading()  — fetch most recent sensor reading
+ *   - fetchSensorData()   — fetch time range of sensor readings
+ *   - unwrapPayload()     — unwrap Viam's payload.readings nesting
+ *   - Types: CachedViamClient, TabularDataPoint, RawPoint
  */
 
 import { createViamClient } from "@viamrobotics/sdk";
 
-// The SDK exports ViamClient as a type-only export, so we define an interface
-// matching the properties we actually use.
+// ── Types ─────────────────────────────────────────────────────────────
+
+/** Cached Viam Data API client interface (SDK exports ViamClient as type-only). */
 export interface CachedViamClient {
   dataClient: {
     exportTabularData(
@@ -26,11 +39,25 @@ export interface CachedViamClient {
   };
 }
 
+/** A single row from exportTabularData. */
 export interface TabularDataPoint {
   timeCaptured: Date;
   payload: unknown;
   [key: string]: unknown;
 }
+
+/** A sensor reading after unwrapping the Viam payload nesting. */
+export interface RawPoint {
+  timeCaptured: Date;
+  payload: Record<string, unknown>;
+}
+
+// ── Constants ─────────────────────────────────────────────────────────
+
+const RESOURCE_SUBTYPE = "rdk:component:sensor";
+const METHOD_NAME = "Readings";
+
+// ── Singleton client ──────────────────────────────────────────────────
 
 let _viamClient: CachedViamClient | null = null;
 let _connecting = false;
@@ -38,6 +65,7 @@ let _lastError: string | null = null;
 
 /**
  * Returns a cached Viam Data API client, creating one if needed.
+ * All API routes should use this instead of creating their own client.
  */
 export async function getDataClient(): Promise<CachedViamClient["dataClient"]> {
   if (_viamClient !== null) return _viamClient.dataClient;
@@ -78,12 +106,38 @@ export async function getDataClient(): Promise<CachedViamClient["dataClient"]> {
   }
 }
 
-/**
- * Reset the cached client (e.g. on connection errors).
- */
+/** Reset the cached client (e.g. on connection errors so the next request retries). */
 export function resetDataClient(): void {
   _viamClient = null;
 }
+
+// ── Payload helpers ───────────────────────────────────────────────────
+
+/**
+ * Unwrap the Viam Cloud payload nesting.
+ *
+ * Viam stores sensor readings as: { payload: { readings: { ...fields } } }
+ * This function extracts the inner readings object. If the nesting is absent
+ * (e.g. during format changes), it falls back to the raw payload.
+ */
+export function unwrapPayload(payload: unknown): Record<string, unknown> {
+  const raw = (typeof payload === "object" && payload !== null
+    ? payload
+    : {}) as Record<string, unknown>;
+  return (typeof raw.readings === "object" && raw.readings !== null
+    ? raw.readings
+    : raw) as Record<string, unknown>;
+}
+
+/**
+ * Normalize a timeCaptured value to a Date (Viam SDK sometimes returns strings).
+ */
+export function normalizeTimestamp(t: Date | string | unknown): Date {
+  if (t instanceof Date) return t;
+  return new Date(String(t));
+}
+
+// ── Query helpers ─────────────────────────────────────────────────────
 
 /**
  * Fetch the most recent sensor reading from the Viam Data API.
@@ -95,41 +149,52 @@ export async function getLatestReading(
   partId: string,
   resourceName: string,
   windowSeconds = 300,
-): Promise<{ timeCaptured: Date; payload: Record<string, unknown> } | null> {
+): Promise<RawPoint | null> {
   const dc = await getDataClient();
   const endTime = new Date();
   const startTime = new Date(endTime.getTime() - windowSeconds * 1000);
 
   const rows = await dc.exportTabularData(
-    partId,
-    resourceName,
-    "rdk:component:sensor",
-    "Readings",
-    startTime,
-    endTime,
+    partId, resourceName, RESOURCE_SUBTYPE, METHOD_NAME, startTime, endTime,
   );
 
   if (rows.length === 0) return null;
 
-  // Sort by time and return the most recent
-  rows.sort((a, b) => {
-    const ta = a.timeCaptured instanceof Date ? a.timeCaptured : new Date(String(a.timeCaptured));
-    const tb = b.timeCaptured instanceof Date ? b.timeCaptured : new Date(String(b.timeCaptured));
-    return tb.getTime() - ta.getTime();
-  });
+  // Sort descending by time, take the newest
+  rows.sort((a, b) =>
+    normalizeTimestamp(b.timeCaptured).getTime() - normalizeTimestamp(a.timeCaptured).getTime()
+  );
 
-  const latest = rows[0];
-  const rawPayload = (typeof latest.payload === "object" && latest.payload !== null
-    ? latest.payload
-    : {}) as Record<string, unknown>;
-  // Viam wraps sensor readings under a "readings" key — unwrap it
-  const payload = (rawPayload.readings && typeof rawPayload.readings === "object"
-    ? rawPayload.readings
-    : rawPayload) as Record<string, unknown>;
   return {
-    timeCaptured: latest.timeCaptured instanceof Date
-      ? latest.timeCaptured
-      : new Date(String(latest.timeCaptured)),
-    payload,
+    timeCaptured: normalizeTimestamp(rows[0].timeCaptured),
+    payload: unwrapPayload(rows[0].payload),
   };
+}
+
+/**
+ * Fetch a time range of sensor readings, sorted oldest-first.
+ *
+ * Returns unwrapped RawPoint[] ready for analysis. Used by history routes,
+ * shift reports, and AI analytics.
+ */
+export async function fetchSensorData(
+  partId: string,
+  resourceName: string,
+  hours: number,
+): Promise<RawPoint[]> {
+  const dc = await getDataClient();
+  const endTime = new Date();
+  const startTime = new Date(endTime.getTime() - hours * 3600000);
+
+  const rows = await dc.exportTabularData(
+    partId, resourceName, RESOURCE_SUBTYPE, METHOD_NAME, startTime, endTime,
+  );
+
+  const points: RawPoint[] = rows.map((row) => ({
+    timeCaptured: normalizeTimestamp(row.timeCaptured),
+    payload: unwrapPayload(row.payload),
+  }));
+
+  points.sort((a, b) => a.timeCaptured.getTime() - b.timeCaptured.getTime());
+  return points;
 }

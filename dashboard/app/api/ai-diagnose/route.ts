@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAiHistorySummary } from "@/lib/ai-history";
 import { runDiagnostics, formatDiagnosticNotes } from "@/lib/ai-diagnostics";
+import { AiDiagnoseBody, parseBody } from "@/lib/api-schemas";
 
 export async function POST(request: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -22,17 +23,19 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let body: { readings: Record<string, unknown> };
+  let rawBody: unknown;
   try {
-    body = await request.json();
+    rawBody = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const readings = body.readings;
-  if (!readings) {
-    return NextResponse.json({ error: "Missing 'readings' in body" }, { status: 400 });
+  const parsed = parseBody(AiDiagnoseBody, rawBody);
+  if (parsed.error) {
+    return NextResponse.json(parsed.error, { status: 400 });
   }
+
+  const { readings } = parsed.data;
 
   const readingsText = JSON.stringify(readings, null, 2);
 
@@ -57,7 +60,10 @@ Analyze this data and provide:
 
 1. **DATA SUMMARY** — What's this vehicle telling us right now? Summarize the key readings in plain English — what looks normal, what stands out, what needs a closer look. Reference the historical trends: is the current state typical or unusual for this truck? Include utilization data from ACTIVITY: trips, engine hours, idle percentage, estimated miles driven.
 
-2. **ACTIVE TROUBLE CODES** — If any DTCs are present (look for active_dtc_count > 0 and obd2_dtc_* fields), for each code:
+2. **ACTIVE TROUBLE CODES** — If any DTCs are present (look for active_dtc_count > 0), for each code.
+   For J1939 trucks: per-ECU DTCs are in dtc_{ecu}_{i}_spn/fmi/occurrence fields where ecu is engine/trans/abs/acm/body/inst. Example: dtc_acm_0_spn=3226, dtc_acm_0_fmi=18 means aftertreatment DTC SPN 3226 FMI 18. The dtc_{ecu}_count field tells how many each ECU has. Always identify WHICH ECU reported the code.
+   For OBD-II cars: codes are in obd2_dtc_* fields (P-codes like P0420).
+   For each code:
    - What the code means in plain English
    - The 3-4 most likely causes, ranked by probability
    - Severity (critical/warning/minor)
@@ -106,7 +112,9 @@ VEHICLE HISTORY NOTES:
 ${diagnosticText ? diagnosticText + "\n\n" : ""}Here is the LIVE vehicle data:
 ${readingsText}
 
-${history.text}`;
+${history.text}
+
+${readings._dtc_history_text ? "\n" + String(readings._dtc_history_text) : ""}`;
 
   // Debug mode: return the full prompt without calling Claude
   const debug = request.nextUrl.searchParams.get("debug") === "1";
@@ -120,6 +128,8 @@ ${history.text}`;
       readingsKeys: Object.keys(readings),
     });
   }
+
+  const startTime = Date.now();
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -138,6 +148,7 @@ ${history.text}`;
 
     if (!response.ok) {
       const errText = await response.text();
+      console.error("[API-ERROR]", "/api/ai-diagnose", `Claude API ${response.status}:`, errText);
       return NextResponse.json(
         { error: "Claude API error", details: errText },
         { status: 502 }
@@ -153,9 +164,12 @@ ${history.text}`;
       timestamp: new Date().toISOString(),
       diagnosis: diagnosis.substring(0, 3000),
       historyAvailable: history.hasData,
-      active_dtcs: Object.entries(readings)
+      active_dtcs_obd2: Object.entries(readings)
         .filter(([k]) => k.startsWith("obd2_dtc_"))
         .map(([, v]) => v),
+      active_dtcs_j1939: Object.entries(readings)
+        .filter(([k]) => /^dtc_(engine|trans|abs|acm|body|inst)_\d+_spn$/.test(k))
+        .map(([k, v]) => `${k}=${v}`),
       active_dtc_count: readings.active_dtc_count || 0,
       engine_rpm: readings.engine_rpm,
       coolant_temp_f: readings.coolant_temp_f,
@@ -163,8 +177,10 @@ ${history.text}`;
     };
     console.log("[AI-DIAGNOSIS-LOG]", JSON.stringify(logEntry));
 
+    console.log("[API-TIMING]", "/api/ai-diagnose", Date.now() - startTime, "ms");
     return NextResponse.json({ success: true, diagnosis });
   } catch (err) {
+    console.error("[API-ERROR]", "/api/ai-diagnose", err);
     return NextResponse.json(
       { error: "Failed to reach Claude API", message: err instanceof Error ? err.message : String(err) },
       { status: 502 }

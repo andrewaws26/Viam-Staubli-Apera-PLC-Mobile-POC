@@ -13,6 +13,7 @@ function RecenterView({ lat, lng }: { lat: number; lng: number }) {
   return null;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- props typed loosely for dynamic sensor data
 export default function TruckMap({ latitude, longitude, vehicleState }: any) {
   const [mounted, setMounted] = useState(false);
   const [truckIcon, setTruckIcon] = useState<L.DivIcon | null>(null);

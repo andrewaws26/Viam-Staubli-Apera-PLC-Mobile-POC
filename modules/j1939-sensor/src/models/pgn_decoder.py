@@ -5,148 +5,53 @@ Decodes raw CAN frames into human-readable engine and vehicle parameters
 per SAE J1939 standard. Focused on parameters available via OBD-II
 diagnostic port on 2013+ Mack/Volvo trucks.
 
+All temperatures are in Fahrenheit, pressures in PSI, speed in mph.
+
+Sub-modules:
+- pgn_utils: Byte extraction, scaling, CAN ID parsing, dataclasses
+- pgn_dm1: DM1/DM2 DTC decoding and lamp status
+
 Reference: SAE J1939-71 (Vehicle Application Layer)
 """
 
-from dataclasses import dataclass
-from typing import Any, Callable, Optional
+from typing import Any
 
-
-# J1939 "not available" sentinel values per data size
-NOT_AVAILABLE_BYTE = 0xFF
-NOT_AVAILABLE_WORD = 0xFFFF
-NOT_AVAILABLE_DWORD = 0xFFFFFFFF
-
-# J1939 "error" sentinel values
-ERROR_BYTE = 0xFE
-ERROR_WORD = 0xFFFE
-
-
-@dataclass
-class SPNDefinition:
-    """Suspect Parameter Number definition."""
-    spn: int
-    name: str
-    key: str  # short key for get_readings() output
-    start_byte: int
-    length_bits: int  # 8 = 1 byte, 16 = 2 bytes
-    resolution: float
-    offset: float
-    unit: str
-    decode_fn: Optional[Callable[[bytes], Any]] = None
-
-
-@dataclass
-class PGNDefinition:
-    """Parameter Group Number definition with its SPNs."""
-    pgn: int
-    name: str
-    spns: list  # list of SPNDefinition
-
-
-def _get_byte(data: bytes, index: int) -> Optional[int]:
-    """Extract a single byte, returning None if not available or error."""
-    if index >= len(data):
-        return None
-    val = data[index]
-    if val in (NOT_AVAILABLE_BYTE, ERROR_BYTE):
-        return None
-    return val
-
-
-def _get_word_le(data: bytes, low_index: int) -> Optional[int]:
-    """Extract a 16-bit little-endian word, returning None if not available."""
-    if low_index + 1 >= len(data):
-        return None
-    val = data[low_index] | (data[low_index + 1] << 8)
-    if val in (NOT_AVAILABLE_WORD, ERROR_WORD):
-        return None
-    return val
-
-
-def _get_dword_le(data: bytes, start_index: int) -> Optional[int]:
-    """Extract a 32-bit little-endian dword, returning None if not available."""
-    if start_index + 3 >= len(data):
-        return None
-    val = (data[start_index]
-           | (data[start_index + 1] << 8)
-           | (data[start_index + 2] << 16)
-           | (data[start_index + 3] << 24))
-    if val == NOT_AVAILABLE_DWORD:
-        return None
-    return val
-
-
-def _decode_scaled(data: bytes, start_byte: int, length_bits: int,
-                   resolution: float, offset: float) -> Optional[float]:
-    """Generic decoder: extract value and apply resolution + offset."""
-    if length_bits == 8:
-        raw = _get_byte(data, start_byte)
-    elif length_bits == 16:
-        raw = _get_word_le(data, start_byte)
-    elif length_bits == 32:
-        raw = _get_dword_le(data, start_byte)
-    else:
-        return None
-    if raw is None:
-        return None
-    return round(raw * resolution + offset, 4)
-
-
-def _decode_2bit_status(data: bytes, byte_idx: int, bit_offset: int) -> Optional[bool]:
-    """Decode a J1939 2-bit status field. 00=off, 01=on, 10=error, 11=N/A."""
-    val = _get_byte(data, byte_idx)
-    if val is None:
-        return None
-    bits = (val >> bit_offset) & 0x03
-    if bits == 3:
-        return None  # not available
-    return bits == 1  # 1 = active/on
-
-
-def extract_pgn_from_can_id(can_id: int) -> int:
-    """
-    Extract the PGN from a 29-bit extended CAN ID.
-
-    J1939 CAN ID format (29 bits):
-      Priority(3) | Reserved(1) | Data Page(1) | PDU Format(8) | PDU Specific(8) | Source Address(8)
-
-    If PDU Format < 240 (peer-to-peer), PGN = PDU Format << 8
-    If PDU Format >= 240 (broadcast), PGN = (PDU Format << 8) | PDU Specific
-    """
-    pdu_format = (can_id >> 16) & 0xFF
-    pdu_specific = (can_id >> 8) & 0xFF
-    data_page = (can_id >> 24) & 0x01
-    reserved = (can_id >> 25) & 0x01
-
-    if pdu_format < 240:
-        pgn = (reserved << 17) | (data_page << 16) | (pdu_format << 8)
-    else:
-        pgn = (reserved << 17) | (data_page << 16) | (pdu_format << 8) | pdu_specific
-
-    return pgn
-
-
-def extract_source_address(can_id: int) -> int:
-    """Extract the source address (SA) from a 29-bit CAN ID."""
-    return can_id & 0xFF
-
+# Re-export everything from sub-modules for backward compatibility.
+# Existing code that does `from pgn_decoder import _get_byte` still works.
+from .pgn_utils import (  # noqa: F401
+    ERROR_BYTE,
+    ERROR_WORD,
+    NOT_AVAILABLE_BYTE,
+    NOT_AVAILABLE_DWORD,
+    NOT_AVAILABLE_WORD,
+    PGNDefinition,
+    SPNDefinition,
+    _decode_2bit_status,
+    _decode_pressure_psi,
+    _decode_scaled,
+    _decode_temp_f,
+    _get_byte,
+    _get_dword_le,
+    _get_word_le,
+    extract_pgn_from_can_id,
+    extract_source_address,
+)
 
 # ---------------------------------------------------------------------------
 # PGN Definitions — SAE J1939-71
 # ---------------------------------------------------------------------------
 
-def _decode_engine_rpm(data: bytes) -> Optional[float]:
+def _decode_engine_rpm(data: bytes) -> float | None:
     """SPN 190: Engine Speed — bytes 3-4, 0.125 RPM/bit."""
     return _decode_scaled(data, 3, 16, 0.125, 0)
 
 
-def _decode_driver_demand_torque(data: bytes) -> Optional[float]:
+def _decode_driver_demand_torque(data: bytes) -> float | None:
     """SPN 512: Driver's Demand Engine Torque — byte 1, 1%/bit, offset -125."""
     return _decode_scaled(data, 0, 8, 1.0, -125.0)
 
 
-def _decode_actual_engine_torque(data: bytes) -> Optional[float]:
+def _decode_actual_engine_torque(data: bytes) -> float | None:
     """SPN 513: Actual Engine Torque — byte 2, 1%/bit, offset -125."""
     return _decode_scaled(data, 1, 8, 1.0, -125.0)
 
@@ -175,15 +80,6 @@ PGN_61443 = PGNDefinition(
     ]
 )
 
-def _decode_temp_f(data: bytes, start_byte: int, length_bits: int,
-                   resolution: float, offset_c: float) -> Optional[float]:
-    """Decode a temperature value and convert from Celsius to Fahrenheit."""
-    celsius = _decode_scaled(data, start_byte, length_bits, resolution, offset_c)
-    if celsius is None:
-        return None
-    return round(celsius * 9.0 / 5.0 + 32, 2)
-
-
 PGN_65262 = PGNDefinition(
     pgn=65262,
     name="Engine Temperature 1 (ET1)",
@@ -199,15 +95,6 @@ PGN_65262 = PGNDefinition(
                       decode_fn=lambda data: _decode_temp_f(data, 2, 16, 0.03125, -273.0)),
     ]
 )
-
-def _decode_pressure_psi(data: bytes, start_byte: int, length_bits: int,
-                        resolution: float, offset: float) -> Optional[float]:
-    """Decode a pressure value and convert from kPa to PSI."""
-    kpa = _decode_scaled(data, start_byte, length_bits, resolution, offset)
-    if kpa is None:
-        return None
-    return round(kpa * 0.145038, 2)
-
 
 PGN_65263 = PGNDefinition(
     pgn=65263,
@@ -336,61 +223,7 @@ PGN_61445 = PGNDefinition(
 # DM1 — Active Diagnostic Trouble Codes (PGN 65226)
 # ---------------------------------------------------------------------------
 
-def decode_dm1(data: bytes) -> list[dict]:
-    """
-    Decode DM1 active diagnostic trouble codes.
-
-    Returns a list of DTCs, each with SPN, FMI, and occurrence count.
-    DM1 format: bytes 0-1 are lamp status, bytes 2+ are DTC entries (4 bytes each).
-    """
-    dtcs = []
-    if len(data) < 2:
-        return dtcs
-
-    # Lamp status (SAE J1939-73 Table A1)
-    # byte 0 bits 7-6: Protect Lamp
-    # byte 0 bits 5-4: Amber Warning Lamp
-    # byte 0 bits 3-2: Red Stop Lamp
-    # byte 0 bits 1-0: Malfunction Indicator Lamp (MIL)
-
-    # Each DTC is 4 bytes starting at byte 2
-    i = 2
-    while i + 3 < len(data):
-        b0 = data[i]
-        b1 = data[i + 1]
-        b2 = data[i + 2]
-        b3 = data[i + 3]
-
-        # SPN is 19 bits: bits 7-0 of b0, bits 7-0 of b1, bits 7-5 of b2
-        spn = b0 | (b1 << 8) | ((b2 >> 5) << 16)
-        # FMI is 5 bits: bits 4-0 of b2
-        fmi = b2 & 0x1F
-        # Occurrence count is 7 bits: bits 6-0 of b3
-        occurrence = b3 & 0x7F
-
-        if spn != 0x7FFFF and fmi != 0x1F:  # skip "not available"
-            dtcs.append({
-                "spn": spn,
-                "fmi": fmi,
-                "occurrence": occurrence,
-            })
-        i += 4
-
-    return dtcs
-
-
-def decode_dm1_lamps(data: bytes) -> dict:
-    """Decode DM1 lamp status from first 2 bytes (SAE J1939-73 Table A1)."""
-    if len(data) < 2:
-        return {}
-    lamp_byte = data[0]
-    return {
-        "protect_lamp": (lamp_byte >> 6) & 0x03,
-        "amber_warning_lamp": (lamp_byte >> 4) & 0x03,
-        "red_stop_lamp": (lamp_byte >> 2) & 0x03,
-        "malfunction_lamp": lamp_byte & 0x03,
-    }
-
+from .pgn_dm1 import decode_dm1, decode_dm1_lamps  # noqa: F401, E402
 
 PGN_65226 = PGNDefinition(
     pgn=65226,
@@ -415,14 +248,14 @@ PGN_65260 = PGNDefinition(
 # GPS / Navigation PGN Definitions
 # ---------------------------------------------------------------------------
 
-def _decode_latitude(data: bytes) -> Optional[float]:
+def _decode_latitude(data: bytes) -> float | None:
     """PGN 65267 bytes 0-3: 32-bit LE, 1e-7 deg/bit, offset -210 deg."""
     raw = _get_dword_le(data, 0)
     if raw is None:
         return None
     return round(raw * 1e-7 - 210.0, 7)
 
-def _decode_longitude(data: bytes) -> Optional[float]:
+def _decode_longitude(data: bytes) -> float | None:
     """PGN 65267 bytes 4-7: 32-bit LE, 1e-7 deg/bit, offset -210 deg."""
     raw = _get_dword_le(data, 4)
     if raw is None:

@@ -1,6 +1,6 @@
 # Deploying the TPS PLC Sensor on Raspberry Pi 5
 
-This guide walks through deploying the plc-sensor module on a Raspberry Pi 5 running Raspberry Pi OS. The module connects to a Click PLC over Modbus TCP, reads ~55 fields of TPS machine data, and syncs everything to Viam Cloud.
+This guide walks through deploying the plc-sensor module on a Raspberry Pi 5 running Raspberry Pi OS. The module connects to a Click PLC over Modbus TCP, reads ~100+ fields of TPS machine data, and syncs everything to Viam Cloud.
 
 **Time required:** ~20 minutes
 
@@ -173,7 +173,7 @@ If you see errors about the module not starting, check:
 1. In the Viam app, go to your machine's **Control** tab
 2. Find the **plc-monitor** sensor component
 3. Click **Get Readings**
-4. You should see ~55 fields including:
+4. You should see ~100+ fields including:
 
 ```json
 {
@@ -229,7 +229,7 @@ When the PLC is unreachable, `connected` becomes `false` and all values drop to 
 1. In the Viam app, go to the **Data** tab (top navigation)
 2. Filter by your machine name
 3. You should see timestamped sensor readings appearing every ~5 seconds
-4. Each row contains all ~55 fields from the PLC
+4. Each row contains all ~100+ fields from the PLC
 
 This confirms the full pipeline: Click PLC -> Modbus TCP -> plc-sensor -> viam-server -> Viam Cloud.
 

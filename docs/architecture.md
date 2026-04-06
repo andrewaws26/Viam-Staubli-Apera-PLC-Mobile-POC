@@ -6,6 +6,57 @@ This document describes the architecture for a remote monitoring system for RAIV
 
 **One-sentence summary:** Monitor every TPS truck's PLC state, encoder distance, and plate drops from anywhere with a browser.
 
+```mermaid
+graph TB
+    subgraph Truck["Each Truck (30+ fleet)"]
+        PLC["Click PLC<br/>C0-10DD2E-D<br/>Modbus TCP :502"]
+        ENC["SICK DBS60E<br/>Encoder"]
+        CAN["J1939 CAN Bus<br/>250kbps"]
+        
+        subgraph Pi5["Raspberry Pi 5 (viam-pi)"]
+            PLC_MOD["plc-sensor module<br/>1 Hz Modbus reads"]
+            BUF1["Offline Buffer<br/>JSONL 50MB cap"]
+            VIAM1["viam-server"]
+            HOTSPOT["WiFi Hotspot<br/>IronSight-Truck"]
+        end
+        
+        subgraph PiZero["Pi Zero 2 W (truck-diagnostics)"]
+            J1939_MOD["j1939-sensor module<br/>Listen-only CAN"]
+            BUF2["Offline Buffer"]
+            VIAM2["viam-server"]
+        end
+        
+        ENC -->|"HSC pulses"| PLC
+        PLC -->|"Ethernet"| PLC_MOD
+        PLC_MOD --> BUF1
+        PLC_MOD --> VIAM1
+        CAN -->|"Listen-only"| J1939_MOD
+        J1939_MOD --> BUF2
+        J1939_MOD --> VIAM2
+        HOTSPOT -.->|"WiFi"| PiZero
+    end
+    
+    subgraph Cloud["Viam Cloud"]
+        DATA["Data Management<br/>Sync every 6s"]
+    end
+    
+    subgraph Vercel["Vercel"]
+        DASH["Next.js Dashboard"]
+        AI["AI Diagnostics<br/>Claude API"]
+        API["API Routes<br/>server-side only"]
+    end
+    
+    CELL["Cellular / WiFi"] 
+    
+    VIAM1 -->|"Capture + Sync"| DATA
+    VIAM2 -->|"Capture + Sync"| DATA
+    Pi5 -->|"Tailscale"| CELL
+    DATA -->|"Data API"| API
+    API --> DASH
+    API --> AI
+    DASH -->|"Browser"| USER["Operator / Manager"]
+```
+
 ### Hardware in Scope
 
 - Click PLC C0-10DD2E-D at 169.168.10.21:502 (Modbus TCP)
@@ -77,7 +128,7 @@ The dashboard shows connection status and turns red when the PLC becomes unreach
 │  │  │  - Reads DS1-DS25, DD1, X1-X8, Y1-Y3,       │    │      │
 │  │  │    C1999-C2000 via Modbus TCP at 1 Hz        │    │      │
 │  │  │  - Derives: distance, speed, plates/min      │    │      │
-│  │  │  - Returns ~55 fields per reading            │    │      │
+│  │  │  - Returns ~100+ fields per reading            │    │      │
 │  │  └────────────────────┬─────────────────────────┘    │      │
 │  │                       │                              │      │
 │  │  ┌────────────────────┴─────────────────────────┐    │      │
@@ -131,7 +182,7 @@ The dashboard shows connection status and turns red when the PLC becomes unreach
 
 2. **Outbound-only connectivity** — the Viam agent pushes data to Viam Cloud via HTTPS. No inbound ports need to be opened on the truck's network. This is critical for field deployment where trucks operate on remote railroad job sites.
 
-3. **Single sensor module** — the `plc-sensor` module (registered as `plc-monitor`) is the only Viam component. It returns ~55 fields per reading at 1 Hz, covering all PLC registers, encoder-derived values, and production analytics.
+3. **Single sensor module** — the `plc-sensor` module (registered as `plc-monitor`) is the only Viam component. It returns ~100+ fields per reading at 1 Hz, covering all PLC registers, encoder-derived values, and production analytics.
 
 4. **Dashboard connects via WebRTC through Viam Cloud** — the Next.js dashboard on Vercel connects directly to viam-server on the Pi via WebRTC, negotiated through Viam Cloud. This provides low-latency live readings. The data_manager service separately syncs readings to cloud storage for historical access.
 
@@ -150,7 +201,7 @@ The dashboard shows connection status and turns red when the PLC becomes unreach
 **`plc-sensor`** (custom, deployed at `modules/plc-sensor/`)
 - Implements Viam's `Sensor` interface
 - Connects to Click PLC C0-10DD2E-D via Modbus TCP (pymodbus)
-- Returns ~55 fields per `get_readings()` call at 1 Hz:
+- Returns ~100+ fields per `get_readings()` call at 1 Hz:
 
 **System health fields:**
 - `connected` (bool), `fault` (bool), `system_state` ("running"/"idle"/"disconnected"), `last_fault` (string)
@@ -359,7 +410,7 @@ COLLECTED:                          NEVER COLLECTED:
 
 ### How the Architecture Enforces This
 
-- The `plc-sensor` module has a **fixed return schema** — it can only return the ~55 fields defined in its `get_readings()` implementation. Adding a new data field requires writing new code, building a new module version, and deploying it.
+- The `plc-sensor` module has a **fixed return schema** — it can only return the ~100+ fields defined in its `get_readings()` implementation. Adding a new data field requires writing new code, building a new module version, and deploying it.
 - No cameras, microphones, or GPS receivers are connected to the Viam agent. The Pi 5 reads only the Click PLC via Modbus TCP.
 - The Viam data management service captures only what the sensor module reports. There is no ambient data collection.
 - **Expanding scope requires:** new module code → code review → build → deploy → reconfigure Viam agent. This is a multi-step, auditable process, not a configuration toggle.
@@ -563,7 +614,7 @@ See `docs/data-management.md` section 9 for detailed ML data requirements.
 
 ### Future: ML Data Collection Requirements
 
-The ~55 PLC fields captured at 1 Hz provide a rich time-series dataset for ML. The two highest-value models and their data requirements:
+The ~100+ PLC fields captured at 1 Hz provide a rich time-series dataset for ML. The two highest-value models and their data requirements:
 
 **Model 1 — Anomaly Detection (unsupervised, no labeling required):**
 - Key features: `encoder_speed_mmps`, `encoder_distance_mm`, `plates_per_minute`, `ds1`-`ds25`, `current_uptime_seconds`

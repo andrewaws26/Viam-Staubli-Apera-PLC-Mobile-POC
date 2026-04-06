@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-IronSight Discovery Daemon — monitors hardware changes and auto-discovers devices.
+IronSight Discovery Daemon -- monitors hardware changes and auto-discovers devices.
 
 Watches:
   - udevadm monitor: USB device attach/detach events
@@ -22,66 +22,48 @@ Or run directly:
   python3 scripts/ironsight-discovery-daemon.py
 """
 
-import importlib.util
 import json
 import logging
 import os
-import re
 import signal
-import socket
-import subprocess
 import sys
 import threading
 import time
+import subprocess
 from datetime import datetime
 
-# ─── Setup paths ──────────────────────────────────────────────
-
+# -- Setup paths --
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(SCRIPT_DIR, "lib"))
 
 from ironsight_memory import IronSightMemory
+from config_updater import (
+    DISCOVERY_AVAILABLE,
+    get_carrier,
+    get_interface_ip,
+    get_interface_subnet,
+    check_tcp,
+    identify_usb_device,
+    probe_plc,
+    scan_subnet,
+)
 
-# Import discovery functions from ironsight-discover.py (has hyphen, can't normal import)
-DISCOVER_PATH = os.path.join(SCRIPT_DIR, "ironsight-discover.py")
-_discover_spec = importlib.util.spec_from_file_location("ironsight_discover", DISCOVER_PATH)
-discover = importlib.util.module_from_spec(_discover_spec)
-
-# Only load discovery module if the file exists
-DISCOVERY_AVAILABLE = os.path.exists(DISCOVER_PATH)
-if DISCOVERY_AVAILABLE:
-    try:
-        _discover_spec.loader.exec_module(discover)
-    except Exception as e:
-        DISCOVERY_AVAILABLE = False
-        print(f"Warning: Could not load discovery module: {e}", file=sys.stderr)
-
-
-# ─── Constants ────────────────────────────────────────────────
-
+# -- Constants --
 try:
     from lib.plc_constants import PLC_HOST as KNOWN_PLC_HOST, PLC_PORT as KNOWN_PLC_PORT
 except ImportError:
     KNOWN_PLC_HOST = "169.168.10.21"
     KNOWN_PLC_PORT = 502
+
 HEARTBEAT_INTERVAL = 300  # 5 minutes
 LINK_SETTLE_TIME = 5      # seconds to wait after eth0 comes up
-USB_SETTLE_TIME = 2        # seconds to wait after USB device appears
+USB_SETTLE_TIME = 2       # seconds to wait after USB device appears
 
 # Network interfaces to watch
 WATCH_INTERFACES = {"eth0", "eth1", "usb0", "enp1s0", "end0"}
 
-# Known USB device classes we care about
-INTERESTING_USB = {
-    "ttyUSB": "serial_adapter",
-    "ttyACM": "serial_device",
-    "video": "camera",
-    "input": "input_device",
-    "net": "network_adapter",
-}
 
-
-# ─── Daemon ───────────────────────────────────────────────────
+# -- Daemon --
 
 class DiscoveryDaemon:
     """Watches for hardware changes and auto-discovers connected devices."""
@@ -92,7 +74,7 @@ class DiscoveryDaemon:
         self.running = True
         self.logger = self._setup_logging()
         self._discovery_lock = threading.Lock()
-        self._last_eth0_state = self._get_carrier("eth0")
+        self._last_eth0_state = get_carrier("eth0")
 
     def _setup_logging(self) -> logging.Logger:
         """Configure logging to file and stdout."""
@@ -100,7 +82,6 @@ class DiscoveryDaemon:
         logger = logging.getLogger("ironsight-discovery")
         logger.setLevel(logging.INFO)
 
-        # File handler (10MB max, 3 backups)
         from logging.handlers import RotatingFileHandler
         fh = RotatingFileHandler(log_file, maxBytes=10_000_000, backupCount=3)
         fh.setFormatter(logging.Formatter(
@@ -109,7 +90,6 @@ class DiscoveryDaemon:
         ))
         logger.addHandler(fh)
 
-        # Stdout handler
         sh = logging.StreamHandler()
         sh.setFormatter(logging.Formatter(
             "%(asctime)s [%(levelname)s] %(message)s",
@@ -119,7 +99,7 @@ class DiscoveryDaemon:
 
         return logger
 
-    # ─── Main loop ────────────────────────────────────────────
+    # -- Main loop --
 
     def start(self):
         """Start all monitor threads and block until signaled."""
@@ -134,7 +114,6 @@ class DiscoveryDaemon:
             "eth0_carrier": self._last_eth0_state,
         })
 
-        # If eth0 is already up at start, do an initial discovery
         if self._last_eth0_state == 1:
             threading.Thread(target=self._run_discovery, args=("startup",), daemon=True).start()
 
@@ -148,11 +127,9 @@ class DiscoveryDaemon:
             t.start()
             self.logger.info(f"  Started thread: {t.name}")
 
-        # Handle signals
         signal.signal(signal.SIGTERM, self._handle_signal)
         signal.signal(signal.SIGINT, self._handle_signal)
 
-        # Block main thread
         while self.running:
             time.sleep(1)
 
@@ -164,7 +141,7 @@ class DiscoveryDaemon:
         self.logger.info(f"Received {sig_name}, shutting down")
         self.running = False
 
-    # ─── Network link watcher ─────────────────────────────────
+    # -- Network link watcher --
 
     def _watch_network_link(self):
         """Monitor network interface state changes via ip monitor link."""
@@ -176,10 +153,10 @@ class DiscoveryDaemon:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
                 text=True,
-                bufsize=1,  # line-buffered
+                bufsize=1,
             )
         except FileNotFoundError:
-            self.logger.error("'ip' command not found — network monitoring disabled")
+            self.logger.error("'ip' command not found -- network monitoring disabled")
             return
 
         while self.running:
@@ -195,8 +172,6 @@ class DiscoveryDaemon:
             if not line:
                 continue
 
-            # Parse interface and state from ip monitor output
-            # Example: "3: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 ... state UP"
             for iface in WATCH_INTERFACES:
                 if iface in line:
                     if "state UP" in line or "LOWER_UP" in line:
@@ -208,17 +183,15 @@ class DiscoveryDaemon:
 
     def _on_interface_up(self, iface: str, raw: str):
         """Network interface came up."""
-        # Debounce — only fire if state actually changed
-        carrier = self._get_carrier(iface)
+        carrier = get_carrier(iface)
         if iface == "eth0" and self._last_eth0_state == carrier == 1:
-            return  # No actual change
+            return
         if iface == "eth0":
             self._last_eth0_state = carrier
 
         self.logger.info(f"{iface} link UP")
         self.memory.log_event("discovery-daemon", f"{iface}_up", {"raw": raw[:200]})
 
-        # Trigger discovery on a separate thread so we don't block the monitor
         threading.Thread(
             target=self._delayed_discovery,
             args=(iface,),
@@ -229,7 +202,7 @@ class DiscoveryDaemon:
         """Network interface went down."""
         if iface == "eth0":
             if self._last_eth0_state == 0:
-                return  # Already knew it was down
+                return
             self._last_eth0_state = 0
 
         self.logger.info(f"{iface} link DOWN")
@@ -240,28 +213,25 @@ class DiscoveryDaemon:
         self.logger.info(f"Waiting {LINK_SETTLE_TIME}s for {iface} to settle")
         time.sleep(LINK_SETTLE_TIME)
 
-        # Verify the link is still up
-        if self._get_carrier(iface) != 1:
+        if get_carrier(iface) != 1:
             self.logger.info(f"{iface} went back down before discovery could run")
             return
 
-        # Wait for IP assignment (up to 15 seconds)
         ip = None
         for _ in range(15):
-            ip = self._get_interface_ip(iface)
+            ip = get_interface_ip(iface)
             if ip:
                 break
             time.sleep(1)
 
         if ip:
-            self.logger.info(f"{iface} has IP {ip} — starting discovery")
+            self.logger.info(f"{iface} has IP {ip} -- starting discovery")
             self._run_discovery(f"{iface}_up")
         else:
             self.logger.warning(f"{iface} is up but no IP assigned after 15s")
-            # Still try — might be a static IP we can't detect easily
             self._run_discovery(f"{iface}_up_no_ip")
 
-    # ─── USB watcher ──────────────────────────────────────────
+    # -- USB watcher --
 
     def _watch_udev(self):
         """Monitor USB device events via udevadm monitor."""
@@ -278,10 +248,10 @@ class DiscoveryDaemon:
                 bufsize=1,
             )
         except FileNotFoundError:
-            self.logger.error("'udevadm' not found — USB monitoring disabled")
+            self.logger.error("'udevadm' not found -- USB monitoring disabled")
             return
         except PermissionError:
-            self.logger.warning("udevadm requires elevated privileges — USB monitoring limited")
+            self.logger.warning("udevadm requires elevated privileges -- USB monitoring limited")
             return
 
         while self.running:
@@ -297,8 +267,6 @@ class DiscoveryDaemon:
             if not line or line.startswith("monitor"):
                 continue
 
-            # Parse udevadm output
-            # Example: "KERNEL[12345.678] add     /devices/platform/.../ttyUSB0 (tty)"
             if " add " in line.lower():
                 self._on_usb_add(line)
             elif " remove " in line.lower():
@@ -308,18 +276,16 @@ class DiscoveryDaemon:
 
     def _on_usb_add(self, raw: str):
         """USB device was plugged in."""
-        device_info = self._identify_usb_device(raw)
+        device_info = identify_usb_device(raw)
         self.logger.info(f"USB device added: {device_info.get('description', raw[:100])}")
         self.memory.log_event("discovery-daemon", "usb_add", device_info)
 
-        # If it's a network adapter, it might bring up a new interface
         if device_info.get("type") == "network_adapter":
-            self.logger.info("Network adapter detected — watching for new interface")
+            self.logger.info("Network adapter detected -- watching for new interface")
 
-        # If it's a serial device, log it for potential PLC/sensor use
         if device_info.get("type") in ("serial_adapter", "serial_device"):
             dev_path = device_info.get("device", "")
-            self.logger.info(f"Serial device at {dev_path} — available for Modbus RTU or sensor")
+            self.logger.info(f"Serial device at {dev_path} -- available for Modbus RTU or sensor")
             self.memory.log_event("discovery-daemon", "serial_available", {
                 "path": dev_path,
                 "description": device_info.get("description", "unknown"),
@@ -330,45 +296,7 @@ class DiscoveryDaemon:
         self.logger.info(f"USB device removed: {raw[:100]}")
         self.memory.log_event("discovery-daemon", "usb_remove", {"raw": raw[:200]})
 
-    def _identify_usb_device(self, raw: str) -> dict:
-        """Try to identify what USB device was plugged in."""
-        info = {"raw": raw[:200], "type": "unknown", "description": "unknown USB device"}
-
-        # Check for known device types
-        for pattern, dev_type in INTERESTING_USB.items():
-            if pattern in raw:
-                info["type"] = dev_type
-                info["description"] = f"{dev_type} ({pattern})"
-                break
-
-        # Try to extract device path
-        match = re.search(r"/dev/(\S+)", raw)
-        if match:
-            info["device"] = f"/dev/{match.group(1)}"
-
-        # Try udevadm info for more details (non-blocking)
-        dev_match = re.search(r"(/devices/\S+)", raw)
-        if dev_match:
-            try:
-                result = subprocess.run(
-                    ["udevadm", "info", "--path", dev_match.group(1)],
-                    capture_output=True, text=True, timeout=3,
-                )
-                for prop_line in result.stdout.split("\n"):
-                    if "ID_VENDOR=" in prop_line:
-                        vendor = prop_line.split("=", 1)[1]
-                        info["vendor"] = vendor
-                        info["description"] = f"{info['type']} ({vendor})"
-                    elif "ID_MODEL=" in prop_line:
-                        info["model"] = prop_line.split("=", 1)[1]
-                    elif "DEVNAME=" in prop_line:
-                        info["device"] = prop_line.split("=", 1)[1]
-            except (subprocess.TimeoutExpired, FileNotFoundError):
-                pass
-
-        return info
-
-    # ─── Network discovery ────────────────────────────────────
+    # -- Network discovery --
 
     def _run_discovery(self, trigger: str):
         """Scan the network for PLCs and other devices."""
@@ -383,18 +311,18 @@ class DiscoveryDaemon:
             devices_found = []
 
             # 1. Check the known PLC first (fast path)
-            if self._check_tcp(KNOWN_PLC_HOST, KNOWN_PLC_PORT, timeout=3):
+            if check_tcp(KNOWN_PLC_HOST, KNOWN_PLC_PORT, timeout=3):
                 self.logger.info(f"Known PLC reachable at {KNOWN_PLC_HOST}:{KNOWN_PLC_PORT}")
-                device = self._probe_plc(KNOWN_PLC_HOST, KNOWN_PLC_PORT)
+                device = probe_plc(KNOWN_PLC_HOST, KNOWN_PLC_PORT, logger=self.logger)
                 if device:
                     devices_found.append(device)
                     self._save_device(device)
 
             # 2. Scan eth0 subnet for other devices
-            eth0_subnet = self._get_interface_subnet("eth0")
+            eth0_subnet = get_interface_subnet("eth0")
             if eth0_subnet:
                 self.logger.info(f"Scanning subnet {eth0_subnet}")
-                found = self._scan_subnet(eth0_subnet)
+                found = scan_subnet(eth0_subnet, logger=self.logger)
                 for device in found:
                     if device.get("ip") != KNOWN_PLC_HOST:
                         devices_found.append(device)
@@ -404,14 +332,13 @@ class DiscoveryDaemon:
             for iface in WATCH_INTERFACES:
                 if iface == "eth0":
                     continue
-                subnet = self._get_interface_subnet(iface)
+                subnet = get_interface_subnet(iface)
                 if subnet:
                     self.logger.info(f"Also scanning {iface} subnet {subnet}")
-                    for device in self._scan_subnet(subnet):
+                    for device in scan_subnet(subnet, logger=self.logger):
                         devices_found.append(device)
                         self._save_device(device)
 
-            # Summary
             self.logger.info(f"Discovery complete: {len(devices_found)} device(s) found")
             self.memory.log_event("discovery-daemon", "discovery_complete", {
                 "trigger": trigger,
@@ -428,76 +355,6 @@ class DiscoveryDaemon:
         finally:
             self._discovery_lock.release()
 
-    def _probe_plc(self, ip: str, port: int) -> dict:
-        """Probe a PLC and return a device profile."""
-        device = {
-            "ip": ip,
-            "port": port,
-            "type": "plc",
-            "reachable": True,
-            "last_seen": datetime.now().isoformat(),
-        }
-
-        if DISCOVERY_AVAILABLE:
-            try:
-                # Use the full discovery module's probe
-                protocols = discover.probe_ports(ip)
-                device["protocols"] = protocols
-
-                # Try Modbus
-                modbus_info = discover.try_modbus(ip, port)
-                if modbus_info:
-                    device["modbus"] = modbus_info
-                    device["vendor"] = modbus_info.get("vendor", "unknown")
-            except Exception as e:
-                self.logger.warning(f"Discovery probe failed for {ip}: {e}")
-                device["probe_error"] = str(e)
-        else:
-            # Basic probe without discovery module
-            device["vendor"] = "unknown"
-            device["note"] = "discovery module not available for deep probe"
-
-        return device
-
-    def _scan_subnet(self, subnet: str) -> list:
-        """Scan a subnet for devices with industrial ports open."""
-        devices = []
-
-        if DISCOVERY_AVAILABLE:
-            try:
-                found = discover.scan_network(subnet)
-                for f in found:
-                    ip = f.get("ip", "")
-                    device = {
-                        "ip": ip,
-                        "type": "plc" if f.get("plc_vendor") else "unknown",
-                        "vendor": f.get("plc_vendor", "unknown"),
-                        "mac": f.get("mac", ""),
-                        "reachable": True,
-                        "last_seen": datetime.now().isoformat(),
-                        "discovery_method": "network_scan",
-                    }
-                    devices.append(device)
-            except Exception as e:
-                self.logger.warning(f"Network scan failed: {e}")
-        else:
-            # Minimal scan — just check known industrial ports on common IPs
-            self.logger.info("Using basic scan (discovery module not available)")
-            base = ".".join(subnet.split(".")[:3])
-            for octet in range(1, 255):
-                ip = f"{base}.{octet}"
-                if self._check_tcp(ip, 502, timeout=0.5):
-                    devices.append({
-                        "ip": ip,
-                        "port": 502,
-                        "type": "plc",
-                        "reachable": True,
-                        "last_seen": datetime.now().isoformat(),
-                        "discovery_method": "port_scan",
-                    })
-
-        return devices
-
     def _save_device(self, device: dict):
         """Save a device profile to ~/.ironsight/devices/."""
         ip = device.get("ip", "unknown").replace(".", "_")
@@ -505,7 +362,7 @@ class DiscoveryDaemon:
         self.memory.write_device(device_id, device)
         self.logger.info(f"Saved device profile: {device_id}")
 
-    # ─── Heartbeat ────────────────────────────────────────────
+    # -- Heartbeat --
 
     def _periodic_heartbeat(self):
         """Periodically check known devices and interfaces."""
@@ -525,13 +382,11 @@ class DiscoveryDaemon:
         """Single heartbeat check."""
         status = {}
 
-        # Check eth0
-        eth0_carrier = self._get_carrier("eth0")
+        eth0_carrier = get_carrier("eth0")
         status["eth0_carrier"] = eth0_carrier
-        eth0_ip = self._get_interface_ip("eth0")
+        eth0_ip = get_interface_ip("eth0")
         status["eth0_ip"] = eth0_ip
 
-        # Detect eth0 state changes that ip monitor might miss
         if eth0_carrier == 1 and self._last_eth0_state == 0:
             self.logger.info("Heartbeat detected eth0 came up (missed by monitor)")
             self._last_eth0_state = 1
@@ -541,16 +396,14 @@ class DiscoveryDaemon:
             self._last_eth0_state = 0
             self.memory.log_event("discovery-daemon", "eth0_down", {"source": "heartbeat"})
 
-        # Check known PLC
-        plc_reachable = self._check_tcp(KNOWN_PLC_HOST, KNOWN_PLC_PORT, timeout=3)
+        plc_reachable = check_tcp(KNOWN_PLC_HOST, KNOWN_PLC_PORT, timeout=3)
         status["plc_reachable"] = plc_reachable
 
-        # Check all known devices
         for device_id in self.memory.list_devices():
             device = self.memory.read_device(device_id)
             if device and device.get("ip"):
                 port = device.get("port", 502)
-                reachable = self._check_tcp(device["ip"], port, timeout=3)
+                reachable = check_tcp(device["ip"], port, timeout=3)
                 if reachable != device.get("reachable"):
                     state = "reachable" if reachable else "unreachable"
                     self.logger.info(f"Device {device_id} is now {state}")
@@ -564,60 +417,10 @@ class DiscoveryDaemon:
                         "ip": device["ip"],
                     })
 
-        # Log heartbeat (only to file, not events — too noisy)
         self.logger.debug(f"Heartbeat: {json.dumps(status)}")
 
-    # ─── Utilities ────────────────────────────────────────────
 
-    @staticmethod
-    def _get_carrier(iface: str) -> int:
-        """Read carrier state: 1=up, 0=down, -1=unknown."""
-        try:
-            with open(f"/sys/class/net/{iface}/carrier") as f:
-                return int(f.read().strip())
-        except (FileNotFoundError, ValueError, OSError):
-            return -1
-
-    @staticmethod
-    def _get_interface_ip(iface: str) -> str:
-        """Get the IPv4 address of a network interface."""
-        try:
-            result = subprocess.run(
-                ["ip", "-4", "-o", "addr", "show", iface],
-                capture_output=True, text=True, timeout=5,
-            )
-            match = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", result.stdout)
-            return match.group(1) if match else ""
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            return ""
-
-    @staticmethod
-    def _get_interface_subnet(iface: str) -> str:
-        """Get the subnet (e.g., '169.168.10.0/24') for an interface."""
-        try:
-            result = subprocess.run(
-                ["ip", "-4", "-o", "addr", "show", iface],
-                capture_output=True, text=True, timeout=5,
-            )
-            match = re.search(r"inet (\d+\.\d+\.\d+\.\d+/\d+)", result.stdout)
-            return match.group(1) if match else ""
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            return ""
-
-    @staticmethod
-    def _check_tcp(host: str, port: int, timeout: float = 3) -> bool:
-        """Check if a TCP port is open."""
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(timeout)
-            result = sock.connect_ex((host, port))
-            sock.close()
-            return result == 0
-        except (socket.error, OSError):
-            return False
-
-
-# ─── Entry point ──────────────────────────────────────────────
+# -- Entry point --
 
 def main():
     daemon = DiscoveryDaemon()

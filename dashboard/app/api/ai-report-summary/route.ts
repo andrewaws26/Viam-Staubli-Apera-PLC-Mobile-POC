@@ -54,6 +54,8 @@ ${readingsText}
 
 ${historyText}`;
 
+  const startTime = Date.now();
+
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -69,6 +71,11 @@ ${historyText}`;
       }),
     });
 
+    if (!response.ok) {
+      console.error("[API-ERROR]", "/api/ai-report-summary", `Claude API ${response.status}:`, await response.text());
+      return NextResponse.json({ summary: "" });
+    }
+
     const result = await response.json();
     const summary = result.content?.[0]?.text || "";
 
@@ -81,8 +88,10 @@ ${historyText}`;
       dtc_count: readings?.active_dtc_count || 0,
     }));
 
+    console.log("[API-TIMING]", "/api/ai-report-summary", Date.now() - startTime, "ms");
     return NextResponse.json({ success: true, summary });
-  } catch {
+  } catch (err) {
+    console.error("[API-ERROR]", "/api/ai-report-summary", err);
     return NextResponse.json({ summary: "" });
   }
 }

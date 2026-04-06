@@ -88,7 +88,7 @@ def load_profile(vin: str) -> VehicleProfile | None:
     """Load a saved profile from disk.  Returns None if missing or corrupt."""
     path = _profile_path(vin)
     try:
-        with open(path, "r") as f:
+        with open(path) as f:
             data = json.load(f)
         # Only pass fields the dataclass knows about
         valid = {

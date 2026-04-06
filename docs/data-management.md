@@ -21,7 +21,7 @@ PLC Registers
 │                                                            │
 │  plc-monitor                                               │
 │  get_readings()                                            │
-│  ~55 fields @ 1 Hz                                         │
+│  ~100+ fields @ 1 Hz                                         │
 │                                                            │
 │  ┌──────────────────────────────────────────────────────┐  │
 │  │           Data Management Service                     │  │
@@ -50,7 +50,7 @@ PLC Registers
 
 ### What Each Sensor Captures
 
-**PLC Monitor** (`plc-monitor`) — ~55 fields per reading at 1 Hz:
+**PLC Monitor** (`plc-monitor`) — ~100+ fields per reading at 1 Hz:
 
 - **System health:** `connected`, `fault`, `system_state`, `last_fault`, `current_uptime_seconds`, `total_reads`, `total_errors`
 - **Encoder:** `encoder_count`, `encoder_direction`, `encoder_distance_mm`, `encoder_distance_ft`, `encoder_speed_mmps`, `encoder_speed_ftpm`, `encoder_revolutions`
@@ -141,7 +141,7 @@ When triggered, it deletes every Nth captured file (controlled by `delete_every_
 
 | Component | Fields | Estimated Size (protobuf + metadata) |
 |---|---|---|
-| `plc-monitor` | ~55 | ~1.2 KB per reading |
+| `plc-monitor` | ~100+ | ~1.2 KB per reading |
 
 ### Daily Volume Per Truck (10-hour workday)
 

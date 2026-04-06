@@ -1,0 +1,40 @@
+# Ruff linter configuration for Python modules.
+#
+# Catches bugs and enforces consistency across plc-sensor and j1939-sensor.
+# Intentionally minimal: only rules that catch real problems.
+#
+# Run:   ruff check modules/
+# Fix:   ruff check modules/ --fix
+# Format: ruff format modules/ (not enforced in CI yet)
+
+# Target Python 3.11 (matches Pi OS Bookworm)
+target-version = "py311"
+
+[lint]
+# Rules enabled:
+#   E  = pycodestyle errors (syntax-level issues)
+#   F  = pyflakes (unused imports, undefined names, etc.)
+#   W  = pycodestyle warnings (whitespace issues)
+#   UP = pyupgrade (Python 3.11+ modernization)
+#   B  = flake8-bugbear (common bug patterns)
+#   I  = isort (import ordering)
+select = ["E", "F", "W", "UP", "B", "I"]
+
+# Rules we intentionally skip:
+ignore = [
+  "E501",   # Line too long — not worth fighting over in data-heavy PLC/CAN code
+  "E741",   # Ambiguous variable name (l, O, I) — we use 'l' for length in CAN code
+  "F841",   # Local variable assigned but never used — common in incremental dev
+  "B007",   # Loop control variable not used — common in retry/wait loops
+  "UP007",  # Use X | Y for union types — we support Python 3.11 but keep Optional for clarity
+]
+
+[lint.per-file-ignores]
+# Test files can have unused imports (fixtures) and assertions
+"tests/**/*.py" = ["F401", "B011"]
+# __init__.py files commonly have unused imports for re-export
+"__init__.py" = ["F401"]
+
+[lint.isort]
+# Match the existing import style in the codebase
+known-first-party = ["src"]

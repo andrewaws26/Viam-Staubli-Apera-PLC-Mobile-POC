@@ -1,82 +1,23 @@
 /**
- * Shared truck data access — Viam Data API client, fetch, and summary builder.
+ * Shared truck data access — fetch and summary builder for truck engine data.
  *
  * Used by both the /api/truck-history route and the AI history module.
- * Uses location-level VIAM_API_KEY / VIAM_API_KEY_ID for data queries.
+ * Uses the shared Viam Data client (lib/viam-data.ts) for all queries.
  */
 
-import { createViamClient } from "@viamrobotics/sdk";
+import { fetchSensorData, resetDataClient, type RawPoint } from "@/lib/viam-data";
 
-// ── Viam client types ──────────────────────────────────────────────
-
-interface CachedViamClient {
-  dataClient: {
-    exportTabularData(
-      partId: string,
-      resourceName: string,
-      resourceSubtype: string,
-      methodName: string,
-      startTime?: Date,
-      endTime?: Date,
-    ): Promise<TabularDataPoint[]>;
-  };
-}
-
-interface TabularDataPoint {
-  timeCaptured: Date;
-  payload: unknown;
-  [key: string]: unknown;
-}
+export type { RawPoint };
 
 // ── Module state ───────────────────────────────────────────────────
 
-let _viamClient: CachedViamClient | null = null;
-let _connecting = false;
-
 const TRUCK_PART_ID = process.env.TRUCK_VIAM_PART_ID || "ca039781-665c-47e3-9bc5-35f603f3baf1";
 const RESOURCE_NAME = "truck-engine";
-const RESOURCE_SUBTYPE = "rdk:component:sensor";
-const METHOD_NAME = "Readings";
 const MAX_POINTS = 500;
 
-// ── Client management ──────────────────────────────────────────────
-
-function getCachedClient(): CachedViamClient | null {
-  return _viamClient;
-}
-
-async function getDataClient(): Promise<CachedViamClient["dataClient"]> {
-  const cached = getCachedClient();
-  if (cached) return cached.dataClient;
-  if (_connecting) {
-    await new Promise((r) => setTimeout(r, 500));
-    const retried = getCachedClient();
-    if (retried) return retried.dataClient;
-    throw new Error("Connection in progress");
-  }
-
-  // Use location-level key for data queries (machine-level keys lack data read permissions)
-  const apiKey = process.env.VIAM_API_KEY;
-  const apiKeyId = process.env.VIAM_API_KEY_ID;
-
-  if (!apiKey || !apiKeyId) {
-    throw new Error("Missing Viam API credentials for truck data query");
-  }
-
-  _connecting = true;
-  try {
-    const client = await createViamClient({
-      credentials: { type: "api-key", authEntity: apiKeyId, payload: apiKey },
-    });
-    _viamClient = client as unknown as CachedViamClient;
-    return _viamClient.dataClient;
-  } finally {
-    _connecting = false;
-  }
-}
-
+// Keep this for backward compat with truck-history route
 export function resetTruckDataClient() {
-  _viamClient = null;
+  resetDataClient();
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -96,35 +37,10 @@ function downsample<T>(data: T[], maxN: number): T[] {
   return result;
 }
 
-// ── Types ───────────────────────────────────────────────────────────
-
-export interface RawPoint {
-  timeCaptured: Date;
-  payload: Record<string, unknown>;
-}
-
 // ── Data fetching ───────────────────────────────────────────────────
 
 export async function fetchTruckData(hours: number): Promise<RawPoint[]> {
-  const dc = await getDataClient();
-  const endTime = new Date();
-  const startTime = new Date(endTime.getTime() - hours * 3600000);
-
-  const rows = await dc.exportTabularData(
-    TRUCK_PART_ID, RESOURCE_NAME, RESOURCE_SUBTYPE, METHOD_NAME, startTime, endTime,
-  );
-
-  const points: RawPoint[] = rows.map((row) => {
-    const raw = (typeof row.payload === "object" && row.payload !== null ? row.payload : {}) as Record<string, unknown>;
-    const readings = (typeof raw.readings === "object" && raw.readings !== null ? raw.readings : raw) as Record<string, unknown>;
-    return {
-      timeCaptured: row.timeCaptured instanceof Date ? row.timeCaptured : new Date(String(row.timeCaptured)),
-      payload: readings,
-    };
-  });
-
-  points.sort((a, b) => a.timeCaptured.getTime() - b.timeCaptured.getTime());
-  return points;
+  return fetchSensorData(TRUCK_PART_ID, RESOURCE_NAME, hours);
 }
 
 // ── Summary builder ─────────────────────────────────────────────────
@@ -169,13 +85,11 @@ export function buildTruckSummary(points: RawPoint[], hours: number) {
     const dtcCount = num(pt.payload.active_dtc_count);
     if (dtcCount > 0 && dtcCount !== prevDtcCount) {
       for (let i = 0; i < Math.min(dtcCount, 5); i++) {
-        // J1939 format: dtc_N_spn + dtc_N_fmi
         const spn = pt.payload[`dtc_${i}_spn`];
         const fmi = pt.payload[`dtc_${i}_fmi`];
         if (spn !== undefined && fmi !== undefined) {
           dtcEvents.push({ timestamp: pt.timeCaptured.toISOString(), code: `SPN ${spn} FMI ${fmi}` });
         }
-        // OBD2 format: obd2_dtc_N
         const obd2Code = pt.payload[`obd2_dtc_${i}`];
         if (obd2Code) dtcEvents.push({ timestamp: pt.timeCaptured.toISOString(), code: String(obd2Code) });
       }
@@ -183,7 +97,6 @@ export function buildTruckSummary(points: RawPoint[], hours: number) {
     prevDtcCount = dtcCount;
   }
 
-  // Fuel consumption (start vs end level)
   const fuelStart = fuelLevels[0];
   const fuelEnd = fuelLevels[fuelLevels.length - 1];
 
@@ -206,10 +119,8 @@ export function buildTruckSummary(points: RawPoint[], hours: number) {
     def_pct: num(pt.payload.def_level_pct),
     scr_eff: num(pt.payload.scr_efficiency_pct),
     def_dose: num(pt.payload.def_dose_rate_gs),
-    // GPS
     lat: num(pt.payload.gps_latitude),
     lon: num(pt.payload.gps_longitude),
-    // OBD2 fallback
     throttle_pct: num(pt.payload.throttle_position_pct || pt.payload.accel_pedal_pos_pct),
     short_trim: num(pt.payload.short_fuel_trim_b1_pct),
     long_trim: num(pt.payload.long_fuel_trim_b1_pct),
@@ -228,7 +139,6 @@ export function buildTruckSummary(points: RawPoint[], hours: number) {
       vehicle_speed_mph: { avg: Math.round(avg(speeds) * 10) / 10, max: Math.round(max(speeds) * 10) / 10 },
       battery_voltage_v: { avg: Math.round(avg(batteries) * 100) / 100, min: Math.round(min(batteries) * 100) / 100, max: Math.round(max(batteries) * 100) / 100 },
       fuel_level_pct: { start: Math.round(fuelStart * 10) / 10, end: Math.round(fuelEnd * 10) / 10, consumed: Math.round((fuelStart - fuelEnd) * 10) / 10 },
-      // J1939 specific
       oil_pressure_psi: { avg: Math.round(avg(oilPressures) * 10) / 10, min: Math.round(min(oilPressures) * 10) / 10, max: Math.round(max(oilPressures) * 10) / 10 },
       boost_pressure_psi: { avg: Math.round(avg(boostPressures) * 10) / 10, max: Math.round(max(boostPressures) * 10) / 10 },
       fuel_rate_gph: { avg: Math.round(avg(fuelRates) * 100) / 100, max: Math.round(max(fuelRates) * 100) / 100 },
@@ -237,7 +147,6 @@ export function buildTruckSummary(points: RawPoint[], hours: number) {
       intake_temp_f: { avg: Math.round(avg(intakeTemps) * 10) / 10, max: Math.round(max(intakeTemps) * 10) / 10 },
       dpf_soot_load_pct: { avg: Math.round(avg(dpfSoot) * 10) / 10, max: Math.round(max(dpfSoot) * 10) / 10 },
       def_level_pct: { avg: Math.round(avg(defLevels) * 10) / 10, min: Math.round(min(defLevels) * 10) / 10 },
-      // OBD2 specific (only populated for passenger vehicles)
       throttle_pct: { avg: Math.round(avg(throttles) * 10) / 10, max: Math.round(max(throttles) * 10) / 10 },
       short_fuel_trim_b1_pct: { avg: Math.round(avg(shortTrims) * 100) / 100, min: Math.round(min(shortTrims) * 100) / 100, max: Math.round(max(shortTrims) * 100) / 100 },
       long_fuel_trim_b1_pct: { avg: Math.round(avg(longTrims) * 100) / 100, min: Math.round(min(longTrims) * 100) / 100, max: Math.round(max(longTrims) * 100) / 100 },

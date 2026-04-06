@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAiHistorySummary } from "@/lib/ai-history";
 import { runDiagnostics, formatDiagnosticNotes } from "@/lib/ai-diagnostics";
+import { AiChatBody, parseBody } from "@/lib/api-schemas";
 
 export async function POST(request: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -22,20 +23,19 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let body: {
-    messages: { role: string; content: string }[];
-    readings: Record<string, unknown>;
-  };
+  let rawBody: unknown;
   try {
-    body = await request.json();
+    rawBody = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { messages, readings } = body;
-  if (!messages || !Array.isArray(messages)) {
-    return NextResponse.json({ error: "Missing 'messages' array" }, { status: 400 });
+  const parsed = parseBody(AiChatBody, rawBody);
+  if (parsed.error) {
+    return NextResponse.json(parsed.error, { status: 400 });
   }
+
+  const { messages, readings } = parsed.data;
 
   const readingsText = JSON.stringify(readings || {}, null, 2);
 
@@ -118,6 +118,8 @@ ${readingsText}
 
 ${history.text}
 
+${readings._dtc_history_text ? "\n" + String(readings._dtc_history_text) : ""}
+
 FORMATTING: Keep responses concise and readable. Use short paragraphs, not markdown headers. Bold key terms with **term**. Use bullet points sparingly. Do NOT use ## or ### headers — the chat UI doesn't render them well.
 
 ETHICAL BOUNDARIES:
@@ -139,6 +141,8 @@ FOLLOW-UP QUESTIONS: At the end of EVERY response, include 2-3 suggested follow-
       historyDebug: history.debug,
     });
   }
+
+  const startTime = Date.now();
 
   try {
     const apiMessages = messages.map((m) => ({
@@ -163,6 +167,7 @@ FOLLOW-UP QUESTIONS: At the end of EVERY response, include 2-3 suggested follow-
 
     if (!response.ok) {
       const errText = await response.text();
+      console.error("[API-ERROR]", "/api/ai-chat", `Claude API ${response.status}:`, errText);
       return NextResponse.json(
         { error: "Claude API error", details: errText },
         { status: 502 }
@@ -175,8 +180,10 @@ FOLLOW-UP QUESTIONS: At the end of EVERY response, include 2-3 suggested follow-
     // Log conversation to cloud for analysis and refinement
     logConversation(apiMessages, reply, readings).catch(() => {});
 
+    console.log("[API-TIMING]", "/api/ai-chat", Date.now() - startTime, "ms");
     return NextResponse.json({ success: true, reply });
   } catch (err) {
+    console.error("[API-ERROR]", "/api/ai-chat", err);
     return NextResponse.json(
       {
         error: "Failed to reach Claude API",
@@ -208,9 +215,12 @@ async function logConversation(
     message_count: messages.length,
     last_user_message: messages.filter(m => m.role === "user").pop()?.content || "",
     ai_response: aiReply.substring(0, 2000), // Truncate to save space
-    active_dtcs: Object.entries(readings)
+    active_dtcs_obd2: Object.entries(readings)
       .filter(([k]) => k.startsWith("obd2_dtc_"))
       .map(([, v]) => v),
+    active_dtcs_j1939: Object.entries(readings)
+      .filter(([k]) => /^dtc_(engine|trans|abs|acm|body|inst)_\d+_spn$/.test(k))
+      .map(([k, v]) => `${k}=${v}`),
     active_dtc_count: readings.active_dtc_count || 0,
     engine_rpm: readings.engine_rpm,
     coolant_temp_f: readings.coolant_temp_f,

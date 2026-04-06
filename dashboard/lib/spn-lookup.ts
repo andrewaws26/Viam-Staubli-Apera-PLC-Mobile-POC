@@ -59,7 +59,7 @@ export const SPN_LOOKUP: Record<number, SPNInfo> = {
   190: { name: "Engine Speed", description: "Engine RPM sensor (crankshaft)", fix: "Check crankshaft position sensor and wiring", severity: "critical" },
 
   // Aftertreatment / Emissions (very common on 2013+ trucks)
-  520: { name: "Actual Engine Torque", description: "Actual engine percent torque", fix: "Check engine sensors, may be derate condition", severity: "warning" },
+  520: { name: "Actual Engine Torque (Hi-Res)", description: "Actual engine percent torque (high resolution)", fix: "Check engine sensors, may be derate condition", severity: "warning" },
   523: { name: "Transmission Current Gear", description: "Current transmission gear", fix: "Check transmission controller, gear sensor", severity: "warning" },
   524: { name: "Transmission Selected Gear", description: "Selected transmission gear", fix: "Check gear selector, transmission controller", severity: "warning" },
   597: { name: "Brake Switch", description: "Brake pedal switch", fix: "Check brake light switch, wiring", severity: "warning" },
@@ -97,7 +97,7 @@ export const SPN_LOOKUP: Record<number, SPNInfo> = {
   3719: { name: "AFT DEF Pump Pressure", description: "DEF pump/dosing system pressure", fix: "Check DEF pump, filter, lines for blockage or crystallization", severity: "warning" },
 
   // Transmission / Drivetrain
-  4078: { name: "Trans Oil Life", description: "Transmission fluid life remaining", fix: "Schedule transmission fluid change", severity: "info" },
+  4078: { name: "Trans Oil Life Remaining", description: "Transmission fluid life remaining percentage", fix: "Schedule transmission fluid change", severity: "info" },
 
   // Body / Cab
   5018: { name: "High Beam", description: "High beam headlight circuit", fix: "Check headlight bulb, relay, wiring", severity: "info" },
@@ -108,7 +108,7 @@ export const SPN_LOOKUP: Record<number, SPNInfo> = {
   3936: { name: "AFT DPF Soot Load", description: "DPF soot load percentage", fix: "Perform forced regen, replace DPF if soot won't burn off", severity: "warning" },
   4094: { name: "NOx Level Exceeded", description: "Tailpipe NOx emissions exceed limit", fix: "Check DEF system, SCR catalyst, may trigger derate", severity: "critical" },
   4364: { name: "Coolant Flow", description: "Engine coolant flow rate", fix: "Check water pump, thermostat, coolant hoses", severity: "warning" },
-  5298: { name: "Idle Shutdown Timer", description: "Engine idle shutdown timer active", fix: "Normal operation — engine will shut down after idle timer", severity: "info" },
+  5298: { name: "Idle Shutdown Timer Status", description: "Engine idle shutdown timer active status", fix: "Normal operation — engine will shut down after idle timer", severity: "info" },
 
   // ── Additional SPNs (200 total) ──
   38: { name: "Ext Cab Air Temp", description: "External air temperature for cab climate control", fix: "Check ambient temp sensor behind bumper or mirror", severity: "info" },
