@@ -121,6 +121,17 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
               </svg>
               <span className="hidden sm:inline">Overview</span>
             </a>
+            {userRole !== "operator" && (
+              <a
+                href="/fleet"
+                className="min-h-[44px] px-3 sm:px-4 py-2 rounded-lg border border-gray-600 hover:border-purple-500 text-gray-300 hover:text-white text-xs sm:text-sm font-bold uppercase tracking-wider transition-colors flex items-center gap-1.5"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z" />
+                </svg>
+                <span className="hidden sm:inline">Fleet</span>
+              </a>
+            )}
             {isAdmin && (
               <a
                 href="/admin"

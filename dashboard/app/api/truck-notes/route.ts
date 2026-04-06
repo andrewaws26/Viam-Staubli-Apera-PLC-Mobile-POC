@@ -1,10 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth, currentUser, clerkClient } from "@clerk/nextjs/server";
 import { getSupabase } from "@/lib/supabase";
-import { canSeeAllTrucks, canManageFleet, cleanRole } from "@/lib/auth";
+import { canSeeAllTrucks, canManageFleet } from "@/lib/auth";
+
+async function getUserRole(userId: string): Promise<string> {
+  try {
+    const client = await clerkClient();
+    const user = await client.users.getUser(userId);
+    return (user.publicMetadata as Record<string, unknown>)?.role as string || "operator";
+  } catch {
+    return "operator";
+  }
+}
 
 export async function GET(request: NextRequest) {
-  const { userId, orgRole } = await auth();
+  const { userId } = await auth();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -14,7 +24,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Missing truck_id" }, { status: 400 });
   }
 
-  const role = cleanRole(orgRole ?? "operator");
+  const role = await getUserRole(userId);
 
   // Operators can only fetch notes for trucks they are assigned to
   if (!canSeeAllTrucks(role)) {
@@ -57,7 +67,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const { userId, orgRole } = await auth();
+  const { userId } = await auth();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -66,7 +76,7 @@ export async function POST(request: NextRequest) {
   const authorName = user?.firstName
     ? `${user.firstName} ${user.lastName ?? ""}`.trim()
     : user?.emailAddresses?.[0]?.emailAddress ?? "Unknown";
-  const role = cleanRole(orgRole ?? "operator");
+  const role = await getUserRole(userId);
 
   let body: { truck_id?: string; body?: string };
   try {
@@ -126,7 +136,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const { userId, orgRole } = await auth();
+  const { userId } = await auth();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -136,7 +146,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "Missing note id" }, { status: 400 });
   }
 
-  const role = cleanRole(orgRole ?? "operator");
+  const role = await getUserRole(userId);
 
   try {
     const sb = getSupabase();

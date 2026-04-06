@@ -1,22 +1,38 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { ROUTE_PERMISSIONS, hasRole, canSeeAllTrucks } from "./auth";
 import { getSupabase } from "./supabase";
+
+/**
+ * Fetch the user's role from Clerk publicMetadata.
+ */
+async function getUserRole(userId: string): Promise<string> {
+  try {
+    const client = await clerkClient();
+    const user = await client.users.getUser(userId);
+    return (user.publicMetadata as Record<string, unknown>)?.role as string || "operator";
+  } catch {
+    return "operator";
+  }
+}
 
 /**
  * Check if the current user has the required role for a route.
  * Returns a 401/403 NextResponse if denied, or null if access is granted.
  */
 export async function requireRole(pathname: string) {
-  const { userId, orgRole } = await auth();
+  const { userId } = await auth();
 
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const requiredRoles = ROUTE_PERMISSIONS[pathname];
-  if (requiredRoles && !hasRole(orgRole ?? undefined, requiredRoles)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (requiredRoles) {
+    const role = await getUserRole(userId);
+    if (!hasRole(role, requiredRoles)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
   }
 
   return null;
@@ -31,12 +47,13 @@ export async function requireRole(pathname: string) {
 export async function requireTruckAccess(requestedTruckId: string | null) {
   if (!requestedTruckId) return null;
 
-  const { userId, orgRole } = await auth();
+  const { userId } = await auth();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (orgRole && canSeeAllTrucks(orgRole)) return null;
+  const role = await getUserRole(userId);
+  if (canSeeAllTrucks(role)) return null;
 
   try {
     const sb = getSupabase();
@@ -55,8 +72,6 @@ export async function requireTruckAccess(requestedTruckId: string | null) {
     }
   } catch (err) {
     console.error("[API-ERROR]", "requireTruckAccess", err);
-    // If Supabase is down, fail open for non-operators to avoid blocking the fleet
-    // Operators still get denied since we couldn't verify their assignment
     return NextResponse.json(
       { error: "Service unavailable", message: "Could not verify truck access" },
       { status: 503 },
