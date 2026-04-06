@@ -15,7 +15,7 @@ import HistoryPanel from "./HistoryPanel";
 import TruckPanel from "./TruckPanel";
 import PiHealthCard from "./PiHealthCard";
 import ConnectionDot from "./ConnectionDot";
-import { UserButton } from "@clerk/nextjs";
+import { UserButton, useUser } from "@clerk/nextjs";
 import { useAlarm, FlashOverlay } from "./DashboardAudio";
 import { useSensorPolling } from "../hooks/useSensorPolling";
 
@@ -33,6 +33,9 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
   const playAlarm = useAlarm();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user } = useUser();
+  const userRole = (user?.publicMetadata as Record<string, unknown>)?.role as string ?? "";
+  const isAdmin = userRole === "developer" || userRole === "manager";
 
   const [trucks, setTrucks] = useState<TruckListItem[]>([]);
 
@@ -118,6 +121,17 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
               </svg>
               <span className="hidden sm:inline">Overview</span>
             </a>
+            {isAdmin && (
+              <a
+                href="/admin"
+                className="min-h-[44px] px-3 sm:px-4 py-2 rounded-lg border border-gray-600 hover:border-purple-500 text-gray-300 hover:text-white text-xs sm:text-sm font-bold uppercase tracking-wider transition-colors flex items-center gap-1.5"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+                </svg>
+                <span className="hidden sm:inline">Admin</span>
+              </a>
+            )}
             <button
               onClick={() => setSimMode((prev) => !prev)}
               className={`text-[10px] sm:text-xs min-h-[44px] px-3 sm:px-3 py-2 rounded-lg font-bold transition-colors ${
