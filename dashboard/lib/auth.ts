@@ -16,6 +16,7 @@ export const ROUTE_PERMISSIONS: Record<string, UserRole[]> = {
   "/api/truck-history": ["developer", "manager", "mechanic", "operator"],
   "/api/truck-notes": ["developer", "manager", "mechanic", "operator"],
   "/api/truck-assignments": ["developer", "manager", "mechanic", "operator"],
+  "/fleet": ["developer", "manager", "mechanic"],
   "/dev": ["developer"],
   "/admin": ["developer", "manager"],
 };

@@ -1,15 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 import { getSupabase } from "@/lib/supabase";
-import { canManageFleet, cleanRole } from "@/lib/auth";
+import { canManageFleet } from "@/lib/auth";
+
+async function getUserRole(userId: string): Promise<string> {
+  try {
+    const client = await clerkClient();
+    const user = await client.users.getUser(userId);
+    return (user.publicMetadata as Record<string, unknown>)?.role as string || "operator";
+  } catch {
+    return "operator";
+  }
+}
 
 export async function GET(request: NextRequest) {
-  const { userId, orgRole } = await auth();
+  const { userId } = await auth();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const role = cleanRole(orgRole ?? "operator");
+  const role = await getUserRole(userId);
   const isManager = canManageFleet(role);
 
   const truckId = request.nextUrl.searchParams.get("truck_id");
@@ -49,12 +59,12 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const { userId, orgRole } = await auth();
+  const { userId } = await auth();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const role = cleanRole(orgRole ?? "operator");
+  const role = await getUserRole(userId);
   if (!canManageFleet(role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -100,12 +110,12 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const { userId, orgRole } = await auth();
+  const { userId } = await auth();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const role = cleanRole(orgRole ?? "operator");
+  const role = await getUserRole(userId);
   if (!canManageFleet(role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
