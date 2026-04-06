@@ -8,7 +8,6 @@ Each DTC contains a Suspect Parameter Number (SPN), Failure Mode Identifier
 (FMI), and occurrence count.
 """
 
-from .pgn_utils import _get_byte
 
 
 def decode_dm1(data: bytes) -> list[dict]:

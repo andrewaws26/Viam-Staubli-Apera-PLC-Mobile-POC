@@ -5,13 +5,10 @@ import os
 import sys
 import time
 
-import pytest
-
 # Insert source directory so we can import module-internal symbols.
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-from plc_utils import _serialise, _uint16, _read_chat_queue
 from plc_offline import OfflineBuffer
-
+from plc_utils import _read_chat_queue, _serialise, _uint16
 
 # ---------------------------------------------------------------------------
 # _serialise

@@ -3,8 +3,8 @@
 Tests all 19 rules across 5 categories: camera, encoder, eject, plc, operation.
 """
 
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from diagnostics import evaluate

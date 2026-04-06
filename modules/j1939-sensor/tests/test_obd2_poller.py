@@ -4,26 +4,23 @@ Tests for the OBD-II poller module.
 Tests PID decoding, bus connection tracking, and integration with J1939TruckSensor.
 """
 
-import pytest
-import sys
 import os
+import sys
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
+
+import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from src.models.j1939_sensor import J1939TruckSensor
 from src.models.obd2_poller import (
-    OBD2Poller,
+    DISCONNECT_THRESHOLD,
     OBD2_PIDS,
     OBD2_REQUEST_ID,
     OBD2_RESPONSE_ID,
-    OBD2_SERVICE_CURRENT,
-    OBD2_RESPONSE_SERVICE,
-    PID_TIMEOUT_S,
-    DISCONNECT_THRESHOLD,
+    OBD2Poller,
 )
-from src.models.j1939_sensor import J1939TruckSensor
-
 
 # =========================================================================
 # PID decoding formulas

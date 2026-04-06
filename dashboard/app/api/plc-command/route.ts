@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createRobotClient, SensorClient } from "@viamrobotics/sdk";
 import type { RobotClient } from "@viamrobotics/sdk";
 import { getTruckById, getDefaultTruck } from "@/lib/machines";
+import { PlcCommandBody, parseBody } from "@/lib/api-schemas";
 
 let _client: RobotClient | null = null;
 let _connecting = false;
@@ -39,8 +40,6 @@ async function getDefaultClient(): Promise<RobotClient> {
       reconnectMaxAttempts: 3,
     });
     return _client;
-  } catch (err) {
-    throw err;
   } finally {
     _connecting = false;
   }
@@ -75,14 +74,12 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { action, ...params } = body;
-
-    if (!action) {
-      return NextResponse.json(
-        { error: "Missing 'action' in request body" },
-        { status: 400 }
-      );
+    const parsed = parseBody(PlcCommandBody, body);
+    if (parsed.error) {
+      return NextResponse.json(parsed.error, { status: 400 });
     }
+    // Validation passed — forward the original body to Viam doCommand
+    const { action: _action } = parsed.data;
 
     let client: RobotClient;
     if (truckId && truck.tpsMachineAddress) {
@@ -93,7 +90,8 @@ export async function POST(request: NextRequest) {
     }
 
     const sensor = new SensorClient(client, "plc-monitor");
-    const result = await sensor.doCommand({ action, ...params });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await sensor.doCommand(body as any);
 
     console.log("[API-TIMING]", "/api/plc-command", Date.now() - startTime, "ms");
     return NextResponse.json(result);

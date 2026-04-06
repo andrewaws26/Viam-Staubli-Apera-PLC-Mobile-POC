@@ -13,58 +13,54 @@ Supports:
 - Configurable CAN interface, bitrate, and PGN filters
 """
 
-import json
-import os
+import os as _os
+import sys
 import threading
 import time
-from typing import Any, ClassVar, Mapping, Optional
-
-from typing_extensions import Self
+from collections.abc import Mapping
+from typing import Any, ClassVar, Self
 
 from viam.components.sensor import Sensor
 from viam.logging import getLogger
-from viam.module.module import Module
 from viam.proto.app.robot import ComponentConfig
 from viam.proto.common import ResourceName
 from viam.resource.base import ResourceBase
-from viam.resource.registry import Registry, ResourceCreatorRegistration
 from viam.resource.types import Model, ModelFamily
 from viam.utils import SensorReading
 
-import sys
-import os as _os
 # Add parent dir for system_health import
 sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
 from system_health import get_system_health
 
-from .pgn_decoder import get_supported_pgns
-from .obd2_poller import OBD2Poller
 from .j1939_can import (
-    OfflineBuffer,
-    ProprietaryPGNTracker,
     DEFAULT_BUFFER_DIR,
     DEFAULT_BUFFER_MAX_MB,
     DEFAULT_PROP_LOG_DIR,
     DEFAULT_PROP_LOG_MAX_MB,
-    build_can_id,
-    J1939_GLOBAL_ADDRESS,
-    REQUEST_PGN,
-    negotiate_bitrate,
-    start_can_listener,
-    run_listen_loop,
-    request_pgn,
-    send_raw,
+    OfflineBuffer,
+    ProprietaryPGNTracker,
     get_bus_stats,
-    set_can_bitrate,
+    negotiate_bitrate,
+    request_pgn,
+    run_listen_loop,
+    send_raw,
+    start_can_listener,
 )
-from .j1939_fleet_metrics import infer_vehicle_state, get_minimal_off_readings, compute_fleet_metrics, get_history
-from .j1939_dtc import clear_dtcs
 from .j1939_discovery import (
     auto_detect_protocol,
-    maybe_check_redetect,
     execute_protocol_switch,
+    maybe_check_redetect,
     start_vin_reading,
 )
+from .j1939_dtc import clear_dtcs
+from .j1939_fleet_metrics import (
+    compute_fleet_metrics,
+    get_history,
+    get_minimal_off_readings,
+    infer_vehicle_state,
+)
+from .obd2_poller import OBD2Poller
+from .pgn_decoder import get_supported_pgns
 
 LOGGER = getLogger(__name__)
 
@@ -522,8 +518,8 @@ class J1939TruckSensor(Sensor):
     async def get_readings(
         self,
         *,
-        extra: Optional[Mapping[str, Any]] = None,
-        timeout: Optional[float] = None,
+        extra: Mapping[str, Any] | None = None,
+        timeout: float | None = None,
         **kwargs,
     ) -> Mapping[str, SensorReading]:
         """
@@ -684,7 +680,7 @@ class J1939TruckSensor(Sensor):
         self,
         command: Mapping[str, Any],
         *,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
         **kwargs,
     ) -> Mapping[str, Any]:
         """

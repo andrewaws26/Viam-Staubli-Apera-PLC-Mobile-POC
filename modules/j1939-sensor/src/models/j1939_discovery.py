@@ -11,11 +11,10 @@ import os
 import struct
 import threading
 import time
-from typing import Any
 
 from viam.logging import getLogger
 
-from .j1939_can import build_can_id, J1939_GLOBAL_ADDRESS, REQUEST_PGN
+from .j1939_can import J1939_GLOBAL_ADDRESS, REQUEST_PGN, build_can_id
 from .pgn_decoder import get_supported_pgns
 from .vehicle_profiles import (
     VehicleProfile,
@@ -315,7 +314,7 @@ def read_vin_j1939(sensor) -> str:
 def load_vin_cache() -> str | None:
     """Load cached VIN from disk. Returns VIN string or None."""
     try:
-        with open(VIN_CACHE_PATH, "r") as f:
+        with open(VIN_CACHE_PATH) as f:
             data = json.load(f)
             vin = data.get("vin", "")
             if vin and len(vin) >= 10:

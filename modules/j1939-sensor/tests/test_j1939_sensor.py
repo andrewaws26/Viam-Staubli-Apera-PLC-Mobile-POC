@@ -5,24 +5,22 @@ Tests sensor configuration, get_readings, do_command (DTC clearing),
 and resilience to bus disconnection.
 """
 
-import pytest
-import sys
 import os
-import struct
+import sys
 import time
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from src.models.j1939_sensor import J1939TruckSensor
 from src.models.j1939_can import (
-    build_can_id,
-    J1939_GLOBAL_ADDRESS,
     DM11_PGN,
     REQUEST_PGN,
+    build_can_id,
 )
+from src.models.j1939_sensor import J1939TruckSensor
 from src.models.pgn_decoder import extract_pgn_from_can_id
-
 
 # =========================================================================
 # CAN ID builder
@@ -311,7 +309,6 @@ class TestResilience:
         sensor._running = True
 
         # Run one iteration manually
-        import threading
         def run_once():
             msg = sensor._bus.recv(timeout=1.0)
             if msg and not msg.is_extended_id:

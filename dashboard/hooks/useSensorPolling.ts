@@ -128,7 +128,7 @@ export function useSensorPolling(onNewFault: () => void): SensorPollingState {
 
     for (const cfg of SENSOR_CONFIGS) {
       let readings: SensorReadings | null = null;
-      let status: ComponentState["status"] = "loading";
+      let status: ComponentState["status"] = "loading"; // eslint-disable-line no-useless-assignment -- default used in non-sim catch path
       let faultMessage: string | null = null;
 
       if (simMode) {

@@ -8,18 +8,17 @@ These tests mock the Modbus client and verify:
 - Callback invocation (plate_drop_reset_cb)
 """
 
-import asyncio
 import json
 import os
 import sys
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock, patch, mock_open
 
 # Ensure src/ is on path for direct imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from plc_commands import dispatch_command
-
 
 # ── Fixtures ────────────────────────────────────────────────────────────
 

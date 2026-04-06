@@ -234,7 +234,7 @@ def get_history(offline_buffer, days: int = 7) -> dict[str, Any]:
         path = os.path.join(buf_path, f"readings_{date_str}.jsonl")
         if os.path.exists(path):
             try:
-                with open(path, "r") as f:
+                with open(path) as f:
                     for line in f:
                         try:
                             pt = json.loads(line.strip())

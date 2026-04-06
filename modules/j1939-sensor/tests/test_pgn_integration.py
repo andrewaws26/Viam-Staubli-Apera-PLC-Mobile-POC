@@ -8,21 +8,20 @@ These tests use the current imperial-unit field names from pgn_decoder.py
 (e.g., coolant_temp_f, vehicle_speed_mph, oil_pressure_psi).
 """
 
-import pytest
-import sys
 import os
+import sys
+
+import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.models.pgn_decoder import (
     decode_can_frame,
-    decode_dm1,
     decode_dm1_lamps,
     decode_pgn,
     extract_pgn_from_can_id,
     extract_source_address,
 )
-
 
 # =========================================================================
 # DM1 decoding — full pipeline
@@ -130,7 +129,7 @@ class TestDM1LampIntegration:
 
     def test_empty_data_lamps(self):
         """Empty data returns empty lamp dict."""
-        lamps = decode_dm1_lamps(bytes())
+        lamps = decode_dm1_lamps(b"")
         assert lamps == {}
 
     def test_short_data_lamps(self):
@@ -289,7 +288,7 @@ class TestMalformedDataIntegration:
 
     def test_empty_data_eec1(self):
         """Empty data for EEC1 doesn't crash, returns empty dict."""
-        result = decode_pgn(61444, bytes())
+        result = decode_pgn(61444, b"")
         assert result == {}
 
     def test_short_data_et1(self):

@@ -72,6 +72,7 @@ export async function sendTruckCommand(
   try {
     const client = await getTruckClient();
     const sensor = new SensorClient(client, componentName);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Viam SDK Struct.fromJson requires cast
     const result = await sensor.doCommand(Struct.fromJson(command as any));
     return result;
   } catch (err) {

@@ -7,7 +7,6 @@ thread. Never delays sensor readings.
 import json
 import threading
 import time
-from typing import Dict
 
 from viam.logging import getLogger
 
@@ -34,7 +33,7 @@ class _LocationWeatherCache:
         self._last_fetch = 0.0
         self._lock = threading.Lock()
 
-    def get(self) -> Dict[str, str]:
+    def get(self) -> dict[str, str]:
         """Return cached location/weather data. Triggers background refresh if stale."""
         now = time.time()
         if now - self._last_fetch > self.REFRESH_SECONDS:

@@ -19,18 +19,19 @@ from typing import Any
 
 from viam.logging import getLogger
 
+from .obd2_diagnostics import OBD2AdvancedDiag
+from .obd2_dtc import OBD2_DTC_PREFIXES, OBD2DTCReader, decode_obd2_dtc
+
 # Re-export everything that external code imports from this module
 from .obd2_pids import (
+    DISCONNECT_THRESHOLD,
     OBD2_PIDS,
     OBD2_REQUEST_ID,
     OBD2_RESPONSE_ID,
-    OBD2_SERVICE_CURRENT,
     OBD2_RESPONSE_SERVICE,
+    OBD2_SERVICE_CURRENT,
     PID_TIMEOUT_S,
-    DISCONNECT_THRESHOLD,
 )
-from .obd2_dtc import OBD2DTCReader, decode_obd2_dtc, OBD2_DTC_PREFIXES
-from .obd2_diagnostics import OBD2AdvancedDiag
 
 LOGGER = getLogger(__name__)
 

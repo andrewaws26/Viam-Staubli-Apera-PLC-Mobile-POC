@@ -5,7 +5,7 @@ from raw Modbus values, Modbus I/O helpers, and diagnostic log tracking.
 Extracted from plc_sensor.py to reduce its size.
 """
 
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 from viam.logging import getLogger
 
@@ -19,13 +19,13 @@ def build_disconnected_readings(
     uptime_seconds: int,
     total_reads: int,
     total_errors: int,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Return a full readings dict with connected=False and all values zeroed.
 
     Must match the same keys returned by get_readings() so the dashboard
     always receives a consistent schema.
     """
-    readings: Dict[str, Any] = {
+    readings: dict[str, Any] = {
         # Identity & session
         "truck_id": truck_id,
         "session_id": session_id,
@@ -141,7 +141,7 @@ def build_connected_readings(
     encoder_enabled: bool,
     floating_zero: bool,
     encoder_reset: bool,
-    discrete_bits: List[bool],
+    discrete_bits: list[bool],
     # Output coils
     eject_tps_1: bool,
     eject_left_tps_2: bool,
@@ -154,14 +154,14 @@ def build_connected_readings(
     # DS registers (list of 25)
     ds: list,
     # C-bits
-    c_app_bits: List[bool],
+    c_app_bits: list[bool],
     operating_mode: str,
     # TD timers
     td5_laying: int,
     td6_travel: int,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Assemble the connected-readings dict from parsed Modbus values."""
-    readings: Dict[str, Any] = {
+    readings: dict[str, Any] = {
         # Identity & session -- critical for fleet queries
         "truck_id": truck_id,
         "session_id": session_id,
@@ -234,7 +234,7 @@ def build_connected_readings(
     return readings
 
 
-def read_modbus_io(client, uint16_fn) -> Dict[str, Any]:
+def read_modbus_io(client, uint16_fn) -> dict[str, Any]:
     """Read all Modbus registers/coils from the PLC in one pass.
 
     Returns a dict with keys: ds, encoder_count, discrete_bits,
@@ -249,7 +249,7 @@ def read_modbus_io(client, uint16_fn) -> Dict[str, Any]:
     # -- DS holding registers (0-24) -- all 25 TPS registers
     ds_result = client.read_holding_registers(address=0, count=25)
     if ds_result.isError():
-        raise IOError(f"DS register read error: {ds_result}")
+        raise OSError(f"DS register read error: {ds_result}")
     ds = [uint16_fn(v) for v in ds_result.registers]
 
     # -- Encoder count from DD1 (Modbus address 16384, 2 registers) --
@@ -341,9 +341,9 @@ def read_modbus_io(client, uint16_fn) -> Dict[str, Any]:
 
 
 def evaluate_and_log_diagnostics(
-    readings: Dict[str, Any],
-    prev_diag_rules: Set[str],
-) -> Tuple[Set[str], str]:
+    readings: dict[str, Any],
+    prev_diag_rules: set[str],
+) -> tuple[set[str], str]:
     """Run the diagnostic engine and log state transitions.
 
     Returns (current_rules_set, diagnostic_log_string).

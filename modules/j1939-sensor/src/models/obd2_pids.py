@@ -22,11 +22,11 @@ PID_TIMEOUT_S = 0.3
 # Consecutive zero-response cycles before declaring bus disconnected
 DISCONNECT_THRESHOLD = 5
 
-# Helper conversions
-_C_TO_F = lambda c: c * 9.0 / 5.0 + 32
-_KPA_TO_PSI = lambda kpa: kpa * 0.145038
-_KPH_TO_MPH = lambda kph: kph * 0.621371
-_KM_TO_MI = lambda km: km * 0.621371
+# Helper conversions (noqa: E731 — lambdas are clearer than def for one-liners)
+_C_TO_F = lambda c: c * 9.0 / 5.0 + 32  # noqa: E731
+_KPA_TO_PSI = lambda kpa: kpa * 0.145038  # noqa: E731
+_KPH_TO_MPH = lambda kph: kph * 0.621371  # noqa: E731
+_KM_TO_MI = lambda km: km * 0.621371  # noqa: E731
 
 # PID definitions: pid -> (name, field_key, decode_func)
 # decode_func takes the data bytes (A, B, ...) after the PID byte

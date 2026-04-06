@@ -7,8 +7,8 @@ that healthy states produce no diagnostics.
 Uses the base_healthy_readings fixture from conftest.py.
 """
 
-import sys
 import os
+import sys
 
 import pytest
 

@@ -10,7 +10,7 @@ test.describe("Dashboard", () => {
   test("shows loading spinner before data arrives", async ({ page }) => {
     // The page renders a spinner before the client-side Dashboard mounts
     await page.goto("/");
-    const spinner = page.locator("text=Initialising");
+    const _spinner = page.locator("text=Initialising");
     // It may be very brief, so just confirm the page loads without crash
     await expect(page).toHaveTitle(/IronSight/);
   });

@@ -9,21 +9,21 @@ import json
 import os
 import struct
 import subprocess
-import threading
 import time
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 from viam.logging import getLogger
 
+from .j1939_dtc import SA_SUFFIX, apply_namespaced_dtcs
 from .pgn_decoder import (
+    classify_pgn,
     decode_can_frame,
     decode_dm1_lamps,
     extract_pgn_from_can_id,
     extract_source_address,
     is_proprietary_pgn,
-    classify_pgn,
 )
-from .j1939_dtc import SA_SUFFIX, apply_namespaced_dtcs
 
 LOGGER = getLogger(__name__)
 

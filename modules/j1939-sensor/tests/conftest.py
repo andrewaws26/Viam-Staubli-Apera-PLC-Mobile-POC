@@ -4,11 +4,11 @@ These fixtures mock hardware dependencies (CAN bus, network interfaces)
 so tests run without any physical hardware.
 """
 
-import pytest
+import os
+import sys
 from unittest.mock import MagicMock
 
-import sys
-import os
+import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 

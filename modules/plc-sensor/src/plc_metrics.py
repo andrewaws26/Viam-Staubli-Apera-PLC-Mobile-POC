@@ -8,7 +8,7 @@ import collections
 import subprocess
 import time
 from collections import deque as Deque
-from typing import Any, Dict, Optional
+from typing import Any
 
 from viam.logging import getLogger
 
@@ -31,16 +31,16 @@ class ConnectionQualityMonitor:
 
     def __init__(self, interface: str = "eth0"):
         self._iface = interface
-        self._prev_errors: Dict[str, int] = {}
-        self._error_deltas: Deque[Dict[str, int]] = collections.deque(maxlen=60)
-        self._link_events: Deque[Dict[str, Any]] = collections.deque(maxlen=50)
+        self._prev_errors: dict[str, int] = {}
+        self._error_deltas: Deque[dict[str, int]] = collections.deque(maxlen=60)
+        self._link_events: Deque[dict[str, Any]] = collections.deque(maxlen=50)
         self._last_check: float = 0
         self._check_interval: float = 10.0  # seconds between checks
-        self._last_link_state: Optional[bool] = None
+        self._last_link_state: bool | None = None
         self._link_flap_count: int = 0
         self._link_flap_window: Deque[float] = collections.deque(maxlen=20)
-        self._link_up_time: Optional[float] = None
-        self._link_down_time: Optional[float] = None
+        self._link_up_time: float | None = None
+        self._link_down_time: float | None = None
         self._link_speed: str = "unknown"
         # Summary state
         self.status: str = "unknown"
@@ -51,7 +51,7 @@ class ConnectionQualityMonitor:
         self.link_speed_mbps: int = 0
         self.diagnosis: str = ""
 
-    def check(self) -> Dict[str, Any]:
+    def check(self) -> dict[str, Any]:
         """Run a connection quality check. Call this every read cycle."""
         now = time.time()
         if now - self._last_check < self._check_interval:
@@ -170,7 +170,7 @@ class ConnectionQualityMonitor:
         except Exception:
             return "unknown"
 
-    def _read_ethtool_stats(self) -> Dict[str, int]:
+    def _read_ethtool_stats(self) -> dict[str, int]:
         """Read ethernet error counters from ethtool -S."""
         error_keys = {
             "rx_frame_check_sequence_errors",
@@ -202,7 +202,7 @@ class ConnectionQualityMonitor:
             LOGGER.debug("Failed to read ethtool stats for %s", self._iface)
         return stats
 
-    def _current_state(self) -> Dict[str, Any]:
+    def _current_state(self) -> dict[str, Any]:
         """Return current connection quality as a dict for readings."""
         return {
             "eth0_status": self.status,
@@ -237,13 +237,13 @@ class SignalMetrics:
         self._modbus_times: collections.deque = collections.deque(maxlen=60)
         self._camera_rate_history: collections.deque = collections.deque(maxlen=300)
         # State tracking: signal_name -> timestamp of last change
-        self._state_times: Dict[str, float] = {}
+        self._state_times: dict[str, float] = {}
         # State tracking: signal_name -> current bool value
-        self._state_vals: Dict[str, bool] = {}
+        self._state_vals: dict[str, bool] = {}
 
     def update(self, *, x3: bool, y1: bool, c30: bool,
                encoder_dir: int, modbus_ms: float,
-               now: Optional[float] = None) -> Dict[str, Any]:
+               now: float | None = None) -> dict[str, Any]:
         """Called once per read cycle. Returns computed metrics dict."""
         if now is None:
             now = time.time()
@@ -316,7 +316,7 @@ class SignalMetrics:
             self._state_times[name] = now
         self._state_vals[name] = val
 
-    def track_power(self, tps_power: bool, now: Optional[float] = None) -> float:
+    def track_power(self, tps_power: bool, now: float | None = None) -> float:
         """Track TPS power state. Returns duration in current state."""
         if now is None:
             now = time.time()

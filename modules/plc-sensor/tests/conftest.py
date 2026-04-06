@@ -4,8 +4,9 @@ These fixtures mock hardware dependencies (Modbus TCP client, PLC registers)
 so tests run without any physical hardware or network.
 """
 
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock
 
 
 @pytest.fixture

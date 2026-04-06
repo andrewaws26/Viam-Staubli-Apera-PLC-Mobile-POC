@@ -5,17 +5,18 @@ Tests use known byte patterns from the SAE J1939 standard to verify
 correct decoding of engine parameters, vehicle data, and DTCs.
 """
 
-import pytest
-import sys
 import os
+import sys
+
+import pytest
 
 # Add parent dir to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.models.pgn_decoder import (
-    NOT_AVAILABLE_BYTE,
-    NOT_AVAILABLE_WORD,
-    ERROR_BYTE,
+    _get_byte,
+    _get_dword_le,
+    _get_word_le,
     decode_can_frame,
     decode_dm1,
     decode_dm1_lamps,
@@ -23,12 +24,7 @@ from src.models.pgn_decoder import (
     extract_pgn_from_can_id,
     extract_source_address,
     get_supported_pgns,
-    _get_byte,
-    _get_word_le,
-    _get_dword_le,
-    _decode_scaled,
 )
-
 
 # =========================================================================
 # CAN ID parsing
@@ -529,7 +525,7 @@ class TestEdgeCases:
 
     def test_empty_data(self):
         """Handle empty data."""
-        result = decode_pgn(65262, bytes())
+        result = decode_pgn(65262, b"")
         assert result == {}
 
     def test_all_not_available(self):

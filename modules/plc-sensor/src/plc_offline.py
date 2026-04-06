@@ -7,11 +7,11 @@ is lost during network outages.
 import json
 import os
 import time
-from typing import Any, Mapping
-
-from viam.logging import getLogger
+from collections.abc import Mapping
+from typing import Any
 
 from plc_utils import _serialise
+from viam.logging import getLogger
 
 LOGGER = getLogger(__name__)
 

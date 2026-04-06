@@ -12,8 +12,8 @@ from typing import Any
 
 from viam.logging import getLogger
 
-from .obd2_pids import OBD2_REQUEST_ID, OBD2_RESPONSE_ID
 from .obd2_dtc import decode_obd2_dtc
+from .obd2_pids import OBD2_REQUEST_ID, OBD2_RESPONSE_ID
 
 LOGGER = getLogger(__name__)
 

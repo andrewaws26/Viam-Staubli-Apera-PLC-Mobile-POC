@@ -28,11 +28,24 @@ import collections
 import math
 import time
 import uuid
-from typing import Any, ClassVar, Dict, Mapping, Optional, Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any, ClassVar, Self
 
+from plc_commands import dispatch_command
+from plc_metrics import ConnectionQualityMonitor, SignalMetrics
+from plc_offline import _DEFAULT_BUFFER_MAX_MB, OfflineBuffer
+from plc_readings import (
+    build_connected_readings,
+    build_disconnected_readings,
+    evaluate_and_log_diagnostics,
+    read_modbus_io,
+)
+
+# Extracted sub-modules
+from plc_utils import _read_chat_queue, _uint16
+from plc_weather import _weather_cache
 from pymodbus.client import ModbusTcpClient
-from typing_extensions import Self
-
+from system_health import get_system_health
 from viam.components.sensor import Sensor
 from viam.logging import getLogger
 from viam.module.module import Module
@@ -42,18 +55,6 @@ from viam.resource.base import ResourceBase
 from viam.resource.registry import Registry, ResourceCreatorRegistration
 from viam.resource.types import Model, ModelFamily
 from viam.utils import SensorReading
-
-# Extracted sub-modules
-from plc_utils import _read_chat_queue, _uint16
-from plc_offline import OfflineBuffer, _DEFAULT_BUFFER_MAX_MB
-from plc_metrics import ConnectionQualityMonitor, SignalMetrics
-from plc_weather import _weather_cache
-from plc_commands import dispatch_command
-from system_health import get_system_health
-from plc_readings import (
-    build_disconnected_readings, build_connected_readings,
-    read_modbus_io, evaluate_and_log_diagnostics,
-)
 
 LOGGER = getLogger(__name__)
 
@@ -91,18 +92,18 @@ class PlcSensor(Sensor):
 
     def __init__(self, name: str, *, host: str, port: int,
                  wheel_diameter_mm: float = _DEFAULT_WHEEL_DIAMETER_MM,
-                 offline_buffer_dir: Optional[str] = None,
+                 offline_buffer_dir: str | None = None,
                  offline_buffer_max_mb: float = _DEFAULT_BUFFER_MAX_MB,
                  truck_id: str = "truck-00"):
         super().__init__(name)
         self.host = host
         self.port = port
-        self.client: Optional[ModbusTcpClient] = None
+        self.client: ModbusTcpClient | None = None
         self._start_time: float = time.time()
         self._session_id: str = uuid.uuid4().hex[:8]  # unique per power cycle
         self._truck_id: str = truck_id
         # Offline buffer — persists readings to local disk across reboots
-        self._offline_buffer: Optional[OfflineBuffer] = None
+        self._offline_buffer: OfflineBuffer | None = None
         if offline_buffer_dir:
             self._offline_buffer = OfflineBuffer(offline_buffer_dir, offline_buffer_max_mb)
         # Encoder: distance-per-count derived from wheel diameter
@@ -114,22 +115,22 @@ class PlcSensor(Sensor):
         wheel_circumference_mm = math.pi * wheel_diameter_mm
         self._mm_per_count = wheel_circumference_mm / _ENCODER_COUNTS_PER_REV
         # Encoder: distance from DS10 (Encoder Next Tie countdown)
-        self._prev_ds10: Optional[int] = None
-        self._prev_distance_mm: Optional[float] = None
-        self._prev_encoder_time: Optional[float] = None
+        self._prev_ds10: int | None = None
+        self._prev_distance_mm: float | None = None
+        self._prev_encoder_time: float | None = None
         self._encoder_speed_mmps: float = 0.0  # mm per second
         self._accumulated_distance_mm: float = 0.0  # cumulative from DS10 deltas
         # Encoder hardware health — track if DD1 and DS10 are changing
         self._dd1_history: collections.deque = collections.deque(maxlen=30)
         self._ds10_history: collections.deque = collections.deque(maxlen=30)
         # DD1-based direction detection (DS10 freezes during reverse)
-        self._prev_dd1: Optional[int] = None
+        self._prev_dd1: int | None = None
         # Rolling window of DD1 deltas to determine direction.
         # DD1 stays negative long after reversing, so sign alone is useless.
         # Delta sign is the real signal: negative delta = reverse, positive = forward.
         self._dd1_deltas: collections.deque = collections.deque(maxlen=5)
         # TPS plate drop counter — tracks OFF→ON transitions on Y1 (Eject TPS_1)
-        self._prev_eject_tps1: Optional[bool] = None
+        self._prev_eject_tps1: bool | None = None
         self._plate_drop_count: int = 0
         # Self-healing: exponential backoff on repeated connection failures
         self._consecutive_failures: int = 0
@@ -155,7 +156,7 @@ class PlcSensor(Sensor):
         if "wheel_diameter_mm" in fields and fields["wheel_diameter_mm"].number_value:
             wheel_dia = fields["wheel_diameter_mm"].number_value
         # Offline buffer config
-        buf_dir: Optional[str] = None
+        buf_dir: str | None = None
         if "offline_buffer_dir" in fields and fields["offline_buffer_dir"].string_value:
             buf_dir = fields["offline_buffer_dir"].string_value
         buf_max_mb = _DEFAULT_BUFFER_MAX_MB
@@ -289,7 +290,7 @@ class PlcSensor(Sensor):
 
     async def get_readings(
         self,
-        extra: Optional[Dict[str, Any]] = None,
+        extra: dict[str, Any] | None = None,
         **kwargs,
     ) -> Mapping[str, SensorReading]:
         """Return current TPS PLC state as structured sensor readings.
@@ -308,7 +309,7 @@ class PlcSensor(Sensor):
             # ── Read all Modbus I/O in one pass ──
             try:
                 io = read_modbus_io(self.client, _uint16)
-            except IOError:
+            except OSError:
                 LOGGER.warning("Error reading DS registers")
                 self._disconnect()
                 return self._disconnected_readings("ds_read_error")
@@ -452,7 +453,7 @@ class PlcSensor(Sensor):
 
             # ── Build readings — everything the PLC exposes ──
             uptime_s = round(time.time() - self._start_time)
-            readings: Dict[str, Any] = build_connected_readings(
+            readings: dict[str, Any] = build_connected_readings(
                 truck_id=self._truck_id,
                 session_id=self._session_id,
                 uptime_seconds=uptime_s,
@@ -551,11 +552,11 @@ class PlcSensor(Sensor):
 
     async def do_command(
         self,
-        command: Dict[str, Any],
+        command: dict[str, Any],
         *,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Execute remote commands on the PLC via Modbus writes.
 
         Delegates to plc_commands.dispatch_command() for all command handling.

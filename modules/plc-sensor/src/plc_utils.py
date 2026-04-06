@@ -21,7 +21,7 @@ def _read_chat_queue() -> list:
     try:
         if not os.path.exists(_CHAT_QUEUE_FILE):
             return []
-        with open(_CHAT_QUEUE_FILE, "r") as f:
+        with open(_CHAT_QUEUE_FILE) as f:
             lines = f.readlines()
         if not lines:
             return []

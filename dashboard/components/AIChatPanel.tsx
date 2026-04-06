@@ -111,7 +111,7 @@ export default function AIChatPanel({
       }, 150);
       return () => clearTimeout(timer);
     }
-  }, [initialMessage]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [initialMessage]);
 
   return (
     <div className="bg-gray-900/50 rounded-2xl border border-purple-800/30 p-4 sm:p-5 mt-3">

@@ -14,45 +14,44 @@ Sub-modules:
 Reference: SAE J1939-71 (Vehicle Application Layer)
 """
 
-from typing import Any, Optional
+from typing import Any
 
 # Re-export everything from sub-modules for backward compatibility.
 # Existing code that does `from pgn_decoder import _get_byte` still works.
 from .pgn_utils import (  # noqa: F401
-    NOT_AVAILABLE_BYTE,
-    NOT_AVAILABLE_WORD,
-    NOT_AVAILABLE_DWORD,
     ERROR_BYTE,
     ERROR_WORD,
-    SPNDefinition,
+    NOT_AVAILABLE_BYTE,
+    NOT_AVAILABLE_DWORD,
+    NOT_AVAILABLE_WORD,
     PGNDefinition,
-    _get_byte,
-    _get_word_le,
-    _get_dword_le,
-    _decode_scaled,
+    SPNDefinition,
     _decode_2bit_status,
-    _decode_temp_f,
     _decode_pressure_psi,
+    _decode_scaled,
+    _decode_temp_f,
+    _get_byte,
+    _get_dword_le,
+    _get_word_le,
     extract_pgn_from_can_id,
     extract_source_address,
 )
-
 
 # ---------------------------------------------------------------------------
 # PGN Definitions — SAE J1939-71
 # ---------------------------------------------------------------------------
 
-def _decode_engine_rpm(data: bytes) -> Optional[float]:
+def _decode_engine_rpm(data: bytes) -> float | None:
     """SPN 190: Engine Speed — bytes 3-4, 0.125 RPM/bit."""
     return _decode_scaled(data, 3, 16, 0.125, 0)
 
 
-def _decode_driver_demand_torque(data: bytes) -> Optional[float]:
+def _decode_driver_demand_torque(data: bytes) -> float | None:
     """SPN 512: Driver's Demand Engine Torque — byte 1, 1%/bit, offset -125."""
     return _decode_scaled(data, 0, 8, 1.0, -125.0)
 
 
-def _decode_actual_engine_torque(data: bytes) -> Optional[float]:
+def _decode_actual_engine_torque(data: bytes) -> float | None:
     """SPN 513: Actual Engine Torque — byte 2, 1%/bit, offset -125."""
     return _decode_scaled(data, 1, 8, 1.0, -125.0)
 
@@ -81,15 +80,6 @@ PGN_61443 = PGNDefinition(
     ]
 )
 
-def _decode_temp_f(data: bytes, start_byte: int, length_bits: int,
-                   resolution: float, offset_c: float) -> Optional[float]:
-    """Decode a temperature value and convert from Celsius to Fahrenheit."""
-    celsius = _decode_scaled(data, start_byte, length_bits, resolution, offset_c)
-    if celsius is None:
-        return None
-    return round(celsius * 9.0 / 5.0 + 32, 2)
-
-
 PGN_65262 = PGNDefinition(
     pgn=65262,
     name="Engine Temperature 1 (ET1)",
@@ -105,15 +95,6 @@ PGN_65262 = PGNDefinition(
                       decode_fn=lambda data: _decode_temp_f(data, 2, 16, 0.03125, -273.0)),
     ]
 )
-
-def _decode_pressure_psi(data: bytes, start_byte: int, length_bits: int,
-                        resolution: float, offset: float) -> Optional[float]:
-    """Decode a pressure value and convert from kPa to PSI."""
-    kpa = _decode_scaled(data, start_byte, length_bits, resolution, offset)
-    if kpa is None:
-        return None
-    return round(kpa * 0.145038, 2)
-
 
 PGN_65263 = PGNDefinition(
     pgn=65263,
@@ -244,7 +225,6 @@ PGN_61445 = PGNDefinition(
 
 from .pgn_dm1 import decode_dm1, decode_dm1_lamps  # noqa: F401, E402
 
-
 PGN_65226 = PGNDefinition(
     pgn=65226,
     name="DM1 - Active Diagnostic Trouble Codes",
@@ -268,14 +248,14 @@ PGN_65260 = PGNDefinition(
 # GPS / Navigation PGN Definitions
 # ---------------------------------------------------------------------------
 
-def _decode_latitude(data: bytes) -> Optional[float]:
+def _decode_latitude(data: bytes) -> float | None:
     """PGN 65267 bytes 0-3: 32-bit LE, 1e-7 deg/bit, offset -210 deg."""
     raw = _get_dword_le(data, 0)
     if raw is None:
         return None
     return round(raw * 1e-7 - 210.0, 7)
 
-def _decode_longitude(data: bytes) -> Optional[float]:
+def _decode_longitude(data: bytes) -> float | None:
     """PGN 65267 bytes 4-7: 32-bit LE, 1e-7 deg/bit, offset -210 deg."""
     raw = _get_dword_le(data, 4)
     if raw is None:

@@ -8,9 +8,9 @@ These are low-level building blocks with no dependency on specific PGN
 definitions or the PGN registry.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Optional
-
+from typing import Any
 
 # J1939 "not available" sentinel values per data size
 NOT_AVAILABLE_BYTE = 0xFF
@@ -33,7 +33,7 @@ class SPNDefinition:
     resolution: float
     offset: float
     unit: str
-    decode_fn: Optional[Callable[[bytes], Any]] = None
+    decode_fn: Callable[[bytes], Any] | None = None
 
 
 @dataclass
@@ -44,7 +44,7 @@ class PGNDefinition:
     spns: list  # list of SPNDefinition
 
 
-def _get_byte(data: bytes, index: int) -> Optional[int]:
+def _get_byte(data: bytes, index: int) -> int | None:
     """Extract a single byte, returning None if not available or error."""
     if index >= len(data):
         return None
@@ -54,7 +54,7 @@ def _get_byte(data: bytes, index: int) -> Optional[int]:
     return val
 
 
-def _get_word_le(data: bytes, low_index: int) -> Optional[int]:
+def _get_word_le(data: bytes, low_index: int) -> int | None:
     """Extract a 16-bit little-endian word, returning None if not available."""
     if low_index + 1 >= len(data):
         return None
@@ -64,7 +64,7 @@ def _get_word_le(data: bytes, low_index: int) -> Optional[int]:
     return val
 
 
-def _get_dword_le(data: bytes, start_index: int) -> Optional[int]:
+def _get_dword_le(data: bytes, start_index: int) -> int | None:
     """Extract a 32-bit little-endian dword, returning None if not available."""
     if start_index + 3 >= len(data):
         return None
@@ -78,7 +78,7 @@ def _get_dword_le(data: bytes, start_index: int) -> Optional[int]:
 
 
 def _decode_scaled(data: bytes, start_byte: int, length_bits: int,
-                   resolution: float, offset: float) -> Optional[float]:
+                   resolution: float, offset: float) -> float | None:
     """Generic decoder: extract value and apply resolution + offset."""
     if length_bits == 8:
         raw = _get_byte(data, start_byte)
@@ -93,7 +93,7 @@ def _decode_scaled(data: bytes, start_byte: int, length_bits: int,
     return round(raw * resolution + offset, 4)
 
 
-def _decode_2bit_status(data: bytes, byte_idx: int, bit_offset: int) -> Optional[bool]:
+def _decode_2bit_status(data: bytes, byte_idx: int, bit_offset: int) -> bool | None:
     """Decode a J1939 2-bit status field. 00=off, 01=on, 10=error, 11=N/A."""
     val = _get_byte(data, byte_idx)
     if val is None:
@@ -133,7 +133,7 @@ def extract_source_address(can_id: int) -> int:
 
 
 def _decode_temp_f(data: bytes, start_byte: int, length_bits: int,
-                   resolution: float, offset_c: float) -> Optional[float]:
+                   resolution: float, offset_c: float) -> float | None:
     """Decode a temperature value and convert from Celsius to Fahrenheit."""
     celsius = _decode_scaled(data, start_byte, length_bits, resolution, offset_c)
     if celsius is None:
@@ -142,7 +142,7 @@ def _decode_temp_f(data: bytes, start_byte: int, length_bits: int,
 
 
 def _decode_pressure_psi(data: bytes, start_byte: int, length_bits: int,
-                         resolution: float, offset: float) -> Optional[float]:
+                         resolution: float, offset: float) -> float | None:
     """Decode a pressure value and convert from kPa to PSI."""
     kpa = _decode_scaled(data, start_byte, length_bits, resolution, offset)
     if kpa is None:

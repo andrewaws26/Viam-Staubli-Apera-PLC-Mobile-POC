@@ -10,7 +10,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createViamClient } from "@viamrobotics/sdk";
-import { getTruckById, getDefaultTruck } from "@/lib/machines";
+import { getTruckById } from "@/lib/machines";
 
 // ---------------------------------------------------------------------------
 // Cached ViamClient for data queries (HTTPS only)

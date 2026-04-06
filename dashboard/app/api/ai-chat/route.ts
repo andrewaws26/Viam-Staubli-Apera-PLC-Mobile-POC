@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAiHistorySummary } from "@/lib/ai-history";
 import { runDiagnostics, formatDiagnosticNotes } from "@/lib/ai-diagnostics";
+import { AiChatBody, parseBody } from "@/lib/api-schemas";
 
 export async function POST(request: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -22,20 +23,19 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let body: {
-    messages: { role: string; content: string }[];
-    readings: Record<string, unknown>;
-  };
+  let rawBody: unknown;
   try {
-    body = await request.json();
+    rawBody = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { messages, readings } = body;
-  if (!messages || !Array.isArray(messages)) {
-    return NextResponse.json({ error: "Missing 'messages' array" }, { status: 400 });
+  const parsed = parseBody(AiChatBody, rawBody);
+  if (parsed.error) {
+    return NextResponse.json(parsed.error, { status: 400 });
   }
+
+  const { messages, readings } = parsed.data;
 
   const readingsText = JSON.stringify(readings || {}, null, 2);
 
