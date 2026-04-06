@@ -17,6 +17,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getDataClient, resetDataClient, type TabularDataPoint } from "@/lib/viam-data";
+import { getTruckById, getDefaultTruck } from "@/lib/machines";
+import { requireTruckAccess } from "@/lib/auth-guard";
 
 import { parseRows, timeBounds, shiftToHours, buildShiftReport } from "./aggregation";
 
@@ -24,8 +26,6 @@ import { parseRows, timeBounds, shiftToHours, buildShiftReport } from "./aggrega
 // Constants
 // ---------------------------------------------------------------------------
 
-const TPS_PART_ID = process.env.VIAM_PART_ID || "7c24d42f-1d66-4cae-81a4-97e3ff9404b4";
-const TRUCK_PART_ID = process.env.TRUCK_VIAM_PART_ID || "ca039781-665c-47e3-9bc5-35f603f3baf1";
 const RESOURCE_SUBTYPE = "rdk:component:sensor";
 const METHOD_NAME = "Readings";
 const TZ = "America/New_York"; // Louisville, KY
@@ -83,6 +83,19 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: timeError }, { status: 400 });
   }
 
+  const truckId = params.get("truck_id");
+
+  const truckDenied = await requireTruckAccess(truckId);
+  if (truckDenied) return truckDenied;
+
+  const truck = truckId ? getTruckById(truckId) : getDefaultTruck();
+  if (!truck) {
+    return NextResponse.json(
+      { error: "truck_not_found", truck_id: truckId },
+      { status: 404 },
+    );
+  }
+
   const startTime_timer = Date.now();
 
   try {
@@ -90,9 +103,9 @@ export async function GET(request: NextRequest) {
 
     // Fetch TPS + truck data in parallel
     const [tpsRows, truckRows] = await Promise.all([
-      dc.exportTabularData(TPS_PART_ID, "plc-monitor", RESOURCE_SUBTYPE, METHOD_NAME, start, end)
+      dc.exportTabularData(truck.tpsPartId, "plc-monitor", RESOURCE_SUBTYPE, METHOD_NAME, start, end)
         .catch(() => [] as TabularDataPoint[]),
-      dc.exportTabularData(TRUCK_PART_ID, "truck-engine", RESOURCE_SUBTYPE, METHOD_NAME, start, end)
+      dc.exportTabularData(truck.truckPartId, "truck-engine", RESOURCE_SUBTYPE, METHOD_NAME, start, end)
         .catch(() => [] as TabularDataPoint[]),
     ]);
 

@@ -83,7 +83,7 @@ function buildSimReadings(sim: { distance: number; plates: number; tick: number 
 // Hook
 // ---------------------------------------------------------------------------
 
-export function useSensorPolling(onNewFault: () => void): SensorPollingState {
+export function useSensorPolling(onNewFault: () => void, truckId?: string): SensorPollingState {
   const [components, setComponents] = useState<ComponentState[]>(() =>
     SENSOR_CONFIGS.map((cfg) => ({
       id: cfg.id,
@@ -146,7 +146,8 @@ export function useSensorPolling(onNewFault: () => void): SensorPollingState {
       }
 
       try {
-        const res = await fetch(`/api/sensor-readings?component=${cfg.componentName}`);
+        const truckParam = truckId ? `&truck_id=${truckId}` : "";
+        const res = await fetch(`/api/sensor-readings?component=${cfg.componentName}${truckParam}`);
         if (res.status === 404) {
           const body = await res.json();
           if (body.error === "component_not_found") {
@@ -267,7 +268,7 @@ export function useSensorPolling(onNewFault: () => void): SensorPollingState {
         [...newFaultEvents, ...prev].slice(0, MAX_FAULT_HISTORY)
       );
     }
-  }, [simMode]);
+  }, [simMode, truckId]);
 
   useEffect(() => {
     poll();
@@ -282,7 +283,8 @@ export function useSensorPolling(onNewFault: () => void): SensorPollingState {
     setHistoryLoading(true);
     setHistoryError(null);
     try {
-      const res = await fetch("/api/sensor-history?type=summary&hours=8");
+      const truckParam = truckId ? `&truck_id=${truckId}` : "";
+      const res = await fetch(`/api/sensor-history?type=summary&hours=8${truckParam}`);
       if (!res.ok) {
         const body = await res.json().catch(() => ({ message: res.statusText }));
         throw new Error(body.message || `HTTP ${res.status}`);
@@ -294,7 +296,7 @@ export function useSensorPolling(onNewFault: () => void): SensorPollingState {
     } finally {
       setHistoryLoading(false);
     }
-  }, []);
+  }, [truckId]);
 
   useEffect(() => {
     fetchHistory();

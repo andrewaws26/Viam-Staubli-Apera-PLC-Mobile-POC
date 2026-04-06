@@ -4,6 +4,8 @@
 // No fields identifying operators, shift times, or personnel may be displayed.
 // See docs/architecture.md section 6 for the full architectural enforcement.
 
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import StatusCard from "./StatusCard";
 import AlertBanner from "./AlertBanner";
 import FaultHistory from "./FaultHistory";
@@ -17,11 +19,38 @@ import { UserButton } from "@clerk/nextjs";
 import { useAlarm, FlashOverlay } from "./DashboardAudio";
 import { useSensorPolling } from "../hooks/useSensorPolling";
 
+interface TruckListItem {
+  id: string;
+  name: string;
+  hasTPSMonitor: boolean;
+  hasTruckDiagnostics: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
-export default function Dashboard() {
+export default function Dashboard({ truckId }: { truckId?: string }) {
   const playAlarm = useAlarm();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const [trucks, setTrucks] = useState<TruckListItem[]>([]);
+
+  useEffect(() => {
+    fetch("/api/fleet/trucks")
+      .then((r) => r.json())
+      .then((data) => setTrucks(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, []);
+
+  const currentTruck = trucks.find((t) => t.id === truckId) ?? trucks[0];
+  const showSelector = trucks.length > 1;
+
+  function switchTruck(id: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("truck_id", id);
+    router.push(`/?${params.toString()}`);
+  }
 
   const {
     components,
@@ -38,7 +67,7 @@ export default function Dashboard() {
     simMode,
     setSimMode,
     pollIntervalMs,
-  } = useSensorPolling(playAlarm);
+  } = useSensorPolling(playAlarm, truckId);
 
   return (
     <>
@@ -58,6 +87,17 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-end">
+            {showSelector && (
+              <select
+                value={truckId ?? currentTruck?.id ?? ""}
+                onChange={(e) => switchTruck(e.target.value)}
+                className="min-h-[44px] px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-gray-200 text-xs sm:text-sm font-bold uppercase tracking-wider cursor-pointer hover:border-purple-500 transition-colors focus:outline-none focus:border-purple-500"
+              >
+                {trucks.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            )}
             <a
               href="/shift-report"
               className="min-h-[44px] px-3 sm:px-4 py-2 rounded-lg bg-green-600 hover:bg-green-500 text-white text-xs sm:text-sm font-bold uppercase tracking-wider transition-colors flex items-center gap-1.5"
@@ -123,8 +163,8 @@ export default function Dashboard() {
 
           {/* Pi Health Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
-            <PiHealthCard label="TPS Monitoring" icon="&#x1F4BB;" host="tps" simMode={simMode} />
-            <PiHealthCard label="Truck Monitoring" icon="&#x1F69B;" host="truck" simMode={simMode} />
+            <PiHealthCard label="TPS Monitoring" icon="&#x1F4BB;" host="tps" simMode={simMode} truckId={truckId} />
+            <PiHealthCard label="Truck Monitoring" icon="&#x1F69B;" host="truck" simMode={simMode} truckId={truckId} />
           </div>
 
           {/* Location & Weather bar */}
@@ -173,7 +213,7 @@ export default function Dashboard() {
           />
 
           {/* Truck Diagnostics */}
-          <TruckPanel simMode={simMode} />
+          <TruckPanel simMode={simMode} truckId={truckId} />
 
           {/* Fault History */}
           <FaultHistory events={faultHistory} />

@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLatestReading, resetDataClient } from "@/lib/viam-data";
 import { getTruckById, getDefaultTruck } from "@/lib/machines";
+import { requireTruckAccess } from "@/lib/auth-guard";
 
 export async function GET(request: NextRequest) {
   const componentName = request.nextUrl.searchParams.get("component");
@@ -21,6 +22,10 @@ export async function GET(request: NextRequest) {
   }
 
   const truckId = request.nextUrl.searchParams.get("truck_id");
+
+  const truckDenied = await requireTruckAccess(truckId);
+  if (truckDenied) return truckDenied;
+
   const truck = truckId ? getTruckById(truckId) : getDefaultTruck();
   if (!truck) {
     return NextResponse.json(

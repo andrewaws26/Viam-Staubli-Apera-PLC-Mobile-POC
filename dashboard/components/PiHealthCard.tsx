@@ -61,9 +61,10 @@ interface Props {
   icon: string;
   host: string;
   simMode?: boolean;
+  truckId?: string;
 }
 
-export default function PiHealthCard({ label, icon, host, simMode = false }: Props) {
+export default function PiHealthCard({ label, icon, host, simMode = false, truckId }: Props) {
   const [health, setHealth] = useState<PiHealth | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -93,7 +94,8 @@ export default function PiHealthCard({ label, icon, host, simMode = false }: Pro
     }
 
     try {
-      const resp = await fetch(`/api/pi-health?host=${host}`);
+      const truckParam = truckId ? `&truck_id=${truckId}` : "";
+      const resp = await fetch(`/api/pi-health?host=${host}${truckParam}`);
       if (!resp.ok) throw new Error(`API error: ${resp.status}`);
       const data = await resp.json() as Record<string, unknown>;
 
@@ -127,7 +129,7 @@ export default function PiHealthCard({ label, icon, host, simMode = false }: Pro
       setError(err instanceof Error ? err.message : "Offline");
       setHealth(null);
     }
-  }, [host, simMode, label]);
+  }, [host, simMode, label, truckId]);
 
   useEffect(() => {
     fetchHealth();

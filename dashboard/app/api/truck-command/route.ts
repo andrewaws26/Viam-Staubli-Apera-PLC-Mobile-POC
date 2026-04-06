@@ -13,7 +13,7 @@ import { createRobotClient, SensorClient } from "@viamrobotics/sdk";
 import type { RobotClient } from "@viamrobotics/sdk";
 import { getTruckById, getDefaultTruck } from "@/lib/machines";
 import { TruckCommandBody, parseBody } from "@/lib/api-schemas";
-import { requireRole } from "@/lib/auth-guard";
+import { requireRole, requireTruckAccess } from "@/lib/auth-guard";
 
 let _client: RobotClient | null = null;
 let _connecting = false;
@@ -68,6 +68,10 @@ export async function POST(request: NextRequest) {
   if (denied) return denied;
 
   const truckId = request.nextUrl.searchParams.get("truck_id");
+
+  const truckDenied = await requireTruckAccess(truckId);
+  if (truckDenied) return truckDenied;
+
   const truck = truckId ? getTruckById(truckId) : getDefaultTruck();
   if (!truck) {
     return NextResponse.json(
