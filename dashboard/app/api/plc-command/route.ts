@@ -11,6 +11,7 @@ import type { RobotClient } from "@viamrobotics/sdk";
 import { getTruckById, getDefaultTruck } from "@/lib/machines";
 import { PlcCommandBody, parseBody } from "@/lib/api-schemas";
 import { requireRole, requireTruckAccess } from "@/lib/auth-guard";
+import { logAudit } from "@/lib/audit";
 
 let _client: RobotClient | null = null;
 let _connecting = false;
@@ -100,6 +101,12 @@ export async function POST(request: NextRequest) {
     const sensor = new SensorClient(client, "plc-monitor");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = await sensor.doCommand(body as any);
+
+    logAudit({
+      action: "plc_command",
+      truckId: truck.id,
+      details: { action: _action, params: body },
+    });
 
     console.log("[API-TIMING]", "/api/plc-command", Date.now() - startTime, "ms");
     return NextResponse.json(result);

@@ -53,6 +53,9 @@ export interface TruckStatus {
   weather: string | null;
   // Assigned personnel
   assignedPersonnel: { name: string; role: string }[];
+  // Maintenance
+  maintenanceOverdue: number;
+  maintenanceDueSoon: number;
   // Capabilities
   hasTPSMonitor: boolean;
   hasTruckDiagnostics: boolean;
@@ -104,6 +107,8 @@ async function fetchTruckStatus(truck: TruckConfig): Promise<TruckStatus> {
     locationRegion: null,
     weather: null,
     assignedPersonnel: [],
+    maintenanceOverdue: 0,
+    maintenanceDueSoon: 0,
     hasTPSMonitor: !!truck.tpsPartId,
     hasTruckDiagnostics: !!truck.truckPartId,
     error: null,
@@ -216,6 +221,8 @@ export async function GET() {
         locationRegion: null,
         weather: null,
         assignedPersonnel: [],
+        maintenanceOverdue: 0,
+        maintenanceDueSoon: 0,
         hasTPSMonitor: !!trucks[i].tpsPartId,
         hasTruckDiagnostics: !!trucks[i].truckPartId,
         error: result.reason instanceof Error ? result.reason.message : String(result.reason),
@@ -242,6 +249,36 @@ export async function GET() {
     } catch (err) {
       console.error("[API-WARN]", "fleet/status assignments lookup failed", err);
       // Non-fatal — statuses still returned without personnel
+    }
+
+    // Enrich with maintenance due/overdue counts
+    try {
+      const sb = getSupabase();
+      const { data: maint } = await sb
+        .from("maintenance_events")
+        .select("truck_id, next_due_date")
+        .not("next_due_date", "is", null);
+      if (maint) {
+        const now = Date.now();
+        const fourteenDays = 14 * 24 * 60 * 60 * 1000;
+        // Group by truck, only keep the latest next_due_date per truck+event
+        const overdue = new Map<string, number>();
+        const dueSoon = new Map<string, number>();
+        for (const m of maint) {
+          const due = new Date(m.next_due_date).getTime();
+          if (due < now) {
+            overdue.set(m.truck_id, (overdue.get(m.truck_id) || 0) + 1);
+          } else if (due - now < fourteenDays) {
+            dueSoon.set(m.truck_id, (dueSoon.get(m.truck_id) || 0) + 1);
+          }
+        }
+        for (const s of statuses) {
+          s.maintenanceOverdue = overdue.get(s.id) || 0;
+          s.maintenanceDueSoon = dueSoon.get(s.id) || 0;
+        }
+      }
+    } catch (err) {
+      console.error("[API-WARN]", "fleet/status maintenance lookup failed", err);
     }
 
     _cache = { data: statuses, timestamp: Date.now() };

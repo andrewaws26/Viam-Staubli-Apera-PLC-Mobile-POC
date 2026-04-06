@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { getSupabase } from "@/lib/supabase";
 import { canManageFleet } from "@/lib/auth";
+import { logAudit } from "@/lib/audit";
 
 async function getUserRole(userId: string): Promise<string> {
   try {
@@ -99,6 +100,13 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) throw error;
+
+    logAudit({
+      action: "assignment_created",
+      truckId: truck_id,
+      details: { assigned_user: user_name, assigned_role: user_role ?? "operator", user_id },
+    });
+
     return NextResponse.json(data, { status: 201 });
   } catch (err) {
     console.error("[API-ERROR]", "/api/truck-assignments", err);
@@ -129,6 +137,8 @@ export async function DELETE(request: NextRequest) {
     const sb = getSupabase();
     const { error } = await sb.from("truck_assignments").delete().eq("id", assignmentId);
     if (error) throw error;
+
+    logAudit({ action: "assignment_deleted", details: { assignment_id: assignmentId } });
 
     return NextResponse.json({ ok: true });
   } catch (err) {

@@ -14,6 +14,7 @@ import { getAiHistorySummary } from "@/lib/ai-history";
 import { runDiagnostics, formatDiagnosticNotes } from "@/lib/ai-diagnostics";
 import { AiDiagnoseBody, parseBody } from "@/lib/api-schemas";
 import { requireRole } from "@/lib/auth-guard";
+import { logAudit } from "@/lib/audit";
 
 export async function POST(request: NextRequest) {
   const denied = await requireRole("/api/ai-diagnose");
@@ -180,6 +181,16 @@ ${readings._dtc_history_text ? "\n" + String(readings._dtc_history_text) : ""}`;
       protocol: readings._protocol || "unknown",
     };
     console.log("[AI-DIAGNOSIS-LOG]", JSON.stringify(logEntry));
+
+    logAudit({
+      action: "ai_diagnosis",
+      details: {
+        active_dtc_count: readings.active_dtc_count || 0,
+        engine_rpm: readings.engine_rpm,
+        protocol: readings._protocol,
+        diagnosis_preview: diagnosis.substring(0, 300),
+      },
+    });
 
     console.log("[API-TIMING]", "/api/ai-diagnose", Date.now() - startTime, "ms");
     return NextResponse.json({ success: true, diagnosis });

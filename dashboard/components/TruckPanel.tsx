@@ -26,6 +26,8 @@ import StatusAlertBar from "./DevTruck/StatusAlertBar";
 import TrendChartsGrid from "./DevTruck/TrendChartsGrid";
 import ReportButton from "./DevTruck/ReportButton";
 import TruckNotes from "./TruckNotes";
+import MaintenanceTracker from "./MaintenanceTracker";
+import DTCHistory from "./DTCHistory";
 import dynamic from "next/dynamic";
 
 const TruckMap = dynamic(() => import("./TruckMap"), { ssr: false });
@@ -481,6 +483,12 @@ export default function TruckPanel({ simMode = false, truckId }: { simMode?: boo
           dtcHistory={dtcHistory}
         />
       )}
+
+      {/* DTC History */}
+      <DTCHistory truckId={truckId} />
+
+      {/* Maintenance History */}
+      <MaintenanceTracker truckId={truckId} />
 
       {/* Truck Notes */}
       <TruckNotes truckId={truckId} />

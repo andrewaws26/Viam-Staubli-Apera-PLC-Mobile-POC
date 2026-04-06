@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth, currentUser, clerkClient } from "@clerk/nextjs/server";
 import { getSupabase } from "@/lib/supabase";
 import { canSeeAllTrucks, canManageFleet } from "@/lib/auth";
+import { logAudit, logAuditDirect } from "@/lib/audit";
 
 async function getUserRole(userId: string): Promise<string> {
   try {
@@ -125,6 +126,13 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) throw error;
+
+    logAuditDirect(userId, authorName, role, {
+      action: "note_created",
+      truckId: truck_id,
+      details: { note_id: data.id, body_preview: noteBody.trim().substring(0, 100) },
+    });
+
     return NextResponse.json(data, { status: 201 });
   } catch (err) {
     console.error("[API-ERROR]", "/api/truck-notes", err);
@@ -167,6 +175,8 @@ export async function DELETE(request: NextRequest) {
 
     const { error: delErr } = await sb.from("truck_notes").delete().eq("id", noteId);
     if (delErr) throw delErr;
+
+    logAudit({ action: "note_deleted", details: { note_id: noteId } });
 
     return NextResponse.json({ ok: true });
   } catch (err) {

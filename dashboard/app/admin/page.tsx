@@ -2,6 +2,7 @@
 
 import { useUser } from "@clerk/nextjs";
 import TruckAssignments from "@/components/TruckAssignments";
+import AuditLogViewer from "@/components/AuditLogViewer";
 
 export default function AdminPage() {
   const { user, isLoaded } = useUser();
@@ -44,8 +45,9 @@ export default function AdminPage() {
           Dashboard
         </a>
       </header>
-      <main className="px-4 sm:px-6 py-6 max-w-6xl mx-auto">
+      <main className="px-4 sm:px-6 py-6 max-w-6xl mx-auto space-y-8">
         <TruckAssignments />
+        <AuditLogViewer />
       </main>
     </div>
   );
