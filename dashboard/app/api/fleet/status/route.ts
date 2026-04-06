@@ -11,6 +11,7 @@
 import { NextResponse } from "next/server";
 import { getLatestReading, resetDataClient } from "@/lib/viam-data";
 import { getTruckConfigs, type TruckConfig } from "@/lib/machines";
+import { getSupabase } from "@/lib/supabase";
 
 // ---------------------------------------------------------------------------
 // In-memory cache (5-second TTL)
@@ -50,6 +51,8 @@ export interface TruckStatus {
   locationCity: string | null;
   locationRegion: string | null;
   weather: string | null;
+  // Assigned personnel
+  assignedPersonnel: { name: string; role: string }[];
   // Capabilities
   hasTPSMonitor: boolean;
   hasTruckDiagnostics: boolean;
@@ -100,6 +103,7 @@ async function fetchTruckStatus(truck: TruckConfig): Promise<TruckStatus> {
     locationCity: null,
     locationRegion: null,
     weather: null,
+    assignedPersonnel: [],
     hasTPSMonitor: !!truck.tpsPartId,
     hasTruckDiagnostics: !!truck.truckPartId,
     error: null,
@@ -211,11 +215,34 @@ export async function GET() {
         locationCity: null,
         locationRegion: null,
         weather: null,
+        assignedPersonnel: [],
         hasTPSMonitor: !!trucks[i].tpsPartId,
         hasTruckDiagnostics: !!trucks[i].truckPartId,
         error: result.reason instanceof Error ? result.reason.message : String(result.reason),
       } satisfies TruckStatus;
     });
+
+    // Enrich with assigned personnel from Supabase
+    try {
+      const sb = getSupabase();
+      const { data: assignments } = await sb
+        .from("truck_assignments")
+        .select("truck_id, user_name, user_role");
+      if (assignments) {
+        const byTruck = new Map<string, { name: string; role: string }[]>();
+        for (const a of assignments) {
+          const list = byTruck.get(a.truck_id) || [];
+          list.push({ name: a.user_name, role: a.user_role });
+          byTruck.set(a.truck_id, list);
+        }
+        for (const s of statuses) {
+          s.assignedPersonnel = byTruck.get(s.id) || [];
+        }
+      }
+    } catch (err) {
+      console.error("[API-WARN]", "fleet/status assignments lookup failed", err);
+      // Non-fatal — statuses still returned without personnel
+    }
 
     _cache = { data: statuses, timestamp: Date.now() };
 
