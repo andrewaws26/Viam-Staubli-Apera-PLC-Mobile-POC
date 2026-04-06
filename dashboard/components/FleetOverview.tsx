@@ -20,6 +20,9 @@ interface TruckStatus {
   engineRunning: boolean | null;
   dtcCount: number;
   coolantTempF: number | null;
+  locationCity: string | null;
+  locationRegion: string | null;
+  weather: string | null;
   hasTPSMonitor: boolean;
   hasTruckDiagnostics: boolean;
   error: string | null;
@@ -218,6 +221,20 @@ function TruckCard({ truck, onClick }: { truck: TruckStatus; onClick: () => void
           </span>
         )}
       </div>
+
+      {/* Location */}
+      {(truck.locationCity || truck.weather) && (
+        <div className="flex items-center gap-1.5 mb-3 text-xs text-gray-500">
+          <svg className="w-3.5 h-3.5 shrink-0 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <span className="truncate">
+            {truck.locationCity}{truck.locationRegion ? `, ${truck.locationRegion}` : ""}
+            {truck.weather ? ` · ${truck.weather}` : ""}
+          </span>
+        </div>
+      )}
 
       {/* Status rows */}
       <div className="space-y-2">
