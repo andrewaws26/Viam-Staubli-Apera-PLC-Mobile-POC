@@ -75,7 +75,11 @@ class J1939TruckSensor(Sensor):
 
     Configuration attributes:
         can_interface (str): CAN interface name. Default: "can0"
-        bitrate (int): CAN bus bitrate. Default: 500000 (J1939 standard for OBD-II)
+        bitrate (int): CAN bus bitrate. Default: 500000. NOTE: The Pi Zero
+            production deploy MUST use 250000 (J1939). 500000 is the code default
+            because the OBD-II path needs it. The Viam machine config overrides
+            this — see config/fragment-tps-truck.json. NEVER change the Pi Zero
+            config to 500000; see CLAUDE.md "Pi Zero CAN = 250kbps J1939 only".
         source_address (int): Our J1939 source address for sending. Default: 0xFE (null)
         pgn_filter (list[int]): Optional list of PGNs to capture. Empty = capture all known.
         include_raw (bool): Include raw hex data in readings. Default: false
@@ -98,7 +102,7 @@ class J1939TruckSensor(Sensor):
         self._last_frame_time: float = 0
         self._frame_count: int = 0
         self._can_interface = "can0"
-        self._bitrate = 500000
+        self._bitrate = 500000  # Overridden by config; Pi Zero uses 250000 (J1939)
         self._source_address = 0xFE
         self._pgn_filter: set[int] = set()
         self._include_raw = False

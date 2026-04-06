@@ -27,11 +27,13 @@ from .j1939_dtc import SA_SUFFIX, apply_namespaced_dtcs
 
 LOGGER = getLogger(__name__)
 
-# Default offline buffer config
+# Default offline buffer config — hardcoded to the Pi's deploy user home dir.
+# Overridable via Viam machine config attributes "buffer_dir" and "buffer_max_mb".
 DEFAULT_BUFFER_DIR = "/home/andrew/.viam/offline-buffer/truck"
 DEFAULT_BUFFER_MAX_MB = 50.0
 
-# Default proprietary PGN capture config
+# Default proprietary PGN capture config — same deploy user convention.
+# Overridable via config attribute "prop_log_dir".
 DEFAULT_PROP_LOG_DIR = "/home/andrew/.viam/proprietary-pgns"
 DEFAULT_PROP_LOG_MAX_MB = 100.0
 _PROP_SAMPLE_INTERVAL = 10.0  # seconds between logging same PGN (avoid flooding)
@@ -368,7 +370,18 @@ def negotiate_bitrate(can_interface: str, bus_type: str,
 
 
 def start_can_listener(can_interface: str, bus_type: str, bitrate: int):
-    """Create and return a python-can Bus instance, or None on failure."""
+    """Create and return a python-can Bus instance, or None on failure.
+
+    IMPORTANT: Listen-only mode is enforced at the OS level, NOT here.
+    The CAN interface must be brought up with ``listen-only on``::
+
+        ip link set can0 up type can bitrate 250000 listen-only on
+
+    python-can's Bus() does NOT set listen-only — it inherits whatever
+    the OS configured.  If the interface is in normal mode, this code will
+    ACK every frame on the truck bus, disrupting ECU communication and
+    triggering dashboard warning lights.  See CLAUDE.md for details.
+    """
     try:
         import can
         bus = can.Bus(
