@@ -13,6 +13,7 @@ import { createRobotClient, SensorClient } from "@viamrobotics/sdk";
 import type { RobotClient } from "@viamrobotics/sdk";
 import { getTruckById, getDefaultTruck } from "@/lib/machines";
 import { TruckCommandBody, parseBody } from "@/lib/api-schemas";
+import { requireRole } from "@/lib/auth-guard";
 
 let _client: RobotClient | null = null;
 let _connecting = false;
@@ -63,6 +64,9 @@ async function getFleetClient(machineAddress: string): Promise<RobotClient> {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await requireRole("/api/truck-command");
+  if (denied) return denied;
+
   const truckId = request.nextUrl.searchParams.get("truck_id");
   const truck = truckId ? getTruckById(truckId) : getDefaultTruck();
   if (!truck) {

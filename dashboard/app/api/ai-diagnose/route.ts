@@ -13,8 +13,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAiHistorySummary } from "@/lib/ai-history";
 import { runDiagnostics, formatDiagnosticNotes } from "@/lib/ai-diagnostics";
 import { AiDiagnoseBody, parseBody } from "@/lib/api-schemas";
+import { requireRole } from "@/lib/auth-guard";
 
 export async function POST(request: NextRequest) {
+  const denied = await requireRole("/api/ai-diagnose");
+  if (denied) return denied;
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return NextResponse.json(

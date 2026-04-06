@@ -8,8 +8,12 @@
  */
 
 import { NextResponse } from "next/server";
+import { requireRole } from "@/lib/auth-guard";
 
 export async function POST(request: Request) {
+  const denied = await requireRole("/api/ai-report-summary");
+  if (denied) return denied;
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return NextResponse.json({ summary: "" });
