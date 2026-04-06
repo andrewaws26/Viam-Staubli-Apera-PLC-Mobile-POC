@@ -16,6 +16,17 @@ const LAMP_NAMES: Record<string, string> = {
   protect_lamp: "PROT",
 };
 
+// J1939 ECU source addresses that report DTCs via DM1.
+// Must match SA_SUFFIX in j1939_dtc.py.
+const ECU_SOURCES = [
+  { suffix: "engine", label: "Engine" },
+  { suffix: "trans", label: "Transmission" },
+  { suffix: "abs", label: "ABS" },
+  { suffix: "acm", label: "Aftertreatment" },
+  { suffix: "body", label: "Body" },
+  { suffix: "inst", label: "Instrument" },
+] as const;
+
 type VehicleMode = "truck" | "car";
 
 interface DTCPanelProps {
@@ -128,6 +139,15 @@ export default function DTCPanel({
               {Object.entries(LAMP_NAMES).map(([key, name]) => {
                 const val = readings?.[key] as number;
                 if (!val || val === 0) return null;
+                // Find which ECUs have this lamp lit
+                const ecuSources: string[] = [];
+                for (const { suffix, label } of ECU_SOURCES) {
+                  const perEcuKey = key === "malfunction_lamp" ? `mil_${suffix}`
+                    : key === "amber_warning_lamp" ? `amber_lamp_${suffix}`
+                    : `${key}_${suffix}`;
+                  const ecuVal = readings?.[perEcuKey] as number;
+                  if (ecuVal && ecuVal > 0) ecuSources.push(label);
+                }
                 return (
                   <span
                     key={key}
@@ -138,8 +158,9 @@ export default function DTCPanel({
                         ? "bg-yellow-700 text-white"
                         : "bg-orange-700 text-white"
                     }`}
+                    title={ecuSources.length > 0 ? `Source: ${ecuSources.join(", ")}` : undefined}
                   >
-                    {name}
+                    {name}{ecuSources.length > 0 ? ` (${ecuSources.join(", ")})` : ""}
                   </span>
                 );
               })}
@@ -172,48 +193,57 @@ export default function DTCPanel({
         </div>
       )}
 
-      {/* DTC Details — J1939 format (truck) */}
+      {/* DTC Details — J1939 format (truck), per-ECU */}
       {dtcCount > 0 && vehicleMode === "truck" && (
         <div className="bg-gray-900/50 rounded-2xl border border-red-800/30 p-4 sm:p-5 mb-3">
           <h4 className="text-sm sm:text-base font-black text-red-300 uppercase tracking-wider mb-3">
             Diagnostic Trouble Codes
           </h4>
           <div className="space-y-3">
-            {Array.from({ length: Math.min(dtcCount, 5) }).map((_, i) => {
-              const spn = readings?.[`dtc_${i}_spn`] as number;
-              const fmi = readings?.[`dtc_${i}_fmi`] as number;
-              const occ = readings?.[`dtc_${i}_occurrence`] as number;
-              if (spn === undefined) return null;
-              const spnInfo = lookupSPN(spn);
-              const fmiText = lookupFMI(fmi);
-              return (
-                <div
-                  key={i}
-                  className="bg-red-950/40 border border-red-800/30 rounded-xl p-3 sm:p-4"
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm sm:text-base font-bold text-red-300">
-                      {spnInfo.name}
-                    </span>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                      spnInfo.severity === "critical" ? "bg-red-700 text-white" :
-                      spnInfo.severity === "warning" ? "bg-yellow-700 text-white" :
-                      "bg-blue-700 text-white"
-                    }`}>
-                      {spnInfo.severity.toUpperCase()}
-                    </span>
+            {ECU_SOURCES.map(({ suffix, label }) => {
+              const ecuCount = readings?.[`dtc_${suffix}_count`] as number ?? 0;
+              if (ecuCount === 0) return null;
+              return Array.from({ length: Math.min(ecuCount, 5) }).map((_, i) => {
+                const spn = readings?.[`dtc_${suffix}_${i}_spn`] as number;
+                const fmi = readings?.[`dtc_${suffix}_${i}_fmi`] as number;
+                const occ = readings?.[`dtc_${suffix}_${i}_occurrence`] as number;
+                if (spn === undefined) return null;
+                const spnInfo = lookupSPN(spn);
+                const fmiText = lookupFMI(fmi);
+                return (
+                  <div
+                    key={`${suffix}-${i}`}
+                    className="bg-red-950/40 border border-red-800/30 rounded-xl p-3 sm:p-4"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm sm:text-base font-bold text-red-300">
+                        {spnInfo.name}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-gray-700 text-gray-200">
+                          {label}
+                        </span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                          spnInfo.severity === "critical" ? "bg-red-700 text-white" :
+                          spnInfo.severity === "warning" ? "bg-yellow-700 text-white" :
+                          "bg-blue-700 text-white"
+                        }`}>
+                          {spnInfo.severity.toUpperCase()}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-xs text-gray-400 mb-1">
+                      SPN {spn} / FMI {fmi} — {fmiText}
+                    </div>
+                    <div className="text-xs text-gray-500 mb-2">
+                      {spnInfo.description} (x{occ} occurrences)
+                    </div>
+                    <div className="text-xs sm:text-sm text-green-400 bg-green-950/30 rounded-lg px-3 py-2 border border-green-800/30">
+                      <span className="font-bold">Fix: </span>{spnInfo.fix}
+                    </div>
                   </div>
-                  <div className="text-xs text-gray-400 mb-1">
-                    SPN {spn} / FMI {fmi} — {fmiText}
-                  </div>
-                  <div className="text-xs text-gray-500 mb-2">
-                    {spnInfo.description} (x{occ} occurrences)
-                  </div>
-                  <div className="text-xs sm:text-sm text-green-400 bg-green-950/30 rounded-lg px-3 py-2 border border-green-800/30">
-                    <span className="font-bold">Fix: </span>{spnInfo.fix}
-                  </div>
-                </div>
-              );
+                );
+              });
             })}
           </div>
         </div>

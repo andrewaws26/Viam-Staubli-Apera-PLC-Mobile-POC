@@ -508,6 +508,24 @@ def run_listen_loop(sensor) -> None:
                             sensor._readings[f"red_stop_lamp_{suffix}"] = lamps.get("red_stop_lamp", 0)
                             sensor._readings[f"amber_lamp_{suffix}"] = lamps.get("amber_warning_lamp", 0)
                             sensor._readings[f"mil_{suffix}"] = lamps.get("malfunction_lamp", 0)
+
+                        # Compute OR'd flat lamp keys across ALL ECUs.
+                        # Without this, the last ECU to broadcast DM1 wins,
+                        # so an engine "no lamps" frame overwrites an ACM
+                        # emissions lamp — causing missed warnings on the dash.
+                        for flat_key, per_ecu_prefix in (
+                            ("malfunction_lamp", "mil_"),
+                            ("amber_warning_lamp", "amber_lamp_"),
+                            ("red_stop_lamp", "red_stop_lamp_"),
+                            ("protect_lamp", "protect_lamp_"),
+                        ):
+                            worst = 0
+                            for s in SA_SUFFIX.values():
+                                val = sensor._readings.get(f"{per_ecu_prefix}{s}", 0)
+                                if val and val > worst:
+                                    worst = val
+                            sensor._readings[flat_key] = worst
+
                         # Single-frame DM1 DTCs are in `decoded`
                         # (from decode_can_frame -> pgn_decoder).
                         # Namespace them per-source and recompute combined count.

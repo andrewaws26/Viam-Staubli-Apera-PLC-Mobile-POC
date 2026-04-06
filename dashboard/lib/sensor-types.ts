@@ -329,8 +329,24 @@ export interface TruckSensorReadings {
   red_stop_lamp_abs?: number;
   protect_lamp_abs?: number;
 
-  // -- DTC / Trouble Codes (flat fields emitted by Python) --
+  // -- DTC / Trouble Codes --
+  // Combined count across all ECU sources
   active_dtc_count?: number;
+
+  // Per-ECU namespaced DTCs (engine, trans, abs, acm, body, inst).
+  // These are the canonical source — flat dtc_0_* keys below are
+  // backward-compat aliases populated from the engine ECU.
+  dtc_engine_count?: number;
+  dtc_trans_count?: number;
+  dtc_abs_count?: number;
+  dtc_acm_count?: number;
+  dtc_body_count?: number;
+  dtc_inst_count?: number;
+  // Per-ECU DTC details use dynamic keys: dtc_{suffix}_{i}_spn/fmi/occurrence
+  // e.g. dtc_acm_0_spn, dtc_engine_1_fmi — accessed via bracket notation
+  [key: `dtc_${string}_${number}_${"spn" | "fmi" | "occurrence"}`]: number | undefined;
+
+  // Backward-compat flat DTC keys (populated from engine ECU, fallback to first with DTCs)
   dtc_0_spn?: number;
   dtc_0_fmi?: number;
   dtc_0_occurrence?: number;
