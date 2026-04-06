@@ -49,6 +49,7 @@ from plc_offline import OfflineBuffer, _DEFAULT_BUFFER_MAX_MB
 from plc_metrics import ConnectionQualityMonitor, SignalMetrics
 from plc_weather import _weather_cache
 from plc_commands import dispatch_command
+from system_health import get_system_health
 from plc_readings import (
     build_disconnected_readings, build_connected_readings,
     read_modbus_io, evaluate_and_log_diagnostics,
