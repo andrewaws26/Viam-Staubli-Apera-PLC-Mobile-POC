@@ -13,12 +13,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { fetchTruckData, buildTruckSummary, resetTruckDataClient } from "@/lib/truck-data";
 import { fetchSensorData, resetDataClient } from "@/lib/viam-data";
 import { getTruckById, getDefaultTruck } from "@/lib/machines";
+import { requireTruckAccess } from "@/lib/auth-guard";
 
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
   const hours = Math.min(Math.max(parseFloat(params.get("hours") || "4") || 4, 0.1), 168);
   const vin = params.get("vin") || undefined;
   const truckId = params.get("truck_id");
+
+  const truckDenied = await requireTruckAccess(truckId);
+  if (truckDenied) return truckDenied;
 
   const truck = truckId ? getTruckById(truckId) : getDefaultTruck();
   if (!truck) {

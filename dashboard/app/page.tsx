@@ -1,8 +1,9 @@
-import dynamic from "next/dynamic";
+"use client";
 
-// Dashboard is loaded client-side only.
-// The Viam SDK uses browser APIs (WebRTC, AudioContext) that cannot run
-// during Next.js server-side rendering.
+import dynamic from "next/dynamic";
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
+
 const Dashboard = dynamic(() => import("../components/Dashboard"), {
   ssr: false,
   loading: () => (
@@ -15,6 +16,16 @@ const Dashboard = dynamic(() => import("../components/Dashboard"), {
   ),
 });
 
+function PageInner() {
+  const searchParams = useSearchParams();
+  const truckId = searchParams.get("truck_id") ?? undefined;
+  return <Dashboard truckId={truckId} />;
+}
+
 export default function Page() {
-  return <Dashboard />;
+  return (
+    <Suspense>
+      <PageInner />
+    </Suspense>
+  );
 }

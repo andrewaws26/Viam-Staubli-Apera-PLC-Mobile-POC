@@ -23,3 +23,8 @@ export function hasRole(userRole: string | undefined, requiredRoles: UserRole[])
   const cleanRole = userRole.replace("org:", "") as UserRole;
   return requiredRoles.includes(cleanRole);
 }
+
+export function canSeeAllTrucks(role: UserRole | string): boolean {
+  const clean = role.replace("org:", "") as UserRole;
+  return clean !== "viewer";
+}

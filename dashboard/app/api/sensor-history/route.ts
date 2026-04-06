@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchSensorData, resetDataClient, type RawPoint } from "@/lib/viam-data";
 import { getTruckById, getDefaultTruck } from "@/lib/machines";
+import { requireTruckAccess } from "@/lib/auth-guard";
 
 const MAX_POINTS = 500;
 
@@ -282,6 +283,10 @@ export async function GET(request: NextRequest) {
   const hours = Math.min(Math.max(parseFloat(params.get("hours") || "8") || 8, 0.1), 168);
 
   const truckId = params.get("truck_id");
+
+  const truckDenied = await requireTruckAccess(truckId);
+  if (truckDenied) return truckDenied;
+
   const truck = truckId ? getTruckById(truckId) : getDefaultTruck();
   if (!truck) {
     return NextResponse.json(

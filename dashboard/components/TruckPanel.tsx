@@ -45,7 +45,7 @@ const TRUCK_POLL_MS = 3000;
 
 type VehicleMode = "truck" | "car";
 
-export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
+export default function TruckPanel({ simMode = false, truckId }: { simMode?: boolean; truckId?: string }) {
   const [readings, setReadings] = useState<TruckReadings | null>(null);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -71,7 +71,8 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
     const fetchHistory = async () => {
       try {
         const vinParam = selectedHistoryVin ? `&vin=${encodeURIComponent(selectedHistoryVin)}` : "";
-        const resp = await fetch(`/api/truck-history?hours=168${vinParam}`);
+        const truckParam = truckId ? `&truck_id=${truckId}` : "";
+        const resp = await fetch(`/api/truck-history?hours=168${vinParam}${truckParam}`);
         if (resp.ok) {
           const data = await resp.json();
           // Update available VINs from API response
@@ -91,7 +92,7 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
     const timer = setTimeout(fetchHistory, 3000); // delay 3s to let initial page load settle
     const id = setInterval(fetchHistory, 5 * 60 * 1000);
     return () => { clearTimeout(timer); clearInterval(id); };
-  }, [simMode, selectedHistoryVin]);
+  }, [simMode, selectedHistoryVin, truckId]);
 
   // Trend history — stores last 100 readings per metric
   const MAX_TREND_POINTS = 100;
@@ -246,7 +247,8 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
     }
 
     try {
-      const resp = await fetch("/api/truck-readings?component=truck-engine");
+      const truckParam = truckId ? `&truck_id=${truckId}` : "";
+      const resp = await fetch(`/api/truck-readings?component=truck-engine${truckParam}`);
       if (!resp.ok) throw new Error(`API error: ${resp.status}`);
       const data = await resp.json();
 
@@ -281,7 +283,7 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
       setConnected(false);
       setError(err instanceof Error ? err.message : "Connection error");
     }
-  }, [simMode]);
+  }, [simMode, truckId]);
 
   useEffect(() => {
     fetchReadings();

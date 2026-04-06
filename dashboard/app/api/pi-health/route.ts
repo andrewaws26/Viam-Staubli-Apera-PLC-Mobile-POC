@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLatestReading, resetDataClient } from "@/lib/viam-data";
 import { getTruckById } from "@/lib/machines";
+import { requireTruckAccess } from "@/lib/auth-guard";
 
 const TPS_PART_ID = process.env.VIAM_PART_ID || "7c24d42f-1d66-4cae-81a4-97e3ff9404b4";
 const TRUCK_PART_ID = process.env.TRUCK_VIAM_PART_ID || "ca039781-665c-47e3-9bc5-35f603f3baf1";
@@ -35,6 +36,9 @@ const HOST_CONFIGS: Record<string, { partId: string; component: string; hostname
 export async function GET(request: NextRequest) {
   const host = request.nextUrl.searchParams.get("host") || "tps";
   const truckId = request.nextUrl.searchParams.get("truck_id");
+
+  const truckDenied = await requireTruckAccess(truckId);
+  if (truckDenied) return truckDenied;
 
   let config: { partId: string; component: string; hostname: string; tailscaleIp: string; defaultMemTotal: number };
 
