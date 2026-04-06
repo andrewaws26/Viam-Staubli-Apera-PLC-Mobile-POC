@@ -34,7 +34,7 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useUser();
-  const userRole = (user?.publicMetadata as Record<string, unknown>)?.role as string ?? "";
+  const userRole = (user?.publicMetadata as Record<string, unknown>)?.role as string || "operator";
   const isAdmin = userRole === "developer" || userRole === "manager";
 
   const [trucks, setTrucks] = useState<TruckListItem[]>([]);

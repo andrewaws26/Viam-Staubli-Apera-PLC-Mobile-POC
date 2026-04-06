@@ -5,7 +5,7 @@ import TruckAssignments from "@/components/TruckAssignments";
 
 export default function AdminPage() {
   const { user, isLoaded } = useUser();
-  const role = (user?.publicMetadata as Record<string, unknown>)?.role as string ?? "";
+  const role = (user?.publicMetadata as Record<string, unknown>)?.role as string || "operator";
   const allowed = role === "developer" || role === "manager";
 
   if (!isLoaded) {

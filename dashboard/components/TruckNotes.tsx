@@ -41,7 +41,7 @@ export default function TruckNotes({ truckId }: { truckId?: string }) {
   const [error, setError] = useState<string | null>(null);
 
   const effectiveTruckId = truckId ?? "default";
-  const userRole = (user?.publicMetadata as Record<string, unknown>)?.role as string ?? "";
+  const userRole = (user?.publicMetadata as Record<string, unknown>)?.role as string || "operator";
   const canDelete = (authorId: string) =>
     user?.id === authorId || userRole === "developer" || userRole === "manager";
 
