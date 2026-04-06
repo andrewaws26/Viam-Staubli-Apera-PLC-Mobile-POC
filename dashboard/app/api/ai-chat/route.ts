@@ -148,6 +148,7 @@ FOLLOW-UP QUESTIONS: At the end of EVERY response, include 2-3 suggested follow-
   }
 
   const startTime = Date.now();
+  const useStreaming = request.nextUrl.searchParams.get("stream") === "1";
 
   try {
     const apiMessages = messages.map((m) => ({
@@ -167,6 +168,7 @@ FOLLOW-UP QUESTIONS: At the end of EVERY response, include 2-3 suggested follow-
         max_tokens: 1500,
         system: systemPrompt,
         messages: apiMessages,
+        ...(useStreaming ? { stream: true } : {}),
       }),
     });
 
@@ -179,10 +181,72 @@ FOLLOW-UP QUESTIONS: At the end of EVERY response, include 2-3 suggested follow-
       );
     }
 
+    // Streaming mode: pipe SSE chunks to the client
+    if (useStreaming && response.body) {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let fullReply = "";
+
+      const stream = new ReadableStream({
+        async start(controller) {
+          const encoder = new TextEncoder();
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+
+              const chunk = decoder.decode(value, { stream: true });
+              const lines = chunk.split("\n");
+
+              for (const line of lines) {
+                if (!line.startsWith("data: ")) continue;
+                const data = line.slice(6).trim();
+                if (data === "[DONE]") continue;
+
+                try {
+                  const event = JSON.parse(data);
+                  if (event.type === "content_block_delta" && event.delta?.text) {
+                    fullReply += event.delta.text;
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: event.delta.text })}\n\n`));
+                  }
+                } catch {
+                  // Skip unparseable lines
+                }
+              }
+            }
+            controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+            controller.close();
+          } catch (err) {
+            controller.error(err);
+          }
+
+          // Log after stream completes
+          logConversation(apiMessages, fullReply, readings).catch(() => {});
+          logAudit({
+            action: "ai_chat",
+            details: {
+              message_count: messages.length,
+              streamed: true,
+              last_user_message: messages.filter((m: { role: string }) => m.role === "user").pop()?.content?.substring(0, 200),
+            },
+          });
+          console.log("[API-TIMING]", "/api/ai-chat (stream)", Date.now() - startTime, "ms");
+        },
+      });
+
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        },
+      });
+    }
+
+    // Non-streaming mode (backward compatible)
     const result = await response.json();
     const reply = result.content?.[0]?.text || "No response generated";
 
-    // Log conversation to cloud for analysis and refinement
     logConversation(apiMessages, reply, readings).catch(() => {});
 
     logAudit({
