@@ -25,6 +25,7 @@ import TruckHeader from "./DevTruck/TruckHeader";
 import StatusAlertBar from "./DevTruck/StatusAlertBar";
 import TrendChartsGrid from "./DevTruck/TrendChartsGrid";
 import ReportButton from "./DevTruck/ReportButton";
+import TruckNotes from "./TruckNotes";
 import dynamic from "next/dynamic";
 
 const TruckMap = dynamic(() => import("./TruckMap"), { ssr: false });
@@ -480,6 +481,9 @@ export default function TruckPanel({ simMode = false, truckId }: { simMode?: boo
           dtcHistory={dtcHistory}
         />
       )}
+
+      {/* Truck Notes */}
+      <TruckNotes truckId={truckId} />
 
       {/* Not connected state */}
       {!connected && (

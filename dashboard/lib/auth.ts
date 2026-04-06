@@ -1,20 +1,23 @@
 // Role definitions for IronSight fleet monitoring
-export type UserRole = "admin" | "mechanic" | "driver" | "viewer";
+export type UserRole = "developer" | "manager" | "mechanic" | "operator";
 
 // Route permission matrix
 export const ROUTE_PERMISSIONS: Record<string, UserRole[]> = {
-  "/api/plc-command": ["admin", "mechanic"],
-  "/api/truck-command": ["admin", "mechanic"],
-  "/api/ai-chat": ["admin", "mechanic"],
-  "/api/ai-diagnose": ["admin", "mechanic"],
-  "/api/ai-report-summary": ["admin", "mechanic"],
-  "/api/sensor-readings": ["admin", "mechanic", "driver", "viewer"],
-  "/api/truck-readings": ["admin", "mechanic", "driver", "viewer"],
-  "/api/sensor-history": ["admin", "mechanic", "driver", "viewer"],
-  "/api/shift-report": ["admin", "mechanic", "driver", "viewer"],
-  "/api/pi-health": ["admin", "mechanic", "driver", "viewer"],
-  "/api/truck-history": ["admin", "mechanic", "driver", "viewer"],
-  "/dev": ["admin"],
+  "/api/plc-command": ["developer", "manager", "mechanic"],
+  "/api/truck-command": ["developer", "manager", "mechanic"],
+  "/api/ai-chat": ["developer", "manager", "mechanic"],
+  "/api/ai-diagnose": ["developer", "manager", "mechanic"],
+  "/api/ai-report-summary": ["developer", "manager", "mechanic"],
+  "/api/sensor-readings": ["developer", "manager", "mechanic", "operator"],
+  "/api/truck-readings": ["developer", "manager", "mechanic", "operator"],
+  "/api/sensor-history": ["developer", "manager", "mechanic", "operator"],
+  "/api/shift-report": ["developer", "manager", "mechanic", "operator"],
+  "/api/pi-health": ["developer", "manager", "mechanic", "operator"],
+  "/api/truck-history": ["developer", "manager", "mechanic", "operator"],
+  "/api/truck-notes": ["developer", "manager", "mechanic", "operator"],
+  "/api/truck-assignments": ["developer", "manager", "mechanic", "operator"],
+  "/dev": ["developer"],
+  "/admin": ["developer", "manager"],
 };
 
 export function hasRole(userRole: string | undefined, requiredRoles: UserRole[]): boolean {
@@ -24,7 +27,16 @@ export function hasRole(userRole: string | undefined, requiredRoles: UserRole[])
   return requiredRoles.includes(cleanRole);
 }
 
+export function cleanRole(role: string): UserRole {
+  return role.replace("org:", "") as UserRole;
+}
+
 export function canSeeAllTrucks(role: UserRole | string): boolean {
   const clean = role.replace("org:", "") as UserRole;
-  return clean !== "viewer";
+  return clean !== "operator";
+}
+
+export function canManageFleet(role: UserRole | string): boolean {
+  const clean = role.replace("org:", "") as UserRole;
+  return clean === "developer" || clean === "manager";
 }
