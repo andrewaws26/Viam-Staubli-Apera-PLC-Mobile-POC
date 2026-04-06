@@ -8,7 +8,7 @@ import asyncio
 import glob
 import json
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 from viam.logging import getLogger
 
@@ -16,10 +16,10 @@ LOGGER = getLogger(__name__)
 
 
 async def dispatch_command(
-    client,
+    client: Any,
     command: Dict[str, Any],
     *,
-    plate_drop_reset_cb=None,
+    plate_drop_reset_cb: Optional[Callable[[], None]] = None,
 ) -> Dict[str, Any]:
     """Route a do_command action to the appropriate handler.
 
@@ -100,7 +100,7 @@ async def dispatch_command(
 # ── Individual command handlers ──────────────────────────────────────────
 
 
-async def _handle_test_eject(client, command, result, tps_on):
+async def _handle_test_eject(client: Any, command: Dict[str, Any], result: Dict[str, Any], tps_on: bool) -> None:
     output = command.get("output", "Y1").upper()
     coil_map = {"Y1": 8192, "Y2": 8193, "Y3": 8194}
     addr = coil_map.get(output)
@@ -124,7 +124,7 @@ async def _handle_test_eject(client, command, result, tps_on):
         LOGGER.error("DO_COMMAND: test_eject %s — error: %s", output, e, exc_info=True)
 
 
-async def _handle_software_eject(client, result, tps_on):
+async def _handle_software_eject(client: Any, result: Dict[str, Any], tps_on: bool) -> None:
     if not tps_on:
         result["message"] = "TPS power (X4) must be ON for software eject. Turn on the TPS main switch first."
         result["tps_power"] = False
@@ -141,7 +141,7 @@ async def _handle_software_eject(client, result, tps_on):
         result["message"] = f"Modbus write failed: {e}"
 
 
-async def _handle_reset_counters(client, result, plate_drop_reset_cb):
+async def _handle_reset_counters(client: Any, result: Dict[str, Any], plate_drop_reset_cb: Optional[Callable[[], None]]) -> None:
     try:
         client.write_coil(address=0, value=True)  # C1 Reset Plates and Time
         await asyncio.sleep(0.2)
@@ -155,7 +155,7 @@ async def _handle_reset_counters(client, result, plate_drop_reset_cb):
         result["message"] = f"Modbus write failed: {e}"
 
 
-def _handle_set_mode(client, command, result):
+def _handle_set_mode(client: Any, command: Dict[str, Any], result: Dict[str, Any]) -> None:
     mode = command.get("mode", "").lower()
     mode_map = {
         "single": (19, "TPS-1 Single"),      # C20
@@ -183,7 +183,7 @@ def _handle_set_mode(client, command, result):
         result["message"] = f"Modbus write failed: {e}"
 
 
-def _handle_set_spacing(client, command, result):
+def _handle_set_spacing(client: Any, command: Dict[str, Any], result: Dict[str, Any]) -> None:
     value = command.get("value")
     if value is None:
         result["message"] = "Missing 'value' parameter (DS2 in 0.5\" units, e.g. 39 = 19.5\")"
@@ -220,7 +220,7 @@ def _handle_set_spacing(client, command, result):
         result["message"] = f"Modbus write failed: {e}"
 
 
-def _handle_toggle_coil(client, result, *, address, name, c_label):
+def _handle_toggle_coil(client: Any, result: Dict[str, Any], *, address: int, name: str, c_label: str) -> None:
     """Generic toggle for a single coil (read current, write opposite)."""
     try:
         r = client.read_coils(address=address, count=1)
@@ -238,7 +238,7 @@ def _handle_toggle_coil(client, result, *, address, name, c_label):
         result["message"] = f"Modbus write failed: {e}"
 
 
-def _handle_set_detector_offset(client, command, result):
+def _handle_set_detector_offset(client: Any, command: Dict[str, Any], result: Dict[str, Any]) -> None:
     value = command.get("value")
     if value is None:
         result["message"] = "Missing 'value' (DS5 in encoder bits)"
@@ -262,7 +262,7 @@ def _handle_set_detector_offset(client, command, result):
         result["message"] = f"Modbus write failed: {e}"
 
 
-async def _handle_clear_data_counts(client, result):
+async def _handle_clear_data_counts(client: Any, result: Dict[str, Any]) -> None:
     try:
         client.write_coil(address=14, value=True)  # C15 Clear DATA Counts
         await asyncio.sleep(0.2)
@@ -274,13 +274,13 @@ async def _handle_clear_data_counts(client, result):
         result["message"] = f"Modbus write failed: {e}"
 
 
-def _get_profile_dir():
+def _get_profile_dir() -> str:
     """Return the path to the plc-profiles config directory."""
     return os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
         os.path.abspath(__file__)))), "config", "plc-profiles")
 
 
-def _handle_list_profiles(result):
+def _handle_list_profiles(result: Dict[str, Any]) -> None:
     profile_dir = _get_profile_dir()
     profiles = []
     for f in sorted(glob.glob(os.path.join(profile_dir, "*.json"))):
@@ -301,7 +301,7 @@ def _handle_list_profiles(result):
     result["message"] = f"Found {len(profiles)} profile(s)"
 
 
-async def _handle_provision(client, command, result):
+async def _handle_provision(client: Any, command: Dict[str, Any], result: Dict[str, Any]) -> None:
     profile_name = command.get("profile", "")
     dry_run = command.get("dry_run", False)
 
@@ -460,7 +460,7 @@ async def _handle_provision(client, command, result):
     LOGGER.warning("PROVISION: Complete — %s", result["message"])
 
 
-def _handle_read_config(client, result):
+def _handle_read_config(client: Any, result: Dict[str, Any]) -> None:
     current = {}
     try:
         regs = client.read_holding_registers(address=0, count=25)
