@@ -7,6 +7,12 @@
  * POST /api/ai-diagnose
  * Body: { readings: {...} }
  * Query: ?debug=1 returns the full prompt without calling Claude
+ *
+ * Optimizations:
+ * - Prompt caching: static instructions cached via Anthropic cache_control
+ * - Compact JSON: readings stripped of nulls/metadata, no pretty-print
+ * - Vehicle history: loaded from config, not hardcoded in prompt
+ * - Truncation detection: appends notice if response hits max_tokens
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -15,45 +21,16 @@ import { runDiagnostics, formatDiagnosticNotes } from "@/lib/ai-diagnostics";
 import { AiDiagnoseBody, parseBody } from "@/lib/api-schemas";
 import { requireRole } from "@/lib/auth-guard";
 import { logAudit } from "@/lib/audit";
+import { getVehicleHistoryText } from "@/lib/vehicle-history";
+import { compactReadings, appendTruncationNotice } from "@/lib/ai-utils";
 
-export async function POST(request: NextRequest) {
-  const denied = await requireRole("/api/ai-diagnose");
-  if (denied) return denied;
-
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: "ANTHROPIC_API_KEY not configured" },
-      { status: 500 }
-    );
-  }
-
-  let rawBody: unknown;
-  try {
-    rawBody = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-  }
-
-  const parsed = parseBody(AiDiagnoseBody, rawBody);
-  if (parsed.error) {
-    return NextResponse.json(parsed.error, { status: 400 });
-  }
-
-  const { readings } = parsed.data;
-
-  const readingsText = JSON.stringify(readings, null, 2);
-
-  // Fetch historical summary (cached, 5-min TTL — calls Viam Data API directly)
-  const history = await getAiHistorySummary();
-
-  // Run automated diagnostic pattern detection on live readings
-  const diagnosticNotes = runDiagnostics(readings);
-  const diagnosticText = formatDiagnosticNotes(diagnosticNotes);
-
-  const prompt = `You are an AI diagnostic partner for mechanics and fleet managers. You have access to:
-1. LIVE vehicle data — current CAN bus readings (below)
-2. HISTORICAL TRENDS — 24h patterns, 7-day baseline comparisons, peak events, activity estimates, and DTC history (below)
+/**
+ * Static diagnosis instructions — cached via Anthropic prompt caching.
+ * Restructured as a system message (was previously a giant user message).
+ */
+const STATIC_PROMPT = `You are an AI diagnostic partner for mechanics and fleet managers. You have access to:
+1. LIVE vehicle data — current CAN bus readings (provided below)
+2. HISTORICAL TRENDS — 24h patterns, 7-day baseline comparisons, peak events, activity estimates, and DTC history (provided below)
 
 Use BOTH together for pattern-based diagnosis. A single high reading means little — but a reading that's been climbing steadily for hours, or one that's 15% above this truck's 7-day average, tells a real story. Reference specific numbers and trends in your analysis.
 
@@ -61,7 +38,7 @@ DATA NOTES: You have engine RPM, vehicle speed, temperatures, pressures, voltage
 
 IMPORTANT: The person reading this knows more about this specific vehicle than you do. A trouble code has many possible causes — present them as possibilities ranked by likelihood, not certainties. When you see a trend, explain what it could mean mechanically.
 
-Analyze this data and provide:
+Analyze the data and provide:
 
 1. **DATA SUMMARY** — What's this vehicle telling us right now? Summarize the key readings in plain English — what looks normal, what stands out, what needs a closer look. Reference the historical trends: is the current state typical or unusual for this truck? Include utilization data from ACTIVITY: trips, engine hours, idle percentage, estimated miles driven.
 
@@ -107,26 +84,65 @@ AFTERTREATMENT SYSTEM KNOWLEDGE (J1939 trucks):
 - If Protect Lamp is ON with zero active DTCs, the underlying condition persists — the ECU reasserts the lamp immediately after DTC clears.
 - NOx sensor status flags (power_ok, at_temp, reading_stable): all should be true when engine is at operating temp.
 - DEF dosing: actual and commanded rates should both be >0 g/s when engine is warm. Both N/A = dosing system disabled.
-- Common root cause chain: missing temp sensor signal → dosing disabled → efficiency collapse → inducement → Protect Lamp.
+- Common root cause chain: missing temp sensor signal → dosing disabled → efficiency collapse → inducement → Protect Lamp.`;
 
-VEHICLE HISTORY NOTES:
-- This is a B&B Metals fleet truck. Repairs are done in-house, NOT at a dealer.
-- VIN 1M2GR4GC7RM039830 (2024 Mack Granite, 786 engine hours as of April 2026): Known issue — SCR exhaust temp sensor signal missing, causing DEF dosing disabled, 28% SCR efficiency, EPA Stage 1 inducement. Repair pending: inspect sensor/wiring/connector between DPF outlet and SCR catalyst inlet (driver side, MP8). Secondary: ECM cannot see DEF level that ACM reads fine (57.6%).
-- Fleet-wide: 35.6% idle time typical for these trucks. 190.5 gal ($723) burned at idle on the Granite.
+export async function POST(request: NextRequest) {
+  const denied = await requireRole("/api/ai-diagnose");
+  if (denied) return denied;
 
-${diagnosticText ? diagnosticText + "\n\n" : ""}Here is the LIVE vehicle data:
-${readingsText}
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return NextResponse.json(
+      { error: "ANTHROPIC_API_KEY not configured" },
+      { status: 500 }
+    );
+  }
 
-${history.text}
+  let rawBody: unknown;
+  try {
+    rawBody = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
 
-${readings._dtc_history_text ? "\n" + String(readings._dtc_history_text) : ""}`;
+  const parsed = parseBody(AiDiagnoseBody, rawBody);
+  if (parsed.error) {
+    return NextResponse.json(parsed.error, { status: 400 });
+  }
+
+  const { readings } = parsed.data;
+
+  // Compact readings: strip nulls, metadata keys, no pretty-print
+  const readingsText = compactReadings(readings);
+
+  // Fetch historical summary (cached, 5-min TTL — calls Viam Data API directly)
+  const history = await getAiHistorySummary();
+
+  // Run automated diagnostic pattern detection on live readings
+  const diagnosticNotes = runDiagnostics(readings);
+  const diagnosticText = formatDiagnosticNotes(diagnosticNotes);
+
+  // Build vehicle history from config (replaces hardcoded VIN block)
+  const vehicleHistory = getVehicleHistoryText(readings);
+
+  // Dynamic data — changes per request, sent as user message
+  const dynamicData = [
+    vehicleHistory,
+    diagnosticText || null,
+    `CURRENT LIVE VEHICLE DATA:\n${readingsText}`,
+    history.text,
+    readings._dtc_history_text ? String(readings._dtc_history_text) : null,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 
   // Debug mode: return the full prompt without calling Claude
   const debug = request.nextUrl.searchParams.get("debug") === "1";
   if (debug) {
     return NextResponse.json({
       debug: true,
-      prompt,
+      staticPrompt: STATIC_PROMPT,
+      dynamicData,
       diagnosticNotes,
       historyHasData: history.hasData,
       historyDebug: history.debug,
@@ -143,17 +159,30 @@ ${readings._dtc_history_text ? "\n" + String(readings._dtc_history_text) : ""}`;
         "Content-Type": "application/json",
         "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
+        "anthropic-beta": "prompt-caching-2024-07-31",
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
         max_tokens: 2000,
-        messages: [{ role: "user", content: prompt }],
+        system: [
+          {
+            type: "text",
+            text: STATIC_PROMPT,
+            cache_control: { type: "ephemeral" },
+          },
+        ],
+        messages: [{ role: "user", content: dynamicData }],
       }),
     });
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error("[API-ERROR]", "/api/ai-diagnose", `Claude API ${response.status}:`, errText);
+      console.error(
+        "[API-ERROR]",
+        "/api/ai-diagnose",
+        `Claude API ${response.status}:`,
+        errText
+      );
       return NextResponse.json(
         { error: "Claude API error", details: errText },
         { status: 502 }
@@ -161,19 +190,24 @@ ${readings._dtc_history_text ? "\n" + String(readings._dtc_history_text) : ""}`;
     }
 
     const result = await response.json();
-    const diagnosis = result.content?.[0]?.text || "No diagnosis generated";
+    const rawDiagnosis =
+      result.content?.[0]?.text || "No diagnosis generated";
+    const diagnosis = appendTruncationNotice(result.stop_reason, rawDiagnosis);
 
-    // Log diagnosis to cloud for analysis
+    // Log diagnosis
     const logEntry = {
       type: "ai_full_diagnosis",
       timestamp: new Date().toISOString(),
       diagnosis: diagnosis.substring(0, 3000),
+      truncated: result.stop_reason === "max_tokens",
       historyAvailable: history.hasData,
       active_dtcs_obd2: Object.entries(readings)
         .filter(([k]) => k.startsWith("obd2_dtc_"))
         .map(([, v]) => v),
       active_dtcs_j1939: Object.entries(readings)
-        .filter(([k]) => /^dtc_(engine|trans|abs|acm|body|inst)_\d+_spn$/.test(k))
+        .filter(([k]) =>
+          /^dtc_(engine|trans|abs|acm|body|inst)_\d+_spn$/.test(k)
+        )
         .map(([k, v]) => `${k}=${v}`),
       active_dtc_count: readings.active_dtc_count || 0,
       engine_rpm: readings.engine_rpm,
@@ -188,16 +222,25 @@ ${readings._dtc_history_text ? "\n" + String(readings._dtc_history_text) : ""}`;
         active_dtc_count: readings.active_dtc_count || 0,
         engine_rpm: readings.engine_rpm,
         protocol: readings._protocol,
+        truncated: result.stop_reason === "max_tokens",
         diagnosis_preview: diagnosis.substring(0, 300),
       },
     });
 
-    console.log("[API-TIMING]", "/api/ai-diagnose", Date.now() - startTime, "ms");
+    console.log(
+      "[API-TIMING]",
+      "/api/ai-diagnose",
+      Date.now() - startTime,
+      "ms"
+    );
     return NextResponse.json({ success: true, diagnosis });
   } catch (err) {
     console.error("[API-ERROR]", "/api/ai-diagnose", err);
     return NextResponse.json(
-      { error: "Failed to reach Claude API", message: err instanceof Error ? err.message : String(err) },
+      {
+        error: "Failed to reach Claude API",
+        message: err instanceof Error ? err.message : String(err),
+      },
       { status: 502 }
     );
   }
