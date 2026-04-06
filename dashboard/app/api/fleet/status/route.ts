@@ -46,6 +46,10 @@ export interface TruckStatus {
   engineRunning: boolean | null;
   dtcCount: number;
   coolantTempF: number | null;
+  // Location
+  locationCity: string | null;
+  locationRegion: string | null;
+  weather: string | null;
   // Capabilities
   hasTPSMonitor: boolean;
   hasTruckDiagnostics: boolean;
@@ -93,6 +97,9 @@ async function fetchTruckStatus(truck: TruckConfig): Promise<TruckStatus> {
     engineRunning: null,
     dtcCount: 0,
     coolantTempF: null,
+    locationCity: null,
+    locationRegion: null,
+    weather: null,
     hasTPSMonitor: !!truck.tpsPartId,
     hasTruckDiagnostics: !!truck.truckPartId,
     error: null,
@@ -114,6 +121,12 @@ async function fetchTruckStatus(truck: TruckConfig): Promise<TruckStatus> {
         status.platesPerMin = num(tps.payload.plates_per_minute);
         status.speedFtpm = num(tps.payload.encoder_speed_ftpm);
         status.tpsPowerOn = bool(tps.payload.tps_power_loop);
+        const city = tps.payload.location_city;
+        const region = tps.payload.location_region;
+        const weather = tps.payload.weather;
+        if (typeof city === "string" && city) status.locationCity = city;
+        if (typeof region === "string" && region) status.locationRegion = region;
+        if (typeof weather === "string" && weather) status.weather = weather;
       }
     } catch (err) {
       status.error = `TPS: ${err instanceof Error ? err.message : String(err)}`;
@@ -195,6 +208,9 @@ export async function GET() {
         engineRunning: null,
         dtcCount: 0,
         coolantTempF: null,
+        locationCity: null,
+        locationRegion: null,
+        weather: null,
         hasTPSMonitor: !!trucks[i].tpsPartId,
         hasTruckDiagnostics: !!trucks[i].truckPartId,
         error: result.reason instanceof Error ? result.reason.message : String(result.reason),
