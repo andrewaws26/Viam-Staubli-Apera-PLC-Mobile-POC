@@ -1,7 +1,9 @@
 "use client";
 
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import ReactMarkdown, { Components } from "react-markdown";
+import type { DTCHistoryEvent } from "../lib/dtc-history";
+import { formatDTCHistoryForAI } from "../lib/dtc-history";
 
 const mdComponents: Components = {
   strong: ({ children }) => <strong className="text-white font-semibold">{children}</strong>,
@@ -20,9 +22,17 @@ interface TruckReadings {
 interface AIChatPanelProps {
   readings: TruckReadings;
   vehicleMode: "truck" | "car";
+  initialMessage?: string | null;
+  onInitialMessageConsumed?: () => void;
+  dtcHistory?: DTCHistoryEvent[];
 }
 
-export default function AIChatPanel({ readings }: AIChatPanelProps) {
+export default function AIChatPanel({
+  readings,
+  initialMessage,
+  onInitialMessageConsumed,
+  dtcHistory = [],
+}: AIChatPanelProps) {
   const [chatMessages, setChatMessages] = useState<{ role: string; content: string }[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
@@ -32,6 +42,14 @@ export default function AIChatPanel({ readings }: AIChatPanelProps) {
   const [aiDiagnosis, setAiDiagnosis] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
 
+  // Build readings payload with DTC history text injected
+  const buildPayload = useCallback(() => {
+    const historyText = formatDTCHistoryForAI(dtcHistory);
+    return historyText
+      ? { ...readings, _dtc_history_text: historyText }
+      : readings;
+  }, [readings, dtcHistory]);
+
   const runAiDiagnosis = useCallback(async () => {
     if (!readings) return;
     setAiLoading(true);
@@ -40,7 +58,7 @@ export default function AIChatPanel({ readings }: AIChatPanelProps) {
       const resp = await fetch("/api/ai-diagnose", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ readings }),
+        body: JSON.stringify({ readings: buildPayload() }),
       });
       const data = await resp.json();
       if (data.success) {
@@ -53,7 +71,7 @@ export default function AIChatPanel({ readings }: AIChatPanelProps) {
     } finally {
       setAiLoading(false);
     }
-  }, [readings]);
+  }, [readings, buildPayload]);
 
   const sendChat = useCallback(async (message?: string) => {
     const text = message || chatInput.trim();
@@ -67,7 +85,7 @@ export default function AIChatPanel({ readings }: AIChatPanelProps) {
       const resp = await fetch("/api/ai-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: updated, readings }),
+        body: JSON.stringify({ messages: updated, readings: buildPayload() }),
       });
       const data = await resp.json();
       if (data.success) {
@@ -81,7 +99,19 @@ export default function AIChatPanel({ readings }: AIChatPanelProps) {
       setChatLoading(false);
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
     }
-  }, [chatInput, chatMessages, readings]);
+  }, [chatInput, chatMessages, readings, buildPayload]);
+
+  // Handle initial message from DTC diagnose button
+  useEffect(() => {
+    if (initialMessage) {
+      setChatOpen(true);
+      const timer = setTimeout(() => {
+        sendChat(initialMessage);
+        onInitialMessageConsumed?.();
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [initialMessage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="bg-gray-900/50 rounded-2xl border border-purple-800/30 p-4 sm:p-5 mt-3">

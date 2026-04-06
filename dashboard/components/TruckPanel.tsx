@@ -29,7 +29,13 @@ import dynamic from "next/dynamic";
 
 const TruckMap = dynamic(() => import("./TruckMap"), { ssr: false });
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { lookupSPN, lookupFMI } from "../lib/spn-lookup";
+import {
+  loadDTCHistory, saveDTCHistory, clearDTCHistory,
+  buildDTCSnapshot, computeDTCDiff,
+  type DTCHistoryEvent, type DTCSnapshot,
+} from "../lib/dtc-history";
 
 interface TruckReadings {
   [key: string]: unknown;
@@ -99,6 +105,13 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
   const [dtcFlash, setDtcFlash] = useState(false);
   const driverEventsRef = React.useRef<{ type: string; time: number }[]>([]);
   const prevReadingsRef = React.useRef<TruckReadings | null>(null);
+
+  // DTC history tracking
+  const [dtcHistory, setDtcHistory] = useState<DTCHistoryEvent[]>(() => loadDTCHistory());
+  const prevDtcSnapshotRef = useRef<DTCSnapshot>({});
+
+  // AI diagnose handoff
+  const [diagMessage, setDiagMessage] = useState<string | null>(null);
 
   const simTickRef = React.useRef(0);
 
@@ -351,6 +364,18 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
       return () => clearTimeout(timer);
     }
     setPrevDtcCount(currentDtcCount);
+
+    // DTC history: diff current snapshot against previous
+    const currentSnap = buildDTCSnapshot(readings as Record<string, unknown>);
+    const newEvents = computeDTCDiff(prevDtcSnapshotRef.current, currentSnap);
+    if (newEvents.length > 0) {
+      setDtcHistory(prev => {
+        const updated = [...prev, ...newEvents].slice(-200);
+        saveDTCHistory(updated);
+        return updated;
+      });
+    }
+    prevDtcSnapshotRef.current = currentSnap;
   }, [readings, prevDtcCount]);
 
   const busConnected = readings?._bus_connected === true;
@@ -420,6 +445,18 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
         dtcCount={dtcCount}
         simMode={simMode}
         setReadings={setReadings}
+        onDiagnoseCode={(spn, fmi, ecuLabel) => {
+          const spnInfo = lookupSPN(spn);
+          const fmiText = lookupFMI(fmi);
+          setDiagMessage(
+            `Diagnose this active DTC from the ${ecuLabel} ECU: SPN ${spn} (${spnInfo.name}) / FMI ${fmi} (${fmiText}). ${spnInfo.description}. Severity: ${spnInfo.severity}. What are the most likely causes and what should I check first?`
+          );
+        }}
+        dtcHistory={dtcHistory}
+        onClearDTCHistory={() => {
+          clearDTCHistory();
+          setDtcHistory([]);
+        }}
       />
 
       {/* Sensor Gauges by category */}
@@ -433,7 +470,13 @@ export default function TruckPanel({ simMode = false }: { simMode?: boolean }) {
 
       {/* AI Mechanic Chat */}
       {busConnected && readings && (
-        <AIChatPanel readings={readings} vehicleMode={vehicleMode} />
+        <AIChatPanel
+          readings={readings}
+          vehicleMode={vehicleMode}
+          initialMessage={diagMessage}
+          onInitialMessageConsumed={() => setDiagMessage(null)}
+          dtcHistory={dtcHistory}
+        />
       )}
 
       {/* Not connected state */}

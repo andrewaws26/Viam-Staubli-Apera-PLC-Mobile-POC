@@ -3,6 +3,8 @@
 import React, { useState } from "react";
 import { lookupSPN, lookupFMI } from "../lib/spn-lookup";
 import { lookupPCode } from "../lib/pcode-lookup";
+import { ECU_SOURCES, type DTCHistoryEvent } from "../lib/dtc-history";
+import DTCTimeline from "./DTCTimeline";
 import { formatValue } from "./GaugeGrid";
 
 interface TruckReadings {
@@ -16,17 +18,6 @@ const LAMP_NAMES: Record<string, string> = {
   protect_lamp: "PROT",
 };
 
-// J1939 ECU source addresses that report DTCs via DM1.
-// Must match SA_SUFFIX in j1939_dtc.py.
-const ECU_SOURCES = [
-  { suffix: "engine", label: "Engine" },
-  { suffix: "trans", label: "Transmission" },
-  { suffix: "abs", label: "ABS" },
-  { suffix: "acm", label: "Aftertreatment" },
-  { suffix: "body", label: "Body" },
-  { suffix: "inst", label: "Instrument" },
-] as const;
-
 type VehicleMode = "truck" | "car";
 
 interface DTCPanelProps {
@@ -36,6 +27,9 @@ interface DTCPanelProps {
   dtcCount: number;
   simMode: boolean;
   setReadings: React.Dispatch<React.SetStateAction<TruckReadings | null>>;
+  onDiagnoseCode?: (spn: number, fmi: number, ecuLabel: string) => void;
+  dtcHistory?: DTCHistoryEvent[];
+  onClearDTCHistory?: () => void;
 }
 
 export default function DTCPanel({
@@ -45,6 +39,9 @@ export default function DTCPanel({
   dtcCount,
   simMode,
   setReadings,
+  onDiagnoseCode,
+  dtcHistory = [],
+  onClearDTCHistory,
 }: DTCPanelProps) {
   const [clearing, setClearing] = useState(false);
   const [clearResult, setClearResult] = useState<string | null>(null);
@@ -241,6 +238,14 @@ export default function DTCPanel({
                     <div className="text-xs sm:text-sm text-green-400 bg-green-950/30 rounded-lg px-3 py-2 border border-green-800/30">
                       <span className="font-bold">Fix: </span>{spnInfo.fix}
                     </div>
+                    {onDiagnoseCode && (
+                      <button
+                        onClick={() => onDiagnoseCode(spn, fmi, label)}
+                        className="mt-2 w-full min-h-[44px] px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wider bg-purple-900/50 hover:bg-purple-800 text-purple-300 border border-purple-700/50 transition-colors"
+                      >
+                        Diagnose This Code with AI
+                      </button>
+                    )}
                   </div>
                 );
               });
@@ -420,6 +425,11 @@ export default function DTCPanel({
             </div>
           )}
         </div>
+      )}
+
+      {/* DTC History Timeline — always visible when history exists */}
+      {dtcHistory.length > 0 && onClearDTCHistory && (
+        <DTCTimeline events={dtcHistory} onClear={onClearDTCHistory} />
       )}
     </>
   );

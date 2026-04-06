@@ -118,6 +118,8 @@ ${readingsText}
 
 ${history.text}
 
+${readings._dtc_history_text ? "\n" + String(readings._dtc_history_text) : ""}
+
 FORMATTING: Keep responses concise and readable. Use short paragraphs, not markdown headers. Bold key terms with **term**. Use bullet points sparingly. Do NOT use ## or ### headers — the chat UI doesn't render them well.
 
 ETHICAL BOUNDARIES:
@@ -213,9 +215,12 @@ async function logConversation(
     message_count: messages.length,
     last_user_message: messages.filter(m => m.role === "user").pop()?.content || "",
     ai_response: aiReply.substring(0, 2000), // Truncate to save space
-    active_dtcs: Object.entries(readings)
+    active_dtcs_obd2: Object.entries(readings)
       .filter(([k]) => k.startsWith("obd2_dtc_"))
       .map(([, v]) => v),
+    active_dtcs_j1939: Object.entries(readings)
+      .filter(([k]) => /^dtc_(engine|trans|abs|acm|body|inst)_\d+_spn$/.test(k))
+      .map(([k, v]) => `${k}=${v}`),
     active_dtc_count: readings.active_dtc_count || 0,
     engine_rpm: readings.engine_rpm,
     coolant_temp_f: readings.coolant_temp_f,
