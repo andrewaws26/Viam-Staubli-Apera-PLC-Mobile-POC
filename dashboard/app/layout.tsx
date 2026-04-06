@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { ClerkProvider } from "@clerk/nextjs";
 import { Analytics } from "@vercel/analytics/react";
 import "./globals.css";
 
@@ -28,10 +29,19 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="bg-gray-950 text-white antialiased">
-        {/* TODO: Wrap with <ClerkProvider> once @clerk/nextjs is installed */}
-        {/* <ClerkProvider> */}
-        {children}
-        {/* </ClerkProvider> */}
+        <ClerkProvider
+          appearance={{
+            variables: {
+              colorPrimary: "#7c3aed",
+              colorBackground: "#030712",
+              colorText: "#f3f4f6",
+              colorInputBackground: "#111827",
+              colorInputText: "#f3f4f6",
+            },
+          }}
+        >
+          {children}
+        </ClerkProvider>
         <Analytics />
         <script
           dangerouslySetInnerHTML={{

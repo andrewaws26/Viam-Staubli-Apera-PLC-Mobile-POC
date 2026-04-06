@@ -13,6 +13,7 @@ import HistoryPanel from "./HistoryPanel";
 import TruckPanel from "./TruckPanel";
 import PiHealthCard from "./PiHealthCard";
 import ConnectionDot from "./ConnectionDot";
+import { UserButton } from "@clerk/nextjs";
 import { useAlarm, FlashOverlay } from "./DashboardAudio";
 import { useSensorPolling } from "../hooks/useSensorPolling";
 
@@ -91,6 +92,13 @@ export default function Dashboard() {
               status={simMode ? "connected" : connectionStatus}
               dataAge={simMode ? null : connectionDataAge}
               error={simMode ? null : connectionError}
+            />
+            <UserButton
+              appearance={{
+                elements: {
+                  avatarBox: "w-9 h-9",
+                },
+              }}
             />
           </div>
         </header>
