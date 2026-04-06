@@ -16,9 +16,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createViamClient } from "@viamrobotics/sdk";
+import { getDataClient, resetDataClient, type TabularDataPoint } from "@/lib/viam-data";
 
-import type { CachedViamClient, TabularDataPoint } from "./types";
 import { parseRows, timeBounds, shiftToHours, buildShiftReport } from "./aggregation";
 
 // ---------------------------------------------------------------------------
@@ -30,45 +29,6 @@ const TRUCK_PART_ID = process.env.TRUCK_VIAM_PART_ID || "ca039781-665c-47e3-9bc5
 const RESOURCE_SUBTYPE = "rdk:component:sensor";
 const METHOD_NAME = "Readings";
 const TZ = "America/New_York"; // Louisville, KY
-
-// ---------------------------------------------------------------------------
-// Viam Data API client (cached, same pattern as sensor-history/truck-history)
-// ---------------------------------------------------------------------------
-
-let _viamClient: CachedViamClient | null = null;
-let _connecting = false;
-
-function getCachedClient(): CachedViamClient | null {
-  return _viamClient;
-}
-
-async function getDataClient(): Promise<CachedViamClient["dataClient"]> {
-  const cached = getCachedClient();
-  if (cached) return cached.dataClient;
-  if (_connecting) {
-    await new Promise((r) => setTimeout(r, 500));
-    const retried = getCachedClient();
-    if (retried) return retried.dataClient;
-    throw new Error("Connection in progress");
-  }
-
-  const apiKey = process.env.VIAM_API_KEY;
-  const apiKeyId = process.env.VIAM_API_KEY_ID;
-  if (!apiKey || !apiKeyId) {
-    throw new Error("Missing Viam API credentials (VIAM_API_KEY, VIAM_API_KEY_ID)");
-  }
-
-  _connecting = true;
-  try {
-    const client = await createViamClient({
-      credentials: { type: "api-key", authEntity: apiKeyId, payload: apiKey },
-    });
-    _viamClient = client as unknown as CachedViamClient;
-    return _viamClient.dataClient;
-  } finally {
-    _connecting = false;
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Request validation helpers
@@ -113,13 +73,11 @@ export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
   const includeDebug = params.get("debug") === "1";
 
-  // Validate date
   const { dateStr, error: dateError } = parseDateParam(params);
   if (dateError) {
     return NextResponse.json({ error: dateError }, { status: 400 });
   }
 
-  // Determine time range
   const { start, end, error: timeError } = parseTimeRange(params, dateStr);
   if (timeError) {
     return NextResponse.json({ error: timeError }, { status: 400 });
@@ -141,10 +99,8 @@ export async function GET(request: NextRequest) {
     const tpsPoints = parseRows(tpsRows);
     const truckPoints = parseRows(truckRows);
 
-    // Build the report via aggregation utilities
     const report = buildShiftReport(tpsPoints, truckPoints, dateStr, start, end, includeDebug, TZ);
 
-    // Cache: historical shifts can be cached longer
     const isHistorical = end.getTime() < Date.now();
     const cacheControl = isHistorical
       ? "public, max-age=3600, s-maxage=3600"
@@ -155,7 +111,7 @@ export async function GET(request: NextRequest) {
       headers: { "Cache-Control": cacheControl },
     });
   } catch (err) {
-    _viamClient = null;
+    resetDataClient();
     console.error("[API-ERROR]", "/api/shift-report", err);
     return NextResponse.json(
       { error: "shift_report_failed", message: err instanceof Error ? err.message : String(err) },

@@ -11,35 +11,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { fetchTruckData, buildTruckSummary, resetTruckDataClient } from "@/lib/truck-data";
-import type { RawPoint } from "@/lib/truck-data";
-import { getDataClient, resetDataClient } from "@/lib/viam-data";
+import { fetchSensorData, resetDataClient } from "@/lib/viam-data";
 import { getTruckById, getDefaultTruck } from "@/lib/machines";
-
-/**
- * Fetch truck data for a specific part ID via the shared Viam Data client.
- * Used when truck_id targets a non-default truck (truck-data.ts is left as-is).
- */
-async function fetchTruckDataForPartId(partId: string, hours: number): Promise<RawPoint[]> {
-  const dc = await getDataClient();
-  const endTime = new Date();
-  const startTime = new Date(endTime.getTime() - hours * 3600000);
-
-  const rows = await dc.exportTabularData(
-    partId, "truck-engine", "rdk:component:sensor", "Readings", startTime, endTime,
-  );
-
-  const points: RawPoint[] = rows.map((row) => {
-    const raw = (typeof row.payload === "object" && row.payload !== null ? row.payload : {}) as Record<string, unknown>;
-    const readings = (typeof raw.readings === "object" && raw.readings !== null ? raw.readings : raw) as Record<string, unknown>;
-    return {
-      timeCaptured: row.timeCaptured instanceof Date ? row.timeCaptured : new Date(String(row.timeCaptured)),
-      payload: readings,
-    };
-  });
-
-  points.sort((a, b) => a.timeCaptured.getTime() - b.timeCaptured.getTime());
-  return points;
-}
 
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
@@ -56,10 +29,9 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Use existing fetchTruckData for default truck (backward compat),
-    // inline fetch for fleet trucks (truck-data.ts is not modified)
+    // Use shared fetchSensorData for fleet trucks, fetchTruckData for default
     const points = truckId
-      ? await fetchTruckDataForPartId(truck.truckPartId, hours)
+      ? await fetchSensorData(truck.truckPartId, "truck-engine", hours)
       : await fetchTruckData(hours);
 
     // Collect distinct VINs before filtering (for the vehicle selector)

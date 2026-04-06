@@ -2,39 +2,12 @@
  * Type definitions for the Shift Report API.
  *
  * Shared between route.ts (request handling) and aggregation.ts (data processing).
+ * Viam Data API types are re-exported from the shared client module.
  */
 
-// ---------------------------------------------------------------------------
-// Viam Data API types
-// ---------------------------------------------------------------------------
-
-export interface CachedViamClient {
-  dataClient: {
-    exportTabularData(
-      partId: string,
-      resourceName: string,
-      resourceSubtype: string,
-      methodName: string,
-      startTime?: Date,
-      endTime?: Date,
-    ): Promise<TabularDataPoint[]>;
-  };
-}
-
-export interface TabularDataPoint {
-  timeCaptured: Date;
-  payload: unknown;
-  [key: string]: unknown;
-}
-
-// ---------------------------------------------------------------------------
-// Parsed data point (after unwrapping payload.readings)
-// ---------------------------------------------------------------------------
-
-export interface RawPoint {
-  timeCaptured: Date;
-  payload: Record<string, unknown>;
-}
+// Re-export Viam types from the shared client so aggregation.ts doesn't
+// need to know about lib/viam-data directly.
+export type { CachedViamClient, TabularDataPoint, RawPoint } from "@/lib/viam-data";
 
 // ---------------------------------------------------------------------------
 // Report sub-types

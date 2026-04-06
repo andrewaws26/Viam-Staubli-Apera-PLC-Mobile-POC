@@ -9,72 +9,8 @@
  */
 
 import { NextResponse } from "next/server";
-import { createViamClient } from "@viamrobotics/sdk";
+import { getLatestReading, resetDataClient } from "@/lib/viam-data";
 import { getTruckConfigs, type TruckConfig } from "@/lib/machines";
-
-// ---------------------------------------------------------------------------
-// Viam Data Client (cached, same pattern as sensor-readings route)
-// ---------------------------------------------------------------------------
-
-interface CachedViamClient {
-  dataClient: {
-    exportTabularData(
-      partId: string,
-      resourceName: string,
-      resourceSubtype: string,
-      methodName: string,
-      startTime?: Date,
-      endTime?: Date,
-    ): Promise<TabularDataPoint[]>;
-  };
-}
-
-interface TabularDataPoint {
-  timeCaptured: Date;
-  payload: unknown;
-  [key: string]: unknown;
-}
-
-let _viamClient: CachedViamClient | null = null;
-let _connecting = false;
-
-const RESOURCE_SUBTYPE = "rdk:component:sensor";
-const METHOD_NAME = "Readings";
-const DATA_WINDOW_SECONDS = 300; // 5-minute lookback
-
-function getCachedClient(): CachedViamClient | null {
-  return _viamClient;
-}
-
-async function getDataClient(): Promise<CachedViamClient["dataClient"]> {
-  const existing = getCachedClient();
-  if (existing) return existing.dataClient;
-
-  if (_connecting) {
-    await new Promise((r) => setTimeout(r, 500));
-    const retried = getCachedClient();
-    if (retried) return retried.dataClient;
-    throw new Error("Connection in progress");
-  }
-
-  const apiKey = process.env.VIAM_API_KEY;
-  const apiKeyId = process.env.VIAM_API_KEY_ID;
-
-  if (!apiKey || !apiKeyId) {
-    throw new Error("Missing Viam API credentials (VIAM_API_KEY, VIAM_API_KEY_ID)");
-  }
-
-  _connecting = true;
-  try {
-    const client = await createViamClient({
-      credentials: { type: "api-key", authEntity: apiKeyId, payload: apiKey },
-    });
-    _viamClient = client as unknown as CachedViamClient;
-    return _viamClient.dataClient;
-  } finally {
-    _connecting = false;
-  }
-}
 
 // ---------------------------------------------------------------------------
 // In-memory cache (5-second TTL)
@@ -117,18 +53,8 @@ export interface TruckStatus {
 }
 
 // ---------------------------------------------------------------------------
-// Query helpers
+// Helpers
 // ---------------------------------------------------------------------------
-
-function unwrapReadings(payload: unknown): Record<string, unknown> {
-  const raw = (typeof payload === "object" && payload !== null
-    ? payload
-    : {}) as Record<string, unknown>;
-  const readings = (typeof raw.readings === "object" && raw.readings !== null
-    ? raw.readings
-    : raw) as Record<string, unknown>;
-  return readings;
-}
 
 function num(val: unknown): number | null {
   if (typeof val === "number") return val;
@@ -146,55 +72,11 @@ function bool(val: unknown): boolean | null {
   return null;
 }
 
-async function queryLatestReading(
-  dc: CachedViamClient["dataClient"],
-  partId: string,
-  componentName: string,
-): Promise<{ readings: Record<string, unknown>; capturedAt: Date } | null> {
-  const endTime = new Date();
-  const startTime = new Date(endTime.getTime() - DATA_WINDOW_SECONDS * 1000);
-
-  const rows = await dc.exportTabularData(
-    partId,
-    componentName,
-    RESOURCE_SUBTYPE,
-    METHOD_NAME,
-    startTime,
-    endTime,
-  );
-
-  if (!rows || rows.length === 0) return null;
-
-  // Find the newest row
-  let latest = rows[0];
-  let latestTime = latest.timeCaptured instanceof Date
-    ? latest.timeCaptured.getTime()
-    : new Date(String(latest.timeCaptured)).getTime();
-
-  for (let i = 1; i < rows.length; i++) {
-    const t = rows[i].timeCaptured instanceof Date
-      ? rows[i].timeCaptured.getTime()
-      : new Date(String(rows[i].timeCaptured)).getTime();
-    if (t > latestTime) {
-      latest = rows[i];
-      latestTime = t;
-    }
-  }
-
-  return {
-    readings: unwrapReadings(latest.payload),
-    capturedAt: new Date(latestTime),
-  };
-}
-
 // ---------------------------------------------------------------------------
 // Build status for a single truck
 // ---------------------------------------------------------------------------
 
-async function fetchTruckStatus(
-  dc: CachedViamClient["dataClient"],
-  truck: TruckConfig,
-): Promise<TruckStatus> {
+async function fetchTruckStatus(truck: TruckConfig): Promise<TruckStatus> {
   const status: TruckStatus = {
     id: truck.id,
     name: truck.name,
@@ -222,16 +104,16 @@ async function fetchTruckStatus(
   // Query TPS data
   if (truck.tpsPartId) {
     try {
-      const tps = await queryLatestReading(dc, truck.tpsPartId, "plc-monitor");
+      const tps = await getLatestReading(truck.tpsPartId, "plc-monitor");
       if (tps) {
         status.tpsOnline = true;
-        const t = tps.capturedAt.getTime();
+        const t = tps.timeCaptured.getTime();
         if (!latestTimestamp || t > latestTimestamp) latestTimestamp = t;
 
-        status.plateCount = num(tps.readings.plate_drop_count);
-        status.platesPerMin = num(tps.readings.plates_per_minute);
-        status.speedFtpm = num(tps.readings.encoder_speed_ftpm);
-        status.tpsPowerOn = bool(tps.readings.tps_power_loop);
+        status.plateCount = num(tps.payload.plate_drop_count);
+        status.platesPerMin = num(tps.payload.plates_per_minute);
+        status.speedFtpm = num(tps.payload.encoder_speed_ftpm);
+        status.tpsPowerOn = bool(tps.payload.tps_power_loop);
       }
     } catch (err) {
       status.error = `TPS: ${err instanceof Error ? err.message : String(err)}`;
@@ -241,18 +123,18 @@ async function fetchTruckStatus(
   // Query truck engine data
   if (truck.truckPartId) {
     try {
-      const eng = await queryLatestReading(dc, truck.truckPartId, "truck-engine");
+      const eng = await getLatestReading(truck.truckPartId, "truck-engine");
       if (eng) {
         status.truckOnline = true;
-        const t = eng.capturedAt.getTime();
+        const t = eng.timeCaptured.getTime();
         if (!latestTimestamp || t > latestTimestamp) latestTimestamp = t;
 
-        status.engineRpm = num(eng.readings.engine_rpm);
+        status.engineRpm = num(eng.payload.engine_rpm);
         status.engineRunning = status.engineRpm !== null ? status.engineRpm > 0 : null;
-        status.coolantTempF = num(eng.readings.coolant_temp_f);
+        status.coolantTempF = num(eng.payload.coolant_temp_f);
 
         // Count active DTCs
-        const dtcActive = eng.readings.dtc_active;
+        const dtcActive = eng.payload.dtc_active;
         if (Array.isArray(dtcActive)) {
           status.dtcCount = dtcActive.length;
         } else if (typeof dtcActive === "number") {
@@ -289,16 +171,14 @@ export async function GET() {
   }
 
   try {
-    const dc = await getDataClient();
     const trucks = getTruckConfigs();
 
     const results = await Promise.allSettled(
-      trucks.map((truck) => fetchTruckStatus(dc, truck)),
+      trucks.map((truck) => fetchTruckStatus(truck)),
     );
 
     const statuses: TruckStatus[] = results.map((result, i) => {
       if (result.status === "fulfilled") return result.value;
-      // If the promise itself rejected, return an error status
       return {
         id: trucks[i].id,
         name: trucks[i].name,
@@ -321,7 +201,6 @@ export async function GET() {
       } satisfies TruckStatus;
     });
 
-    // Update cache
     _cache = { data: statuses, timestamp: Date.now() };
 
     return NextResponse.json({
@@ -330,7 +209,7 @@ export async function GET() {
       timestamp: new Date().toISOString(),
     });
   } catch (err) {
-    _viamClient = null;
+    resetDataClient();
     console.error("[API-ERROR]", "/api/fleet/status", err);
     return NextResponse.json(
       { error: "fleet_query_failed", message: err instanceof Error ? err.message : String(err) },

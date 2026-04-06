@@ -1,7 +1,7 @@
 /**
  * API route to get Pi health data via Viam Data API.
  *
- * Uses createViamClient + dataClient.exportTabularData() over HTTPS.
+ * Uses the shared Viam Data client (lib/viam-data.ts) over HTTPS.
  * No WebRTC, no NEXT_PUBLIC_ env vars — works on Vercel serverless and
  * through CGNAT (iPhone hotspot).
  *
@@ -9,40 +9,11 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createViamClient } from "@viamrobotics/sdk";
+import { getLatestReading, resetDataClient } from "@/lib/viam-data";
 import { getTruckById } from "@/lib/machines";
-
-// ---------------------------------------------------------------------------
-// Cached ViamClient for data queries (HTTPS only)
-// ---------------------------------------------------------------------------
-
-interface CachedViamClient {
-  dataClient: {
-    exportTabularData(
-      partId: string,
-      resourceName: string,
-      resourceSubtype: string,
-      methodName: string,
-      startTime?: Date,
-      endTime?: Date,
-    ): Promise<TabularDataPoint[]>;
-  };
-}
-
-interface TabularDataPoint {
-  timeCaptured: Date;
-  payload: unknown;
-  [key: string]: unknown;
-}
-
-let _viamClient: CachedViamClient | null = null;
-let _connecting = false;
 
 const TPS_PART_ID = process.env.VIAM_PART_ID || "7c24d42f-1d66-4cae-81a4-97e3ff9404b4";
 const TRUCK_PART_ID = process.env.TRUCK_VIAM_PART_ID || "ca039781-665c-47e3-9bc5-35f603f3baf1";
-const RESOURCE_SUBTYPE = "rdk:component:sensor";
-const METHOD_NAME = "Readings";
-const DATA_WINDOW_SECONDS = 300; // Look back 5 minutes for latest reading
 
 const HOST_CONFIGS: Record<string, { partId: string; component: string; hostname: string; tailscaleIp: string; defaultMemTotal: number }> = {
   tps: {
@@ -60,39 +31,6 @@ const HOST_CONFIGS: Record<string, { partId: string; component: string; hostname
     defaultMemTotal: 512,
   },
 };
-
-function getCachedClient(): CachedViamClient | null {
-  return _viamClient;
-}
-
-async function getDataClient(): Promise<CachedViamClient["dataClient"]> {
-  const cached = getCachedClient();
-  if (cached) return cached.dataClient;
-  if (_connecting) {
-    await new Promise((r) => setTimeout(r, 500));
-    const retried = getCachedClient();
-    if (retried) return retried.dataClient;
-    throw new Error("Connection in progress");
-  }
-
-  const apiKey = process.env.VIAM_API_KEY;
-  const apiKeyId = process.env.VIAM_API_KEY_ID;
-
-  if (!apiKey || !apiKeyId) {
-    throw new Error("Missing Viam API credentials (VIAM_API_KEY, VIAM_API_KEY_ID)");
-  }
-
-  _connecting = true;
-  try {
-    const client = await createViamClient({
-      credentials: { type: "api-key", authEntity: apiKeyId, payload: apiKey },
-    });
-    _viamClient = client as unknown as CachedViamClient;
-    return _viamClient.dataClient;
-  } finally {
-    _connecting = false;
-  }
-}
 
 export async function GET(request: NextRequest) {
   const host = request.nextUrl.searchParams.get("host") || "tps";
@@ -122,21 +60,9 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const dc = await getDataClient();
-    const endTime = new Date();
-    const startTime = new Date(endTime.getTime() - DATA_WINDOW_SECONDS * 1000);
+    const result = await getLatestReading(config.partId, config.component);
 
-    const rows = await dc.exportTabularData(
-      config.partId,
-      config.component,
-      RESOURCE_SUBTYPE,
-      METHOD_NAME,
-      startTime,
-      endTime,
-    );
-
-    if (!rows || rows.length === 0) {
-      // No recent data — report offline but with 200 so the card shows offline state
+    if (!result) {
       return NextResponse.json({
         hostname: config.hostname,
         online: false,
@@ -145,27 +71,8 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Take the newest data point
-    const sorted = rows.sort((a, b) => {
-      const ta = a.timeCaptured instanceof Date ? a.timeCaptured.getTime() : new Date(String(a.timeCaptured)).getTime();
-      const tb = b.timeCaptured instanceof Date ? b.timeCaptured.getTime() : new Date(String(b.timeCaptured)).getTime();
-      return ta - tb;
-    });
-
-    const latest = sorted[sorted.length - 1];
-    const capturedAt = latest.timeCaptured instanceof Date
-      ? latest.timeCaptured
-      : new Date(String(latest.timeCaptured));
-
-    // Unwrap payload.readings (Viam Cloud nesting)
-    const raw = (typeof latest.payload === "object" && latest.payload !== null
-      ? latest.payload
-      : {}) as Record<string, unknown>;
-    const r = (typeof raw.readings === "object" && raw.readings !== null
-      ? raw.readings
-      : raw) as Record<string, unknown>;
-
-    const dataAgeSec = Math.round((endTime.getTime() - capturedAt.getTime()) / 1000);
+    const r = result.payload;
+    const dataAgeSec = Math.round((Date.now() - result.timeCaptured.getTime()) / 1000);
 
     return NextResponse.json({
       hostname: config.hostname,
@@ -188,7 +95,7 @@ export async function GET(request: NextRequest) {
       _data_age_seconds: dataAgeSec,
     });
   } catch (err) {
-    _viamClient = null;
+    resetDataClient();
     console.error("[API-ERROR]", "/api/pi-health", err);
     return NextResponse.json({
       hostname: config.hostname,

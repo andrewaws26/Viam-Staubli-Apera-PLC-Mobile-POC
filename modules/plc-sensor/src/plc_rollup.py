@@ -1,0 +1,215 @@
+"""Hourly rollup computation for fleet-scale dashboard queries.
+
+Instead of the dashboard fetching 604,800 raw 1Hz readings for a 7-day
+query, each Pi computes hourly summary stats and includes them in every
+sensor reading. The dashboard can then read just the latest reading to
+get pre-aggregated history.
+
+The rollup maintains a ring buffer of the last 168 hourly buckets (7 days).
+Each bucket stores min/max/avg/count for key production metrics. The
+entire rollup is included in every get_readings() call as a compact JSON
+string under the `_hourly_rollup` field.
+
+Design:
+  - Zero config: no database, no extra Viam component, no cron job
+  - Survives restart: pickled to disk every hour
+  - Small: ~168 buckets × ~20 fields × 4 stats = ~50KB JSON
+  - Dashboard reads ONE reading and gets 7 days of history
+
+Usage in plc_sensor.py:
+    from plc_rollup import HourlyRollup
+    rollup = HourlyRollup("/home/andrew/.viam/rollup")
+    # In get_readings():
+    rollup.ingest(readings)
+    readings["_hourly_rollup"] = rollup.to_json()
+"""
+
+import json
+import os
+import pickle
+import time
+from collections import defaultdict
+from typing import Any
+
+from viam.logging import getLogger
+
+LOGGER = getLogger(__name__)
+
+# How many hourly buckets to keep (7 days)
+MAX_BUCKETS = 168
+
+# Fields to aggregate. Each becomes {field}_min, {field}_max, {field}_avg in the rollup.
+ROLLUP_FIELDS = [
+    "encoder_speed_ftpm",
+    "encoder_distance_ft",
+    "plate_drop_count",
+    "plates_per_minute",
+    "ds7_plate_count",
+    "ds8_avg_plates_per_min",
+    "ds10_encoder_next_tie",
+]
+
+# Boolean fields to aggregate as percentage (fraction of time true)
+ROLLUP_BOOL_FIELDS = [
+    "tps_power_loop",
+    "camera_signal",
+    "drop_detector_eject",
+    "drop_encoder_eject",
+]
+
+
+class HourlyBucket:
+    """Accumulates min/max/sum/count for one hour of readings."""
+
+    __slots__ = ("hour_key", "count", "sums", "mins", "maxs", "bool_true_counts")
+
+    def __init__(self, hour_key: str):
+        self.hour_key = hour_key
+        self.count = 0
+        self.sums: dict[str, float] = defaultdict(float)
+        self.mins: dict[str, float] = {}
+        self.maxs: dict[str, float] = {}
+        self.bool_true_counts: dict[str, int] = defaultdict(int)
+
+    def ingest(self, readings: dict[str, Any]) -> None:
+        self.count += 1
+        for field in ROLLUP_FIELDS:
+            val = readings.get(field)
+            if val is None or not isinstance(val, (int, float)):
+                continue
+            self.sums[field] += val
+            if field not in self.mins or val < self.mins[field]:
+                self.mins[field] = val
+            if field not in self.maxs or val > self.maxs[field]:
+                self.maxs[field] = val
+        for field in ROLLUP_BOOL_FIELDS:
+            val = readings.get(field)
+            if val is True or val == 1:
+                self.bool_true_counts[field] += 1
+
+    def to_dict(self) -> dict[str, Any]:
+        result: dict[str, Any] = {
+            "hour": self.hour_key,
+            "count": self.count,
+        }
+        for field in ROLLUP_FIELDS:
+            if field in self.sums and self.count > 0:
+                result[f"{field}_avg"] = round(self.sums[field] / self.count, 2)
+            if field in self.mins:
+                result[f"{field}_min"] = round(self.mins[field], 2)
+            if field in self.maxs:
+                result[f"{field}_max"] = round(self.maxs[field], 2)
+        for field in ROLLUP_BOOL_FIELDS:
+            if self.count > 0:
+                result[f"{field}_pct"] = round(
+                    self.bool_true_counts[field] / self.count * 100, 1
+                )
+        return result
+
+
+class HourlyRollup:
+    """Ring buffer of hourly summary buckets.
+
+    Persists to disk as a pickle file so rollups survive Pi restarts.
+    """
+
+    def __init__(self, persist_dir: str | None = None):
+        self._buckets: dict[str, HourlyBucket] = {}
+        self._persist_path: str | None = None
+        self._last_persist = 0.0
+
+        if persist_dir:
+            os.makedirs(persist_dir, exist_ok=True)
+            self._persist_path = os.path.join(persist_dir, "plc_rollup.pkl")
+            self._load()
+
+    def _current_hour_key(self) -> str:
+        """Hour key like '2026-04-06T14' (UTC)."""
+        return time.strftime("%Y-%m-%dT%H", time.gmtime())
+
+    def ingest(self, readings: dict[str, Any]) -> None:
+        """Add a single 1Hz reading to the current hour's bucket."""
+        key = self._current_hour_key()
+        if key not in self._buckets:
+            self._buckets[key] = HourlyBucket(key)
+            self._prune()
+        self._buckets[key].ingest(readings)
+
+        # Persist every 10 minutes
+        now = time.monotonic()
+        if self._persist_path and now - self._last_persist > 600:
+            self._save()
+            self._last_persist = now
+
+    def to_json(self) -> str:
+        """Serialize all buckets as a compact JSON string."""
+        # Sort by hour key so most recent is last
+        sorted_keys = sorted(self._buckets.keys())
+        buckets = [self._buckets[k].to_dict() for k in sorted_keys]
+        return json.dumps(buckets, separators=(",", ":"))
+
+    def to_summary(self) -> dict[str, Any]:
+        """Return a compact summary dict (latest 24h stats) for the reading."""
+        now_key = self._current_hour_key()
+        sorted_keys = sorted(self._buckets.keys())
+
+        # Last 24 hours
+        recent_keys = sorted_keys[-24:] if len(sorted_keys) >= 24 else sorted_keys
+
+        total_readings = sum(self._buckets[k].count for k in recent_keys)
+        if total_readings == 0:
+            return {"rollup_hours": 0, "rollup_readings_24h": 0}
+
+        summary: dict[str, Any] = {
+            "rollup_hours": len(sorted_keys),
+            "rollup_readings_24h": total_readings,
+            "rollup_oldest_hour": sorted_keys[0] if sorted_keys else None,
+            "rollup_newest_hour": sorted_keys[-1] if sorted_keys else None,
+        }
+
+        # Aggregate across the 24h window
+        for field in ROLLUP_FIELDS:
+            mins = [self._buckets[k].mins[field] for k in recent_keys if field in self._buckets[k].mins]
+            maxs = [self._buckets[k].maxs[field] for k in recent_keys if field in self._buckets[k].maxs]
+            if mins:
+                summary[f"rollup_{field}_min"] = round(min(mins), 2)
+            if maxs:
+                summary[f"rollup_{field}_max"] = round(max(maxs), 2)
+
+        for field in ROLLUP_BOOL_FIELDS:
+            true_total = sum(self._buckets[k].bool_true_counts[field] for k in recent_keys)
+            summary[f"rollup_{field}_pct"] = round(true_total / total_readings * 100, 1)
+
+        return summary
+
+    def _prune(self) -> None:
+        """Remove buckets older than MAX_BUCKETS hours."""
+        if len(self._buckets) <= MAX_BUCKETS:
+            return
+        sorted_keys = sorted(self._buckets.keys())
+        excess = len(sorted_keys) - MAX_BUCKETS
+        for key in sorted_keys[:excess]:
+            del self._buckets[key]
+
+    def _save(self) -> None:
+        if not self._persist_path:
+            return
+        try:
+            tmp = self._persist_path + ".tmp"
+            with open(tmp, "wb") as f:
+                pickle.dump(self._buckets, f, protocol=pickle.HIGHEST_PROTOCOL)
+            os.replace(tmp, self._persist_path)
+        except Exception as exc:
+            LOGGER.warning("Rollup save failed: %s", exc)
+
+    def _load(self) -> None:
+        if not self._persist_path or not os.path.exists(self._persist_path):
+            return
+        try:
+            with open(self._persist_path, "rb") as f:
+                self._buckets = pickle.load(f)
+            LOGGER.info("Loaded rollup: %d hourly buckets", len(self._buckets))
+            self._prune()
+        except Exception as exc:
+            LOGGER.warning("Rollup load failed (starting fresh): %s", exc)
+            self._buckets = {}

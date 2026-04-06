@@ -1,0 +1,20 @@
+{
+  "$schema": "./fleet.schema.json",
+  "_comment": [
+    "Fleet truck registry — maps truck IDs to Viam machine Part IDs.",
+    "Add a new truck by copying an entry and filling in the Part IDs from app.viam.com.",
+    "The dashboard reads this file at startup. Changes require a redeploy on Vercel",
+    "or a restart of the dev server."
+  ],
+  "trucks": [
+    {
+      "id": "truck-01",
+      "name": "Truck 01",
+      "tpsPartId": "",
+      "truckPartId": "",
+      "tpsMachineAddress": "",
+      "truckMachineAddress": "",
+      "_comment": "Part IDs filled from env vars at runtime when empty (backward compat)"
+    }
+  ]
+}

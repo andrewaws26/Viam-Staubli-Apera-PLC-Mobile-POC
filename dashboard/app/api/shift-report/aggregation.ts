@@ -9,6 +9,7 @@ import type {
   RawPoint, TabularDataPoint, ShiftAlert, Trip, DtcEvent,
   TimeSeriesPoint, RoutePoint, Stop, RouteData, DebugData, ShiftReport,
 } from "./types";
+import { unwrapPayload, normalizeTimestamp } from "@/lib/viam-data";
 
 // ---------------------------------------------------------------------------
 // Primitive converters
@@ -32,14 +33,10 @@ export function bool(val: unknown): boolean {
 
 export function parseRows(rows: TabularDataPoint[]): RawPoint[] {
   return rows
-    .map((row) => {
-      const raw = (typeof row.payload === "object" && row.payload !== null ? row.payload : {}) as Record<string, unknown>;
-      const readings = (typeof raw.readings === "object" && raw.readings !== null ? raw.readings : raw) as Record<string, unknown>;
-      return {
-        timeCaptured: row.timeCaptured instanceof Date ? row.timeCaptured : new Date(String(row.timeCaptured)),
-        payload: readings,
-      };
-    })
+    .map((row) => ({
+      timeCaptured: normalizeTimestamp(row.timeCaptured),
+      payload: unwrapPayload(row.payload),
+    }))
     .sort((a, b) => a.timeCaptured.getTime() - b.timeCaptured.getTime());
 }
 
