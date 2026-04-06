@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getLatestReading, resetDataClient } from "@/lib/viam-data";
 import { getTruckById, getDefaultTruck } from "@/lib/machines";
 import { requireTruckAccess } from "@/lib/auth-guard";
+import { trackDTCs } from "@/lib/dtc-tracker";
 
 export async function GET(request: NextRequest) {
   const componentName = request.nextUrl.searchParams.get("component");
@@ -45,6 +46,11 @@ export async function GET(request: NextRequest) {
     }
 
     const dataAgeSec = Math.round((Date.now() - result.timeCaptured.getTime()) / 1000);
+
+    // Track DTC state changes (fire-and-forget)
+    if (componentName === "truck-engine" && dataAgeSec < 60) {
+      trackDTCs(truck.id, result.payload as Record<string, unknown>);
+    }
 
     return NextResponse.json({
       ...result.payload,

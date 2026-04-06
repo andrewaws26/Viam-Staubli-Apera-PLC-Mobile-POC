@@ -24,6 +24,8 @@ interface TruckStatus {
   locationRegion: string | null;
   weather: string | null;
   assignedPersonnel: { name: string; role: string }[];
+  maintenanceOverdue: number;
+  maintenanceDueSoon: number;
   hasTPSMonitor: boolean;
   hasTruckDiagnostics: boolean;
   error: string | null;
@@ -89,6 +91,7 @@ export default function FleetOverview() {
   const totalDtcs = trucks.reduce((sum, t) => sum + t.dtcCount, 0);
   const enginesRunning = trucks.filter((t) => t.engineRunning).length;
   const tpsActive = trucks.filter((t) => t.tpsOnline && t.tpsPowerOn).length;
+  const maintOverdue = trucks.reduce((sum, t) => sum + t.maintenanceOverdue, 0);
 
   return (
     <div className="min-h-screen bg-gray-950 text-white flex flex-col">
@@ -124,13 +127,14 @@ export default function FleetOverview() {
 
       <main className="flex-1 px-3 sm:px-6 py-4 sm:py-6 max-w-7xl mx-auto w-full">
         {/* Summary bar */}
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-3 mb-4 sm:mb-6">
+        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3 mb-4 sm:mb-6">
           <SummaryCard label="Total" value={totalTrucks} color="text-gray-100" />
           <SummaryCard label="Online" value={onlineCount} color="text-green-400" />
           <SummaryCard label="Offline" value={offlineCount} color={offlineCount > 0 ? "text-red-400" : "text-gray-500"} />
           <SummaryCard label="Engines On" value={enginesRunning} color="text-blue-400" />
           <SummaryCard label="TPS Active" value={tpsActive} color="text-purple-400" />
           <SummaryCard label="Active DTCs" value={totalDtcs} color={totalDtcs > 0 ? "text-amber-400" : "text-gray-500"} />
+          <SummaryCard label="Maint Due" value={maintOverdue} color={maintOverdue > 0 ? "text-red-400" : "text-gray-500"} />
         </div>
 
         {/* Loading / Error */}
@@ -216,11 +220,23 @@ function TruckCard({ truck, onClick }: { truck: TruckStatus; onClick: () => void
             {truck.name}
           </h3>
         </div>
-        {truck.dtcCount > 0 && (
-          <span className="px-2 py-0.5 rounded-full bg-amber-600/30 text-amber-300 text-[10px] font-bold shrink-0">
-            {truck.dtcCount} DTC{truck.dtcCount !== 1 ? "s" : ""}
-          </span>
-        )}
+        <div className="flex items-center gap-1 shrink-0">
+          {truck.maintenanceOverdue > 0 && (
+            <span className="px-2 py-0.5 rounded-full bg-red-600/30 text-red-300 text-[10px] font-bold">
+              {truck.maintenanceOverdue} overdue
+            </span>
+          )}
+          {truck.maintenanceDueSoon > 0 && (
+            <span className="px-2 py-0.5 rounded-full bg-amber-600/20 text-amber-300 text-[10px] font-bold">
+              {truck.maintenanceDueSoon} due
+            </span>
+          )}
+          {truck.dtcCount > 0 && (
+            <span className="px-2 py-0.5 rounded-full bg-amber-600/30 text-amber-300 text-[10px] font-bold">
+              {truck.dtcCount} DTC{truck.dtcCount !== 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Location */}

@@ -14,6 +14,7 @@ import { getAiHistorySummary } from "@/lib/ai-history";
 import { runDiagnostics, formatDiagnosticNotes } from "@/lib/ai-diagnostics";
 import { AiChatBody, parseBody } from "@/lib/api-schemas";
 import { requireRole } from "@/lib/auth-guard";
+import { logAudit } from "@/lib/audit";
 
 export async function POST(request: NextRequest) {
   const denied = await requireRole("/api/ai-chat");
@@ -183,6 +184,14 @@ FOLLOW-UP QUESTIONS: At the end of EVERY response, include 2-3 suggested follow-
 
     // Log conversation to cloud for analysis and refinement
     logConversation(apiMessages, reply, readings).catch(() => {});
+
+    logAudit({
+      action: "ai_chat",
+      details: {
+        message_count: messages.length,
+        last_user_message: messages.filter((m: { role: string }) => m.role === "user").pop()?.content?.substring(0, 200),
+      },
+    });
 
     console.log("[API-TIMING]", "/api/ai-chat", Date.now() - startTime, "ms");
     return NextResponse.json({ success: true, reply });

@@ -14,6 +14,7 @@ import type { RobotClient } from "@viamrobotics/sdk";
 import { getTruckById, getDefaultTruck } from "@/lib/machines";
 import { TruckCommandBody, parseBody } from "@/lib/api-schemas";
 import { requireRole, requireTruckAccess } from "@/lib/auth-guard";
+import { logAudit } from "@/lib/audit";
 
 let _client: RobotClient | null = null;
 let _connecting = false;
@@ -104,17 +105,13 @@ export async function POST(request: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = await sensor.doCommand(body as any);
 
-    // Log DTC clears and diagnostic commands for audit trail
-    if (command === "clear_dtcs" || command === "get_freeze_frame" || command === "get_readiness" || command === "get_vin") {
-      console.log("[COMMAND-LOG]", JSON.stringify({
-        type: "vehicle_command",
-        timestamp: new Date().toISOString(),
-        truck_id: truck.id,
-        command,
-        params: body,
-        result: JSON.stringify(result).substring(0, 1000),
-      }));
-    }
+    // Audit log for commands
+    const auditAction = command === "clear_dtcs" ? "dtc_clear" as const : "plc_command" as const;
+    logAudit({
+      action: auditAction,
+      truckId: truck.id,
+      details: { command, params: body, result_preview: JSON.stringify(result).substring(0, 500) },
+    });
 
     console.log("[API-TIMING]", "/api/truck-command", Date.now() - startTime, "ms");
     return NextResponse.json(result);
