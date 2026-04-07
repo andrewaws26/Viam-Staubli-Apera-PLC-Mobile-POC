@@ -197,6 +197,11 @@ class PlcSensor(Sensor):
             except Exception:
                 LOGGER.debug("Failed to close Modbus client")
             self.client = None
+        # Reset encoder state so first read after reconnect doesn't produce
+        # wrong deltas from stale previous values
+        self._prev_ds10 = None
+        self._prev_distance_mm = None
+        self._prev_encoder_time = None
 
     def _ensure_connected(self) -> bool:
         """Connect to the PLC if not already connected. Returns True on success.
@@ -399,7 +404,7 @@ class PlcSensor(Sensor):
                     else:
                         # Small negative = DS10 noise or reverse, ignore
                         delta_ds10 = 0
-                if delta_ds10 > 0 and delta_ds10 < ds3_tie_spacing * 2:
+                if delta_ds10 > 0 and delta_ds10 < ds3_tie_spacing * 4:
                     # Convert 0.1" units to mm (1 unit = 0.1" = 2.54mm)
                     self._accumulated_distance_mm += delta_ds10 * 2.54
             self._prev_ds10 = ds10_encoder_next

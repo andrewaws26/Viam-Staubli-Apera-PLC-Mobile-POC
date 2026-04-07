@@ -233,7 +233,7 @@ class SignalMetrics:
         self._prev_y1: bool = False
         self._prev_c30: bool = False
         self._encoder_reversals: collections.deque = collections.deque(maxlen=300)
-        self._prev_encoder_dir: int = 0
+        self._prev_encoder_dir: int | None = None
         self._modbus_times: collections.deque = collections.deque(maxlen=60)
         self._camera_rate_history: collections.deque = collections.deque(maxlen=300)
         # State tracking: signal_name -> timestamp of last change
@@ -262,7 +262,7 @@ class SignalMetrics:
         self._prev_c30 = c30
 
         # ── Encoder direction reversals ──
-        if encoder_dir != self._prev_encoder_dir and self._prev_encoder_dir != 0:
+        if encoder_dir != self._prev_encoder_dir and self._prev_encoder_dir is not None:
             self._encoder_reversals.append(now)
         self._prev_encoder_dir = encoder_dir
 
