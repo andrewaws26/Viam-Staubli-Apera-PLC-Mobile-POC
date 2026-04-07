@@ -157,28 +157,32 @@ class TestPGN61444_EEC1:
         assert "engine_rpm" not in result
 
     def test_driver_demand_torque(self):
-        """50% torque: (50 + 125) = 175 = 0xAF"""
-        data = bytes([0xAF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
+        """50% torque: (50 + 125) = 175 = 0xAF at byte 1"""
+        data = bytes([0xFF, 0xAF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
         result = decode_pgn(61444, data)
         assert result["driver_demand_torque_pct"] == 50.0
 
     def test_actual_engine_torque(self):
-        """75% torque: (75 + 125) = 200 = 0xC8"""
-        data = bytes([0xFF, 0xC8, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
+        """75% torque: (75 + 125) = 200 = 0xC8 at byte 2"""
+        data = bytes([0xFF, 0xFF, 0xC8, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
         result = decode_pgn(61444, data)
         assert result["actual_engine_torque_pct"] == 75.0
 
     def test_negative_torque(self):
-        """Engine braking -10%: (-10 + 125) = 115 = 0x73"""
-        data = bytes([0xFF, 0x73, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
+        """Engine braking -10%: (-10 + 125) = 115 = 0x73 at byte 2"""
+        data = bytes([0xFF, 0xFF, 0x73, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
         result = decode_pgn(61444, data)
         assert result["actual_engine_torque_pct"] == -10.0
 
     def test_full_eec1_frame(self):
-        """Decode a complete EEC1 frame with all values."""
-        # Driver demand = 80% (205=0xCD), Actual = 78% (203=0xCB),
-        # RPM = 1500 (12000=0x2EE0 LE: [0xE0, 0x2E])
-        data = bytes([0xCD, 0xCB, 0xFF, 0xE0, 0x2E, 0xFF, 0xFF, 0xFF])
+        """Decode a complete EEC1 frame with all values.
+
+        Byte 0: Torque Mode (SPN 899) = 0x00
+        Byte 1: Driver demand = 80% (205=0xCD)
+        Byte 2: Actual = 78% (203=0xCB)
+        Bytes 3-4: RPM = 1500 (12000=0x2EE0 LE: [0xE0, 0x2E])
+        """
+        data = bytes([0x00, 0xCD, 0xCB, 0xE0, 0x2E, 0xFF, 0xFF, 0xFF])
         result = decode_pgn(61444, data)
         assert result["driver_demand_torque_pct"] == 80.0
         assert result["actual_engine_torque_pct"] == 78.0
@@ -496,10 +500,13 @@ class TestDecodeCanFrame:
     def test_eec1_full_decode(self):
         """Full CAN frame decode: EEC1 with RPM 1500."""
         can_id = 0x0CF00400  # PGN 61444, SA=0
-        data = bytes([0xCD, 0xCB, 0xFF, 0xE0, 0x2E, 0xFF, 0xFF, 0xFF])
+        # Byte 0: torque mode, Byte 1: driver demand 80%, Byte 2: actual 78%, Bytes 3-4: RPM
+        data = bytes([0x00, 0xCD, 0xCB, 0xE0, 0x2E, 0xFF, 0xFF, 0xFF])
         pgn, readings = decode_can_frame(can_id, data)
         assert pgn == 61444
         assert readings["engine_rpm"] == 1500.0
+        assert readings["driver_demand_torque_pct"] == 80.0
+        assert readings["actual_engine_torque_pct"] == 78.0
 
     def test_unknown_pgn(self):
         """Unknown PGN returns empty dict."""
@@ -559,6 +566,72 @@ class TestPGN65270_IC1:
         data = bytes([0xFF, 0xFF, 0x64, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
         result = decode_pgn(65270, data)
         assert abs(result["intake_manifold_temp_f"] - 140.0) < 0.5
+
+
+# =========================================================================
+# Data Accuracy Audit Fixes — Regression Tests
+# =========================================================================
+
+
+class TestOdometerResolution:
+    """Fix 1: Odometer was 1000x too small (used 0.000621371 instead of 0.621371)."""
+
+    def test_vehicle_distance_scale(self):
+        """1000 km (raw=8000 at 0.125 km/bit) should be ~621.4 miles, not 0.621."""
+        raw_val = 8000  # 8000 * 0.125 = 1000 km
+        data = raw_val.to_bytes(4, "little") + bytes(4)
+        result = decode_pgn(65248, data)
+        assert result["vehicle_distance_mi"] > 600  # should be ~621.4
+        assert result["vehicle_distance_mi"] < 650
+
+    def test_hr_distance_scale(self):
+        """200 km (raw=40000 at 0.005 km/bit) should be ~124.3 miles, not 0.124."""
+        raw_val = 40000  # 40000 * 0.005 = 200 km
+        data = raw_val.to_bytes(4, "little") + bytes(4)
+        result = decode_pgn(65217, data)
+        assert result["vehicle_distance_hr_mi"] > 120
+        assert result["vehicle_distance_hr_mi"] < 130
+
+
+class TestTotalFuelBytePosition:
+    """Fix 2: Total fuel was reading from bytes 4-7 (trip) instead of 0-3."""
+
+    def test_reads_from_correct_bytes(self):
+        """Put different values in bytes 0-3 vs 4-7, verify we get bytes 0-3."""
+        total_raw = 10000  # bytes 0-3: 10000 * 0.5 * 0.264172 = ~1320.86 gal
+        trip_raw = 100     # bytes 4-7: different value
+        data = total_raw.to_bytes(4, "little") + trip_raw.to_bytes(4, "little")
+        result = decode_pgn(65257, data)
+        # Should be ~1320 gal (from bytes 0-3), not ~13 gal (from bytes 4-7)
+        assert result["total_fuel_used_gal"] > 1000
+
+
+class TestPTORetarderDecoding:
+    """Fix 7: PTO/retarder sub-byte fields always returned None."""
+
+    def test_pto_engaged_decodes(self):
+        """PTO engagement at byte 0 bits 1-0 = 01 (active)."""
+        data = bytes([0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+        result = decode_pgn(65091, data)
+        assert result.get("pto_engaged") is True
+
+    def test_pto_not_engaged(self):
+        """PTO engagement bits 1-0 = 00 (off)."""
+        data = bytes([0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+        result = decode_pgn(65091, data)
+        assert result.get("pto_engaged") is False
+
+    def test_retarder_torque_mode_decodes(self):
+        """Retarder torque mode at byte 0 bits 3-0 = 0x03."""
+        data = bytes([0x33, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+        result = decode_pgn(61440, data)
+        assert result.get("retarder_torque_mode") == 3
+
+    def test_retarder_enable_decodes(self):
+        """Retarder enable at byte 0 bits 5-4 = 01 (active)."""
+        data = bytes([0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+        result = decode_pgn(61440, data)
+        assert result.get("retarder_enable") is True
 
 
 if __name__ == "__main__":

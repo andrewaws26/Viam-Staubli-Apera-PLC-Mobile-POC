@@ -48,12 +48,12 @@ def _decode_engine_rpm(data: bytes) -> float | None:
 
 def _decode_driver_demand_torque(data: bytes) -> float | None:
     """SPN 512: Driver's Demand Engine Torque — byte 1, 1%/bit, offset -125."""
-    return _decode_scaled(data, 0, 8, 1.0, -125.0)
+    return _decode_scaled(data, 1, 8, 1.0, -125.0)
 
 
 def _decode_actual_engine_torque(data: bytes) -> float | None:
     """SPN 513: Actual Engine Torque — byte 2, 1%/bit, offset -125."""
-    return _decode_scaled(data, 1, 8, 1.0, -125.0)
+    return _decode_scaled(data, 2, 8, 1.0, -125.0)
 
 
 PGN_61444 = PGNDefinition(
@@ -61,9 +61,9 @@ PGN_61444 = PGNDefinition(
     name="Electronic Engine Controller 1 (EEC1)",
     spns=[
         SPNDefinition(512, "Driver Demand Torque", "driver_demand_torque_pct",
-                      0, 8, 1.0, -125.0, "%"),
-        SPNDefinition(513, "Actual Engine Torque", "actual_engine_torque_pct",
                       1, 8, 1.0, -125.0, "%"),
+        SPNDefinition(513, "Actual Engine Torque", "actual_engine_torque_pct",
+                      2, 8, 1.0, -125.0, "%"),
         SPNDefinition(190, "Engine Speed", "engine_rpm",
                       3, 16, 0.125, 0.0, "rpm"),
     ]
@@ -171,7 +171,7 @@ PGN_65257 = PGNDefinition(
     name="Fuel Consumption (LFC)",
     spns=[
         SPNDefinition(250, "Total Fuel Used", "total_fuel_used_gal",
-                      4, 32, 0.5 * 0.264172, 0.0, "gal"),
+                      0, 32, 0.5 * 0.264172, 0.0, "gal"),
     ]
 )
 
@@ -561,7 +561,7 @@ PGN_65248 = PGNDefinition(
     name="Vehicle Distance (VD)",
     spns=[
         SPNDefinition(245, "Total Vehicle Distance", "vehicle_distance_mi",
-                      0, 32, 0.125 * 0.000621371, 0, "mi"),
+                      0, 32, 0.125 * 0.621371, 0, "mi"),
     ]
 )
 
@@ -570,7 +570,7 @@ PGN_65217 = PGNDefinition(
     name="High Resolution Vehicle Distance (VDHR)",
     spns=[
         SPNDefinition(917, "High Resolution Total Vehicle Distance", "vehicle_distance_hr_mi",
-                      0, 32, 0.005 * 0.000621371, 0, "mi"),
+                      0, 32, 0.005 * 0.621371, 0, "mi"),
     ]
 )
 
@@ -613,7 +613,7 @@ PGN_65091 = PGNDefinition(
     spns=[
         SPNDefinition(984, "PTO Engagement Status", "pto_engaged",
                       0, 8, 1.0, 0, "",
-                      decode_fn=lambda d: _decode_scaled(d, 0, 2, 1.0, 0)),
+                      decode_fn=lambda d: _decode_2bit_status(d, 0, 0)),
         SPNDefinition(985, "PTO Speed", "pto_rpm",
                       1, 16, 0.125, 0, "rpm"),
         SPNDefinition(986, "PTO Set Speed", "pto_set_rpm",
@@ -657,9 +657,11 @@ PGN_61440 = PGNDefinition(
     name="Electronic Retarder Controller (ERC1)",
     spns=[
         SPNDefinition(520, "Retarder Torque Mode", "retarder_torque_mode",
-                      0, 4, 1.0, 0, ""),
+                      0, 4, 1.0, 0, "",
+                      decode_fn=lambda d: (_get_byte(d, 0) & 0x0F) if _get_byte(d, 0) is not None else None),
         SPNDefinition(571, "Retarder Enable", "retarder_enable",
-                      0, 2, 1.0, 0, ""),
+                      0, 2, 1.0, 0, "",
+                      decode_fn=lambda d: _decode_2bit_status(d, 0, 4)),
         SPNDefinition(521, "Actual Retarder Torque", "retarder_torque_pct",
                       1, 8, 1.0, -125, "%"),
     ]

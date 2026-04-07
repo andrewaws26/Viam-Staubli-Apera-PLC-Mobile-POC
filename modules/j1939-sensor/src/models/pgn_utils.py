@@ -20,6 +20,7 @@ NOT_AVAILABLE_DWORD = 0xFFFFFFFF
 # J1939 "error" sentinel values
 ERROR_BYTE = 0xFE
 ERROR_WORD = 0xFFFE
+ERROR_DWORD = 0xFFFFFFFE
 
 
 @dataclass
@@ -72,7 +73,7 @@ def _get_dword_le(data: bytes, start_index: int) -> int | None:
            | (data[start_index + 1] << 8)
            | (data[start_index + 2] << 16)
            | (data[start_index + 3] << 24))
-    if val == NOT_AVAILABLE_DWORD:
+    if val in (NOT_AVAILABLE_DWORD, ERROR_DWORD):
         return None
     return val
 

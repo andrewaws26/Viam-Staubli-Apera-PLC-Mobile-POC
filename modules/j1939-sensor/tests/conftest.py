@@ -111,11 +111,12 @@ def sample_dm1_trans_frame(mock_can_message):
 def sample_eec1_frame(mock_can_message):
     """EEC1 frame (PGN 61444) with RPM=1500, driver demand=80%, actual=78%.
 
-    RPM 1500: 1500 / 0.125 = 12000 = 0x2EE0 LE: [0xE0, 0x2E]
-    Driver demand 80%: 80 + 125 = 205 = 0xCD
-    Actual torque 78%: 78 + 125 = 203 = 0xCB
+    Byte 0: Torque Mode (SPN 899) = 0x00
+    Byte 1: Driver demand 80%: 80 + 125 = 205 = 0xCD
+    Byte 2: Actual torque 78%: 78 + 125 = 203 = 0xCB
+    Bytes 3-4: RPM 1500: 1500 / 0.125 = 12000 = 0x2EE0 LE: [0xE0, 0x2E]
     """
-    data = bytes([0xCD, 0xCB, 0xFF, 0xE0, 0x2E, 0xFF, 0xFF, 0xFF])
+    data = bytes([0x00, 0xCD, 0xCB, 0xE0, 0x2E, 0xFF, 0xFF, 0xFF])
     return mock_can_message(pgn=61444, sa=0x00, data=data)
 
 

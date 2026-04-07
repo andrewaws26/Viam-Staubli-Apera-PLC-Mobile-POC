@@ -292,3 +292,19 @@ class TestDataclasses:
         pgn = PGNDefinition(pgn=61444, name="EEC1", spns=[])
         assert pgn.pgn == 61444
         assert pgn.name == "EEC1"
+
+
+# ── Error Sentinel Tests (Fix 3) ─────────────────────────────────
+
+
+class TestDwordErrorSentinel:
+    """Verify _get_dword_le rejects 0xFFFFFFFE (J1939 error indicator)."""
+
+    def test_error_dword_returns_none(self):
+        data = bytes([0xFE, 0xFF, 0xFF, 0xFF])
+        assert _get_dword_le(data, 0) is None
+
+    def test_near_error_is_valid(self):
+        """0xFFFFFFFD is a valid value, not an error sentinel."""
+        data = bytes([0xFD, 0xFF, 0xFF, 0xFF])
+        assert _get_dword_le(data, 0) == 0xFFFFFFFD

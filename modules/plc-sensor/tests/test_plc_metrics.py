@@ -113,6 +113,24 @@ class TestSignalMetrics:
         assert result["encoder_reversals_per_min"] == 2
         assert result["encoder_noise"] == 2
 
+    def test_encoder_reversal_from_forward_zero(self):
+        """Fix 9: Forward direction (0) to reverse must also count as reversal."""
+        sm = SignalMetrics()
+        base = 1000.0
+
+        # First call establishes direction as 0 (forward)
+        sm.update(x3=False, y1=False, c30=False,
+                  encoder_dir=0, modbus_ms=10.0, now=base)
+        # Change to 1 (reverse) — this should count as a reversal
+        sm.update(x3=False, y1=False, c30=False,
+                  encoder_dir=1, modbus_ms=10.0, now=base + 1)
+        # Change back to 0 (forward) — another reversal
+        result = sm.update(x3=False, y1=False, c30=False,
+                           encoder_dir=0, modbus_ms=10.0, now=base + 2)
+
+        assert result["encoder_reversals_per_min"] == 2
+        assert result["encoder_noise"] == 2
+
     def test_modbus_response_time_average(self):
         """Modbus response time is averaged over recent calls."""
         sm = SignalMetrics()

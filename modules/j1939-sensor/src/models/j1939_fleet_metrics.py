@@ -23,13 +23,13 @@ def infer_vehicle_state(readings: dict) -> None:
     secs_since = readings.get("_seconds_since_last_frame", -1)
     frame_count = readings.get("_frame_count", 0)
 
-    if frame_count == 0 or secs_since > 60 or secs_since == -1:
+    if frame_count == 0 or secs_since > 5 or secs_since == -1:
         readings["vehicle_state"] = "Truck Off"
     elif rpm is not None and rpm > 0:
         readings["vehicle_state"] = "Engine On"
     elif rpm is not None and rpm == 0:
         readings["vehicle_state"] = "Ignition On"
-    elif rpm is None and secs_since >= 0 and secs_since < 60:
+    elif rpm is None and secs_since >= 0 and secs_since < 5:
         # Receiving frames but no RPM decoded -- could be KOEO
         has_any_data = any(
             k in readings for k in ("battery_voltage_v", "coolant_temp_f", "oil_pressure_psi")
@@ -39,11 +39,11 @@ def infer_vehicle_state(readings: dict) -> None:
         readings["vehicle_state"] = "Unknown"
 
     # Vehicle-off detection for data capture optimization
-    # If vehicle is off (no CAN traffic) for >30 seconds, flag it
+    # If vehicle is off (no CAN traffic) for >10 seconds, flag it
     bus_connected = readings.get("_bus_connected", False)
     vehicle_off = (
         readings["vehicle_state"] == "Truck Off"
-        or (not bus_connected and (secs_since > 30 or secs_since == -1))
+        or (not bus_connected and (secs_since > 10 or secs_since == -1))
     )
     readings["_vehicle_off"] = vehicle_off
 
@@ -193,26 +193,43 @@ def compute_fleet_metrics(readings: dict, prev_speed: float, prev_accel: float, 
             or (dose_cmd is not None and dose_cmd > 0)
         )
 
-    # Battery health -- 12.0-12.6V is normal for engine-off, 13.5-14.5V for running
+    # Battery health -- auto-detect 12V vs 24V system based on voltage
     batt = readings.get("battery_voltage_v", None)
     rpm = readings.get("engine_rpm", 0) or 0
     if batt is not None:
+        is_24v = batt > 18.0
         if rpm > 0:
             # Engine running -- alternator should be charging
-            if batt < 13.0:
-                readings["battery_health"] = "LOW"
-            elif batt > 15.0:
-                readings["battery_health"] = "OVERCHARGE"
+            if is_24v:
+                if batt < 26.0:
+                    readings["battery_health"] = "LOW"
+                elif batt > 30.0:
+                    readings["battery_health"] = "OVERCHARGE"
+                else:
+                    readings["battery_health"] = "OK"
             else:
-                readings["battery_health"] = "OK"
+                if batt < 13.0:
+                    readings["battery_health"] = "LOW"
+                elif batt > 15.0:
+                    readings["battery_health"] = "OVERCHARGE"
+                else:
+                    readings["battery_health"] = "OK"
         else:
             # Engine off -- resting voltage
-            if batt < 11.5:
-                readings["battery_health"] = "CRITICAL"
-            elif batt < 12.0:
-                readings["battery_health"] = "LOW"
+            if is_24v:
+                if batt < 22.0:
+                    readings["battery_health"] = "CRITICAL"
+                elif batt < 23.0:
+                    readings["battery_health"] = "LOW"
+                else:
+                    readings["battery_health"] = "OK"
             else:
-                readings["battery_health"] = "OK"
+                if batt < 11.5:
+                    readings["battery_health"] = "CRITICAL"
+                elif batt < 12.0:
+                    readings["battery_health"] = "LOW"
+                else:
+                    readings["battery_health"] = "OK"
 
     return (speed, accel, now)
 
