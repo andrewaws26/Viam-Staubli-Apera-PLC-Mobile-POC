@@ -90,6 +90,12 @@ class CellSensor(Sensor):
         self._last_network_poll: float = 0.0
         self._last_internet_poll: float = 0.0
 
+        # Per-subsystem staleness — tracks when each last returned real data
+        self._staubli_data_age: float = 0.0  # monotonic timestamp of last successful poll
+        self._apera_data_age: float = 0.0
+        self._network_data_age: float = 0.0
+        self._internet_data_age: float = 0.0
+
         # Module stats
         self._total_reads: int = 0
         self._start_time: float = time.time()
@@ -205,10 +211,11 @@ class CellSensor(Sensor):
         readings.update(self._switch_vpn_health.to_dict())
 
         # Pi system health
-        readings.update(self._read_pi_health())
+        readings.update(await self._read_pi_health())
 
         # Module metadata
         self._total_reads += 1
+        now_mono = time.monotonic()
         readings["cell_total_reads"] = self._total_reads
         readings["cell_uptime_s"] = round(time.time() - self._start_time, 1)
         readings["cell_staubli_connected"] = self._staubli_state.connected
@@ -218,6 +225,12 @@ class CellSensor(Sensor):
         )
         readings["cell_devices_total"] = len(self._network_devices)
 
+        # Per-subsystem data staleness (seconds since last successful poll)
+        readings["cell_staubli_data_age_s"] = round(now_mono - self._staubli_data_age, 1) if self._staubli_data_age else -1
+        readings["cell_apera_data_age_s"] = round(now_mono - self._apera_data_age, 1) if self._apera_data_age else -1
+        readings["cell_network_data_age_s"] = round(now_mono - self._network_data_age, 1) if self._network_data_age else -1
+        readings["cell_internet_data_age_s"] = round(now_mono - self._internet_data_age, 1) if self._internet_data_age else -1
+
         return readings
 
     async def _poll_staubli(self) -> None:
@@ -225,6 +238,7 @@ class CellSensor(Sensor):
             self._staubli_state = await self._staubli.poll()
             self._last_staubli_poll = time.monotonic()
             if self._staubli_state.connected:
+                self._staubli_data_age = time.monotonic()
                 LOGGER.debug(
                     "Staubli poll OK (%.0f ms)", self._staubli_state.last_poll_ms
                 )
@@ -240,6 +254,7 @@ class CellSensor(Sensor):
             self._apera_state = await self._apera.poll()
             self._last_apera_poll = time.monotonic()
             if self._apera_state.connected:
+                self._apera_data_age = time.monotonic()
                 LOGGER.debug(
                     "Apera poll OK (%.0f ms)", self._apera_state.last_poll_ms
                 )
@@ -254,6 +269,7 @@ class CellSensor(Sensor):
         try:
             self._network_state = await check_all_devices(self._network_devices)
             self._last_network_poll = time.monotonic()
+            self._network_data_age = time.monotonic()
             reachable = sum(1 for d in self._network_state if d.reachable)
             LOGGER.info(
                 "Network scan: %d/%d devices reachable",
@@ -269,12 +285,17 @@ class CellSensor(Sensor):
                 device_results=self._network_state
             )
             self._last_internet_poll = time.monotonic()
+            self._internet_data_age = time.monotonic()
         except Exception as e:
             LOGGER.warning("Internet health check error: %s", e)
 
     @staticmethod
-    def _read_pi_health() -> dict[str, Any]:
-        """Read Raspberry Pi system metrics — CPU, memory, temp, disk."""
+    async def _read_pi_health() -> dict[str, Any]:
+        """Read Raspberry Pi system metrics — CPU, memory, temp, disk.
+
+        All reads are from /proc and /sys (instant, non-blocking).
+        vcgencmd is run via asyncio subprocess to avoid blocking the event loop.
+        """
         h: dict[str, Any] = {}
         # CPU temperature
         try:
@@ -324,15 +345,18 @@ class CellSensor(Sensor):
         except Exception:
             pass
         # Throttle flags (Raspberry Pi firmware — undervoltage, thermal throttle)
+        # Uses async subprocess to avoid blocking the event loop
         try:
-            import subprocess
-            result = subprocess.run(
-                ["vcgencmd", "get_throttled"],
-                capture_output=True, text=True, timeout=2,
+            proc = await asyncio.create_subprocess_exec(
+                "vcgencmd", "get_throttled",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
             )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=3.0)
+            output = stdout.decode().strip()
             # Output: "throttled=0x0" — 0 means no issues
-            if "=" in result.stdout:
-                flags = int(result.stdout.split("=")[1].strip(), 16)
+            if "=" in output:
+                flags = int(output.split("=")[1].strip(), 16)
                 h["pi_throttled_raw"] = flags
                 h["pi_undervoltage_now"] = bool(flags & 0x1)
                 h["pi_freq_capped_now"] = bool(flags & 0x2)

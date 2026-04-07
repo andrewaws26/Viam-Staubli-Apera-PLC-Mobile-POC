@@ -15,6 +15,7 @@ never triggers pick cycles or robot motion.
 
 import asyncio
 import logging
+import socket
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -98,6 +99,18 @@ class AperaClient:
                 asyncio.open_connection(self.host, self.port),
                 timeout=_CONNECT_TIMEOUT,
             )
+            # Enable TCP keepalive to detect half-open connections
+            # (e.g. after a switch reboot where the remote side vanishes silently)
+            sock = self._writer.get_extra_info("socket")
+            if sock is not None:
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+                # Linux-specific: probe after 10s idle, every 5s, fail after 3 misses
+                try:
+                    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 10)
+                    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 5)
+                    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)
+                except (AttributeError, OSError):
+                    pass  # Not all platforms expose these constants
             logger.info("Connected to Apera socket at %s:%d", self.host, self.port)
             return True
         except Exception as e:
@@ -123,14 +136,22 @@ class AperaClient:
         return response
 
     async def _disconnect(self) -> None:
-        if self._writer and not self._writer.is_closing():
-            self._writer.close()
-            try:
-                await self._writer.wait_closed()
-            except Exception:
-                pass
+        writer = self._writer
+        # Null out immediately to prevent concurrent poll from using stale fd
         self._reader = None
         self._writer = None
+        if writer and not writer.is_closing():
+            writer.close()
+            try:
+                await asyncio.wait_for(writer.wait_closed(), timeout=2.0)
+            except Exception:
+                # Force-close the underlying socket if graceful close hangs
+                try:
+                    sock = writer.get_extra_info("socket")
+                    if sock is not None:
+                        sock.close()
+                except Exception:
+                    pass
 
     async def poll(self) -> AperaState:
         """Poll the vision system for current state.
