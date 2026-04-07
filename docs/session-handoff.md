@@ -1,8 +1,36 @@
 # Session Handoff: Code Review & Architecture Overhaul
 
-**Date**: 2026-04-05
-**Branch**: `claude/code-review-suggestions-RiQah`
-**Status**: Waves 1-4 complete. File splits ~95% done. All tests passing. Dashboard builds clean. README fully updated.
+**Date**: 2026-04-07
+**Branch**: `claude/add-chat-feature-Uzld3` (latest), `claude/code-review-suggestions-RiQah` (prior)
+**Status**: Team chat system added. Waves 1-4 complete. File splits ~95% done. All tests passing. Dashboard builds clean.
+
+## Team Chat System (Added 2026-04-07)
+
+Contextual team chat anchored to domain entities. Branch: `claude/add-chat-feature-Uzld3`.
+
+**What's working in v1:**
+- Entity-anchored threads (truck, work order, DTC, direct message)
+- Auto-thread creation when opening truck panel or DTC
+- Sensor snapshot attachment on messages (auto-attached from truck panel)
+- @ai mention in any thread triggers AI diagnostic response
+- Domain-specific reactions (thumbs_up, wrench, checkmark, eyes)
+- Full CRUD: send, edit, soft-delete messages
+- Thread membership management
+- Unread count tracking
+- Push notifications to thread members
+- Dashboard: /chat page with split layout, TruckChatTab in TruckPanel, Chat nav link
+- Mobile: Chat tab, ChatListScreen, ThreadScreen, NewDMScreen, Zustand store
+- 21 unit tests, Playwright E2E test suite
+
+**Known limitations / v2 candidates:**
+- Uses polling (3s/5s) — upgrade to Supabase Realtime for true real-time
+- No voice messages
+- No photo annotation (drawing on images)
+- No daily digest emails
+- No @role mentions (e.g., @mechanics)
+- No unified search across threads
+- No file upload (photos are URL references only)
+- Work order status change system messages are TODO (noted in chat-system-messages.ts)
 
 ## Current State Summary
 

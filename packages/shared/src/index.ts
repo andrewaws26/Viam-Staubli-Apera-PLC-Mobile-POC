@@ -7,5 +7,6 @@ export * from './work-order';
 export * from './gauge-thresholds';
 export * from './spn-lookup';
 export * from './pcode-lookup';
+export * from './chat';
 // format.ts requires date-fns — import directly when needed:
 // import { timeAgo, formatTemp } from '@ironsight/shared/format';
