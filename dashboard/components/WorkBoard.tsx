@@ -189,6 +189,7 @@ export default function WorkBoard() {
                               wo={wo}
                               isDragging={dragSnapshot.isDragging}
                               onStatusChange={(s, extra) => updateStatus(wo.id, s, extra)}
+                              onToggleSubtask={(subtaskId) => updateStatus(wo.id, wo.status, { toggle_subtask_id: subtaskId })}
                             />
                           </div>
                         )}
@@ -228,10 +229,12 @@ function WorkOrderCard({
   wo,
   isDragging,
   onStatusChange,
+  onToggleSubtask,
 }: {
   wo: WorkOrder;
   isDragging: boolean;
   onStatusChange: (status: Status, extra?: Record<string, unknown>) => void;
+  onToggleSubtask: (subtaskId: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const subtasksDone = wo.subtasks?.filter((s) => s.is_done).length ?? 0;
@@ -313,13 +316,20 @@ function WorkOrderCard({
             {subtasksTotal > 0 && (
               <div className="space-y-1">
                 {wo.subtasks.map((st) => (
-                  <div key={st.id} className="flex items-center gap-2">
+                  <button
+                    key={st.id}
+                    className="flex items-center gap-2 w-full text-left hover:bg-gray-700/30 rounded px-1 py-0.5 -mx-1 transition"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleSubtask(st.id);
+                    }}
+                  >
                     <div
-                      className={`w-4 h-4 rounded border ${
+                      className={`w-4 h-4 rounded border shrink-0 ${
                         st.is_done
                           ? "bg-green-600 border-green-600"
-                          : "border-gray-600"
-                      } flex items-center justify-center`}
+                          : "border-gray-600 hover:border-gray-400"
+                      } flex items-center justify-center transition`}
                     >
                       {st.is_done && (
                         <span className="text-[10px] text-white">✓</span>
@@ -334,7 +344,7 @@ function WorkOrderCard({
                     >
                       {st.title}
                     </span>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
