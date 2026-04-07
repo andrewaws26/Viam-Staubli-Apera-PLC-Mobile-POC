@@ -5,12 +5,12 @@
  */
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { View, ScrollView, Text, Alert, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, ScrollView, Text, Alert, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useAppAuth } from '@/auth/auth-provider';
 import { useWorkStore } from '@/stores/work-store';
-import { fetchWorkOrders } from '@/services/api-client';
+import { fetchTeamMembers } from '@/services/api-client';
 import SegmentedControl from '@/components/ui/SegmentedControl';
 import Button from '@/components/ui/Button';
 import TextInput from '@/components/ui/TextInput';
@@ -21,7 +21,13 @@ import { spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
 import { timeAgo } from '@/utils/format';
 import { lookupSPN } from '@/utils/spn-lookup';
-import type { WorkOrder, WorkOrderStatus } from '@/types/work-order';
+import type { WorkOrder, WorkOrderStatus, WorkOrderSubtask } from '@/types/work-order';
+
+interface TeamMember {
+  id: string;
+  name: string;
+  role: string;
+}
 
 const STATUSES: WorkOrderStatus[] = ['open', 'in_progress', 'blocked', 'done'];
 const STATUS_LABELS = ['Open', 'In Progress', 'Blocked', 'Done'];
@@ -46,8 +52,16 @@ export default function WorkOrderDetailScreen() {
   const [noteText, setNoteText] = useState('');
   const [blockerText, setBlockerText] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [showAssignSheet, setShowAssignSheet] = useState(false);
 
   const wo = useMemo(() => workOrders.find((w) => w.id === id), [workOrders, id]);
+
+  // Optimistic subtask state for instant toggle feedback
+  const [localSubtasks, setLocalSubtasks] = useState<WorkOrderSubtask[]>(wo?.subtasks ?? []);
+  useEffect(() => {
+    if (wo?.subtasks) setLocalSubtasks(wo.subtasks);
+  }, [wo?.subtasks]);
 
   useEffect(() => {
     if (!wo) loadWorkOrders();
@@ -56,6 +70,14 @@ export default function WorkOrderDetailScreen() {
   useEffect(() => {
     if (wo?.blocker_reason) setBlockerText(wo.blocker_reason);
   }, [wo?.blocker_reason]);
+
+  // Load team members for assignment
+  useEffect(() => {
+    (async () => {
+      const result = await fetchTeamMembers();
+      if (result.data) setTeamMembers(result.data as unknown as TeamMember[]);
+    })();
+  }, []);
 
   const handleStatusChange = useCallback(async (index: number) => {
     if (!wo) return;
@@ -92,8 +114,22 @@ export default function WorkOrderDetailScreen() {
 
   const handleToggleSubtask = useCallback(async (subtaskId: string) => {
     if (!wo) return;
-    await patchWorkOrder(wo.id, { toggle_subtask_id: subtaskId });
+    // Optimistic local update for instant feedback
+    setLocalSubtasks((prev) =>
+      prev.map((s) => (s.id === subtaskId ? { ...s, is_done: !s.is_done } : s)),
+    );
     Haptics.selectionAsync();
+    await patchWorkOrder(wo.id, { toggle_subtask_id: subtaskId });
+  }, [wo, patchWorkOrder]);
+
+  const handleAssign = useCallback(async (userId: string | null, userName: string | null) => {
+    if (!wo) return;
+    await patchWorkOrder(wo.id, {
+      assigned_to: userId,
+      assigned_to_name: userName,
+    });
+    setShowAssignSheet(false);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }, [wo, patchWorkOrder]);
 
   const handleAddNote = useCallback(async () => {
@@ -127,7 +163,8 @@ export default function WorkOrderDetailScreen() {
   const statusIndex = STATUSES.indexOf(wo.status);
   const isAssignedToMe = currentUser && wo.assigned_to === currentUser.id;
   const isUnassigned = wo.assigned_to === null;
-  const subtasksDone = wo.subtasks?.filter((s) => s.is_done).length ?? 0;
+  const subtasksDone = localSubtasks.filter((s) => s.is_done).length;
+  const subtasksTotal = localSubtasks.length;
 
   return (
     <ScrollView style={styles.container}>
@@ -178,10 +215,51 @@ export default function WorkOrderDetailScreen() {
       {/* Assignment */}
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>Assigned to</Text>
-        <Text style={styles.assignee}>
-          {wo.assigned_to_name || 'Unassigned (backlog)'}
-          {isAssignedToMe ? '  (you)' : ''}
-        </Text>
+        <View style={styles.assignRow}>
+          <Text style={styles.assignee}>
+            {wo.assigned_to_name || 'Unassigned (backlog)'}
+            {isAssignedToMe ? '  (you)' : ''}
+          </Text>
+          <TouchableOpacity
+            style={styles.assignBtn}
+            onPress={() => setShowAssignSheet(!showAssignSheet)}
+          >
+            <Text style={styles.assignBtnText}>
+              {wo.assigned_to ? 'Reassign' : 'Assign'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {showAssignSheet && (
+          <View style={styles.assignSheet}>
+            {wo.assigned_to && (
+              <TouchableOpacity
+                style={styles.assignOption}
+                onPress={() => handleAssign(null, null)}
+              >
+                <Text style={styles.assignOptionUnassign}>Unassign</Text>
+              </TouchableOpacity>
+            )}
+            {teamMembers.map((m) => (
+              <TouchableOpacity
+                key={m.id}
+                style={styles.assignOption}
+                onPress={() => handleAssign(m.id, m.name)}
+              >
+                <View style={styles.assignAvatar}>
+                  <Text style={styles.assignAvatarText}>{m.name.charAt(0).toUpperCase()}</Text>
+                </View>
+                <Text style={[
+                  styles.assignOptionName,
+                  m.id === wo.assigned_to && { color: colors.primaryLight },
+                ]}>
+                  {m.name}
+                </Text>
+                <Text style={styles.assignOptionRole}>{m.role}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </View>
 
       {/* Description */}
@@ -193,12 +271,12 @@ export default function WorkOrderDetailScreen() {
       )}
 
       {/* Subtasks */}
-      {wo.subtasks && wo.subtasks.length > 0 && (
+      {subtasksTotal > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>
-            Tasks ({subtasksDone}/{wo.subtasks.length})
+            Tasks ({subtasksDone}/{subtasksTotal})
           </Text>
-          {wo.subtasks.map((st) => (
+          {localSubtasks.map((st) => (
             <TouchableOpacity
               key={st.id}
               style={styles.subtaskRow}
@@ -305,7 +383,17 @@ const styles = StyleSheet.create({
   metaText: { color: colors.textMuted, fontSize: typography.sizes.xs },
   section: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, gap: spacing.sm },
   sectionLabel: { color: colors.textSecondary, fontSize: typography.sizes.xs, fontWeight: typography.weights.bold as any, textTransform: 'uppercase', letterSpacing: 1 },
-  assignee: { color: colors.text, fontSize: typography.sizes.base },
+  assignee: { color: colors.text, fontSize: typography.sizes.base, flex: 1 },
+  assignRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  assignBtn: { backgroundColor: colors.border, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: 8 },
+  assignBtnText: { color: colors.textSecondary, fontSize: typography.sizes.xs, fontWeight: typography.weights.semibold as any },
+  assignSheet: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginTop: spacing.sm, overflow: 'hidden' },
+  assignOption: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md, paddingVertical: spacing.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  assignOptionUnassign: { color: colors.textMuted, fontSize: typography.sizes.sm },
+  assignOptionName: { color: colors.text, fontSize: typography.sizes.sm, flex: 1 },
+  assignOptionRole: { color: colors.textMuted, fontSize: typography.sizes.xs },
+  assignAvatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  assignAvatarText: { color: colors.textSecondary, fontSize: typography.sizes.xs, fontWeight: typography.weights.bold as any },
   description: { color: colors.textSecondary, fontSize: typography.sizes.sm, lineHeight: 20 },
   blockerCard: { marginHorizontal: spacing.lg, marginBottom: spacing.lg, backgroundColor: '#dc262615', borderColor: '#dc262640', borderWidth: 1 },
   blockerLabel: { color: colors.dangerLight, fontSize: typography.sizes.xs, fontWeight: typography.weights.bold as any, textTransform: 'uppercase', letterSpacing: 1 },

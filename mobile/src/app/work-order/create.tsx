@@ -3,13 +3,14 @@
  * Pick a truck (optional), enter title + description, set priority, assign to someone.
  */
 
-import React, { useState, useCallback } from 'react';
-import { View, ScrollView, Text, Alert, StyleSheet } from 'react-native';
+import React, { useState, useCallback, useEffect } from 'react';
+import { View, ScrollView, Text, Alert, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useAppAuth } from '@/auth/auth-provider';
 import { useFleetStore } from '@/stores/fleet-store';
 import { useWorkStore } from '@/stores/work-store';
+import { fetchTeamMembers, suggestWorkOrderSteps } from '@/services/api-client';
 import TruckSelector from '@/components/TruckSelector';
 import SegmentedControl from '@/components/ui/SegmentedControl';
 import Button from '@/components/ui/Button';
@@ -19,6 +20,12 @@ import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
 import type { WorkOrderPriority } from '@/types/work-order';
+
+interface TeamMember {
+  id: string;
+  name: string;
+  role: string;
+}
 
 const PRIORITIES: WorkOrderPriority[] = ['low', 'normal', 'urgent'];
 const PRIORITY_LABELS = ['Low', 'Normal', 'Urgent'];
@@ -33,7 +40,33 @@ export default function CreateWorkOrderScreen() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priorityIndex, setPriorityIndex] = useState(1); // default: normal
+  const [assignedTo, setAssignedTo] = useState<string | null>(null);
+  const [assignedToName, setAssignedToName] = useState<string | null>(null);
+  const [showAssignPicker, setShowAssignPicker] = useState(false);
+  const [subtasks, setSubtasks] = useState<string[]>([]);
+  const [suggesting, setSuggesting] = useState(false);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const result = await fetchTeamMembers();
+      if (result.data) setTeamMembers(result.data as unknown as TeamMember[]);
+    })();
+  }, []);
+
+  const handleSuggestSteps = useCallback(async () => {
+    if (!title.trim()) return;
+    setSuggesting(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const result = await suggestWorkOrderSteps(title.trim(), description.trim() || undefined);
+    if (result.data && Array.isArray((result.data as any).steps)) {
+      setSubtasks((result.data as any).steps);
+    } else {
+      Alert.alert('Error', 'Failed to generate steps. Try again.');
+    }
+    setSuggesting(false);
+  }, [title, description]);
 
   const handleSubmit = useCallback(async () => {
     if (!title.trim()) {
@@ -87,7 +120,10 @@ export default function CreateWorkOrderScreen() {
       priority: PRIORITIES[priorityIndex],
       truck_snapshot: truckSnapshot,
       linked_dtcs: linkedDtcs,
-    });
+      assigned_to: assignedTo || undefined,
+      assigned_to_name: assignedToName || undefined,
+      subtasks: subtasks.filter((s) => s.trim()).map((s) => ({ title: s.trim() })),
+    } as any);
 
     setSubmitting(false);
 
@@ -144,6 +180,96 @@ export default function CreateWorkOrderScreen() {
           />
         </View>
 
+        {/* Assign To */}
+        <View style={styles.field}>
+          <Text style={styles.label}>Assign To</Text>
+          <TouchableOpacity
+            style={styles.assignTrigger}
+            onPress={() => setShowAssignPicker(!showAssignPicker)}
+          >
+            <Text style={assignedTo ? styles.assignSelected : styles.assignPlaceholder}>
+              {assignedToName || 'Unassigned'}
+            </Text>
+            <Text style={styles.assignChevron}>{showAssignPicker ? '\u25B2' : '\u25BC'}</Text>
+          </TouchableOpacity>
+
+          {showAssignPicker && (
+            <View style={styles.assignList}>
+              <TouchableOpacity
+                style={styles.assignItem}
+                onPress={() => { setAssignedTo(null); setAssignedToName(null); setShowAssignPicker(false); }}
+              >
+                <Text style={styles.assignItemMuted}>Unassigned</Text>
+              </TouchableOpacity>
+              {teamMembers.map((m) => (
+                <TouchableOpacity
+                  key={m.id}
+                  style={styles.assignItem}
+                  onPress={() => { setAssignedTo(m.id); setAssignedToName(m.name); setShowAssignPicker(false); }}
+                >
+                  <View style={styles.assignAvatar}>
+                    <Text style={styles.assignAvatarText}>{m.name.charAt(0)}</Text>
+                  </View>
+                  <Text style={[styles.assignItemName, m.id === assignedTo && { color: colors.primaryLight }]}>
+                    {m.name}
+                  </Text>
+                  <Text style={styles.assignItemRole}>{m.role}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+
+        {/* Steps / Subtasks */}
+        <View style={styles.field}>
+          <View style={styles.stepsHeader}>
+            <Text style={styles.label}>
+              Steps{subtasks.length > 0 ? ` (${subtasks.length})` : ''}
+            </Text>
+            <TouchableOpacity
+              style={[styles.suggestBtn, (!title.trim() || suggesting) && styles.suggestBtnDisabled]}
+              onPress={handleSuggestSteps}
+              disabled={!title.trim() || suggesting}
+            >
+              {suggesting ? (
+                <ActivityIndicator size="small" color={colors.infoLight} />
+              ) : (
+                <Text style={styles.suggestBtnText}>Suggest Steps</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {subtasks.map((step, i) => (
+            <View key={i} style={styles.stepRow}>
+              <Text style={styles.stepNumber}>{i + 1}.</Text>
+              <TextInput
+                value={step}
+                onChangeText={(text) => {
+                  const next = [...subtasks];
+                  next[i] = text;
+                  setSubtasks(next);
+                }}
+                placeholder="Step description..."
+              />
+              <TouchableOpacity
+                onPress={() => setSubtasks(subtasks.filter((_, j) => j !== i))}
+                style={styles.stepRemove}
+              >
+                <Text style={styles.stepRemoveText}>X</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+
+          {subtasks.length > 0 && (
+            <TouchableOpacity
+              style={styles.addStepBtn}
+              onPress={() => setSubtasks([...subtasks, ''])}
+            >
+              <Text style={styles.addStepText}>+ Add step</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
         {/* Truck snapshot preview */}
         {truckId && readings[truckId] && (
           <Card style={styles.snapshotCard}>
@@ -184,6 +310,29 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.sm,
     fontWeight: typography.weights.semibold as any,
   },
+  // Assignment
+  assignTrigger: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.md, paddingVertical: spacing.md },
+  assignSelected: { color: colors.text, fontSize: typography.sizes.sm },
+  assignPlaceholder: { color: colors.textMuted, fontSize: typography.sizes.sm },
+  assignChevron: { color: colors.textMuted, fontSize: 10 },
+  assignList: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, overflow: 'hidden', marginTop: spacing.xs },
+  assignItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md, paddingVertical: spacing.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  assignItemMuted: { color: colors.textMuted, fontSize: typography.sizes.sm },
+  assignItemName: { color: colors.text, fontSize: typography.sizes.sm, flex: 1 },
+  assignItemRole: { color: colors.textMuted, fontSize: typography.sizes.xs },
+  assignAvatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  assignAvatarText: { color: colors.textSecondary, fontSize: typography.sizes.xs, fontWeight: typography.weights.bold as any },
+  // Steps
+  stepsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  suggestBtn: { backgroundColor: colors.info + '20', borderWidth: 1, borderColor: colors.info + '40', borderRadius: 8, paddingHorizontal: spacing.md, paddingVertical: spacing.xs },
+  suggestBtnDisabled: { opacity: 0.4 },
+  suggestBtnText: { color: colors.infoLight, fontSize: typography.sizes.xs, fontWeight: typography.weights.semibold as any },
+  stepRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  stepNumber: { color: colors.textMuted, fontSize: typography.sizes.xs, width: 20, textAlign: 'right' },
+  stepRemove: { paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
+  stepRemoveText: { color: colors.textMuted, fontSize: typography.sizes.sm, fontWeight: typography.weights.bold as any },
+  addStepBtn: { paddingVertical: spacing.xs, paddingLeft: 28 },
+  addStepText: { color: colors.textMuted, fontSize: typography.sizes.xs },
   snapshotCard: { gap: spacing.xs },
   snapshotTitle: {
     color: colors.textMuted,

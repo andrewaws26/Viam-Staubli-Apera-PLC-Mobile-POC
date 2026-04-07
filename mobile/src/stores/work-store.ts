@@ -55,13 +55,25 @@ export const useWorkStore = create<WorkState>((set, get) => ({
   },
 
   patchWorkOrder: async (id, payload) => {
-    // Optimistic update for status changes
+    // Optimistic update for status and subtask toggles
     const prev = get().workOrders;
-    if (payload.status) {
+    if (payload.status || payload.toggle_subtask_id || payload.assigned_to !== undefined) {
       set({
-        workOrders: prev.map((wo) =>
-          wo.id === id ? { ...wo, status: payload.status!, updated_at: new Date().toISOString() } : wo,
-        ),
+        workOrders: prev.map((wo) => {
+          if (wo.id !== id) return wo;
+          const updates: Partial<WorkOrder> = { updated_at: new Date().toISOString() };
+          if (payload.status) updates.status = payload.status;
+          if (payload.assigned_to !== undefined) {
+            updates.assigned_to = payload.assigned_to as string | null;
+            updates.assigned_to_name = (payload.assigned_to_name as string | null) ?? null;
+          }
+          if (payload.toggle_subtask_id && wo.subtasks) {
+            updates.subtasks = wo.subtasks.map((s) =>
+              s.id === payload.toggle_subtask_id ? { ...s, is_done: !s.is_done } : s,
+            );
+          }
+          return { ...wo, ...updates };
+        }),
       });
     }
 

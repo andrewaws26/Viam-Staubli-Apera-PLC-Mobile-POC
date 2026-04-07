@@ -211,3 +211,20 @@ export function updateWorkOrder(id: string, data: Record<string, unknown>) {
 export function deleteWorkOrder(id: string) {
   return apiRequest(`/api/work-orders?id=${id}`, { method: 'DELETE' });
 }
+
+// ── Team Members ────────────────────────────────────────────────────
+
+/** Fetch team members for assignment. */
+export function fetchTeamMembers() {
+  return apiRequest<{ id: string; name: string; email: string; role: string }[]>('/api/team-members');
+}
+
+// ── AI ──────────────────────────────────────────────────────────────
+
+/** AI-powered step suggestions for work orders. */
+export function suggestWorkOrderSteps(title: string, description?: string) {
+  return apiRequest<{ steps: string[] }>('/api/ai-suggest-steps', {
+    method: 'POST',
+    body: { title, description: description || undefined },
+  });
+}
