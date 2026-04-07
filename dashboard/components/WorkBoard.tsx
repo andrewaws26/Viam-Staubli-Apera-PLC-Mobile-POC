@@ -2,31 +2,9 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useUser, useAuth } from "@clerk/nextjs";
+import type { WorkOrder, WorkOrderStatus } from "@ironsight/shared/work-order";
 
-// Types
-interface WorkOrder {
-  id: string;
-  truck_id: string | null;
-  title: string;
-  description: string | null;
-  status: "open" | "in_progress" | "blocked" | "done";
-  priority: "low" | "normal" | "urgent";
-  blocker_reason: string | null;
-  assigned_to: string | null;
-  assigned_to_name: string | null;
-  created_by: string;
-  created_by_name: string;
-  truck_snapshot: Record<string, unknown> | null;
-  linked_dtcs: { spn: number; fmi: number; ecuLabel: string }[];
-  subtasks: { id: string; title: string; is_done: boolean; sort_order: number }[];
-  note_count: number;
-  due_date: string | null;
-  completed_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-type Status = WorkOrder["status"];
+type Status = WorkOrderStatus;
 const STATUSES: Status[] = ["open", "in_progress", "blocked", "done"];
 const STATUS_LABELS: Record<Status, string> = {
   open: "Open",

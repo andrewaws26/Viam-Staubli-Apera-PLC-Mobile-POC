@@ -17,13 +17,17 @@ Both sync to Viam Cloud at 1 Hz. A Next.js dashboard on Vercel shows live status
 - **Offline**: JSONL buffer at `/home/andrew/.viam/offline-buffer/` (50MB cap)
 
 ## Key directories
+- `packages/shared/src/` — Shared TypeScript types and utilities (sensor-types, auth, work-order, spn-lookup, pcode-lookup, gauge-thresholds, format). Both dashboard and mobile re-export from here.
 - `modules/plc-sensor/src/` — PLC sensor module: plc_sensor.py (main), plc_utils.py, plc_offline.py, plc_metrics.py, plc_weather.py, diagnostics.py, system_health.py
 - `modules/j1939-sensor/src/models/` — J1939 sensor module: j1939_sensor.py (main), j1939_can.py, j1939_dtc.py, j1939_discovery.py, pgn_decoder.py, pgn_utils.py, pgn_dm1.py, obd2_poller.py, obd2_pids.py, obd2_dtc.py, obd2_diagnostics.py, vehicle_profiles.py
 - `dashboard/` — Next.js 14 app on Vercel
-- `dashboard/components/` — TruckPanel, GaugeGrid, DTCPanel, AIChatPanel, Dashboard, TPS/, DevTruck/
-- `dashboard/app/api/` — 10 API routes (sensor-readings, truck-readings, fleet/status, ai-chat, ai-diagnose, shift-report, etc.)
-- `dashboard/lib/sensor-types.ts` — TypeScript interfaces for all sensor readings (100+ fields each)
+- `dashboard/components/` — TruckPanel, GaugeGrid, DTCPanel, AIChatPanel, Dashboard, TPS/, DevTruck/, WorkBoard
+- `dashboard/app/api/` — API routes (sensor-readings, truck-readings, fleet/status, ai-chat, ai-diagnose, shift-report, work-orders, etc.)
+- `dashboard/lib/` — Re-exports from `@ironsight/shared` (sensor-types, auth, spn-lookup, pcode-lookup) + app-specific libs (supabase, audit)
 - `dashboard/hooks/useSensorPolling.ts` — Shared polling hook with sim mode + fault detection
+- `mobile/` — React Native (Expo) iOS app for fleet diagnostics, work orders, inspections
+- `mobile/src/types/` — Re-exports from `@ironsight/shared` (sensor, auth, work-order)
+- `mobile/src/utils/` — Re-exports from `@ironsight/shared` (spn-lookup, pcode-lookup, gauge-thresholds) + mobile-specific (format with date-fns)
 - `scripts/` — Pi tooling: touch UI, discovery, AI server, display, autodiscover
 - `scripts/lib/` — Shared utilities: ai_prompts, plc_discovery, display_pages, config_updater, modbus_scanner, network_scanner
 - `config/` — Viam server config + fleet fragment template
@@ -42,6 +46,32 @@ cd dashboard && npx next build
 # Playwright E2E (needs browser install first)
 cd dashboard && npx playwright install && npx playwright test
 ```
+
+## Monorepo & Shared Package
+
+This is a monorepo with a shared TypeScript package at `packages/shared/`.
+
+**Structure:**
+```
+packages/shared/src/   — Single source of truth for shared types & utilities
+  sensor-types.ts      — PlcSensorReadings, TruckSensorReadings, DiagnosticResult, GaugeThreshold
+  auth.ts              — UserRole, AppUser, ROUTE_PERMISSIONS, role helpers
+  work-order.ts        — WorkOrder, WorkOrderSubtask, WorkOrderNote, payloads, labels
+  spn-lookup.ts        — J1939 SPN/FMI lookup (200+ SPNs)
+  pcode-lookup.ts      — OBD-II P-code lookup (47 codes)
+  gauge-thresholds.ts  — Warn/crit thresholds + getGaugeStatus/getGaugeColor
+  format.ts            — Date/number formatters (requires date-fns)
+  index.ts             — Barrel export (excludes format.ts due to date-fns dep)
+```
+
+**How it works:** Both `dashboard/lib/` and `mobile/src/types/` + `mobile/src/utils/` contain thin re-export shims (`export * from '@ironsight/shared/...'`). Existing imports across both apps continue to work unchanged. The path alias `@ironsight/shared` is configured in both tsconfigs and resolves to `../packages/shared/src`.
+
+**Dashboard config:** `next.config.mjs` has `transpilePackages` and webpack alias for the shared package.
+**Mobile config:** `metro.config.js` has `watchFolders` pointing to the shared package.
+
+**When adding shared types/utilities:** Add to `packages/shared/src/`, then add a re-export shim in both `dashboard/lib/` and `mobile/src/` so existing import paths keep working.
+
+**format.ts note:** Excluded from the barrel export because it depends on `date-fns`. Mobile imports it directly. Dashboard has its own inline `timeAgo` in WorkBoard.tsx.
 
 ## ⚠️ CRITICAL: Encoder Distance Calculation
 **DO NOT use DD1 for distance.** DD1 is NOT a cumulative counter.

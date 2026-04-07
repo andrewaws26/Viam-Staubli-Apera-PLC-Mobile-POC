@@ -2,9 +2,8 @@
  * Formatting helpers for dates, numbers, and units.
  * All readings are US imperial (temperatures F, pressures PSI, speed mph).
  *
- * NOTE: This module uses date-fns which is a mobile-only dependency.
- * The pure-logic formatters (round, formatValue, etc.) are also available
- * from @ironsight/shared/format if date-fns is installed.
+ * NOTE: This module requires `date-fns` as a peer dependency.
+ * Both dashboard and mobile should have it installed.
  */
 
 import { formatDistanceToNow, format, parseISO, isValid } from 'date-fns';

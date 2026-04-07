@@ -59,14 +59,29 @@ npx tsc --noEmit        # Type-check without emitting
 
 ## Path aliases
 
-The project uses `@/*` mapped to `src/*`. Always import from `@/` rather than
-relative paths when importing from `src/`.
+The project uses two path aliases:
+- `@/*` → `src/*` for mobile app code
+- `@ironsight/shared` → `../packages/shared/src` for shared types/utilities
+
+Always import from `@/` for mobile code. Types and utilities in `src/types/` and
+`src/utils/` are thin re-export shims from `@ironsight/shared` — edit the source
+in `packages/shared/src/` when making changes to shared code.
+
+## Shared package
+
+Types and utilities shared with the web dashboard live in `packages/shared/src/`.
+Mobile re-exports them via shim files so existing `@/types/...` and `@/utils/...`
+imports keep working. The `metro.config.js` watches the shared package for changes.
+
+Shared modules: sensor-types, auth, work-order, spn-lookup, pcode-lookup, gauge-thresholds.
+
+`format.ts` is mobile-only (depends on `date-fns`) and lives directly in `src/utils/`.
 
 ## Key conventions
 
 - **Dark theme only**: Background is `#030712` (gray-950). All colors are in `src/theme/colors.ts`.
-- **Gauge thresholds**: `src/utils/gauge-thresholds.ts` defines warn/crit thresholds for each sensor. Thresholds can be "normal" (high=bad, like coolant temp) or "inverted" (low=bad, like oil pressure).
-- **J1939 protocol**: Truck data comes from J1939 CAN bus. DTC codes use SPN/FMI format, not OBD-II P-codes. The SPN lookup table is in `src/utils/spn-lookup.ts`.
+- **Gauge thresholds**: `src/utils/gauge-thresholds.ts` re-exports from shared. Thresholds can be "normal" (high=bad, like coolant temp) or "inverted" (low=bad, like oil pressure).
+- **J1939 protocol**: Truck data comes from J1939 CAN bus. DTC codes use SPN/FMI format, not OBD-II P-codes. The SPN lookup table is re-exported from shared via `src/utils/spn-lookup.ts`.
 - **Offline-first**: Local SQLite stores inspections, notes, and cached data. The sync engine (`src/sync/`) handles Supabase upload when connectivity returns.
 - **CAN bus safety**: The truck Pi Zero uses listen-only mode on J1939. Never send commands to the bus.
 
