@@ -4,21 +4,23 @@
  */
 
 import React, { useEffect, useCallback, useState } from 'react';
-import { ScrollView, RefreshControl, View, Text, StyleSheet } from 'react-native';
+import { ScrollView, RefreshControl, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useFleetStore } from '@/stores/fleet-store';
-import { fetchTruckReadings } from '@/services/api-client';
+import { apiRequest, fetchTruckReadings } from '@/services/api-client';
 import GaugeCircular from '@/components/ui/GaugeCircular';
 import GaugeBar from '@/components/ui/GaugeBar';
 import LampIndicators from '@/components/LampIndicators';
 import DTCBadge from '@/components/DTCBadge';
 import Card from '@/components/ui/Card';
+import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
 import { formatValue, timeAgo } from '@/utils/format';
 import type { TruckSensorReadings } from '@/types/sensor';
+import type { WorkOrder } from '@/types/work-order';
 
 export default function TruckDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -109,6 +111,9 @@ export default function TruckDetailScreen() {
           </View>
         )}
 
+        {/* Work Orders for this truck */}
+        {id && <TruckWorkOrdersSection truckId={id} router={router} />}
+
         <View style={styles.actions}>
           <Button title="Ask AI" onPress={() => router.push(`/ai/chat/${id}`)} variant="primary" size="lg" fullWidth />
         </View>
@@ -118,6 +123,136 @@ export default function TruckDetailScreen() {
     </>
   );
 }
+
+// ── Work Orders Section ─────────────────────────────────────────────
+
+const WO_STATUS_COLORS: Record<string, string> = {
+  open: colors.textMuted,
+  in_progress: '#f59e0b',
+  blocked: colors.danger,
+  done: colors.success,
+};
+
+function TruckWorkOrdersSection({ truckId, router }: { truckId: string; router: ReturnType<typeof useRouter> }) {
+  const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCompleted, setShowCompleted] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await apiRequest<WorkOrder[]>(`/api/work-orders?truck_id=${encodeURIComponent(truckId)}`);
+      if (data) setWorkOrders(data as unknown as WorkOrder[]);
+      setLoading(false);
+    })();
+  }, [truckId]);
+
+  if (loading) {
+    return (
+      <View style={woStyles.container}>
+        <Text style={woStyles.title}>Work Orders</Text>
+        <ActivityIndicator size="small" color={colors.textMuted} />
+      </View>
+    );
+  }
+
+  const active = workOrders.filter((wo) => wo.status !== 'done');
+  const completed = workOrders.filter((wo) => wo.status === 'done');
+
+  if (workOrders.length === 0) {
+    return (
+      <View style={woStyles.container}>
+        <Text style={woStyles.title}>Work Orders</Text>
+        <Text style={woStyles.empty}>No work orders for this truck.</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={woStyles.container}>
+      <Text style={woStyles.title}>
+        Work Orders{active.length > 0 ? ` (${active.length} active)` : ''}
+      </Text>
+
+      {active.map((wo) => (
+        <TouchableOpacity
+          key={wo.id}
+          style={woStyles.card}
+          onPress={() => router.push(`/work-order/${wo.id}`)}
+          activeOpacity={0.7}
+        >
+          <View style={woStyles.cardHeader}>
+            <View style={[woStyles.dot, { backgroundColor: WO_STATUS_COLORS[wo.status] }]} />
+            <Text style={woStyles.cardTitle} numberOfLines={1}>{wo.title}</Text>
+          </View>
+          <View style={woStyles.cardMeta}>
+            <Text style={woStyles.metaText}>
+              {wo.status === 'in_progress' ? 'In Progress' : wo.status === 'blocked' ? 'Blocked' : 'Open'}
+            </Text>
+            {wo.assigned_to_name && (
+              <Text style={woStyles.metaText}>→ {wo.assigned_to_name}</Text>
+            )}
+            {wo.priority === 'urgent' && (
+              <Badge label="URGENT" variant="danger" small />
+            )}
+          </View>
+          {wo.status === 'blocked' && wo.blocker_reason && (
+            <Text style={woStyles.blocker}>{wo.blocker_reason}</Text>
+          )}
+        </TouchableOpacity>
+      ))}
+
+      {completed.length > 0 && (
+        <>
+          <TouchableOpacity onPress={() => setShowCompleted(!showCompleted)}>
+            <Text style={woStyles.historyToggle}>
+              {showCompleted ? '▼' : '▶'} Completed ({completed.length})
+            </Text>
+          </TouchableOpacity>
+          {showCompleted && completed.map((wo) => (
+            <TouchableOpacity
+              key={wo.id}
+              style={[woStyles.card, { opacity: 0.6 }]}
+              onPress={() => router.push(`/work-order/${wo.id}`)}
+              activeOpacity={0.7}
+            >
+              <View style={woStyles.cardHeader}>
+                <View style={[woStyles.dot, { backgroundColor: colors.success }]} />
+                <Text style={[woStyles.cardTitle, { textDecorationLine: 'line-through', color: colors.textMuted }]} numberOfLines={1}>
+                  {wo.title}
+                </Text>
+              </View>
+              <View style={woStyles.cardMeta}>
+                <Text style={woStyles.metaText}>Done</Text>
+                {wo.assigned_to_name && (
+                  <Text style={woStyles.metaText}>by {wo.assigned_to_name}</Text>
+                )}
+                {wo.completed_at && (
+                  <Text style={woStyles.metaText}>{new Date(wo.completed_at).toLocaleDateString()}</Text>
+                )}
+              </View>
+            </TouchableOpacity>
+          ))}
+        </>
+      )}
+    </View>
+  );
+}
+
+const woStyles = StyleSheet.create({
+  container: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, gap: spacing.sm },
+  title: { color: colors.text, fontSize: typography.sizes.base, fontWeight: typography.weights.bold as any, marginBottom: spacing.xs },
+  empty: { color: colors.textMuted, fontSize: typography.sizes.sm },
+  card: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: spacing.sm },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  cardTitle: { color: colors.text, fontSize: typography.sizes.sm, fontWeight: typography.weights.semibold as any, flex: 1 },
+  cardMeta: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: 4, marginLeft: 16 },
+  metaText: { color: colors.textMuted, fontSize: typography.sizes.xs },
+  blocker: { color: colors.dangerLight, fontSize: typography.sizes.xs, marginTop: 4, marginLeft: 16, fontStyle: 'italic' },
+  historyToggle: { color: colors.textMuted, fontSize: typography.sizes.xs, marginTop: spacing.xs },
+});
+
+// ── Main Styles ─────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
