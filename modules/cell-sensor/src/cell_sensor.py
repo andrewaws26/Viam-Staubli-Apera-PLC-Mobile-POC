@@ -20,7 +20,10 @@ from collections.abc import Mapping, Sequence
 from typing import Any, ClassVar, Self
 
 from apera_client import AperaClient, AperaState
-from network_monitor import DEFAULT_DEVICES, DeviceStatus, check_all_devices
+from network_monitor import (
+    DEFAULT_DEVICES, DeviceStatus, InternetHealth, SwitchVpnHealth,
+    check_all_devices, check_internet_health, check_switch_vpn,
+)
 from staubli_client import StaubliClient, StaubliState
 from viam.components.sensor import Sensor
 from viam.logging import getLogger
@@ -38,6 +41,7 @@ LOGGER = getLogger(__name__)
 _STAUBLI_INTERVAL = 2.0
 _APERA_INTERVAL = 2.0
 _NETWORK_INTERVAL = 30.0  # Pings are slow; don't hammer the network
+_INTERNET_INTERVAL = 60.0  # Internet health check (5-ping burst + DNS + Viam TCP)
 
 
 class CellSensor(Sensor):
@@ -77,11 +81,14 @@ class CellSensor(Sensor):
         self._staubli_state = StaubliState()
         self._apera_state = AperaState()
         self._network_state: list[DeviceStatus] = []
+        self._internet_health = InternetHealth()
+        self._switch_vpn_health = SwitchVpnHealth()
 
         # Timing — stagger polls so we don't query everything every read
         self._last_staubli_poll: float = 0.0
         self._last_apera_poll: float = 0.0
         self._last_network_poll: float = 0.0
+        self._last_internet_poll: float = 0.0
 
         # Module stats
         self._total_reads: int = 0
@@ -171,6 +178,8 @@ class CellSensor(Sensor):
             tasks.append(asyncio.create_task(self._poll_apera()))
         if now - self._last_network_poll >= _NETWORK_INTERVAL:
             tasks.append(asyncio.create_task(self._poll_network()))
+        if now - self._last_internet_poll >= _INTERNET_INTERVAL:
+            tasks.append(asyncio.create_task(self._poll_internet()))
 
         # Run all due polls concurrently
         if tasks:
@@ -188,6 +197,15 @@ class CellSensor(Sensor):
         # Network readings
         for dev in self._network_state:
             readings.update(dev.to_dict(prefix="net_"))
+
+        # Internet uplink health
+        readings.update(self._internet_health.to_dict())
+
+        # Switch and VPN gateway health
+        readings.update(self._switch_vpn_health.to_dict())
+
+        # Pi system health
+        readings.update(self._read_pi_health())
 
         # Module metadata
         self._total_reads += 1
@@ -243,6 +261,88 @@ class CellSensor(Sensor):
             )
         except Exception as e:
             LOGGER.warning("Network scan error: %s", e)
+
+    async def _poll_internet(self) -> None:
+        try:
+            self._internet_health = await check_internet_health()
+            self._switch_vpn_health = await check_switch_vpn(
+                device_results=self._network_state
+            )
+            self._last_internet_poll = time.monotonic()
+        except Exception as e:
+            LOGGER.warning("Internet health check error: %s", e)
+
+    @staticmethod
+    def _read_pi_health() -> dict[str, Any]:
+        """Read Raspberry Pi system metrics — CPU, memory, temp, disk."""
+        h: dict[str, Any] = {}
+        # CPU temperature
+        try:
+            with open("/sys/class/thermal/thermal_zone0/temp") as f:
+                h["pi_cpu_temp_c"] = round(int(f.read().strip()) / 1000, 1)
+        except Exception:
+            pass
+        # CPU usage from /proc/loadavg
+        try:
+            with open("/proc/loadavg") as f:
+                parts = f.read().split()
+                h["pi_load_1m"] = float(parts[0])
+                h["pi_load_5m"] = float(parts[1])
+                h["pi_load_15m"] = float(parts[2])
+        except Exception:
+            pass
+        # Memory from /proc/meminfo
+        try:
+            mem = {}
+            with open("/proc/meminfo") as f:
+                for line in f:
+                    if ":" in line:
+                        key, val = line.split(":", 1)
+                        mem[key.strip()] = int(val.strip().split()[0])  # kB
+            total = mem.get("MemTotal", 1)
+            avail = mem.get("MemAvailable", 0)
+            h["pi_mem_total_mb"] = round(total / 1024, 0)
+            h["pi_mem_available_mb"] = round(avail / 1024, 0)
+            h["pi_mem_used_pct"] = round((1 - avail / total) * 100, 1)
+        except Exception:
+            pass
+        # Disk usage from /proc/mounts + statvfs
+        try:
+            import os
+            st = os.statvfs("/")
+            total_gb = (st.f_blocks * st.f_frsize) / (1024 ** 3)
+            free_gb = (st.f_bavail * st.f_frsize) / (1024 ** 3)
+            h["pi_disk_total_gb"] = round(total_gb, 1)
+            h["pi_disk_free_gb"] = round(free_gb, 1)
+            h["pi_disk_used_pct"] = round((1 - free_gb / total_gb) * 100, 1)
+        except Exception:
+            pass
+        # Uptime
+        try:
+            with open("/proc/uptime") as f:
+                h["pi_uptime_hours"] = round(float(f.read().split()[0]) / 3600, 1)
+        except Exception:
+            pass
+        # Throttle flags (Raspberry Pi firmware — undervoltage, thermal throttle)
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["vcgencmd", "get_throttled"],
+                capture_output=True, text=True, timeout=2,
+            )
+            # Output: "throttled=0x0" — 0 means no issues
+            if "=" in result.stdout:
+                flags = int(result.stdout.split("=")[1].strip(), 16)
+                h["pi_throttled_raw"] = flags
+                h["pi_undervoltage_now"] = bool(flags & 0x1)
+                h["pi_freq_capped_now"] = bool(flags & 0x2)
+                h["pi_throttled_now"] = bool(flags & 0x4)
+                h["pi_undervoltage_ever"] = bool(flags & 0x10000)
+                h["pi_freq_capped_ever"] = bool(flags & 0x20000)
+                h["pi_throttled_ever"] = bool(flags & 0x40000)
+        except Exception:
+            pass
+        return h
 
     async def do_command(
         self,
