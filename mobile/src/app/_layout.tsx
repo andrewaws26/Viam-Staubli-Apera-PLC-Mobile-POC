@@ -10,7 +10,9 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider } from '@/auth/auth-provider';
 import { initSyncEngine } from '@/sync/sync-engine';
 import { registerGpsTask } from '@/services/gps-tracker';
+import { addNotificationResponseListener } from '@/services/push-notifications';
 import { colors } from '@/theme/colors';
+import { router } from 'expo-router';
 
 export default function RootLayout() {
   useEffect(() => {
@@ -18,8 +20,20 @@ export default function RootLayout() {
     registerGpsTask();
 
     // Initialize sync engine (network listener + periodic sync)
-    const cleanup = initSyncEngine();
-    return cleanup;
+    const cleanupSync = initSyncEngine();
+
+    // Handle team chat push notification taps
+    const cleanupNotif = addNotificationResponseListener((response) => {
+      const data = response.notification.request.content.data;
+      if (data?.type === 'team_chat' && data?.threadId) {
+        router.push(`/chat/thread?id=${data.threadId}`);
+      }
+    });
+
+    return () => {
+      cleanupSync();
+      cleanupNotif();
+    };
   }, []);
 
   return (

@@ -26,6 +26,7 @@ import StatusAlertBar from "./DevTruck/StatusAlertBar";
 import TrendChartsGrid from "./DevTruck/TrendChartsGrid";
 import ReportButton from "./DevTruck/ReportButton";
 import TruckNotes from "./TruckNotes";
+import TruckChatTab from "./Chat/TruckChatTab";
 import MaintenanceTracker from "./MaintenanceTracker";
 import DTCHistory from "./DTCHistory";
 import dynamic from "next/dynamic";
@@ -489,6 +490,9 @@ export default function TruckPanel({ simMode = false, truckId }: { simMode?: boo
 
       {/* Maintenance History */}
       <MaintenanceTracker truckId={truckId} />
+
+      {/* Team Chat */}
+      <TruckChatTab truckId={truckId || "default"} currentReadings={readings} />
 
       {/* Truck Notes */}
       <TruckNotes truckId={truckId} />

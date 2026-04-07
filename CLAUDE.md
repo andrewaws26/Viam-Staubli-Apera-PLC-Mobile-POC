@@ -17,13 +17,15 @@ Both sync to Viam Cloud at 1 Hz. A Next.js dashboard on Vercel shows live status
 - **Offline**: JSONL buffer at `/home/andrew/.viam/offline-buffer/` (50MB cap)
 
 ## Key directories
-- `packages/shared/src/` — Shared TypeScript types and utilities (sensor-types, auth, work-order, spn-lookup, pcode-lookup, gauge-thresholds, format). Both dashboard and mobile re-export from here.
+- `packages/shared/src/` — Shared TypeScript types and utilities (sensor-types, auth, work-order, spn-lookup, pcode-lookup, gauge-thresholds, format, chat). Both dashboard and mobile re-export from here.
 - `modules/plc-sensor/src/` — PLC sensor module: plc_sensor.py (main), plc_utils.py, plc_offline.py, plc_metrics.py, plc_weather.py, diagnostics.py, system_health.py
 - `modules/j1939-sensor/src/models/` — J1939 sensor module: j1939_sensor.py (main), j1939_can.py, j1939_dtc.py, j1939_discovery.py, pgn_decoder.py, pgn_utils.py, pgn_dm1.py, obd2_poller.py, obd2_pids.py, obd2_dtc.py, obd2_diagnostics.py, vehicle_profiles.py
 - `dashboard/` — Next.js 14 app on Vercel
-- `dashboard/components/` — TruckPanel, GaugeGrid, DTCPanel, AIChatPanel, Dashboard, TPS/, DevTruck/, WorkBoard
-- `dashboard/app/api/` — API routes (sensor-readings, truck-readings, fleet/status, ai-chat, ai-diagnose, ai-suggest-steps, shift-report, work-orders, team-members, etc.)
-- `dashboard/lib/` — Re-exports from `@ironsight/shared` (sensor-types, auth, spn-lookup, pcode-lookup) + app-specific libs (supabase, audit)
+- `dashboard/components/` — TruckPanel, GaugeGrid, DTCPanel, AIChatPanel, Dashboard, TPS/, DevTruck/, WorkBoard, Chat/
+- `dashboard/components/Chat/` — Team chat UI: ThreadView, ThreadList, MessageBubble, ChatInput, SnapshotCard, ReactionBar, TruckChatTab, WorkOrderChatTab, UserPicker
+- `dashboard/app/api/` — API routes (sensor-readings, truck-readings, fleet/status, ai-chat, ai-diagnose, ai-suggest-steps, shift-report, work-orders, team-members, chat/, etc.)
+- `dashboard/app/api/chat/` — Team chat API: threads, messages, reactions, read, members, users, by-entity
+- `dashboard/lib/` — Re-exports from `@ironsight/shared` (sensor-types, auth, spn-lookup, pcode-lookup, chat) + app-specific libs (supabase, audit, ai, chat-push, chat-system-messages)
 - `dashboard/hooks/useSensorPolling.ts` — Shared polling hook with sim mode + fault detection
 - `mobile/` — React Native (Expo) iOS app for fleet diagnostics, work orders, inspections
 - `mobile/src/types/` — Re-exports from `@ironsight/shared` (sensor, auth, work-order)
@@ -39,6 +41,9 @@ Both sync to Viam Cloud at 1 Hz. A Next.js dashboard on Vercel shows live status
 # Python (run separately — conftest collision if combined)
 python3 -m pytest modules/plc-sensor/tests/ -v     # 149 tests
 python3 -m pytest modules/j1939-sensor/tests/ -v    # 148 tests
+
+# Dashboard unit tests (vitest)
+cd dashboard && npx vitest run                      # includes chat tests
 
 # Dashboard build check
 cd dashboard && npx next build
@@ -247,6 +252,39 @@ The dashboard includes an AI-powered diagnostic system that uses Claude to help 
 - DTC clears and diagnostic commands logged via `console.log("[COMMAND-LOG]", ...)` in `dashboard/app/api/truck-command/route.ts`
 
 **Env vars needed:** `ANTHROPIC_API_KEY`, `TRUCK_VIAM_MACHINE_ADDRESS`, `TRUCK_VIAM_API_KEY`, `TRUCK_VIAM_API_KEY_ID`
+
+## Team Chat System
+
+Contextual team chat anchored to domain entities. Every conversation is tied to a truck, work order, DTC, or is a direct message.
+
+**Architecture:**
+- Entity-anchored threads: one thread per truck/WO/DTC, auto-created on first access
+- Sensor snapshots: messages auto-attach live readings at send time (client-side)
+- @ai mentions: type `@ai` in any thread to get AI diagnostic input from Claude
+- Domain reactions: 4 only (thumbs_up, wrench, checkmark, eyes) — no generic emoji
+- Polling: 3s for active thread, 5s for thread list (Vercel doesn't support WebSockets)
+- Push notifications: Expo push to all thread members on new message
+
+**Database tables:** `chat_threads`, `chat_thread_members`, `chat_messages`, `chat_reactions`, `message_reads` — see `dashboard/supabase/migration_004_chat.sql`
+
+**API routes (`dashboard/app/api/chat/`):**
+- `threads/` — List/create threads
+- `threads/[threadId]/` — Get/update/soft-delete thread
+- `threads/[threadId]/messages/` — List/send messages (with AI mention support)
+- `threads/[threadId]/messages/[messageId]/` — Edit/soft-delete message
+- `threads/[threadId]/reactions/` — Toggle domain reactions
+- `threads/[threadId]/read/` — Mark thread as read
+- `threads/[threadId]/members/` — Manage thread members
+- `threads/by-entity/` — Get or auto-create thread for entity
+- `users/` — List org users for DM picker
+
+**Dashboard UI:** `/chat` page with split layout (ThreadList + ThreadView). TruckChatTab embedded in TruckPanel. WorkOrderChatTab for work orders. Chat nav link in header.
+
+**Mobile UI:** Chat tab in bottom nav, ChatListScreen, ThreadScreen, NewDMScreen. Zustand chat-store. Push notification handling for team_chat events.
+
+**Logging:** All chat operations logged via `console.log("[TEAM-CHAT-LOG]", ...)` — viewable in Vercel Functions logs.
+
+**v2 candidates:** Supabase Realtime (replace polling), voice messages, photo annotation, daily digest, @role mentions, unified search.
 
 ## OBD-II Passenger Vehicle Support (FUTURE — SEPARATE DEVICE)
 
