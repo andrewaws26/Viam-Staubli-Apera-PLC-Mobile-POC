@@ -14,18 +14,36 @@ interface ApiRoute {
 }
 
 const API_ROUTES: ApiRoute[] = [
+  // Telemetry
   { label: "Sensor Readings (TPS)", path: "/api/sensor-readings", method: "GET", defaultParams: "component=plc-monitor" },
   { label: "Truck Readings", path: "/api/truck-readings", method: "GET", defaultParams: "component=truck-engine" },
   { label: "Sensor History", path: "/api/sensor-history", method: "GET", defaultParams: "type=summary&hours=24" },
   { label: "Truck History", path: "/api/truck-history", method: "GET", defaultParams: "hours=24" },
+  { label: "DTC History", path: "/api/dtc-history", method: "GET", defaultParams: "hours=24" },
+  // Fleet
+  { label: "Fleet Status", path: "/api/fleet/status", method: "GET" },
+  { label: "Fleet Trucks", path: "/api/fleet/trucks", method: "GET" },
+  { label: "Truck Assignments", path: "/api/truck-assignments", method: "GET" },
+  { label: "Team Members", path: "/api/team-members", method: "GET" },
+  // Health
   { label: "Pi Health (TPS)", path: "/api/pi-health", method: "GET", defaultParams: "host=tps" },
   { label: "Pi Health (Truck)", path: "/api/pi-health", method: "GET", defaultParams: "host=truck" },
-  { label: "Fleet Trucks", path: "/api/fleet/trucks", method: "GET" },
+  // Work Orders
+  { label: "Work Orders", path: "/api/work-orders", method: "GET" },
+  { label: "Maintenance", path: "/api/maintenance", method: "GET" },
+  // AI
   { label: "AI Chat (Debug)", path: "/api/ai-chat", method: "POST", defaultParams: "debug=1", defaultBody: '{"messages":[{"role":"user","content":"test"}],"readings":{}}' },
   { label: "AI Diagnose", path: "/api/ai-diagnose", method: "POST", defaultBody: '{"readings":{}}' },
+  { label: "AI Report Summary", path: "/api/ai-report-summary", method: "POST", defaultBody: '{"report":"test summary"}' },
+  { label: "AI Suggest Steps", path: "/api/ai-suggest-steps", method: "POST", defaultBody: '{"title":"DPF regen keeps aborting"}' },
+  // Commands
   { label: "Truck Command", path: "/api/truck-command", method: "POST", defaultBody: '{"command":"get_bus_stats"}' },
   { label: "PLC Command", path: "/api/plc-command", method: "POST", defaultBody: '{"action":"reset_counters"}' },
+  // Reports
   { label: "Shift Report", path: "/api/shift-report", method: "GET", defaultParams: "hours=8" },
+  // Admin
+  { label: "Audit Log", path: "/api/audit-log", method: "GET", defaultParams: "limit=20" },
+  { label: "Truck Notes", path: "/api/truck-notes", method: "GET" },
 ];
 
 // ---------------------------------------------------------------------------

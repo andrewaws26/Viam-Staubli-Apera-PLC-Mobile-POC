@@ -27,7 +27,11 @@ const ENV_VARS = [
   { name: "TRUCK_VIAM_API_KEY_ID", scope: "server" },
   { name: "TRUCK_VIAM_PART_ID", scope: "server" },
   { name: "ANTHROPIC_API_KEY", scope: "server" },
+  { name: "SUPABASE_URL", scope: "server" },
+  { name: "SUPABASE_SERVICE_ROLE_KEY", scope: "server" },
   { name: "FLEET_TRUCKS", scope: "server" },
+  { name: "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY", scope: "public" },
+  { name: "CLERK_SECRET_KEY", scope: "server" },
   { name: "NEXT_PUBLIC_ENABLE_DEV_PAGE", scope: "public" },
 ];
 
@@ -52,6 +56,17 @@ export default function DevPage() {
     data: Record<string, unknown> | null;
   }>({ loaded: false, error: null, data: null });
   const [aiDebugExpanded, setAiDebugExpanded] = useState(false);
+
+  // Work orders quick stats
+  const [woStats, setWoStats] = useState<{
+    loaded: boolean;
+    open: number;
+    in_progress: number;
+    blocked: number;
+    done: number;
+    total: number;
+  }>({ loaded: false, open: 0, in_progress: 0, blocked: 0, done: 0, total: 0 });
+  const [woExpanded, setWoExpanded] = useState(false);
 
   // Env check state
   const [envCheck, setEnvCheck] = useState<{
@@ -95,6 +110,29 @@ export default function DevPage() {
       cancelled = true;
     };
   }, [aiDebugExpanded, aiDebug.loaded]);
+
+  // -----------------------------------------------------------------------
+  // Work order stats — fetch once when expanded
+  // -----------------------------------------------------------------------
+  useEffect(() => {
+    if (!woExpanded || woStats.loaded) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/work-orders");
+        if (!res.ok) throw new Error("Failed");
+        const data = await res.json();
+        const counts = { open: 0, in_progress: 0, blocked: 0, done: 0, total: data.length };
+        for (const wo of data) {
+          if (wo.status in counts) counts[wo.status as keyof typeof counts]++;
+        }
+        if (!cancelled) setWoStats({ loaded: true, ...counts });
+      } catch {
+        if (!cancelled) setWoStats((prev) => ({ ...prev, loaded: true }));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [woExpanded, woStats.loaded]);
 
   // -----------------------------------------------------------------------
   // Env check — fetch once when expanded
@@ -283,7 +321,72 @@ export default function DevPage() {
         <DevApiTester />
 
         {/* ================================================================ */}
-        {/* Section 6: Environment & Config                                   */}
+        {/* Section 6: Work Order Stats                                       */}
+        {/* ================================================================ */}
+        <section className="border border-gray-800 rounded-2xl overflow-hidden">
+          <button
+            onClick={() => setWoExpanded((e) => !e)}
+            className="w-full p-4 sm:p-5 flex items-center justify-between gap-3 text-left hover:bg-gray-900/30 transition-colors"
+          >
+            <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400">
+              Work Orders
+            </h2>
+            <span className="text-gray-600 text-xs shrink-0">
+              {woExpanded ? "\u25B2" : "\u25BC"}
+            </span>
+          </button>
+
+          {woExpanded && (
+            <div className="px-4 sm:px-6 pb-4 sm:pb-6 space-y-4">
+              {woStats.loaded ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                    <div className="bg-gray-900 rounded-lg p-3 text-center">
+                      <span className="text-2xl font-bold text-gray-100">{woStats.total}</span>
+                      <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-wider">Total</p>
+                    </div>
+                    <div className="bg-gray-900 rounded-lg p-3 text-center">
+                      <span className="text-2xl font-bold text-gray-400">{woStats.open}</span>
+                      <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-wider">Open</p>
+                    </div>
+                    <div className="bg-gray-900 rounded-lg p-3 text-center">
+                      <span className="text-2xl font-bold text-amber-400">{woStats.in_progress}</span>
+                      <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-wider">In Progress</p>
+                    </div>
+                    <div className="bg-gray-900 rounded-lg p-3 text-center">
+                      <span className="text-2xl font-bold text-red-400">{woStats.blocked}</span>
+                      <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-wider">Blocked</p>
+                    </div>
+                    <div className="bg-gray-900 rounded-lg p-3 text-center">
+                      <span className="text-2xl font-bold text-green-400">{woStats.done}</span>
+                      <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-wider">Done</p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <a
+                      href="/work"
+                      className="text-xs px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold uppercase tracking-wider rounded-lg transition-colors"
+                    >
+                      Open Work Board
+                    </a>
+                    <button
+                      onClick={() => setWoStats((prev) => ({ ...prev, loaded: false }))}
+                      className="text-xs px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-400 font-bold uppercase tracking-wider rounded-lg transition-colors"
+                    >
+                      Refresh
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500 animate-pulse">Loading work order stats&hellip;</p>
+              )}
+            </div>
+          )}
+        </section>
+
+        {/* ================================================================ */}
+        {/* Section 7: Environment & Config                                   */}
         {/* ================================================================ */}
         <section className="border border-gray-800 rounded-2xl overflow-hidden">
           <button
