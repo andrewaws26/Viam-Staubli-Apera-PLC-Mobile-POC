@@ -26,6 +26,8 @@ Both sync to Viam Cloud at 1 Hz. A Next.js dashboard on Vercel shows live status
 - `dashboard/app/api/` — API routes (sensor-readings, truck-readings, fleet/status, ai-chat, ai-diagnose, ai-suggest-steps, shift-report, work-orders, team-members, chat/, etc.)
 - `dashboard/app/api/chat/` — Team chat API: threads, messages, reactions, read, members, users, by-entity
 - `dashboard/lib/` — Re-exports from `@ironsight/shared` (sensor-types, auth, spn-lookup, pcode-lookup, chat) + app-specific libs (supabase, audit, ai, chat-push, chat-system-messages)
+- `dashboard/components/Cell/` — Robot cell monitoring: CellSection (orchestrator), StaubliPanel, AperaPanel, CellWatchdog (20+ cross-system rules), CellTypes
+- `dashboard/app/api/cell-readings/` — Combined Staubli + Apera + network readings (sim mode until Pi 5 Viam module deployed)
 - `dashboard/hooks/useSensorPolling.ts` — Shared polling hook with sim mode + fault detection
 - `mobile/` — React Native (Expo) iOS app for fleet diagnostics, work orders, inspections
 - `mobile/src/types/` — Re-exports from `@ironsight/shared` (sensor, auth, work-order)
@@ -43,7 +45,7 @@ python3 -m pytest modules/plc-sensor/tests/ -v     # 149 tests
 python3 -m pytest modules/j1939-sensor/tests/ -v    # 148 tests
 
 # Dashboard unit tests (vitest)
-cd dashboard && npx vitest run                      # includes chat tests
+cd dashboard && npx vitest run                      # includes chat + cell watchdog tests
 
 # Dashboard build check
 cd dashboard && npx next build
@@ -131,7 +133,9 @@ Rolling signal metrics in `SignalMetrics` class: camera detection rate, eject ra
 - Production: viam-staubli-apera-plc-mobile-poc.vercel.app
 - Dev mode: viam-staubli-apera-plc-mobile-poc.vercel.app/dev
 - Env vars: VIAM_API_KEY, VIAM_API_KEY_ID, VIAM_MACHINE_ADDRESS, VIAM_PART_ID (server-side) + NEXT_PUBLIC_ variants (client-side)
-- Push to git triggers Vercel redeploy
+- Push to git **should** trigger Vercel redeploy, but the webhook is unreliable
+- **If Vercel doesn't auto-deploy after push/merge:** run `cd /path/to/repo && vercel --prod --yes` from repo root (NOT from `dashboard/` — Vercel root dir is set to `dashboard/` in project settings, so running from `dashboard/` doubles the path)
+- Verify deploy: `curl -s -o /dev/null -w "%{http_code}" https://viam-staubli-apera-plc-mobile-poc.vercel.app/api/cell-readings?sim=true` — should return 200
 
 ## WiFi priority (NetworkManager)
 1. B&B Shop (priority 30) — primary
@@ -145,7 +149,7 @@ Rolling signal metrics in `SignalMetrics` class: camera detection rate, eject ra
 - **Never use DD1 for distance** — use DS10 countdown (see above)
 - **Never disable listen-only mode on the Pi Zero CAN bus** — normal mode ACKs truck frames and triggers DTCs/warning lights. OBD-II (which needs transmit) goes on a separate device.
 - **Pi Zero CAN = 250kbps J1939 only** — do not change bitrate to 500kbps or set protocol to obd2 on this device
-- Never add E-Cat, servo, robot, or vision code
+- Robot cell monitoring code (Staubli, Apera, cell watchdog) lives in `dashboard/components/Cell/` and `dashboard/app/api/cell-readings/`
 - Keep dashboard mobile-friendly
 - All Viam credentials stay server-side (Next.js API route), never in browser
 - Always branch and PR, never push directly to main (docs excepted)
