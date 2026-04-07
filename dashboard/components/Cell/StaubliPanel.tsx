@@ -32,12 +32,13 @@ function StatusDot({ ok, label }: { ok: boolean; label: string }) {
 function TempGauge({ label, value, warn, crit }: { label: string; value: number; warn: number; crit: number }) {
   const pct = Math.min((value / crit) * 100, 100);
   const barColor = value >= crit ? "bg-red-500" : value >= warn ? "bg-orange-500" : "bg-emerald-500";
+  const fahrenheit = value * 9 / 5 + 32;
   return (
     <div className={`p-2.5 rounded-lg border ${tempBg(value, warn, crit)}`}>
       <div className="flex justify-between items-baseline mb-1">
         <span className="text-[10px] text-gray-500 uppercase tracking-wide">{label}</span>
         <span className={`font-mono text-sm font-bold ${tempColor(value, warn, crit)}`}>
-          {value.toFixed(0)}°C
+          {fahrenheit.toFixed(0)}°F
         </span>
       </div>
       <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">

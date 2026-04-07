@@ -128,12 +128,15 @@ interface CellData {
 // Helpers
 // ---------------------------------------------------------------------------
 
+// Thresholds are in °C internally; display converts to °F
 const MOTOR_WARN = 65;
 const MOTOR_CRIT = 80;
 const DSI_WARN = 55;
 const DSI_CRIT = 70;
 const GPU_WARN = 75;
 const GPU_CRIT = 90;
+
+function cToF(c: number): number { return c * 9 / 5 + 32; }
 
 function tempStatusColor(val: number, warn: number, crit: number): string {
   if (val >= crit) return colors.dangerLight;
@@ -352,10 +355,10 @@ export default function CellScreen() {
               {(['J1', 'J2', 'J3', 'J4', 'J5', 'J6'] as const).map((j, i) => {
                 const val = [s.temp_j1, s.temp_j2, s.temp_j3, s.temp_j4, s.temp_j5, s.temp_j6][i];
                 return (
-                  <KV key={j} label={j} value={`${val.toFixed(0)}°C`} color={tempStatusColor(val, MOTOR_WARN, MOTOR_CRIT)} />
+                  <KV key={j} label={j} value={`${cToF(val).toFixed(0)}°F`} color={tempStatusColor(val, MOTOR_WARN, MOTOR_CRIT)} />
                 );
               })}
-              <KV label="DSI" value={`${s.temp_dsi.toFixed(0)}°C`} color={tempStatusColor(s.temp_dsi, DSI_WARN, DSI_CRIT)} />
+              <KV label="DSI" value={`${cToF(s.temp_dsi).toFixed(0)}°F`} color={tempStatusColor(s.temp_dsi, DSI_WARN, DSI_CRIT)} />
             </View>
 
             {/* Production */}
@@ -407,7 +410,7 @@ export default function CellScreen() {
                 color={a.pipeline_state === 'error' ? colors.dangerLight : a.pipeline_state === 'idle' ? colors.textMuted : colors.infoLight}
                 backgroundColor={a.pipeline_state === 'error' ? '#dc262620' : '#2563eb15'}
               />
-              <KV label="Cycle" value={a.last_cycle_ms > 0 ? `${a.last_cycle_ms}ms` : '--'} />
+              <KV label="Cycle" value={a.last_cycle_ms > 0 ? `${Math.round(a.last_cycle_ms)}ms` : '--'} />
               <KV label="Pose" value={a.pick_pose_available ? 'Ready' : 'None'} color={a.pick_pose_available ? colors.successLight : undefined} />
             </View>
 
@@ -438,7 +441,7 @@ export default function CellScreen() {
             <View style={styles.kvRow}>
               <KV label="Cam 1" value={a.camera_1_ok ? 'OK' : 'ERR'} color={a.camera_1_ok ? colors.successLight : colors.dangerLight} />
               <KV label="Cam 2" value={a.camera_2_ok ? 'OK' : 'ERR'} color={a.camera_2_ok ? colors.successLight : colors.dangerLight} />
-              <KV label="GPU" value={`${a.gpu_temp_c.toFixed(0)}°C`} color={tempStatusColor(a.gpu_temp_c, GPU_WARN, GPU_CRIT)} />
+              <KV label="GPU" value={`${cToF(a.gpu_temp_c).toFixed(0)}°F`} color={tempStatusColor(a.gpu_temp_c, GPU_WARN, GPU_CRIT)} />
               <KV label="VRAM" value={`${a.gpu_memory_used_pct.toFixed(0)}%`} color={a.gpu_memory_used_pct > 90 ? colors.dangerLight : undefined} />
             </View>
           </>
@@ -459,7 +462,7 @@ export default function CellScreen() {
               color={data.internet.latency_ms > 200 ? colors.warningLight : undefined} />
             <KV label="Jitter" value={`${data.internet.jitter_ms.toFixed(0)}ms`}
               color={data.internet.jitter_ms > 50 ? colors.warningLight : undefined} />
-            <KV label="Loss" value={`${data.internet.packet_loss_pct}%`}
+            <KV label="Loss" value={`${Math.round(data.internet.packet_loss_pct)}%`}
               color={data.internet.packet_loss_pct > 0 ? colors.warningLight : undefined} />
           </View>
         ) : (
@@ -496,7 +499,7 @@ export default function CellScreen() {
         {data?.piHealth ? (
           <>
             <View style={styles.kvRow}>
-              <KV label="CPU" value={`${data.piHealth.cpu_temp_c.toFixed(0)}°C`}
+              <KV label="CPU" value={`${cToF(data.piHealth.cpu_temp_c).toFixed(0)}°F`}
                 color={data.piHealth.cpu_temp_c >= 80 ? colors.dangerLight : data.piHealth.cpu_temp_c >= 70 ? colors.warningLight : undefined} />
               <KV label="Load" value={data.piHealth.load_1m.toFixed(2)} color={data.piHealth.load_1m > 3 ? colors.warningLight : undefined} />
               <KV label="Mem" value={`${data.piHealth.mem_used_pct.toFixed(0)}%`}
@@ -535,7 +538,7 @@ export default function CellScreen() {
                 <Text style={styles.deviceIp}>{dev.ip}</Text>
               </View>
               {dev.reachable && (
-                <Text style={styles.latency}>{dev.latency_ms}ms</Text>
+                <Text style={styles.latency}>{Math.round(dev.latency_ms)}ms</Text>
               )}
             </View>
           ))}

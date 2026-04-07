@@ -167,7 +167,7 @@ export default function AperaPanel({ readings, pollError }: Props) {
                   <KV label="Camera 2" value={r.camera_2_ok ? "OK" : "ERROR"} color={r.camera_2_ok ? "text-emerald-400" : "text-red-400"} />
                   <KV
                     label="GPU Temp"
-                    value={`${r.gpu_temp_c.toFixed(0)}°C`}
+                    value={`${(r.gpu_temp_c * 9 / 5 + 32).toFixed(0)}°F`}
                     color={tempColor(r.gpu_temp_c, TEMP_THRESHOLDS.gpu_warn, TEMP_THRESHOLDS.gpu_crit)}
                     mono
                   />

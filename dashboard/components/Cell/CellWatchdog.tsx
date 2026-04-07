@@ -34,6 +34,7 @@ function runWatchdog(input: WatchdogInput): CellAlert[] {
   }
 
   const { staubli: s, apera: a, network: n, internet: inet, switchVpn: sw, piHealth: pi } = input;
+  const cToF = (c: number) => (c * 9 / 5 + 32).toFixed(0);
 
   // ---- SAFETY ----
   if (s) {
@@ -50,23 +51,23 @@ function runWatchdog(input: WatchdogInput): CellAlert[] {
     ];
     for (const t of temps) {
       if (t.val >= TEMP_THRESHOLDS.motor_crit) {
-        alert("critical", "thermal", `Motor ${t.name} Overheating`, `${t.name} motor at ${t.val.toFixed(0)}°C — above ${TEMP_THRESHOLDS.motor_crit}°C critical limit. Risk of thermal shutdown. Reduce cycle speed or check cabinet ventilation.`, "Staubli");
+        alert("critical", "thermal", `Motor ${t.name} Overheating`, `${t.name} motor at ${cToF(t.val)}°F — above ${cToF(TEMP_THRESHOLDS.motor_crit)}°F critical limit. Risk of thermal shutdown. Reduce cycle speed or check cabinet ventilation.`, "Staubli");
       } else if (t.val >= TEMP_THRESHOLDS.motor_warn) {
-        alert("warning", "thermal", `Motor ${t.name} Running Hot`, `${t.name} motor at ${t.val.toFixed(0)}°C — approaching thermal limit. Monitor trend. May need to slow down or improve cooling.`, "Staubli");
+        alert("warning", "thermal", `Motor ${t.name} Running Hot`, `${t.name} motor at ${cToF(t.val)}°F — approaching thermal limit. Monitor trend. May need to slow down or improve cooling.`, "Staubli");
       }
     }
     if (s.temp_dsi >= TEMP_THRESHOLDS.dsi_crit) {
-      alert("critical", "thermal", "DSI Drive Module Overheating", `Drive module at ${s.temp_dsi.toFixed(0)}°C — this is the same component that caused the URPS thermal shutdowns. Immediate attention needed.`, "Staubli");
+      alert("critical", "thermal", "DSI Drive Module Overheating", `Drive module at ${cToF(s.temp_dsi)}°F — this is the same component that caused the URPS thermal shutdowns. Immediate attention needed.`, "Staubli");
     } else if (s.temp_dsi >= TEMP_THRESHOLDS.dsi_warn) {
-      alert("warning", "thermal", "DSI Drive Module Warm", `Drive module at ${s.temp_dsi.toFixed(0)}°C — trending toward the thermal protection threshold. Check cabinet fans.`, "Staubli");
+      alert("warning", "thermal", "DSI Drive Module Warm", `Drive module at ${cToF(s.temp_dsi)}°F — trending toward the thermal protection threshold. Check cabinet fans.`, "Staubli");
     }
   }
 
   if (a) {
     if (a.gpu_temp_c >= TEMP_THRESHOLDS.gpu_crit) {
-      alert("critical", "thermal", "Vision GPU Overheating", `GPU at ${a.gpu_temp_c.toFixed(0)}°C. Vision processing will throttle or fail. Check Apera PC ventilation.`, "Apera");
+      alert("critical", "thermal", "Vision GPU Overheating", `GPU at ${cToF(a.gpu_temp_c)}°F. Vision processing will throttle or fail. Check Apera PC ventilation.`, "Apera");
     } else if (a.gpu_temp_c >= TEMP_THRESHOLDS.gpu_warn) {
-      alert("warning", "thermal", "Vision GPU Running Hot", `GPU at ${a.gpu_temp_c.toFixed(0)}°C. May affect detection speed.`, "Apera");
+      alert("warning", "thermal", "Vision GPU Running Hot", `GPU at ${cToF(a.gpu_temp_c)}°F. May affect detection speed.`, "Apera");
     }
   }
 
@@ -200,12 +201,12 @@ function runWatchdog(input: WatchdogInput): CellAlert[] {
       alert("critical", "power", "Pi 5 Undervoltage", "Power supply voltage is low. Pi may reboot unexpectedly. Check USB-C power supply.", "Infra");
     }
     if (pi.throttled_now) {
-      alert("warning", "thermal", "Pi 5 Thermal Throttle", `CPU at ${pi.cpu_temp_c.toFixed(0)}°C — performance is being throttled. Improve ventilation.`, "Infra");
+      alert("warning", "thermal", "Pi 5 Thermal Throttle", `CPU at ${cToF(pi.cpu_temp_c)}°F — performance is being throttled. Improve ventilation.`, "Infra");
     }
     if (pi.cpu_temp_c >= 80) {
-      alert("critical", "thermal", "Pi 5 CPU Overheating", `CPU at ${pi.cpu_temp_c.toFixed(0)}°C — risk of shutdown. Move Pi or add cooling.`, "Infra");
+      alert("critical", "thermal", "Pi 5 CPU Overheating", `CPU at ${cToF(pi.cpu_temp_c)}°F — risk of shutdown. Move Pi or add cooling.`, "Infra");
     } else if (pi.cpu_temp_c >= 70) {
-      alert("warning", "thermal", "Pi 5 CPU Warm", `CPU at ${pi.cpu_temp_c.toFixed(0)}°C — approaching thermal throttle.`, "Infra");
+      alert("warning", "thermal", "Pi 5 CPU Warm", `CPU at ${cToF(pi.cpu_temp_c)}°F — approaching thermal throttle.`, "Infra");
     }
     if (pi.mem_used_pct > 90) {
       alert("warning", "power", "Pi 5 Memory Low", `${pi.mem_used_pct.toFixed(0)}% memory used. Module may crash if it runs out.`, "Infra");
