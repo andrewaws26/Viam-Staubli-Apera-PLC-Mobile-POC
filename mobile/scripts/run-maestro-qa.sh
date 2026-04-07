@@ -10,6 +10,7 @@ set -euo pipefail
 export PATH="/opt/homebrew/opt/openjdk/bin:$PATH:$HOME/.maestro/bin"
 export MAESTRO_CLI_NO_ANALYTICS=1
 export MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED=true
+export EXPO_PUBLIC_QA_BYPASS=1
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 MOBILE_DIR="$REPO_ROOT/mobile"

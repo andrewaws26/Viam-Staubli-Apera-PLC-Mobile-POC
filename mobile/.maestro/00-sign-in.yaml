@@ -1,0 +1,28 @@
+appId: com.ironsight.mobile
+name: "Sign In — QA Bypass Auth"
+---
+
+# Launch app fresh (clears cached state)
+- launchApp:
+    clearState: true
+
+# Wait for sign-in screen
+- waitForAnimationToEnd
+
+# Screenshot the sign-in screen
+- takeScreenshot: "00-sign-in-screen"
+
+# In QA bypass mode, we'll see "Dev Sign In"
+# In production mode, we'd see "Continue with Google"
+- tapOn:
+    text: "Dev Sign In"
+    optional: true
+
+# If we see the real sign-in screen (no QA bypass), screenshot it and stop
+- tapOn:
+    text: "Continue with Google"
+    optional: true
+
+# Wait for main app to load
+- waitForAnimationToEnd
+- takeScreenshot: "00-signed-in-home"

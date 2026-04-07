@@ -1,28 +1,79 @@
 /**
  * Sign-in screen with Google + Microsoft buttons.
  * Dark theme matching web dashboard. IronSight logo at top.
+ *
+ * In QA bypass mode (__DEV__ + EXPO_PUBLIC_QA_BYPASS=1), shows a
+ * "Dev Sign In" button that skips OAuth entirely.
  */
 
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { useOAuth, useAuth } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
-import * as Linking from 'expo-linking';
 import Button from '@/components/ui/Button';
 import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
 
-WebBrowser.maybeCompleteAuthSession();
+const QA_BYPASS = __DEV__ && process.env.EXPO_PUBLIC_QA_BYPASS === '1';
 
-export default function SignIn() {
+// ── QA Bypass Sign-In (no Clerk) ──────────────────────────────────
+
+function QASignIn() {
+  const router = useRouter();
+  // Access the QA bypass provider's qaSignIn via context
+  const { useAppAuth } = require('@/auth/auth-provider');
+  const auth = useAppAuth();
+
+  const handleDevSignIn = () => {
+    if ('qaSignIn' in auth) {
+      (auth as any).qaSignIn();
+    }
+    router.replace('/(tabs)');
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.content}>
+        <View style={styles.logoSection}>
+          <Text style={styles.logoText}>IRONSIGHT</Text>
+          <Text style={styles.subtitle}>Fleet Diagnostics</Text>
+        </View>
+
+        <Text style={styles.heading}>QA Test Mode</Text>
+        <Text style={styles.description}>
+          Dev build with auth bypass enabled.
+        </Text>
+
+        <View style={styles.buttons}>
+          <Button
+            title="Dev Sign In"
+            onPress={handleDevSignIn}
+            variant="primary"
+            size="lg"
+            fullWidth
+          />
+        </View>
+      </View>
+
+      <Text style={styles.footer}>QA Bypass · Dev Build Only</Text>
+    </View>
+  );
+}
+
+// ── Production Sign-In (Clerk OAuth) ──────────────────────────────
+
+function OAuthSignIn() {
+  const { useOAuth, useAuth } = require('@clerk/clerk-expo');
+  const WebBrowser = require('expo-web-browser');
+  const Linking = require('expo-linking');
+
+  WebBrowser.maybeCompleteAuthSession();
+
   const { startOAuthFlow: startGoogle } = useOAuth({ strategy: 'oauth_google' });
   const { startOAuthFlow: startMicrosoft } = useOAuth({ strategy: 'oauth_microsoft' });
   const { isSignedIn } = useAuth();
   const router = useRouter();
 
-  // If already signed in (e.g. from previous OAuth), redirect immediately
   React.useEffect(() => {
     if (isSignedIn) {
       router.replace('/(tabs)');
@@ -38,7 +89,6 @@ export default function SignIn() {
         router.replace('/(tabs)');
       }
     } catch (err: any) {
-      // "You're already signed in" means session exists — just redirect
       if (err?.message?.includes('already signed') || err?.errors?.[0]?.message?.includes('already signed')) {
         router.replace('/(tabs)');
         return;
@@ -81,6 +131,12 @@ export default function SignIn() {
       <Text style={styles.footer}>B&B Metals · IronSight Fleet Monitoring</Text>
     </View>
   );
+}
+
+// ── Export ─────────────────────────────────────────────────────────
+
+export default function SignIn() {
+  return QA_BYPASS ? <QASignIn /> : <OAuthSignIn />;
 }
 
 const styles = StyleSheet.create({

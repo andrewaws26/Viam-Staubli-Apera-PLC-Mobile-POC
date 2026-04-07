@@ -4,13 +4,22 @@
  * Caches auth state locally for offline access after initial sign-in.
  */
 
-import React, { createContext, useContext, useMemo } from 'react';
+import React, { createContext, useContext, useMemo, useState } from 'react';
 import { ClerkProvider, useAuth, useUser } from '@clerk/clerk-expo';
 import * as SecureStore from 'expo-secure-store';
 import type { AppUser, UserRole } from '@/types/auth';
 import { setTokenProvider } from '@/services/api-client';
 
 const CLERK_KEY = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
+const QA_BYPASS = __DEV__ && process.env.EXPO_PUBLIC_QA_BYPASS === '1';
+
+const QA_TEST_USER: AppUser = {
+  id: 'qa-test-user',
+  name: 'QA Tester',
+  email: 'qa@ironsight.dev',
+  role: 'developer' as UserRole,
+  assignedTruckIds: [],
+};
 
 // Clerk token cache using SecureStore
 const tokenCache = {
@@ -44,6 +53,8 @@ interface AuthContextValue {
   isSignedIn: boolean;
   isLoaded: boolean;
   signOut: () => Promise<void>;
+  /** QA bypass only — signs in as test user without Clerk */
+  qaSignIn?: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -101,9 +112,31 @@ function AuthInner({ children }: { children: React.ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
+// ── QA bypass provider (dev builds only) ────────────────────────────
+
+function QABypassProvider({ children }: { children: React.ReactNode }) {
+  const [signedIn, setSignedIn] = useState(false);
+
+  const value = useMemo(
+    () => ({
+      currentUser: signedIn ? QA_TEST_USER : null,
+      isSignedIn: signedIn,
+      isLoaded: true,
+      signOut: async () => setSignedIn(false),
+      qaSignIn: () => setSignedIn(true),
+    }),
+    [signedIn],
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
 // ── Root provider ───────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  if (QA_BYPASS) {
+    return <QABypassProvider>{children}</QABypassProvider>;
+  }
   return (
     <ClerkProvider publishableKey={CLERK_KEY} tokenCache={tokenCache}>
       <AuthInner>{children}</AuthInner>
