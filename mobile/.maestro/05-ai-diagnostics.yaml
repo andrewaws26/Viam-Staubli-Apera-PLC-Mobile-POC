@@ -1,0 +1,45 @@
+appId: com.ironsight.mobile
+name: "AI Diagnostics — Chat, Diagnose, Reports Modes"
+---
+
+# Launch app
+- launchApp
+
+# Navigate to AI tab
+- tapOn: "AI"
+- waitForAnimationToEnd
+
+# Screenshot AI screen
+- takeScreenshot: "05-ai-chat-mode"
+
+# Verify mode selector
+- assertVisible: "Chat"
+- assertVisible: "Diagnose"
+- assertVisible: "Reports"
+
+# Verify suggested prompts in chat mode
+- assertVisible: "What's wrong with this truck?"
+- assertVisible: "Explain the active DTCs"
+
+# Screenshot the suggested prompts
+- takeScreenshot: "05-ai-suggested-prompts"
+
+# Switch to Diagnose mode
+- tapOn: "Diagnose"
+- waitForAnimationToEnd
+- takeScreenshot: "05-ai-diagnose-mode"
+
+# Verify diagnose button
+- assertVisible: "Diagnose All"
+
+# Switch to Reports mode
+- tapOn: "Reports"
+- waitForAnimationToEnd
+- takeScreenshot: "05-ai-reports-mode"
+
+# Verify reports empty state
+- assertVisible: "Shift Reports"
+
+# Switch back to Chat
+- tapOn: "Chat"
+- waitForAnimationToEnd

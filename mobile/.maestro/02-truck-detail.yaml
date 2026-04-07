@@ -1,0 +1,38 @@
+appId: com.ironsight.mobile
+name: "Truck Detail — Gauges, DTCs, Quick Actions"
+---
+
+# Launch app fresh
+- launchApp
+
+# Navigate to Truck tab
+- tapOn: "Truck"
+- waitForAnimationToEnd
+
+# Screenshot the truck detail screen
+- takeScreenshot: "02-truck-detail"
+
+# Verify key gauge labels are present
+- assertVisible: "RPM"
+- assertVisible: "Coolant"
+- assertVisible: "Oil PSI"
+
+# Verify status grid items
+- assertVisible: "Speed"
+- assertVisible: "Battery"
+
+# Verify fuel/DEF bars
+- assertVisible: "Fuel Level"
+- assertVisible: "DEF Level"
+
+# Verify lamp status section
+- assertVisible: "Lamp Status"
+
+# Screenshot after scrolling down
+- scroll
+- takeScreenshot: "02-truck-detail-scrolled"
+
+# Check quick action buttons
+- assertVisible: "Add Note"
+- assertVisible: "Start Inspection"
+- assertVisible: "Ask AI"

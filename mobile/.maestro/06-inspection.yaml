@@ -1,0 +1,42 @@
+appId: com.ironsight.mobile
+name: "Pre/Post Shift Inspection Flow"
+---
+
+# Launch app
+- launchApp
+
+# Navigate to More tab first (inspection is accessed from there)
+- tapOn: "More"
+- waitForAnimationToEnd
+
+# Screenshot the More screen
+- takeScreenshot: "06-more-screen"
+
+# Find and tap the inspection button
+- scrollUntilVisible:
+    element: "Pre/Post-Shift Inspection"
+    direction: DOWN
+- tapOn: "Pre/Post-Shift Inspection"
+- waitForAnimationToEnd
+
+# Screenshot the inspection screen
+- takeScreenshot: "06-inspection-screen"
+
+# Verify shift type toggle
+- assertVisible: "Pre-Shift"
+- assertVisible: "Post-Shift"
+
+# Verify checklist items exist (check for PASS/FAIL buttons)
+- assertVisible: "PASS"
+- assertVisible: "FAIL"
+
+# Tap a PASS button on the first item
+- tapOn:
+    text: "PASS"
+    index: 0
+- takeScreenshot: "06-inspection-item-passed"
+
+# Switch to Post-Shift
+- tapOn: "Post-Shift"
+- waitForAnimationToEnd
+- takeScreenshot: "06-inspection-post-shift"

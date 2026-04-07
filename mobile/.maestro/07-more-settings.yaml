@@ -1,0 +1,38 @@
+appId: com.ironsight.mobile
+name: "More/Settings — Notes, GPS, Sync, Profile"
+---
+
+# Launch app
+- launchApp
+
+# Navigate to More tab
+- tapOn: "More"
+- waitForAnimationToEnd
+
+# Screenshot the more screen
+- takeScreenshot: "07-more-top"
+
+# Verify notes section
+- assertVisible: "Notes"
+- assertVisible: "Add a note..."
+
+# Verify GPS section
+- scrollUntilVisible:
+    element: "GPS Tracking"
+    direction: DOWN
+- assertVisible: "GPS Tracking"
+- takeScreenshot: "07-more-gps"
+
+# Scroll to settings section
+- scrollUntilVisible:
+    element: "Settings"
+    direction: DOWN
+- assertVisible: "Settings"
+- takeScreenshot: "07-more-settings"
+
+# Verify sign out button exists
+- assertVisible: "Sign Out"
+
+# Verify app version
+- assertVisible: "IronSight Mobile v1.0.0"
+- takeScreenshot: "07-more-bottom"

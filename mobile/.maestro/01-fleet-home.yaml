@@ -1,0 +1,36 @@
+appId: com.ironsight.mobile
+name: "Fleet Home — Tab Navigation & Status"
+---
+
+# Launch app
+- launchApp:
+    clearState: true
+
+# Wait for fleet screen to load
+- waitForAnimationToEnd
+
+# Screenshot the fleet home screen
+- takeScreenshot: "01-fleet-home"
+
+# Verify fleet header is visible
+- assertVisible: "IronSight Fleet"
+
+# Check view mode toggle exists
+- assertVisible: "List"
+- assertVisible: "Map"
+
+# Check status summary pills are present (at least one truck status)
+- assertVisible:
+    text: "Total"
+
+# Screenshot the list view
+- takeScreenshot: "01-fleet-home-list"
+
+# Switch to map view
+- tapOn: "Map"
+- waitForAnimationToEnd
+- takeScreenshot: "01-fleet-home-map"
+
+# Switch back to list
+- tapOn: "List"
+- waitForAnimationToEnd

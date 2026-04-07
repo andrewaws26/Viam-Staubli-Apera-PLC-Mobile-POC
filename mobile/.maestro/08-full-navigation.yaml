@@ -1,0 +1,38 @@
+appId: com.ironsight.mobile
+name: "Full Tab Navigation — Visit Every Screen"
+---
+
+# Launch app fresh
+- launchApp:
+    clearState: true
+- waitForAnimationToEnd
+
+# Fleet tab (default)
+- takeScreenshot: "08-nav-fleet"
+- assertVisible: "IronSight Fleet"
+
+# Truck tab
+- tapOn: "Truck"
+- waitForAnimationToEnd
+- takeScreenshot: "08-nav-truck"
+
+# Work tab
+- tapOn: "Work"
+- waitForAnimationToEnd
+- takeScreenshot: "08-nav-work"
+
+# AI tab
+- tapOn: "AI"
+- waitForAnimationToEnd
+- takeScreenshot: "08-nav-ai"
+
+# More tab
+- tapOn: "More"
+- waitForAnimationToEnd
+- takeScreenshot: "08-nav-more"
+
+# Back to Fleet
+- tapOn: "Fleet"
+- waitForAnimationToEnd
+- takeScreenshot: "08-nav-fleet-return"
+- assertVisible: "IronSight Fleet"

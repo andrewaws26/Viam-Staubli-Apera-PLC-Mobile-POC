@@ -1,0 +1,46 @@
+appId: com.ironsight.mobile
+name: "Create Work Order — Form Validation"
+---
+
+# Launch app
+- launchApp
+
+# Navigate to Work tab
+- tapOn: "Work"
+- waitForAnimationToEnd
+
+# Tap new work order button
+- tapOn: "New Work Order"
+- waitForAnimationToEnd
+
+# Screenshot the create form
+- takeScreenshot: "04-create-form-empty"
+
+# Verify form fields are present
+- assertVisible: "What needs to be done?"
+- assertVisible: "Details (optional)"
+- assertVisible: "Priority"
+- assertVisible: "Assign To"
+
+# Verify priority options
+- assertVisible: "Low"
+- assertVisible: "Normal"
+- assertVisible: "Urgent"
+
+# Type a title
+- tapOn: "e.g., Check coolant leak"
+- inputText: "Test work order from QA"
+- hideKeyboard
+
+# Set priority to urgent
+- tapOn: "Urgent"
+
+# Screenshot filled form
+- takeScreenshot: "04-create-form-filled"
+
+# Verify submit button is enabled
+- assertVisible: "Create Work Order"
+
+# Screenshot with steps section
+- scroll
+- takeScreenshot: "04-create-form-steps"

@@ -1,0 +1,33 @@
+appId: com.ironsight.mobile
+name: "Work Board — Board/My Work Views"
+---
+
+# Launch app
+- launchApp
+
+# Navigate to Work tab
+- tapOn: "Work"
+- waitForAnimationToEnd
+
+# Screenshot the board view
+- takeScreenshot: "03-work-board"
+
+# Verify board view toggle
+- assertVisible: "Board"
+- assertVisible: "My Work"
+
+# Verify status columns exist
+- assertVisible: "Open"
+- assertVisible: "In Progress"
+
+# Screenshot of board with columns
+- takeScreenshot: "03-work-board-columns"
+
+# Switch to My Work view
+- tapOn: "My Work"
+- waitForAnimationToEnd
+- takeScreenshot: "03-work-my-work"
+
+# Switch back to Board
+- tapOn: "Board"
+- waitForAnimationToEnd
