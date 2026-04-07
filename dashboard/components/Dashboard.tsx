@@ -13,6 +13,7 @@ import PlcDetailPanel from "./PlcDetailPanel";
 import DiagnosticsPanel from "./DiagnosticsPanel";
 import HistoryPanel from "./HistoryPanel";
 import TruckPanel from "./TruckPanel";
+import { CellSection } from "./Cell";
 import PiHealthCard from "./PiHealthCard";
 import ConnectionDot from "./ConnectionDot";
 import { UserButton, useUser } from "@clerk/nextjs";
@@ -130,6 +131,15 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
                 <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
               </svg>
               <span className="hidden sm:inline">Work</span>
+            </a>
+            <a
+              href="#cell-section"
+              className="min-h-[44px] px-3 sm:px-4 py-2 rounded-lg border border-emerald-600 hover:border-emerald-400 text-emerald-300 hover:text-white text-xs sm:text-sm font-bold uppercase tracking-wider transition-colors flex items-center gap-1.5"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
+              </svg>
+              <span className="hidden sm:inline">Cell</span>
             </a>
             <a
               href="/chat"
@@ -258,6 +268,11 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
 
           {/* Truck Diagnostics */}
           <TruckPanel simMode={simMode} truckId={truckId} />
+
+          {/* Robot Cell Monitoring — Staubli + Apera + Watchdog */}
+          <div id="cell-section">
+            <CellSection simMode={simMode} />
+          </div>
 
           {/* Fault History */}
           <FaultHistory events={faultHistory} />

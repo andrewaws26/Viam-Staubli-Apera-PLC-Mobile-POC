@@ -14,6 +14,7 @@ function TabIcon({ label, focused }: { label: string; focused: boolean }) {
   const icons: Record<string, string> = {
     Fleet: '🚛',
     Truck: '📊',
+    Cell: '🤖',
     Chat: '💬',
     Work: '📋',
     AI: '🧠',
@@ -68,6 +69,14 @@ export default function TabLayout() {
             title: 'Truck',
             headerTitle: 'Truck Detail',
             tabBarIcon: ({ focused }) => <TabIcon label="Truck" focused={focused} />,
+          }}
+        />
+        <Tabs.Screen
+          name="cell"
+          options={{
+            title: 'Cell',
+            headerTitle: 'Robot Cell',
+            tabBarIcon: ({ focused }) => <TabIcon label="Cell" focused={focused} />,
           }}
         />
         <Tabs.Screen
