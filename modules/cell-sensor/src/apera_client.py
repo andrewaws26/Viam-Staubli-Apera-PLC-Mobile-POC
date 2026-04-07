@@ -21,8 +21,8 @@ from typing import Any
 
 logger = logging.getLogger("cell-sensor.apera")
 
-_CONNECT_TIMEOUT = 5.0
-_READ_TIMEOUT = 10.0
+_CONNECT_TIMEOUT = 2.0
+_READ_TIMEOUT = 5.0
 _DEFAULT_PIPELINE = "RAIV_pick_belt_1"
 
 # Known part classes at B&B (from pipeline config)
