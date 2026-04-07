@@ -72,8 +72,8 @@ function runWatchdog(input: WatchdogInput): CellAlert[] {
   }
 
   if (a) {
-    if (a.gpu_temp_c >= TEMP_THRESHOLDS.gpu_crit) alert("critical", "thermal", "Vision GPU Overheating", "", "Apera");
-    else if (a.gpu_temp_c >= TEMP_THRESHOLDS.gpu_warn) alert("warning", "thermal", "Vision GPU Running Hot", "", "Apera");
+    if (a.system_status === "down") alert("critical", "vision", "Apera Vue System Down", "", "Apera");
+    else if (a.system_status === "busy") alert("info", "vision", "Apera Vue Initializing", "", "Apera");
   }
 
   // Power
@@ -92,8 +92,7 @@ function runWatchdog(input: WatchdogInput): CellAlert[] {
   // Vision
   if (a) {
     if (a.pipeline_state === "error") alert("critical", "vision", "Vision Pipeline Error", "", "Apera");
-    if (!a.camera_1_ok || !a.camera_2_ok) alert("critical", "vision", "Camera Not Responding", "", "Apera");
-    if (a.gpu_memory_used_pct > 95) alert("warning", "vision", "GPU Memory Nearly Full", "", "Apera");
+    if (!a.app_manager_ok && a.connected) alert("warning", "vision", "App Manager Unreachable", "", "Apera");
     if (a.detection_confidence_avg > 0 && a.detection_confidence_avg < 0.4) alert("warning", "vision", "Low Detection Confidence", "", "Apera");
   }
 
@@ -195,8 +194,7 @@ function makeApera(overrides: Partial<AperaReadings> = {}): AperaReadings {
     pick_pose_available: true, trajectory_available: true,
     calibration_status: "ok", last_cal_check: new Date().toISOString(),
     cal_residual_mm: 0.3,
-    camera_1_ok: true, camera_2_ok: true,
-    gpu_temp_c: 60, gpu_memory_used_pct: 65,
+    system_status: "alive", app_manager_ok: true,
     ...overrides,
   };
 }
@@ -294,14 +292,14 @@ describe("Cell Watchdog Rules", () => {
       expect(alerts.some(a => a.title.includes("DSI") && a.severity === "critical")).toBe(true);
     });
 
-    it("flags GPU overheating", () => {
-      const alerts = runWatchdog({ staubli: null, apera: makeApera({ gpu_temp_c: 91 }), network: [] });
-      expect(alerts.some(a => a.title.includes("GPU") && a.severity === "critical")).toBe(true);
+    it("flags Apera system down", () => {
+      const alerts = runWatchdog({ staubli: null, apera: makeApera({ system_status: "down" }), network: [] });
+      expect(alerts.some(a => a.title.includes("System Down") && a.severity === "critical")).toBe(true);
     });
 
-    it("flags GPU warm as warning", () => {
-      const alerts = runWatchdog({ staubli: null, apera: makeApera({ gpu_temp_c: 76 }), network: [] });
-      expect(alerts.some(a => a.title.includes("GPU") && a.severity === "warning")).toBe(true);
+    it("flags Apera system busy as info", () => {
+      const alerts = runWatchdog({ staubli: null, apera: makeApera({ system_status: "busy" }), network: [] });
+      expect(alerts.some(a => a.title.includes("Initializing") && a.severity === "info")).toBe(true);
     });
   });
 
@@ -347,14 +345,9 @@ describe("Cell Watchdog Rules", () => {
       expect(alerts.some(a => a.title === "Vision Pipeline Error" && a.severity === "critical")).toBe(true);
     });
 
-    it("flags camera failure", () => {
-      const alerts = runWatchdog({ staubli: null, apera: makeApera({ camera_1_ok: false }), network: [] });
-      expect(alerts.some(a => a.category === "vision" && a.severity === "critical")).toBe(true);
-    });
-
-    it("flags high GPU memory as warning", () => {
-      const alerts = runWatchdog({ staubli: null, apera: makeApera({ gpu_memory_used_pct: 96 }), network: [] });
-      expect(alerts.some(a => a.title.includes("GPU Memory") && a.severity === "warning")).toBe(true);
+    it("flags app manager unreachable when connected", () => {
+      const alerts = runWatchdog({ staubli: null, apera: makeApera({ app_manager_ok: false, connected: true }), network: [] });
+      expect(alerts.some(a => a.title.includes("App Manager") && a.severity === "warning")).toBe(true);
     });
 
     it("flags low detection confidence", () => {
@@ -574,7 +567,7 @@ describe("Cell Watchdog Rules", () => {
           urps_errors_24h: 4,
           ethercat_errors_24h: 6,
         }),
-        apera: makeApera({ pipeline_state: "error", camera_1_ok: false }),
+        apera: makeApera({ pipeline_state: "error", system_status: "down" }),
         network: makeNetwork([{ reachable: false } as any]),
       });
 

@@ -53,8 +53,7 @@ interface AperaReadings {
   trajectory_available: boolean;
   calibration_status: string;
   cal_residual_mm: number;
-  camera_1_ok: boolean; camera_2_ok: boolean;
-  gpu_temp_c: number; gpu_memory_used_pct: number;
+  system_status: string; app_manager_ok: boolean;
   [key: string]: unknown;
 }
 
@@ -133,8 +132,6 @@ const MOTOR_WARN = 65;
 const MOTOR_CRIT = 80;
 const DSI_WARN = 55;
 const DSI_CRIT = 70;
-const GPU_WARN = 75;
-const GPU_CRIT = 90;
 
 function cToF(c: number): number { return c * 9 / 5 + 32; }
 
@@ -188,10 +185,9 @@ function countAlerts(data: CellData): { critical: number; warning: number } {
 
   if (a) {
     if (a.pipeline_state === 'error') critical++;
-    if (!a.camera_1_ok || !a.camera_2_ok) critical++;
-    if (a.gpu_temp_c >= GPU_CRIT) critical++;
-    else if (a.gpu_temp_c >= GPU_WARN) warning++;
-    if (a.gpu_memory_used_pct > 95) warning++;
+    if (a.system_status === 'down') critical++;
+    else if (a.system_status === 'busy') warning++;
+    if (!a.app_manager_ok && a.connected) warning++;
     if (a.calibration_status === 'failed') critical++;
     else if (a.calibration_status === 'drift') warning++;
     if (!a.connected) critical++;
@@ -436,13 +432,11 @@ export default function CellScreen() {
               <KV label="Residual" value={a.cal_residual_mm > 0 ? `${a.cal_residual_mm.toFixed(2)}mm` : '--'} />
             </View>
 
-            {/* Hardware */}
-            <Text style={styles.subHeader}>Hardware</Text>
+            {/* System Health */}
+            <Text style={styles.subHeader}>System Health</Text>
             <View style={styles.kvRow}>
-              <KV label="Cam 1" value={a.camera_1_ok ? 'OK' : 'ERR'} color={a.camera_1_ok ? colors.successLight : colors.dangerLight} />
-              <KV label="Cam 2" value={a.camera_2_ok ? 'OK' : 'ERR'} color={a.camera_2_ok ? colors.successLight : colors.dangerLight} />
-              <KV label="GPU" value={`${cToF(a.gpu_temp_c).toFixed(0)}°F`} color={tempStatusColor(a.gpu_temp_c, GPU_WARN, GPU_CRIT)} />
-              <KV label="VRAM" value={`${a.gpu_memory_used_pct.toFixed(0)}%`} color={a.gpu_memory_used_pct > 90 ? colors.dangerLight : undefined} />
+              <KV label="System" value={(a.system_status || 'unknown').toUpperCase()} color={a.system_status === 'alive' ? colors.successLight : a.system_status === 'down' ? colors.dangerLight : colors.warningLight} />
+              <KV label="App Mgr" value={a.app_manager_ok ? 'Online' : 'Offline'} color={a.app_manager_ok ? colors.successLight : colors.textTertiary} />
             </View>
           </>
         )}

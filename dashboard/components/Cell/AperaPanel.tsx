@@ -1,11 +1,10 @@
 // AperaPanel.tsx — Vision system health, pipeline status, detection results,
-// and calibration monitoring from the Apera Vue AI vision system.
-// Data source: Pi 5 connects to Apera socket :14040, pushes to Viam.
+// calibration monitoring, and remote management for the Apera Vue AI vision system.
+// Data source: Pi 5 connects to Apera socket :14040, management via :44333/:44334.
 "use client";
 
 import { useState } from "react";
 import type { AperaReadings } from "./CellTypes";
-import { TEMP_THRESHOLDS, tempColor } from "./CellTypes";
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -35,6 +34,21 @@ function PipelineStateBadge({ state }: { state: AperaReadings["pipeline_state"] 
   );
 }
 
+function SystemStatusBadge({ status }: { status: AperaReadings["system_status"] }) {
+  const styles: Record<string, string> = {
+    alive: "bg-emerald-950/40 text-emerald-400 border-emerald-800/50",
+    busy: "bg-blue-950/40 text-blue-400 border-blue-800/50",
+    down: "bg-red-950/40 text-red-400 border-red-800/50",
+    unreachable: "bg-gray-800/50 text-gray-500 border-gray-700/50",
+    unknown: "bg-gray-800/50 text-gray-500 border-gray-700/50",
+  };
+  return (
+    <span className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border ${styles[status] || styles.unknown}`}>
+      {status}
+    </span>
+  );
+}
+
 function CalibrationBadge({ status }: { status: AperaReadings["calibration_status"] }) {
   const styles: Record<string, string> = {
     ok: "bg-emerald-950/40 text-emerald-400 border-emerald-800/50",
@@ -60,6 +74,8 @@ interface Props {
 
 export default function AperaPanel({ readings, pollError }: Props) {
   const [expanded, setExpanded] = useState(true);
+  const [actionPending, setActionPending] = useState<string | null>(null);
+  const [actionResult, setActionResult] = useState<string | null>(null);
 
   const isConnected = readings?.connected ?? false;
   const r = readings;
@@ -68,6 +84,29 @@ export default function AperaPanel({ readings, pollError }: Props) {
   const sortedDetections = r?.detections_by_class
     ? Object.entries(r.detections_by_class).sort(([, a], [, b]) => b - a)
     : [];
+
+  const sendCommand = async (command: string) => {
+    setActionPending(command);
+    setActionResult(null);
+    try {
+      const resp = await fetch("/api/cell-command", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ command }),
+      });
+      const data = await resp.json();
+      if (data.error) {
+        setActionResult(`Error: ${data.message || data.error}`);
+      } else {
+        setActionResult(data.message || "OK");
+      }
+    } catch (err) {
+      setActionResult(`Failed: ${err instanceof Error ? err.message : "Unknown"}`);
+    } finally {
+      setActionPending(null);
+      setTimeout(() => setActionResult(null), 5000);
+    }
+  };
 
   return (
     <section className="border border-gray-800 rounded-2xl overflow-hidden">
@@ -109,7 +148,7 @@ export default function AperaPanel({ readings, pollError }: Props) {
                   <span className="text-xs text-gray-500">{r.pipeline_name}</span>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2">
-                  <KV label="Cycle Time" value={r.last_cycle_ms > 0 ? `${r.last_cycle_ms} ms` : "\u2014"} mono />
+                  <KV label="Cycle Time" value={r.last_cycle_ms > 0 ? `${r.last_cycle_ms.toFixed(0)} ms` : "\u2014"} mono />
                   <KV label="Socket Latency" value={`${r.socket_latency_ms.toFixed(0)} ms`} mono />
                   <KV label="Pick Pose" value={r.pick_pose_available ? "Available" : "None"} color={r.pick_pose_available ? "text-emerald-400" : "text-gray-500"} />
                   <KV label="Trajectory" value={r.trajectory_available ? "Ready" : "None"} color={r.trajectory_available ? "text-emerald-400" : "text-gray-500"} />
@@ -157,27 +196,59 @@ export default function AperaPanel({ readings, pollError }: Props) {
                 </div>
               </div>
 
-              {/* ---- Hardware ---- */}
+              {/* ---- System Health & Controls ---- */}
               <div>
                 <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
-                  Hardware
+                  System Health
                 </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2">
-                  <KV label="Camera 1" value={r.camera_1_ok ? "OK" : "ERROR"} color={r.camera_1_ok ? "text-emerald-400" : "text-red-400"} />
-                  <KV label="Camera 2" value={r.camera_2_ok ? "OK" : "ERROR"} color={r.camera_2_ok ? "text-emerald-400" : "text-red-400"} />
+                <div className="flex items-center gap-3 mb-3">
+                  <SystemStatusBadge status={r.system_status} />
                   <KV
-                    label="GPU Temp"
-                    value={`${(r.gpu_temp_c * 9 / 5 + 32).toFixed(0)}°F`}
-                    color={tempColor(r.gpu_temp_c, TEMP_THRESHOLDS.gpu_warn, TEMP_THRESHOLDS.gpu_crit)}
-                    mono
-                  />
-                  <KV
-                    label="GPU Memory"
-                    value={`${r.gpu_memory_used_pct.toFixed(0)}%`}
-                    color={r.gpu_memory_used_pct > 90 ? "text-red-400" : r.gpu_memory_used_pct > 75 ? "text-orange-400" : "text-gray-300"}
-                    mono
+                    label="App Manager"
+                    value={r.app_manager_ok ? "Online" : "Offline"}
+                    color={r.app_manager_ok ? "text-emerald-400" : "text-gray-500"}
                   />
                 </div>
+
+                {/* Action buttons */}
+                <div className="flex flex-wrap gap-2 mt-3">
+                  <button
+                    onClick={() => sendCommand("apera_reconnect")}
+                    disabled={!!actionPending}
+                    className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg border border-blue-800/50 bg-blue-950/30 text-blue-400 hover:bg-blue-900/40 disabled:opacity-50 transition-colors"
+                  >
+                    {actionPending === "apera_reconnect" ? "Reconnecting\u2026" : "Reconnect Socket"}
+                  </button>
+                  <button
+                    onClick={() => sendCommand("apera_health")}
+                    disabled={!!actionPending}
+                    className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg border border-cyan-800/50 bg-cyan-950/30 text-cyan-400 hover:bg-cyan-900/40 disabled:opacity-50 transition-colors"
+                  >
+                    {actionPending === "apera_health" ? "Checking\u2026" : "Health Check"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (confirm("Restart the Apera Vue vision system? This will briefly interrupt detections.")) {
+                        sendCommand("apera_restart");
+                      }
+                    }}
+                    disabled={!!actionPending}
+                    className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg border border-orange-800/50 bg-orange-950/30 text-orange-400 hover:bg-orange-900/40 disabled:opacity-50 transition-colors"
+                  >
+                    {actionPending === "apera_restart" ? "Restarting\u2026" : "Restart Apera"}
+                  </button>
+                </div>
+
+                {/* Action result feedback */}
+                {actionResult && (
+                  <div className={`mt-2 p-2 rounded-lg text-xs ${
+                    actionResult.startsWith("Error") || actionResult.startsWith("Failed")
+                      ? "bg-red-950/30 border border-red-900/50 text-red-400"
+                      : "bg-emerald-950/30 border border-emerald-900/50 text-emerald-400"
+                  }`}>
+                    {actionResult}
+                  </div>
+                )}
               </div>
             </>
           )}

@@ -102,6 +102,22 @@ export const PlcCommandBody = z.object({
 });
 export type PlcCommandBodyType = z.infer<typeof PlcCommandBody>;
 
+// ── Cell Command Endpoint ────────────────────────────────────────
+
+export const CellCommandBody = z.object({
+  command: z.enum([
+    "status",
+    "discover",
+    "poll_all",
+    "raw_staubli",
+    "raw_apera",
+    "apera_health",
+    "apera_reconnect",
+    "apera_restart",
+  ]),
+});
+export type CellCommandBodyType = z.infer<typeof CellCommandBody>;
+
 // ── Shift Report Query Params ─────────────────────────────────────
 
 export const ShiftReportQuery = z.object({
