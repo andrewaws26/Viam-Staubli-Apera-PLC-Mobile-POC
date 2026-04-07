@@ -29,6 +29,7 @@ import TruckNotes from "./TruckNotes";
 import TruckChatTab from "./Chat/TruckChatTab";
 import MaintenanceTracker from "./MaintenanceTracker";
 import DTCHistory from "./DTCHistory";
+import TruckWorkOrders from "./TruckWorkOrders";
 import dynamic from "next/dynamic";
 
 const TruckMap = dynamic(() => import("./TruckMap"), { ssr: false });
@@ -490,6 +491,9 @@ export default function TruckPanel({ simMode = false, truckId }: { simMode?: boo
 
       {/* Maintenance History */}
       <MaintenanceTracker truckId={truckId} />
+
+      {/* Work Orders */}
+      <TruckWorkOrders truckId={truckId} />
 
       {/* Team Chat */}
       <TruckChatTab truckId={truckId || "default"} currentReadings={readings} />

@@ -39,6 +39,11 @@ interface TeamMember {
   imageUrl?: string;
 }
 
+interface FleetTruck {
+  id: string;
+  name: string;
+}
+
 export default function WorkBoard() {
   const { user } = useUser();
   const { getToken } = useAuth();
@@ -47,6 +52,7 @@ export default function WorkBoard() {
   const [showCreate, setShowCreate] = useState(false);
   const [viewMode, setViewMode] = useState<"board" | "my_work">("board");
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [fleetTrucks, setFleetTrucks] = useState<FleetTruck[]>([]);
 
   const role =
     ((user?.publicMetadata as Record<string, unknown>)?.role as string) || "operator";
@@ -86,6 +92,11 @@ export default function WorkBoard() {
   useEffect(() => {
     fetchOrders();
     fetchTeamMembers();
+    // Load fleet trucks for the truck selector
+    fetch("/api/fleet/trucks")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setFleetTrucks(data))
+      .catch(() => {});
     const interval = setInterval(fetchOrders, 15000);
     return () => clearInterval(interval);
   }, [fetchOrders, fetchTeamMembers]);
@@ -259,9 +270,11 @@ export default function WorkBoard() {
                                 wo={wo}
                                 isDragging={dragSnapshot.isDragging}
                                 teamMembers={teamMembers}
+                                fleetTrucks={fleetTrucks}
                                 onStatusChange={(s, extra) => updateStatus(wo.id, s, extra)}
                                 onToggleSubtask={(subtaskId) => updateOrder(wo.id, { status: wo.status, toggle_subtask_id: subtaskId })}
                                 onAssign={(userId, userName) => updateOrder(wo.id, { assigned_to: userId, assigned_to_name: userName })}
+                                onSetTruck={(truckId) => updateOrder(wo.id, { truck_id: truckId })}
                               />
                             </div>
                           )}
@@ -300,9 +313,11 @@ export default function WorkBoard() {
                   isDragging={false}
                   showStatus
                   teamMembers={teamMembers}
+                  fleetTrucks={fleetTrucks}
                   onStatusChange={(s, extra) => updateStatus(wo.id, s, extra)}
                   onToggleSubtask={(subtaskId) => updateOrder(wo.id, { status: wo.status, toggle_subtask_id: subtaskId })}
                   onAssign={(userId, userName) => updateOrder(wo.id, { assigned_to: userId, assigned_to_name: userName })}
+                  onSetTruck={(truckId) => updateOrder(wo.id, { truck_id: truckId })}
                 />
               ))}
             </div>
@@ -314,6 +329,7 @@ export default function WorkBoard() {
       {showCreate && (
         <CreateModal
           teamMembers={teamMembers}
+          fleetTrucks={fleetTrucks}
           onClose={() => setShowCreate(false)}
           onCreated={() => {
             setShowCreate(false);
@@ -332,17 +348,21 @@ function WorkOrderCard({
   isDragging,
   showStatus,
   teamMembers,
+  fleetTrucks,
   onStatusChange,
   onToggleSubtask,
   onAssign,
+  onSetTruck,
 }: {
   wo: WorkOrder;
   isDragging: boolean;
   showStatus?: boolean;
   teamMembers: TeamMember[];
+  fleetTrucks: FleetTruck[];
   onStatusChange: (status: Status, extra?: Record<string, unknown>) => void;
   onToggleSubtask: (subtaskId: string) => void;
   onAssign: (userId: string | null, userName: string | null) => void;
+  onSetTruck: (truckId: string | null) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [showAssignMenu, setShowAssignMenu] = useState(false);
@@ -424,6 +444,11 @@ function WorkOrderCard({
           {wo.priority === "urgent" && (
             <span className="text-[10px] font-bold text-red-400 bg-red-900/30 px-1.5 py-0.5 rounded">
               URGENT
+            </span>
+          )}
+          {wo.truck_id && (
+            <span className="text-[10px] font-medium text-blue-400 bg-blue-900/30 px-1.5 py-0.5 rounded">
+              {fleetTrucks.find((t) => t.id === wo.truck_id)?.name || wo.truck_id}
             </span>
           )}
           <span className="text-[11px] text-gray-500">
@@ -547,6 +572,22 @@ function WorkOrderCard({
                 </button>
               )}
 
+              {/* Truck selector */}
+              <select
+                value={wo.truck_id || ""}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  onSetTruck(e.target.value || null);
+                }}
+                onClick={(e) => e.stopPropagation()}
+                className="text-xs px-2 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-md font-medium transition appearance-none cursor-pointer border-0 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+              >
+                <option value="">No truck</option>
+                {fleetTrucks.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+
               {/* Assign button */}
               <div ref={assignRef} className="relative">
                 <button
@@ -624,10 +665,12 @@ function WorkOrderCard({
 
 function CreateModal({
   teamMembers,
+  fleetTrucks,
   onClose,
   onCreated,
 }: {
   teamMembers: TeamMember[];
+  fleetTrucks: FleetTruck[];
   onClose: () => void;
   onCreated: () => void;
 }) {
@@ -636,6 +679,7 @@ function CreateModal({
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<"low" | "normal" | "urgent">("normal");
   const [assignedTo, setAssignedTo] = useState<string>("");
+  const [truckId, setTruckId] = useState<string>("");
   const [subtasks, setSubtasks] = useState<string[]>([]);
   const [suggesting, setSuggesting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -676,6 +720,7 @@ function CreateModal({
         title: title.trim(),
         description: description.trim() || null,
         priority,
+        truck_id: truckId || null,
         subtasks: subtasks.filter((s) => s.trim()).map((s) => ({ title: s.trim() })),
       };
       if (assignedTo && selectedMember) {
@@ -726,6 +771,23 @@ function CreateModal({
             rows={3}
             className="w-full mt-1 px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-sm text-gray-100 placeholder-gray-600 focus:border-purple-500 focus:outline-none resize-none"
           />
+        </div>
+
+        {/* Truck (optional) */}
+        <div>
+          <label className="text-xs text-gray-400 font-semibold uppercase tracking-wider">
+            Truck (optional)
+          </label>
+          <select
+            value={truckId}
+            onChange={(e) => setTruckId(e.target.value)}
+            className="w-full mt-1 px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-sm text-gray-100 focus:border-purple-500 focus:outline-none appearance-none"
+          >
+            <option value="">No specific truck</option>
+            {fleetTrucks.map((t) => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </select>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
