@@ -1,0 +1,67 @@
+{
+  "expo": {
+    "name": "IronSight",
+    "slug": "ironsight-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#030712"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ironsight.mobile",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "IronSight uses your location to track truck GPS routes during shifts.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "IronSight needs background location to continue GPS tracking when the app is in the background.",
+        "NSCameraUsageDescription": "IronSight uses your camera to attach photos to inspections and maintenance records.",
+        "NSPhotoLibraryUsageDescription": "IronSight needs access to your photos to attach existing images to inspections."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#030712"
+      },
+      "package": "com.ironsight.mobile",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "CAMERA"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "IronSight needs background location to continue GPS tracking when the app is in the background.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "IronSight uses your camera to attach photos to inspections and maintenance records."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#7c3aed"
+        }
+      ],
+      "expo-web-browser"
+    ],
+    "scheme": "ironsight",
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
