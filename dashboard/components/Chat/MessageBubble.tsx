@@ -76,7 +76,7 @@ export default function MessageBubble({ message, isOwn, onToggleReaction }: Mess
             prose-p:my-1 prose-li:my-0.5 prose-ul:my-1 prose-ol:my-1
             prose-strong:text-cyan-300 prose-headings:text-gray-100
             prose-code:text-cyan-300 prose-code:bg-gray-800 prose-code:px-1 prose-code:rounded">
-            <ReactMarkdown>{message.body}</ReactMarkdown>
+            <ReactMarkdown>{message.body.replace(/\\n/g, "\n")}</ReactMarkdown>
           </div>
         ) : (
           <p className="text-sm text-gray-100 whitespace-pre-wrap break-words">{message.body}</p>

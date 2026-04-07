@@ -170,7 +170,7 @@ export function useSensorPolling(onNewFault: () => void, truckId?: string): Sens
             faultMessage = "No recent sensor data";
             setConnectionStatus("offline");
             setConnectionDataAge(null);
-            setConnectionError((readings._reason as string) || "No recent data");
+            setConnectionError("No recent data");
           } else {
             const dataAge = typeof readings._data_age_seconds === "number"
               ? readings._data_age_seconds : null;
