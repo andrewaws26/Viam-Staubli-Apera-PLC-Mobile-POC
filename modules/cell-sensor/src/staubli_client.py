@@ -48,9 +48,10 @@ _HMI_VARIABLES = [
     "bTrajectoryFound", "diServo",
 ]
 
-# Default connection timeouts
-_CONNECT_TIMEOUT = 3.0
-_READ_TIMEOUT = 5.0
+# Default connection timeouts — kept short so get_readings() isn't blocked
+_CONNECT_TIMEOUT = 1.5
+_READ_TIMEOUT = 3.0
+_DISCOVERY_COOLDOWN = 120.0  # seconds between discovery attempts when host is down
 
 
 @dataclass
@@ -148,6 +149,7 @@ class StaubliClient:
         self._poll_count = 0
         self._consecutive_failures = 0
         self._last_raw_response: dict[str, Any] = {}
+        self._last_discovery_attempt: float = 0.0
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
@@ -206,9 +208,16 @@ class StaubliClient:
         try:
             client = await self._get_client()
 
-            # Discovery on first poll or after failures
+            # Discovery on first poll or after failures (with cooldown)
             if self._discovered_api is None:
-                await self.discover()
+                now = time.monotonic()
+                if now - self._last_discovery_attempt >= _DISCOVERY_COOLDOWN:
+                    self._last_discovery_attempt = now
+                    await self.discover()
+                else:
+                    state.error = f"Discovery cooldown ({self.host} unreachable)"
+                    state.last_poll_ms = (time.monotonic() - t0) * 1000
+                    return state
 
             if self._discovered_api is not None:
                 # Read variables via discovered API
