@@ -447,9 +447,13 @@ function WorkOrderCard({
             </span>
           )}
           {wo.truck_id && (
-            <span className="text-[10px] font-medium text-blue-400 bg-blue-900/30 px-1.5 py-0.5 rounded">
-              {fleetTrucks.find((t) => t.id === wo.truck_id)?.name || wo.truck_id}
-            </span>
+            <a
+              href={`/?truck=${wo.truck_id}`}
+              onClick={(e) => e.stopPropagation()}
+              className="text-[10px] font-medium text-blue-400 bg-blue-900/30 px-1.5 py-0.5 rounded hover:bg-blue-900/50 hover:text-blue-300 transition"
+            >
+              {fleetTrucks.find((t) => t.id === wo.truck_id)?.name || wo.truck_id} →
+            </a>
           )}
           <span className="text-[11px] text-gray-500">
             {wo.assigned_to_name || "Unassigned"}
