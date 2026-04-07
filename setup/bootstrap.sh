@@ -46,13 +46,24 @@ else
     echo "  viam-server already installed: $(viam-server --version 2>/dev/null || echo 'unknown')"
 fi
 
-# ── 4. Module symlink ──
-echo "[4/8] Setting up plc-sensor module..."
+# ── 4. Module symlinks ──
+echo "[4/8] Setting up sensor modules..."
+
+# plc-sensor
 mkdir -p /opt/viam-modules/plc-sensor/src
 ln -sf "$REPO_DIR/modules/plc-sensor/src/plc_sensor.py" /opt/viam-modules/plc-sensor/src/plc_sensor.py
 cp "$REPO_DIR/modules/plc-sensor/run.sh" /opt/viam-modules/plc-sensor/run.sh
 cp "$REPO_DIR/modules/plc-sensor/requirements.txt" /opt/viam-modules/plc-sensor/requirements.txt
 chmod +x /opt/viam-modules/plc-sensor/run.sh
+
+# cell-sensor (Staubli + Apera + network monitor)
+mkdir -p /opt/viam-modules/cell-sensor/src
+for f in cell_sensor.py staubli_client.py apera_client.py network_monitor.py; do
+    ln -sf "$REPO_DIR/modules/cell-sensor/src/$f" /opt/viam-modules/cell-sensor/src/"$f"
+done
+cp "$REPO_DIR/modules/cell-sensor/run.sh" /opt/viam-modules/cell-sensor/run.sh
+cp "$REPO_DIR/modules/cell-sensor/requirements.txt" /opt/viam-modules/cell-sensor/requirements.txt
+chmod +x /opt/viam-modules/cell-sensor/run.sh
 
 # ── 5. Systemd services ──
 echo "[5/8] Installing systemd services..."

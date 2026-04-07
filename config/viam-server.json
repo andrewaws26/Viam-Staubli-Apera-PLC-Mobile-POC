@@ -4,6 +4,11 @@
       "type": "local",
       "name": "plc-sensor-module",
       "executable_path": "/home/andrew/Viam-Staubli-Apera-PLC-Mobile-POC/modules/plc-sensor/run.sh"
+    },
+    {
+      "type": "local",
+      "name": "cell-sensor-module",
+      "executable_path": "/home/andrew/Viam-Staubli-Apera-PLC-Mobile-POC/modules/cell-sensor/run.sh"
     }
   ],
   "components": [
@@ -34,6 +39,33 @@
           }
         }
       ]
+    },
+    {
+      "name": "cell-monitor",
+      "api": "rdk:component:sensor",
+      "model": "viam-staubli-apera-poc:monitor:cell-sensor",
+      "attributes": {
+        "staubli_host": "192.168.0.254",
+        "staubli_port": 80,
+        "apera_host": "192.168.3.151",
+        "apera_port": 14040,
+        "apera_pipeline": "RAIV_pick_belt_1"
+      },
+      "depends_on": [],
+      "service_configs": [
+        {
+          "type": "data_manager",
+          "attributes": {
+            "capture_methods": [
+              {
+                "method": "Readings",
+                "capture_frequency_hz": 0.5,
+                "additional_params": {}
+              }
+            ]
+          }
+        }
+      ]
     }
   ],
   "services": [
@@ -44,7 +76,7 @@
         "capture_dir": "/home/andrew/.viam/capture",
         "sync_interval_mins": 0.1,
         "sync_disabled": false,
-        "tags": ["tps-monitor", "truck-dev"]
+        "tags": ["tps-monitor", "cell-monitor", "truck-dev"]
       }
     }
   ]
