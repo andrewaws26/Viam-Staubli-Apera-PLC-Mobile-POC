@@ -22,7 +22,7 @@ Both sync to Viam Cloud at 1 Hz. A Next.js dashboard on Vercel shows live status
 - `modules/j1939-sensor/src/models/` — J1939 sensor module: j1939_sensor.py (main), j1939_can.py, j1939_dtc.py, j1939_discovery.py, pgn_decoder.py, pgn_utils.py, pgn_dm1.py, obd2_poller.py, obd2_pids.py, obd2_dtc.py, obd2_diagnostics.py, vehicle_profiles.py
 - `dashboard/` — Next.js 14 app on Vercel
 - `dashboard/components/` — TruckPanel, GaugeGrid, DTCPanel, AIChatPanel, Dashboard, TPS/, DevTruck/, WorkBoard
-- `dashboard/app/api/` — API routes (sensor-readings, truck-readings, fleet/status, ai-chat, ai-diagnose, shift-report, work-orders, etc.)
+- `dashboard/app/api/` — API routes (sensor-readings, truck-readings, fleet/status, ai-chat, ai-diagnose, ai-suggest-steps, shift-report, work-orders, team-members, etc.)
 - `dashboard/lib/` — Re-exports from `@ironsight/shared` (sensor-types, auth, spn-lookup, pcode-lookup) + app-specific libs (supabase, audit)
 - `dashboard/hooks/useSensorPolling.ts` — Shared polling hook with sim mode + fault detection
 - `mobile/` — React Native (Expo) iOS app for fleet diagnostics, work orders, inspections

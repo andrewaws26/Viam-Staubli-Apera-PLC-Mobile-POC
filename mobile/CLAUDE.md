@@ -25,10 +25,11 @@ supports pre/post-shift inspections with offline-first sync.
 src/
   app/              # Expo Router file-based routes
     (auth)/         # Auth screens (sign-in)
-    (tabs)/         # Bottom tab navigator (index, truck, ai, inspect, more)
+    (tabs)/         # Bottom tab navigator (index, truck, work, ai, more)
     ai/chat/        # Per-truck AI chat [truckId].tsx
     ai/diagnosis/   # Cached diagnosis view [id].tsx
     truck/          # Truck detail [id].tsx
+    work-order/     # Work order detail [id].tsx and create.tsx
     inspection/     # Inspection detail [id].tsx
     maintenance/    # Maintenance detail [id].tsx
   auth/             # Auth provider (Clerk)
@@ -36,7 +37,7 @@ src/
     ui/             # Primitive UI components (Button, Card, GaugeCircular, etc.)
   db/               # SQLite schema, migrations, queries
   services/         # API client, AI client, GPS tracker, push notifications
-  stores/           # Zustand state stores (fleet-store, ai-store)
+  stores/           # Zustand state stores (fleet-store, ai-store, work-store)
   sync/             # Offline sync engine and status
   theme/            # Colors, spacing, typography (dark theme)
   types/            # TypeScript type definitions
