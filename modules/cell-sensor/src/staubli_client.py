@@ -254,11 +254,18 @@ class StaubliClient:
             self._consecutive_failures += 1
             state.error = str(e)
             state.connected = False
-            # Force rediscovery after 5 consecutive failures
+            # Full client reset after 5 consecutive failures — stale connections
+            # in the httpx pool won't recover on their own after a network disruption
             if self._consecutive_failures >= 5:
                 self._discovered_api = None
                 self._consecutive_failures = 0
-                logger.info("Forcing API rediscovery after repeated failures")
+                if self._client and not self._client.is_closed:
+                    try:
+                        await self._client.aclose()
+                    except Exception:
+                        pass
+                self._client = None
+                logger.info("Full httpx client reset + API rediscovery after repeated failures")
 
         state.last_poll_ms = (time.monotonic() - t0) * 1000
         return state
