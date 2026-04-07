@@ -1,0 +1,331 @@
+/**
+ * Work Order Detail screen.
+ * Shows full work order with status controls, subtask checklist,
+ * notes feed, blocker input, and linked truck data.
+ */
+
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import { View, ScrollView, Text, Alert, StyleSheet, TouchableOpacity } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import { useAppAuth } from '@/auth/auth-provider';
+import { useWorkStore } from '@/stores/work-store';
+import { fetchWorkOrders } from '@/services/api-client';
+import SegmentedControl from '@/components/ui/SegmentedControl';
+import Button from '@/components/ui/Button';
+import TextInput from '@/components/ui/TextInput';
+import Card from '@/components/ui/Card';
+import Badge from '@/components/ui/Badge';
+import { colors } from '@/theme/colors';
+import { spacing } from '@/theme/spacing';
+import { typography } from '@/theme/typography';
+import { timeAgo } from '@/utils/format';
+import { lookupSPN } from '@/utils/spn-lookup';
+import type { WorkOrder, WorkOrderStatus } from '@/types/work-order';
+
+const STATUSES: WorkOrderStatus[] = ['open', 'in_progress', 'blocked', 'done'];
+const STATUS_LABELS = ['Open', 'In Progress', 'Blocked', 'Done'];
+const STATUS_VARIANTS: Record<string, 'success' | 'warning' | 'danger' | 'muted'> = {
+  open: 'muted',
+  in_progress: 'warning',
+  blocked: 'danger',
+  done: 'success',
+};
+const PRIORITY_COLORS: Record<string, string> = {
+  urgent: colors.danger,
+  normal: colors.primaryLight,
+  low: colors.textMuted,
+};
+
+export default function WorkOrderDetailScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
+  const { currentUser } = useAppAuth();
+  const { workOrders, patchWorkOrder, loadWorkOrders } = useWorkStore();
+
+  const [noteText, setNoteText] = useState('');
+  const [blockerText, setBlockerText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const wo = useMemo(() => workOrders.find((w) => w.id === id), [workOrders, id]);
+
+  useEffect(() => {
+    if (!wo) loadWorkOrders();
+  }, [wo, loadWorkOrders]);
+
+  useEffect(() => {
+    if (wo?.blocker_reason) setBlockerText(wo.blocker_reason);
+  }, [wo?.blocker_reason]);
+
+  const handleStatusChange = useCallback(async (index: number) => {
+    if (!wo) return;
+    const newStatus = STATUSES[index];
+    if (newStatus === wo.status) return;
+
+    // If setting to blocked, prompt for reason
+    if (newStatus === 'blocked') {
+      Alert.prompt(
+        'What\'s blocking this?',
+        'e.g., Waiting on parts, truck in the field',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Set Blocked',
+            onPress: async (reason?: string) => {
+              await patchWorkOrder(wo.id, {
+                status: 'blocked',
+                blocker_reason: reason || 'No reason given',
+              });
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            },
+          },
+        ],
+        'plain-text',
+        wo.blocker_reason || '',
+      );
+      return;
+    }
+
+    await patchWorkOrder(wo.id, { status: newStatus });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, [wo, patchWorkOrder]);
+
+  const handleToggleSubtask = useCallback(async (subtaskId: string) => {
+    if (!wo) return;
+    await patchWorkOrder(wo.id, { toggle_subtask_id: subtaskId });
+    Haptics.selectionAsync();
+  }, [wo, patchWorkOrder]);
+
+  const handleAddNote = useCallback(async () => {
+    if (!wo || !noteText.trim()) return;
+    setSubmitting(true);
+    await patchWorkOrder(wo.id, { note: noteText.trim() });
+    setNoteText('');
+    setSubmitting(false);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, [wo, noteText, patchWorkOrder]);
+
+  const handlePickUp = useCallback(async () => {
+    if (!wo || !currentUser) return;
+    await patchWorkOrder(wo.id, {
+      assigned_to: currentUser.id,
+      assigned_to_name: currentUser.name,
+      status: 'in_progress',
+      note: `${currentUser.name} picked up this work order`,
+    });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [wo, currentUser, patchWorkOrder]);
+
+  if (!wo) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
+  }
+
+  const statusIndex = STATUSES.indexOf(wo.status);
+  const isAssignedToMe = currentUser && wo.assigned_to === currentUser.id;
+  const isUnassigned = wo.assigned_to === null;
+  const subtasksDone = wo.subtasks?.filter((s) => s.is_done).length ?? 0;
+
+  return (
+    <ScrollView style={styles.container}>
+      {/* Priority + title */}
+      <View style={styles.header}>
+        <View style={styles.titleRow}>
+          <View style={[styles.priorityDot, { backgroundColor: PRIORITY_COLORS[wo.priority] }]} />
+          <Text style={styles.title}>{wo.title}</Text>
+        </View>
+        <View style={styles.metaRow}>
+          <Badge label={wo.priority.toUpperCase()} variant={wo.priority === 'urgent' ? 'danger' : 'muted'} small />
+          <Text style={styles.metaText}>by {wo.created_by_name}</Text>
+          <Text style={styles.metaText}>{timeAgo(wo.created_at)}</Text>
+        </View>
+      </View>
+
+      {/* Status control */}
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Status</Text>
+        <SegmentedControl
+          options={STATUS_LABELS}
+          selectedIndex={statusIndex}
+          onChange={handleStatusChange}
+        />
+      </View>
+
+      {/* Blocker banner */}
+      {wo.status === 'blocked' && wo.blocker_reason && (
+        <Card style={styles.blockerCard}>
+          <Text style={styles.blockerLabel}>Blocked</Text>
+          <Text style={styles.blockerReason}>{wo.blocker_reason}</Text>
+        </Card>
+      )}
+
+      {/* Pick up button for unassigned work */}
+      {isUnassigned && wo.status === 'open' && (
+        <View style={styles.section}>
+          <Button
+            title="Pick Up This Work Order"
+            onPress={handlePickUp}
+            variant="primary"
+            size="lg"
+            fullWidth
+          />
+        </View>
+      )}
+
+      {/* Assignment */}
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Assigned to</Text>
+        <Text style={styles.assignee}>
+          {wo.assigned_to_name || 'Unassigned (backlog)'}
+          {isAssignedToMe ? '  (you)' : ''}
+        </Text>
+      </View>
+
+      {/* Description */}
+      {wo.description && (
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Description</Text>
+          <Text style={styles.description}>{wo.description}</Text>
+        </View>
+      )}
+
+      {/* Subtasks */}
+      {wo.subtasks && wo.subtasks.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>
+            Tasks ({subtasksDone}/{wo.subtasks.length})
+          </Text>
+          {wo.subtasks.map((st) => (
+            <TouchableOpacity
+              key={st.id}
+              style={styles.subtaskRow}
+              onPress={() => handleToggleSubtask(st.id)}
+              activeOpacity={0.6}
+            >
+              <View style={[styles.checkbox, st.is_done && styles.checkboxDone]}>
+                {st.is_done && <Text style={styles.checkmark}>✓</Text>}
+              </View>
+              <Text style={[styles.subtaskText, st.is_done && styles.subtaskDone]}>
+                {st.title}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      {/* Linked DTCs */}
+      {wo.linked_dtcs && wo.linked_dtcs.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Linked DTCs</Text>
+          {wo.linked_dtcs.map((dtc, i) => {
+            const spnInfo = lookupSPN(dtc.spn);
+            return (
+              <View key={`${dtc.spn}-${dtc.fmi}-${i}`} style={styles.dtcRow}>
+                <Badge label={`SPN ${dtc.spn} / FMI ${dtc.fmi}`} variant="danger" small />
+                <Text style={styles.dtcEcu}>{dtc.ecuLabel}</Text>
+                {spnInfo && <Text style={styles.dtcName}>{spnInfo.name}</Text>}
+              </View>
+            );
+          })}
+        </View>
+      )}
+
+      {/* Truck snapshot */}
+      {wo.truck_snapshot && (
+        <Card style={styles.snapshotCard}>
+          <Text style={styles.snapshotTitle}>Readings at creation</Text>
+          <View style={styles.snapshotGrid}>
+            {wo.truck_snapshot.engine_rpm != null && (
+              <SnapshotMetric label="RPM" value={`${wo.truck_snapshot.engine_rpm}`} />
+            )}
+            {wo.truck_snapshot.coolant_temp_f != null && (
+              <SnapshotMetric label="Coolant" value={`${wo.truck_snapshot.coolant_temp_f}°F`} />
+            )}
+            {wo.truck_snapshot.oil_pressure_psi != null && (
+              <SnapshotMetric label="Oil PSI" value={`${wo.truck_snapshot.oil_pressure_psi}`} />
+            )}
+            {wo.truck_snapshot.fuel_level_pct != null && (
+              <SnapshotMetric label="Fuel" value={`${Math.round(wo.truck_snapshot.fuel_level_pct as number)}%`} />
+            )}
+            {wo.truck_snapshot.vehicle_distance_mi != null && (
+              <SnapshotMetric label="Odometer" value={`${Math.round(wo.truck_snapshot.vehicle_distance_mi as number)} mi`} />
+            )}
+            {wo.truck_snapshot.engine_hours != null && (
+              <SnapshotMetric label="Hours" value={`${Math.round(wo.truck_snapshot.engine_hours as number)}`} />
+            )}
+          </View>
+        </Card>
+      )}
+
+      {/* Add note */}
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Add Note</Text>
+        <TextInput
+          value={noteText}
+          onChangeText={setNoteText}
+          placeholder="Parts ordered, reassigned, found the issue..."
+          multiline
+          numberOfLines={3}
+        />
+        <Button
+          title={submitting ? 'Adding...' : 'Add Note'}
+          onPress={handleAddNote}
+          size="md"
+          variant="secondary"
+          disabled={!noteText.trim() || submitting}
+        />
+      </View>
+
+      <View style={{ height: spacing['5xl'] }} />
+    </ScrollView>
+  );
+}
+
+function SnapshotMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.snapshotMetric}>
+      <Text style={styles.snapshotMetricLabel}>{label}</Text>
+      <Text style={styles.snapshotMetricValue}>{value}</Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingText: { color: colors.textMuted, fontSize: typography.sizes.base },
+  header: { padding: spacing.lg, gap: spacing.sm },
+  titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
+  priorityDot: { width: 12, height: 12, borderRadius: 6, marginTop: 4 },
+  title: { color: colors.text, fontSize: typography.sizes.lg, fontWeight: typography.weights.bold as any, flex: 1 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  metaText: { color: colors.textMuted, fontSize: typography.sizes.xs },
+  section: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, gap: spacing.sm },
+  sectionLabel: { color: colors.textSecondary, fontSize: typography.sizes.xs, fontWeight: typography.weights.bold as any, textTransform: 'uppercase', letterSpacing: 1 },
+  assignee: { color: colors.text, fontSize: typography.sizes.base },
+  description: { color: colors.textSecondary, fontSize: typography.sizes.sm, lineHeight: 20 },
+  blockerCard: { marginHorizontal: spacing.lg, marginBottom: spacing.lg, backgroundColor: '#dc262615', borderColor: '#dc262640', borderWidth: 1 },
+  blockerLabel: { color: colors.dangerLight, fontSize: typography.sizes.xs, fontWeight: typography.weights.bold as any, textTransform: 'uppercase', letterSpacing: 1 },
+  blockerReason: { color: colors.text, fontSize: typography.sizes.sm, marginTop: spacing.xs },
+  // Subtasks
+  subtaskRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.xs },
+  checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  checkboxDone: { backgroundColor: colors.success, borderColor: colors.success },
+  checkmark: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  subtaskText: { color: colors.text, fontSize: typography.sizes.sm, flex: 1 },
+  subtaskDone: { color: colors.textMuted, textDecorationLine: 'line-through' },
+  // DTCs
+  dtcRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 2 },
+  dtcEcu: { color: colors.textMuted, fontSize: typography.sizes.xs },
+  dtcName: { color: colors.textSecondary, fontSize: typography.sizes.xs, flex: 1 },
+  // Snapshot
+  snapshotCard: { marginHorizontal: spacing.lg, marginBottom: spacing.lg },
+  snapshotTitle: { color: colors.textMuted, fontSize: typography.sizes.xs, fontWeight: typography.weights.bold as any, textTransform: 'uppercase', letterSpacing: 1, marginBottom: spacing.sm },
+  snapshotGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
+  snapshotMetric: { alignItems: 'center', minWidth: 70 },
+  snapshotMetricLabel: { color: colors.textMuted, fontSize: 10 },
+  snapshotMetricValue: { color: colors.text, fontSize: typography.sizes.sm, fontWeight: typography.weights.semibold as any },
+});
