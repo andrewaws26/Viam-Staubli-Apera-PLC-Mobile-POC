@@ -2,6 +2,12 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useUser, useAuth } from "@clerk/nextjs";
+import {
+  DragDropContext,
+  Droppable,
+  Draggable,
+  type DropResult,
+} from "@hello-pangea/dnd";
 import type { WorkOrder, WorkOrderStatus } from "@ironsight/shared/work-order";
 
 type Status = WorkOrderStatus;
@@ -80,6 +86,32 @@ export default function WorkBoard() {
     [getToken, fetchOrders],
   );
 
+  const onDragEnd = useCallback(
+    (result: DropResult) => {
+      const { draggableId, destination } = result;
+      if (!destination) return;
+
+      const newStatus = destination.droppableId as Status;
+      const wo = workOrders.find((w) => w.id === draggableId);
+      if (!wo || wo.status === newStatus) return;
+
+      // Moving to blocked requires a reason
+      if (newStatus === "blocked") {
+        const reason = prompt("What's blocking this?");
+        if (!reason) return;
+        updateStatus(draggableId, newStatus, { blocker_reason: reason });
+        return;
+      }
+
+      // Optimistic update for snappy feel
+      setWorkOrders((prev) =>
+        prev.map((w) => (w.id === draggableId ? { ...w, status: newStatus } : w)),
+      );
+      updateStatus(draggableId, newStatus);
+    },
+    [workOrders, updateStatus],
+  );
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
@@ -96,6 +128,7 @@ export default function WorkBoard() {
           <h1 className="text-2xl font-bold text-gray-100">Work Board</h1>
           <p className="text-sm text-gray-500 mt-1">
             {workOrders.filter((w) => w.status !== "done").length} active work orders
+            <span className="text-gray-600 ml-2">· drag cards to change status</span>
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -116,39 +149,64 @@ export default function WorkBoard() {
         </div>
       </div>
 
-      {/* Kanban Board */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        {STATUSES.map((status) => (
-          <div key={status} className="flex flex-col">
-            {/* Column Header */}
-            <div className="flex items-center gap-2 mb-3 px-1">
-              <div className={`w-2 h-2 rounded-full ${STATUS_COLORS[status]}`} />
-              <span className="text-sm font-bold text-gray-200">
-                {STATUS_LABELS[status]}
-              </span>
-              <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full">
-                {grouped[status].length}
-              </span>
-            </div>
+      {/* Kanban Board with Drag & Drop */}
+      <DragDropContext onDragEnd={onDragEnd}>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          {STATUSES.map((status) => (
+            <div key={status} className="flex flex-col">
+              {/* Column Header */}
+              <div className="flex items-center gap-2 mb-3 px-1">
+                <div className={`w-2 h-2 rounded-full ${STATUS_COLORS[status]}`} />
+                <span className="text-sm font-bold text-gray-200">
+                  {STATUS_LABELS[status]}
+                </span>
+                <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full">
+                  {grouped[status].length}
+                </span>
+              </div>
 
-            {/* Cards */}
-            <div className="flex flex-col gap-2 min-h-[200px]">
-              {grouped[status].map((wo) => (
-                <WorkOrderCard
-                  key={wo.id}
-                  wo={wo}
-                  onStatusChange={(s, extra) => updateStatus(wo.id, s, extra)}
-                />
-              ))}
-              {grouped[status].length === 0 && (
-                <p className="text-xs text-gray-600 text-center py-8">
-                  No items
-                </p>
-              )}
+              {/* Droppable Column */}
+              <Droppable droppableId={status}>
+                {(provided, snapshot) => (
+                  <div
+                    ref={provided.innerRef}
+                    {...provided.droppableProps}
+                    className={`flex flex-col gap-2 min-h-[200px] rounded-lg p-1 transition-colors ${
+                      snapshot.isDraggingOver
+                        ? "bg-gray-800/50 ring-1 ring-purple-500/30"
+                        : ""
+                    }`}
+                  >
+                    {grouped[status].map((wo, index) => (
+                      <Draggable key={wo.id} draggableId={wo.id} index={index}>
+                        {(dragProvided, dragSnapshot) => (
+                          <div
+                            ref={dragProvided.innerRef}
+                            {...dragProvided.draggableProps}
+                            {...dragProvided.dragHandleProps}
+                          >
+                            <WorkOrderCard
+                              wo={wo}
+                              isDragging={dragSnapshot.isDragging}
+                              onStatusChange={(s, extra) => updateStatus(wo.id, s, extra)}
+                            />
+                          </div>
+                        )}
+                      </Draggable>
+                    ))}
+                    {provided.placeholder}
+                    {grouped[status].length === 0 && !snapshot.isDraggingOver && (
+                      <p className="text-xs text-gray-600 text-center py-8">
+                        No items
+                      </p>
+                    )}
+                  </div>
+                )}
+              </Droppable>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      </DragDropContext>
 
       {/* Create Modal */}
       {showCreate && (
@@ -168,9 +226,11 @@ export default function WorkBoard() {
 
 function WorkOrderCard({
   wo,
+  isDragging,
   onStatusChange,
 }: {
   wo: WorkOrder;
+  isDragging: boolean;
   onStatusChange: (status: Status, extra?: Record<string, unknown>) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -198,7 +258,11 @@ function WorkOrderCard({
 
   return (
     <div
-      className={`bg-gray-800 rounded-lg border border-gray-700 border-l-4 ${PRIORITY_COLORS[wo.priority]} cursor-pointer hover:border-gray-600 transition`}
+      className={`bg-gray-800 rounded-lg border border-l-4 ${PRIORITY_COLORS[wo.priority]} cursor-grab active:cursor-grabbing transition ${
+        isDragging
+          ? "border-purple-500 shadow-lg shadow-purple-500/20 ring-1 ring-purple-500/40 rotate-1 scale-[1.02]"
+          : "border-gray-700 hover:border-gray-600"
+      }`}
       onClick={() => setExpanded(!expanded)}
     >
       <div className="p-3">
@@ -295,11 +359,7 @@ function WorkOrderCard({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (nextStatus === "done") {
-                      onStatusChange("done");
-                    } else {
-                      onStatusChange(nextStatus);
-                    }
+                    onStatusChange(nextStatus);
                   }}
                   className="text-xs px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-md font-medium transition"
                 >
