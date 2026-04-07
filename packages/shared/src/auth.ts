@@ -19,6 +19,7 @@ export const ROUTE_PERMISSIONS: Record<string, UserRole[]> = {
   "/api/ai-chat": ["developer", "manager", "mechanic"],
   "/api/ai-diagnose": ["developer", "manager", "mechanic"],
   "/api/ai-report-summary": ["developer", "manager", "mechanic"],
+  "/api/ai-suggest-steps": ["developer", "manager", "mechanic"],
 
   // Telemetry (all roles)
   "/api/sensor-readings": ["developer", "manager", "mechanic", "operator"],
@@ -38,6 +39,9 @@ export const ROUTE_PERMISSIONS: Record<string, UserRole[]> = {
   // Push notifications
   "/api/user/push-token": ["developer", "manager", "mechanic", "operator"],
   "/api/push/send": ["developer", "manager"],
+
+  // Team
+  "/api/team-members": ["developer", "manager", "mechanic"],
 
   // Admin
   "/api/audit-log": ["developer", "manager"],
