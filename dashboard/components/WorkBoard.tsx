@@ -9,6 +9,7 @@ import {
   type DropResult,
 } from "@hello-pangea/dnd";
 import type { WorkOrder, WorkOrderStatus } from "@ironsight/shared/work-order";
+import WorkOrderChatTab from "@/components/Chat/WorkOrderChatTab";
 
 type Status = WorkOrderStatus;
 const STATUSES: Status[] = ["open", "in_progress", "blocked", "done"];
@@ -607,6 +608,11 @@ function WorkOrderCard({
             <p className="text-[10px] text-gray-600">
               Created by {wo.created_by_name} · {timeAgo(wo.created_at)}
             </p>
+
+            {/* Work Order Chat */}
+            <div onClick={(e) => e.stopPropagation()}>
+              <WorkOrderChatTab workOrderId={wo.id} />
+            </div>
           </div>
         )}
       </div>

@@ -3,6 +3,7 @@ import { auth, clerkClient } from "@clerk/nextjs/server";
 import { getSupabase } from "@/lib/supabase";
 import { logAuditDirect } from "@/lib/audit";
 import { canManageFleet } from "@/lib/auth";
+import { postWorkOrderStatusChange } from "@/lib/chat-system-messages";
 
 async function getUserInfo(userId: string) {
   try {
@@ -275,6 +276,21 @@ export async function PATCH(request: NextRequest) {
         author_name: userInfo.name,
         body: (body.note as string).trim(),
       });
+    }
+
+    // Post system message to work order chat thread on status change
+    if (body.status && body.status !== existing.status) {
+      const sb2 = getSupabase();
+      const { data: thread } = await sb2
+        .from("chat_threads")
+        .select("id")
+        .eq("entity_type", "work_order")
+        .eq("entity_id", id)
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (thread) {
+        postWorkOrderStatusChange(thread.id, body.status as string, userInfo.name);
+      }
     }
 
     logAuditDirect(userId, userInfo.name, userInfo.role, {

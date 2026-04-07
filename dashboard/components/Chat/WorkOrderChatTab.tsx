@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useUser } from "@clerk/nextjs";
 import { ChatThread } from "@/lib/chat";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import ThreadView from "./ThreadView";
 
 interface WorkOrderChatTabProps {
@@ -10,9 +10,10 @@ interface WorkOrderChatTabProps {
 }
 
 export default function WorkOrderChatTab({ workOrderId }: WorkOrderChatTabProps) {
-  const { user } = useUser();
+  const { userId: currentUserId } = useCurrentUser();
   const [thread, setThread] = useState<ChatThread | null>(null);
   const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     async function getOrCreateThread() {
@@ -34,15 +35,23 @@ export default function WorkOrderChatTab({ workOrderId }: WorkOrderChatTabProps)
   if (loading) return <div className="text-center py-4 text-gray-500 text-xs">Loading chat...</div>;
   if (!thread) return null;
 
+  const chatHeight = expanded ? "h-[500px]" : "h-[300px]";
+
   return (
-    <div className="h-[300px] border border-gray-700/50 rounded-lg overflow-hidden bg-gray-900/50 mt-3">
-      <div className="px-3 py-1.5 border-b border-gray-700/50 bg-gray-900/80">
+    <div className={`${chatHeight} border border-gray-700/50 rounded-lg overflow-hidden bg-gray-900/50 mt-3 transition-all duration-200`}>
+      <div className="px-3 py-1.5 border-b border-gray-700/50 bg-gray-900/80 flex items-center justify-between">
         <h4 className="text-[10px] font-bold text-gray-300 uppercase tracking-wider">Discussion</h4>
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="text-[10px] text-gray-400 hover:text-gray-200 transition-colors px-1.5 py-0.5 rounded hover:bg-gray-700/50"
+        >
+          {expanded ? "▼ Collapse" : "▲ Expand"}
+        </button>
       </div>
       <div className="h-[calc(100%-28px)]">
         <ThreadView
           threadId={thread.id}
-          currentUserId={user?.id || ""}
+          currentUserId={currentUserId}
         />
       </div>
     </div>
