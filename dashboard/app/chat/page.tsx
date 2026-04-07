@@ -2,14 +2,14 @@
 
 import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
 import ThreadList from "@/components/Chat/ThreadList";
 import ThreadView from "@/components/Chat/ThreadView";
 import UserPicker from "@/components/Chat/UserPicker";
 import { ChatThread } from "@/lib/chat";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 function ChatPageInner() {
-  const { user, isLoaded } = useUser();
+  const { userId: currentUserId, isLoaded } = useCurrentUser();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(
@@ -63,14 +63,6 @@ function ChatPageInner() {
     );
   }
 
-  if (!user) {
-    return (
-      <div className="h-screen bg-gray-950 flex items-center justify-center text-gray-400">
-        Please sign in to access chat.
-      </div>
-    );
-  }
-
   return (
     <div className="h-screen bg-gray-950 flex">
       {/* Thread list sidebar */}
@@ -115,7 +107,7 @@ function ChatPageInner() {
             <div className="flex-1 overflow-hidden">
               <ThreadView
                 threadId={selectedThreadId}
-                currentUserId={user.id}
+                currentUserId={currentUserId}
                 pinnedMessage={threadDetails?.pinnedMessage as Parameters<typeof ThreadView>[0]["pinnedMessage"]}
               />
             </div>
@@ -132,7 +124,7 @@ function ChatPageInner() {
         <UserPicker
           onSelect={handleNewDM}
           onClose={() => setShowUserPicker(false)}
-          currentUserId={user.id}
+          currentUserId={currentUserId}
         />
       )}
     </div>
