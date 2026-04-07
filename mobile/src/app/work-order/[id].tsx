@@ -4,12 +4,13 @@
  * notes feed, blocker input, and linked truck data.
  */
 
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { View, ScrollView, Text, Alert, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { View, ScrollView, Text, Alert, StyleSheet, TouchableOpacity, ActivityIndicator, FlatList, TextInput as RNTextInput } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useAppAuth } from '@/auth/auth-provider';
 import { useWorkStore } from '@/stores/work-store';
+import { useChatStore } from '@/stores/chat-store';
 import { fetchTeamMembers } from '@/services/api-client';
 import SegmentedControl from '@/components/ui/SegmentedControl';
 import Button from '@/components/ui/Button';
@@ -22,6 +23,8 @@ import { typography } from '@/theme/typography';
 import { timeAgo } from '@/utils/format';
 import { lookupSPN } from '@/utils/spn-lookup';
 import type { WorkOrder, WorkOrderStatus, WorkOrderSubtask } from '@/types/work-order';
+import type { ChatThread, ChatMessage, ChatReaction } from '@/types/chat';
+import { VALID_REACTIONS, REACTION_LABELS } from '@/types/chat';
 
 interface TeamMember {
   id: string;
@@ -357,10 +360,215 @@ export default function WorkOrderDetailScreen() {
         />
       </View>
 
+      {/* Discussion / Chat */}
+      <View style={styles.section}>
+        <WorkOrderChat workOrderId={wo.id} currentUserId={currentUser?.id || ''} />
+      </View>
+
       <View style={{ height: spacing['5xl'] }} />
     </ScrollView>
   );
 }
+
+// ── Inline Work Order Chat ───────────────────────────────────────────
+
+const ROLE_COLORS: Record<string, string> = {
+  developer: '#a855f7',
+  manager: '#3b82f6',
+  mechanic: '#22c55e',
+  operator: '#eab308',
+  ai: '#06b6d4',
+};
+
+function WorkOrderChat({ workOrderId, currentUserId }: { workOrderId: string; currentUserId: string }) {
+  const { getOrCreateEntityThread, sendMessage, fetchMessages, messages, toggleReaction } = useChatStore();
+  const [thread, setThread] = useState<ChatThread | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(false);
+  const [text, setText] = useState('');
+  const [sending, setSending] = useState(false);
+  const inputRef = useRef<RNTextInput>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const t = await getOrCreateEntityThread('work_order', workOrderId);
+        setThread(t);
+        await fetchMessages(t.id);
+      } catch {
+        // Thread creation failed — silently show empty
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [workOrderId, getOrCreateEntityThread, fetchMessages]);
+
+  // Poll for new messages every 5s when expanded
+  useEffect(() => {
+    if (!expanded || !thread) return;
+    const interval = setInterval(async () => {
+      const msgs = messages[thread.id] || [];
+      if (msgs.length === 0) return;
+      // Re-fetch will pick up new messages via store
+      await fetchMessages(thread.id);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [expanded, thread, messages, fetchMessages]);
+
+  const handleSend = useCallback(async () => {
+    if (!thread || !text.trim() || sending) return;
+    setSending(true);
+    const mentionAi = text.toLowerCase().includes('@ai');
+    await sendMessage({ threadId: thread.id, body: text.trim(), mentionAi });
+    setText('');
+    setSending(false);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, [thread, text, sending, sendMessage]);
+
+  if (loading) {
+    return (
+      <View style={chatStyles.loadingContainer}>
+        <ActivityIndicator size="small" color={colors.textMuted} />
+        <Text style={chatStyles.loadingText}>Loading discussion...</Text>
+      </View>
+    );
+  }
+
+  if (!thread) return null;
+
+  const threadMessages = messages[thread.id] || [];
+
+  return (
+    <View style={chatStyles.container}>
+      <TouchableOpacity
+        style={chatStyles.header}
+        onPress={() => setExpanded(!expanded)}
+        activeOpacity={0.7}
+      >
+        <Text style={chatStyles.headerLabel}>Discussion</Text>
+        <View style={chatStyles.headerRight}>
+          {threadMessages.length > 0 && (
+            <Text style={chatStyles.msgCount}>{threadMessages.length} msg{threadMessages.length !== 1 ? 's' : ''}</Text>
+          )}
+          <Text style={chatStyles.chevron}>{expanded ? '▼' : '▶'}</Text>
+        </View>
+      </TouchableOpacity>
+
+      {expanded && (
+        <View style={chatStyles.chatBody}>
+          {threadMessages.length === 0 ? (
+            <Text style={chatStyles.emptyText}>No messages yet. Start the conversation.</Text>
+          ) : (
+            <View style={chatStyles.messageList}>
+              {threadMessages.map((msg) => {
+                const isOwn = msg.senderId === currentUserId;
+                const isAi = msg.messageType === 'ai';
+                const isSystem = msg.messageType === 'system';
+
+                if (isSystem) {
+                  return (
+                    <View key={msg.id} style={chatStyles.systemMsg}>
+                      <Text style={chatStyles.systemMsgText}>{msg.body}</Text>
+                    </View>
+                  );
+                }
+
+                return (
+                  <View key={msg.id} style={[chatStyles.bubble, isOwn ? chatStyles.bubbleOwn : isAi ? chatStyles.bubbleAi : chatStyles.bubbleOther]}>
+                    {!isOwn && (
+                      <View style={chatStyles.senderRow}>
+                        <Text style={chatStyles.senderName}>{msg.senderName}</Text>
+                        <Text style={[chatStyles.senderRole, { color: ROLE_COLORS[msg.senderRole] || colors.textMuted }]}>
+                          {msg.senderRole.toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
+                    <Text style={chatStyles.msgBody}>{msg.body}</Text>
+                    <Text style={chatStyles.timestamp}>
+                      {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </Text>
+                    {/* Reactions */}
+                    {msg.reactions && msg.reactions.length > 0 && (
+                      <View style={chatStyles.reactionRow}>
+                        {msg.reactions.map((rs) =>
+                          rs.count > 0 ? (
+                            <TouchableOpacity
+                              key={rs.reaction}
+                              style={chatStyles.reactionPill}
+                              onPress={() => toggleReaction(thread.id, msg.id, rs.reaction)}
+                            >
+                              <Text style={chatStyles.reactionText}>{REACTION_LABELS[rs.reaction].emoji} {rs.count}</Text>
+                            </TouchableOpacity>
+                          ) : null
+                        )}
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
+          {/* Input */}
+          <View style={chatStyles.inputRow}>
+            <RNTextInput
+              ref={inputRef}
+              style={chatStyles.textInput}
+              value={text}
+              onChangeText={setText}
+              placeholder="Type a message..."
+              placeholderTextColor={colors.textMuted}
+              multiline
+              maxLength={2000}
+            />
+            <TouchableOpacity
+              style={[chatStyles.sendBtn, (!text.trim() || sending) && chatStyles.sendBtnDisabled]}
+              onPress={handleSend}
+              disabled={!text.trim() || sending}
+            >
+              <Text style={chatStyles.sendBtnText}>{sending ? '...' : 'Send'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+    </View>
+  );
+}
+
+const chatStyles = StyleSheet.create({
+  container: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.card },
+  loadingContainer: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md },
+  loadingText: { color: colors.textMuted, fontSize: typography.sizes.xs },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.md, backgroundColor: colors.card },
+  headerLabel: { color: colors.textSecondary, fontSize: typography.sizes.xs, fontWeight: typography.weights.bold as any, textTransform: 'uppercase', letterSpacing: 1 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  msgCount: { color: colors.textMuted, fontSize: typography.sizes.xs },
+  chevron: { color: colors.textMuted, fontSize: typography.sizes.xs },
+  chatBody: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  emptyText: { color: colors.textMuted, fontSize: typography.sizes.xs, textAlign: 'center', paddingVertical: spacing.xl },
+  messageList: { padding: spacing.sm, gap: spacing.xs, maxHeight: 400 },
+  systemMsg: { alignItems: 'center', paddingVertical: spacing.xs },
+  systemMsgText: { color: colors.textMuted, fontSize: 11, fontStyle: 'italic' },
+  bubble: { maxWidth: '85%', borderRadius: 12, padding: spacing.sm, marginBottom: 2 },
+  bubbleOwn: { alignSelf: 'flex-end', backgroundColor: '#7c3aed20', borderWidth: 1, borderColor: '#7c3aed40' },
+  bubbleOther: { alignSelf: 'flex-start', backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border },
+  bubbleAi: { alignSelf: 'flex-start', backgroundColor: '#0891b210', borderWidth: 1, borderColor: '#0891b230' },
+  senderRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 },
+  senderName: { color: colors.text, fontSize: 11, fontWeight: typography.weights.semibold as any },
+  senderRole: { fontSize: 9, fontWeight: typography.weights.bold as any },
+  msgBody: { color: colors.text, fontSize: typography.sizes.sm, lineHeight: 18 },
+  timestamp: { color: colors.textMuted, fontSize: 9, marginTop: 2 },
+  reactionRow: { flexDirection: 'row', gap: 4, marginTop: 4, flexWrap: 'wrap' },
+  reactionPill: { backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2 },
+  reactionText: { fontSize: 11, color: colors.textSecondary },
+  inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, padding: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  textInput: { flex: 1, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, color: colors.text, fontSize: typography.sizes.sm, maxHeight: 80 },
+  sendBtn: { backgroundColor: '#7c3aed', paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: 10 },
+  sendBtnDisabled: { backgroundColor: colors.border },
+  sendBtnText: { color: '#fff', fontSize: typography.sizes.sm, fontWeight: typography.weights.semibold as any },
+});
+
+// ── Snapshot Metric ──────────────────────────────────────────────────
 
 function SnapshotMetric({ label, value }: { label: string; value: string }) {
   return (
