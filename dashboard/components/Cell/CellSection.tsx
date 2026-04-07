@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import StaubliPanel from "./StaubliPanel";
 import AperaPanel from "./AperaPanel";
 import CellWatchdog from "./CellWatchdog";
+import InfraPanel from "./InfraPanel";
 import type { CellState } from "./CellTypes";
 
 const CELL_POLL_MS = 2000;
@@ -66,6 +67,9 @@ export default function CellSection({ simMode = false }: Props) {
         staubli={data?.staubli ?? null}
         apera={data?.apera ?? null}
         network={data?.network ?? []}
+        internet={data?.internet ?? null}
+        switchVpn={data?.switchVpn ?? null}
+        piHealth={data?.piHealth ?? null}
       />
 
       {/* Staubli + Apera side-by-side on large screens */}
@@ -73,6 +77,13 @@ export default function CellSection({ simMode = false }: Props) {
         <StaubliPanel readings={data?.staubli ?? null} pollError={error} />
         <AperaPanel readings={data?.apera ?? null} pollError={!data?.staubli ? null : error} />
       </div>
+
+      {/* Infrastructure monitoring — internet, switch/VPN, Pi health */}
+      <InfraPanel
+        internet={data?.internet ?? null}
+        switchVpn={data?.switchVpn ?? null}
+        piHealth={data?.piHealth ?? null}
+      />
 
       {/* Network status strip */}
       {data?.network && data.network.length > 0 && (

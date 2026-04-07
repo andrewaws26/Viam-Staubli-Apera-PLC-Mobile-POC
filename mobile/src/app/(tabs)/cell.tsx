@@ -65,10 +65,63 @@ interface NetworkDevice {
   latency_ms: number;
 }
 
+interface InternetHealth {
+  reachable: boolean;
+  latency_ms: number;
+  jitter_ms: number;
+  packet_loss_pct: number;
+  dns_ok: boolean;
+  dns_resolve_ms: number;
+  viam_reachable: boolean;
+  viam_latency_ms: number;
+  gateway_ip: string;
+  interface: string;
+  link_speed_mbps: number;
+  rx_bytes: number;
+  tx_bytes: number;
+  rx_errors: number;
+  tx_errors: number;
+}
+
+interface SwitchVpnHealth {
+  eth0_up: boolean;
+  eth0_speed_mbps: number;
+  eth0_duplex: string;
+  devices_on_switch: number;
+  vpn_reachable: boolean;
+  vpn_latency_ms: number;
+  vpn_is_gateway: boolean;
+  vpn_web_ok: boolean;
+  vpn_ip: string;
+}
+
+interface PiHealth {
+  cpu_temp_c: number;
+  load_1m: number;
+  load_5m: number;
+  load_15m: number;
+  mem_total_mb: number;
+  mem_available_mb: number;
+  mem_used_pct: number;
+  disk_total_gb: number;
+  disk_free_gb: number;
+  disk_used_pct: number;
+  uptime_hours: number;
+  undervoltage_now: boolean;
+  freq_capped_now: boolean;
+  throttled_now: boolean;
+  undervoltage_ever: boolean;
+  freq_capped_ever: boolean;
+  throttled_ever: boolean;
+}
+
 interface CellData {
   staubli: StaubliReadings | null;
   apera: AperaReadings | null;
   network: NetworkDevice[];
+  internet: InternetHealth | null;
+  switchVpn: SwitchVpnHealth | null;
+  piHealth: PiHealth | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -146,6 +199,37 @@ function countAlerts(data: CellData): { critical: number; warning: number } {
       if (dev.name.includes('Staubli') || dev.name.includes('Apera')) critical++;
       else warning++;
     }
+  }
+
+  // Internet uplink
+  const inet = data.internet;
+  if (inet) {
+    if (!inet.reachable) critical++;
+    else {
+      if (inet.packet_loss_pct > 10) warning++;
+      if (inet.latency_ms > 500) warning++;
+      if (!inet.viam_reachable) critical++;
+      if (!inet.dns_ok) warning++;
+    }
+  }
+
+  // Switch / VPN
+  const sw = data.switchVpn;
+  if (sw) {
+    if (!sw.eth0_up) critical++;
+    if (!sw.vpn_reachable) critical++;
+    if (sw.vpn_reachable && !sw.vpn_web_ok) warning++;
+  }
+
+  // Pi 5 health
+  const pi = data.piHealth;
+  if (pi) {
+    if (pi.undervoltage_now) critical++;
+    if (pi.throttled_now) warning++;
+    if (pi.cpu_temp_c >= 80) critical++;
+    else if (pi.cpu_temp_c >= 70) warning++;
+    if (pi.mem_used_pct > 90) warning++;
+    if (pi.disk_used_pct > 90) warning++;
   }
 
   return { critical, warning };
@@ -361,6 +445,82 @@ export default function CellScreen() {
         )}
       </Card>
 
+      {/* ── Infrastructure ── */}
+      <Card>
+        <Text style={styles.sectionTitle}>Infrastructure</Text>
+
+        {/* Internet Uplink */}
+        <Text style={styles.subHeader}>Internet Uplink</Text>
+        {data?.internet ? (
+          <View style={styles.kvRow}>
+            <KV label="Status" value={data.internet.reachable ? 'UP' : 'DOWN'}
+              color={data.internet.reachable ? colors.successLight : colors.dangerLight} />
+            <KV label="Latency" value={`${data.internet.latency_ms.toFixed(0)}ms`}
+              color={data.internet.latency_ms > 200 ? colors.warningLight : undefined} />
+            <KV label="Jitter" value={`${data.internet.jitter_ms.toFixed(0)}ms`}
+              color={data.internet.jitter_ms > 50 ? colors.warningLight : undefined} />
+            <KV label="Loss" value={`${data.internet.packet_loss_pct}%`}
+              color={data.internet.packet_loss_pct > 0 ? colors.warningLight : undefined} />
+          </View>
+        ) : (
+          <Text style={styles.waiting}>No data</Text>
+        )}
+        {data?.internet?.reachable && (
+          <View style={[styles.kvRow, { marginTop: spacing.sm }]}>
+            <KV label="DNS" value={data.internet.dns_ok ? `${data.internet.dns_resolve_ms.toFixed(0)}ms` : 'FAIL'}
+              color={data.internet.dns_ok ? undefined : colors.dangerLight} />
+            <KV label="Viam" value={data.internet.viam_reachable ? `${data.internet.viam_latency_ms.toFixed(0)}ms` : 'DOWN'}
+              color={data.internet.viam_reachable ? undefined : colors.dangerLight} />
+            <KV label="Link" value={`${data.internet.link_speed_mbps} Mbps`} />
+          </View>
+        )}
+
+        {/* Switch & VPN */}
+        <Text style={styles.subHeader}>Switch / VPN</Text>
+        {data?.switchVpn ? (
+          <View style={styles.kvRow}>
+            <KV label="Ethernet" value={data.switchVpn.eth0_up ? `${data.switchVpn.eth0_speed_mbps} Mbps` : 'DOWN'}
+              color={data.switchVpn.eth0_up ? undefined : colors.dangerLight} />
+            <KV label="Devices" value={String(data.switchVpn.devices_on_switch)} />
+            <KV label="VPN" value={data.switchVpn.vpn_reachable ? `${data.switchVpn.vpn_latency_ms.toFixed(1)}ms` : 'DOWN'}
+              color={data.switchVpn.vpn_reachable ? undefined : colors.dangerLight} />
+            <KV label="Web UI" value={data.switchVpn.vpn_web_ok ? 'OK' : 'DOWN'}
+              color={data.switchVpn.vpn_web_ok ? undefined : colors.warningLight} />
+          </View>
+        ) : (
+          <Text style={styles.waiting}>No data</Text>
+        )}
+
+        {/* Pi 5 Health */}
+        <Text style={styles.subHeader}>Pi 5</Text>
+        {data?.piHealth ? (
+          <>
+            <View style={styles.kvRow}>
+              <KV label="CPU" value={`${data.piHealth.cpu_temp_c.toFixed(0)}°C`}
+                color={data.piHealth.cpu_temp_c >= 80 ? colors.dangerLight : data.piHealth.cpu_temp_c >= 70 ? colors.warningLight : undefined} />
+              <KV label="Load" value={data.piHealth.load_1m.toFixed(2)} color={data.piHealth.load_1m > 3 ? colors.warningLight : undefined} />
+              <KV label="Mem" value={`${data.piHealth.mem_used_pct.toFixed(0)}%`}
+                color={data.piHealth.mem_used_pct > 80 ? colors.warningLight : undefined} />
+              <KV label="Disk" value={`${data.piHealth.disk_used_pct.toFixed(0)}%`}
+                color={data.piHealth.disk_used_pct > 90 ? colors.warningLight : undefined} />
+            </View>
+            <View style={[styles.kvRow, { marginTop: spacing.sm }]}>
+              <KV label="Uptime" value={`${data.piHealth.uptime_hours.toFixed(1)}h`} />
+              <KV label="Free" value={`${data.piHealth.disk_free_gb.toFixed(0)} GB`} />
+            </View>
+            {(data.piHealth.undervoltage_now || data.piHealth.throttled_now || data.piHealth.freq_capped_now) && (
+              <View style={styles.throttleBanner}>
+                {data.piHealth.undervoltage_now && <Text style={styles.throttleText}>Undervoltage detected</Text>}
+                {data.piHealth.freq_capped_now && <Text style={[styles.throttleText, { color: colors.warningLight }]}>Frequency capped</Text>}
+                {data.piHealth.throttled_now && <Text style={[styles.throttleText, { color: colors.warningLight }]}>Thermal throttled</Text>}
+              </View>
+            )}
+          </>
+        ) : (
+          <Text style={styles.waiting}>No data</Text>
+        )}
+      </Card>
+
       {/* ── Network Devices ── */}
       {data?.network && data.network.length > 0 && (
         <Card>
@@ -447,4 +607,13 @@ const styles = StyleSheet.create({
   deviceIp: { color: colors.textMuted, fontSize: 10, fontVariant: ['tabular-nums'] },
   latency: { color: colors.textMuted, fontSize: 10, fontVariant: ['tabular-nums'] },
   waiting: { color: colors.textMuted, fontSize: typography.sizes.sm, fontStyle: 'italic' },
+  throttleBanner: {
+    marginTop: spacing.sm,
+    padding: spacing.sm,
+    backgroundColor: '#dc262620',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#dc262640',
+  },
+  throttleText: { color: colors.dangerLight, fontSize: 10 },
 });
