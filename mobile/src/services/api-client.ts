@@ -185,6 +185,13 @@ export function removePushTokenApi(data: { expo_token: string }) {
   return apiRequest('/api/user/push-token', { method: 'DELETE', body: data });
 }
 
+// ── Cell Monitoring ──────────────────────────────────────────────────
+
+/** Fetch combined Staubli + Apera + network cell readings (sim mode by default until Pi 5 Viam module is deployed). */
+export function fetchCellReadings(sim = true) {
+  return apiRequest<Record<string, unknown>>(`/api/cell-readings?sim=${sim}`);
+}
+
 // ── Work Orders ──────────────────────────────────────────────────────
 
 /** Fetch work orders. Optional filters: status, assigned_to, truck_id. */
