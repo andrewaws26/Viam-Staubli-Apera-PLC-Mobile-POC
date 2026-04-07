@@ -140,12 +140,74 @@ export interface CellAlert {
 }
 
 // ---------------------------------------------------------------------------
+// Internet Uplink Health
+// ---------------------------------------------------------------------------
+export interface InternetHealth {
+  reachable: boolean;
+  latency_ms: number;
+  jitter_ms: number;
+  packet_loss_pct: number;
+  dns_ok: boolean;
+  dns_resolve_ms: number;
+  viam_reachable: boolean;
+  viam_latency_ms: number;
+  gateway_ip: string;
+  interface: string;
+  link_speed_mbps: number;
+  rx_bytes: number;
+  tx_bytes: number;
+  rx_errors: number;
+  tx_errors: number;
+}
+
+// ---------------------------------------------------------------------------
+// Switch & VPN Gateway Health
+// ---------------------------------------------------------------------------
+export interface SwitchVpnHealth {
+  eth0_up: boolean;
+  eth0_speed_mbps: number;
+  eth0_duplex: string;
+  devices_on_switch: number;
+  vpn_reachable: boolean;
+  vpn_latency_ms: number;
+  vpn_is_gateway: boolean;
+  vpn_web_ok: boolean;
+  vpn_ip: string;
+}
+
+// ---------------------------------------------------------------------------
+// Pi 5 System Health
+// ---------------------------------------------------------------------------
+export interface PiHealth {
+  cpu_temp_c: number;
+  load_1m: number;
+  load_5m: number;
+  load_15m: number;
+  mem_total_mb: number;
+  mem_available_mb: number;
+  mem_used_pct: number;
+  disk_total_gb: number;
+  disk_free_gb: number;
+  disk_used_pct: number;
+  uptime_hours: number;
+  undervoltage_now: boolean;
+  freq_capped_now: boolean;
+  throttled_now: boolean;
+  undervoltage_ever: boolean;
+  freq_capped_ever: boolean;
+  throttled_ever: boolean;
+}
+
+// ---------------------------------------------------------------------------
 // Combined Cell State
 // ---------------------------------------------------------------------------
 export interface CellState {
   staubli: StaubliReadings | null;
   apera: AperaReadings | null;
   network: NetworkDevice[];
+  internet: InternetHealth | null;
+  switchVpn: SwitchVpnHealth | null;
+  piHealth: PiHealth | null;
   alerts: CellAlert[];
   last_update: string;
 }

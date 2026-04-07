@@ -14,10 +14,14 @@ export { default as CellSection } from "./CellSection";
 export { default as StaubliPanel } from "./StaubliPanel";
 export { default as AperaPanel } from "./AperaPanel";
 export { default as CellWatchdog } from "./CellWatchdog";
+export { default as InfraPanel } from "./InfraPanel";
 export type {
   StaubliReadings,
   AperaReadings,
   NetworkDevice,
+  InternetHealth,
+  SwitchVpnHealth,
+  PiHealth,
   CellAlert,
   CellState,
 } from "./CellTypes";

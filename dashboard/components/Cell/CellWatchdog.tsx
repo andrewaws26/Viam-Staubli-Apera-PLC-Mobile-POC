@@ -8,7 +8,7 @@
 "use client";
 
 import { useMemo } from "react";
-import type { StaubliReadings, AperaReadings, NetworkDevice, CellAlert, AlertSeverity, AlertCategory } from "./CellTypes";
+import type { StaubliReadings, AperaReadings, NetworkDevice, InternetHealth, SwitchVpnHealth, PiHealth, CellAlert, AlertSeverity, AlertCategory } from "./CellTypes";
 import { alertColor, TEMP_THRESHOLDS } from "./CellTypes";
 
 // ---------------------------------------------------------------------------
@@ -19,6 +19,9 @@ interface WatchdogInput {
   staubli: StaubliReadings | null;
   apera: AperaReadings | null;
   network: NetworkDevice[];
+  internet: InternetHealth | null;
+  switchVpn: SwitchVpnHealth | null;
+  piHealth: PiHealth | null;
 }
 
 function runWatchdog(input: WatchdogInput): CellAlert[] {
@@ -30,7 +33,7 @@ function runWatchdog(input: WatchdogInput): CellAlert[] {
     alerts.push({ id: `wd-${++id}`, severity, category, title, detail, source, timestamp: now, acknowledged: false });
   }
 
-  const { staubli: s, apera: a, network: n } = input;
+  const { staubli: s, apera: a, network: n, internet: inet, switchVpn: sw, piHealth: pi } = input;
 
   // ---- SAFETY ----
   if (s) {
@@ -158,6 +161,60 @@ function runWatchdog(input: WatchdogInput): CellAlert[] {
     alert("critical", "communication", "Vision System Disconnected", "Cannot reach Apera socket on port 14040. Check network connection to 192.168.3.151.", "Apera");
   }
 
+  // ---- INTERNET UPLINK ----
+  if (inet) {
+    if (!inet.reachable) {
+      alert("critical", "network", "Internet Down", "No internet connectivity. Viam Cloud sync will fail. Check cellular router.", "Infra");
+    } else {
+      if (inet.packet_loss_pct > 10) {
+        alert("warning", "network", `${inet.packet_loss_pct}% Packet Loss`, "High packet loss on cellular link. Data sync may be unreliable.", "Infra");
+      }
+      if (inet.latency_ms > 500) {
+        alert("warning", "network", "High Internet Latency", `${inet.latency_ms.toFixed(0)}ms latency. Remote monitoring may be sluggish.`, "Infra");
+      }
+      if (!inet.viam_reachable) {
+        alert("critical", "communication", "Viam Cloud Unreachable", "Internet is up but cannot reach Viam Cloud. Data is being buffered locally.", "Infra");
+      }
+      if (!inet.dns_ok) {
+        alert("warning", "network", "DNS Resolution Failing", "DNS is not resolving. Cellular router may be in a degraded state.", "Infra");
+      }
+    }
+  }
+
+  // ---- SWITCH / VPN ----
+  if (sw) {
+    if (!sw.eth0_up) {
+      alert("critical", "network", "Ethernet Link Down", "Pi 5 eth0 has no carrier. Check cable to switch.", "Infra");
+    }
+    if (!sw.vpn_reachable) {
+      alert("critical", "network", "Stridelinx VPN Down", "Cannot reach the cellular router. All internet and remote access is lost.", "Infra");
+    }
+    if (sw.vpn_reachable && !sw.vpn_web_ok) {
+      alert("warning", "network", "Stridelinx Web UI Down", "VPN gateway pings but web management is not responding.", "Infra");
+    }
+  }
+
+  // ---- PI 5 HEALTH ----
+  if (pi) {
+    if (pi.undervoltage_now) {
+      alert("critical", "power", "Pi 5 Undervoltage", "Power supply voltage is low. Pi may reboot unexpectedly. Check USB-C power supply.", "Infra");
+    }
+    if (pi.throttled_now) {
+      alert("warning", "thermal", "Pi 5 Thermal Throttle", `CPU at ${pi.cpu_temp_c.toFixed(0)}°C — performance is being throttled. Improve ventilation.`, "Infra");
+    }
+    if (pi.cpu_temp_c >= 80) {
+      alert("critical", "thermal", "Pi 5 CPU Overheating", `CPU at ${pi.cpu_temp_c.toFixed(0)}°C — risk of shutdown. Move Pi or add cooling.`, "Infra");
+    } else if (pi.cpu_temp_c >= 70) {
+      alert("warning", "thermal", "Pi 5 CPU Warm", `CPU at ${pi.cpu_temp_c.toFixed(0)}°C — approaching thermal throttle.`, "Infra");
+    }
+    if (pi.mem_used_pct > 90) {
+      alert("warning", "power", "Pi 5 Memory Low", `${pi.mem_used_pct.toFixed(0)}% memory used. Module may crash if it runs out.`, "Infra");
+    }
+    if (pi.disk_used_pct > 90) {
+      alert("warning", "power", "Pi 5 Disk Nearly Full", `${pi.disk_used_pct.toFixed(0)}% disk used (${pi.disk_free_gb.toFixed(0)} GB free). Data capture may stop.`, "Infra");
+    }
+  }
+
   return alerts;
 }
 
@@ -169,12 +226,15 @@ interface Props {
   staubli: StaubliReadings | null;
   apera: AperaReadings | null;
   network: NetworkDevice[];
+  internet?: InternetHealth | null;
+  switchVpn?: SwitchVpnHealth | null;
+  piHealth?: PiHealth | null;
 }
 
-export default function CellWatchdog({ staubli, apera, network }: Props) {
+export default function CellWatchdog({ staubli, apera, network, internet = null, switchVpn = null, piHealth = null }: Props) {
   const alerts = useMemo(
-    () => runWatchdog({ staubli, apera, network }),
-    [staubli, apera, network]
+    () => runWatchdog({ staubli, apera, network, internet, switchVpn, piHealth }),
+    [staubli, apera, network, internet, switchVpn, piHealth]
   );
 
   const criticals = alerts.filter((a) => a.severity === "critical");

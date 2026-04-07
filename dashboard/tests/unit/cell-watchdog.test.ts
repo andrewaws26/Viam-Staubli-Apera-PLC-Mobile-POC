@@ -17,6 +17,9 @@ import type {
   StaubliReadings,
   AperaReadings,
   NetworkDevice,
+  InternetHealth,
+  SwitchVpnHealth,
+  PiHealth,
   AlertSeverity,
   AlertCategory,
   CellAlert,
@@ -31,6 +34,9 @@ interface WatchdogInput {
   staubli: StaubliReadings | null;
   apera: AperaReadings | null;
   network: NetworkDevice[];
+  internet?: InternetHealth | null;
+  switchVpn?: SwitchVpnHealth | null;
+  piHealth?: PiHealth | null;
 }
 
 function runWatchdog(input: WatchdogInput): CellAlert[] {
@@ -42,7 +48,7 @@ function runWatchdog(input: WatchdogInput): CellAlert[] {
     alerts.push({ id: `wd-${++id}`, severity, category, title, detail, source, timestamp: now, acknowledged: false });
   }
 
-  const { staubli: s, apera: a, network: n } = input;
+  const { staubli: s, apera: a, network: n, internet: inet, switchVpn: sw, piHealth: pi } = input;
 
   // Safety
   if (s) {
@@ -121,6 +127,35 @@ function runWatchdog(input: WatchdogInput): CellAlert[] {
   if (s && !s.connected) alert("critical", "communication", "Robot Controller Disconnected", "", "Staubli");
   if (a && !a.connected) alert("critical", "communication", "Vision System Disconnected", "", "Apera");
 
+  // Internet uplink
+  if (inet) {
+    if (!inet.reachable) {
+      alert("critical", "network", "Internet Down", "", "Infra");
+    } else {
+      if (inet.packet_loss_pct > 10) alert("warning", "network", "Packet Loss", "", "Infra");
+      if (inet.latency_ms > 500) alert("warning", "network", "High Internet Latency", "", "Infra");
+      if (!inet.viam_reachable) alert("critical", "communication", "Viam Cloud Unreachable", "", "Infra");
+      if (!inet.dns_ok) alert("warning", "network", "DNS Resolution Failing", "", "Infra");
+    }
+  }
+
+  // Switch / VPN
+  if (sw) {
+    if (!sw.eth0_up) alert("critical", "network", "Ethernet Link Down", "", "Infra");
+    if (!sw.vpn_reachable) alert("critical", "network", "Stridelinx VPN Down", "", "Infra");
+    if (sw.vpn_reachable && !sw.vpn_web_ok) alert("warning", "network", "Stridelinx Web UI Down", "", "Infra");
+  }
+
+  // Pi 5 health
+  if (pi) {
+    if (pi.undervoltage_now) alert("critical", "power", "Pi 5 Undervoltage", "", "Infra");
+    if (pi.throttled_now) alert("warning", "thermal", "Pi 5 Thermal Throttle", "", "Infra");
+    if (pi.cpu_temp_c >= 80) alert("critical", "thermal", "Pi 5 CPU Overheating", "", "Infra");
+    else if (pi.cpu_temp_c >= 70) alert("warning", "thermal", "Pi 5 CPU Warm", "", "Infra");
+    if (pi.mem_used_pct > 90) alert("warning", "power", "Pi 5 Memory Low", "", "Infra");
+    if (pi.disk_used_pct > 90) alert("warning", "power", "Pi 5 Disk Nearly Full", "", "Infra");
+  }
+
   return alerts;
 }
 
@@ -173,6 +208,37 @@ function makeNetwork(overrides: Partial<NetworkDevice>[] = []): NetworkDevice[] 
     { name: "JTEKT PLC", ip: "192.168.0.10", reachable: true, latency_ms: 5, last_seen: new Date().toISOString() },
   ];
   return defaults.map((d, i) => ({ ...d, ...overrides[i] }));
+}
+
+function makeInternet(overrides: Partial<InternetHealth> = {}): InternetHealth {
+  return {
+    reachable: true, latency_ms: 60, jitter_ms: 15, packet_loss_pct: 0,
+    dns_ok: true, dns_resolve_ms: 80, viam_reachable: true, viam_latency_ms: 150,
+    gateway_ip: "192.168.0.1", interface: "eth0", link_speed_mbps: 1000,
+    rx_bytes: 10_000_000, tx_bytes: 25_000_000, rx_errors: 0, tx_errors: 0,
+    ...overrides,
+  };
+}
+
+function makeSwitchVpn(overrides: Partial<SwitchVpnHealth> = {}): SwitchVpnHealth {
+  return {
+    eth0_up: true, eth0_speed_mbps: 1000, eth0_duplex: "full",
+    devices_on_switch: 5, vpn_reachable: true, vpn_latency_ms: 1.0,
+    vpn_is_gateway: true, vpn_web_ok: true, vpn_ip: "192.168.0.1",
+    ...overrides,
+  };
+}
+
+function makePiHealth(overrides: Partial<PiHealth> = {}): PiHealth {
+  return {
+    cpu_temp_c: 45, load_1m: 0.3, load_5m: 0.2, load_15m: 0.1,
+    mem_total_mb: 8063, mem_available_mb: 7200, mem_used_pct: 11,
+    disk_total_gb: 234.3, disk_free_gb: 215, disk_used_pct: 8,
+    uptime_hours: 48, undervoltage_now: false, freq_capped_now: false,
+    throttled_now: false, undervoltage_ever: false, freq_capped_ever: false,
+    throttled_ever: false,
+    ...overrides,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -357,6 +423,148 @@ describe("Cell Watchdog Rules", () => {
     });
   });
 
+  describe("internet rules", () => {
+    it("flags internet down as critical", () => {
+      const alerts = runWatchdog({
+        staubli: null, apera: null, network: [],
+        internet: makeInternet({ reachable: false }),
+      });
+      expect(alerts.some(a => a.title === "Internet Down" && a.severity === "critical")).toBe(true);
+    });
+
+    it("flags packet loss as warning", () => {
+      const alerts = runWatchdog({
+        staubli: null, apera: null, network: [],
+        internet: makeInternet({ packet_loss_pct: 15 }),
+      });
+      expect(alerts.some(a => a.title === "Packet Loss" && a.severity === "warning")).toBe(true);
+    });
+
+    it("flags high latency as warning", () => {
+      const alerts = runWatchdog({
+        staubli: null, apera: null, network: [],
+        internet: makeInternet({ latency_ms: 600 }),
+      });
+      expect(alerts.some(a => a.title === "High Internet Latency" && a.severity === "warning")).toBe(true);
+    });
+
+    it("flags Viam Cloud unreachable as critical", () => {
+      const alerts = runWatchdog({
+        staubli: null, apera: null, network: [],
+        internet: makeInternet({ viam_reachable: false }),
+      });
+      expect(alerts.some(a => a.title === "Viam Cloud Unreachable" && a.severity === "critical")).toBe(true);
+    });
+
+    it("flags DNS failure as warning", () => {
+      const alerts = runWatchdog({
+        staubli: null, apera: null, network: [],
+        internet: makeInternet({ dns_ok: false }),
+      });
+      expect(alerts.some(a => a.title === "DNS Resolution Failing" && a.severity === "warning")).toBe(true);
+    });
+
+    it("no alerts for healthy internet", () => {
+      const alerts = runWatchdog({
+        staubli: null, apera: null, network: [],
+        internet: makeInternet(),
+      });
+      expect(alerts).toHaveLength(0);
+    });
+  });
+
+  describe("switch/VPN rules", () => {
+    it("flags eth0 link down as critical", () => {
+      const alerts = runWatchdog({
+        staubli: null, apera: null, network: [],
+        switchVpn: makeSwitchVpn({ eth0_up: false }),
+      });
+      expect(alerts.some(a => a.title === "Ethernet Link Down" && a.severity === "critical")).toBe(true);
+    });
+
+    it("flags VPN down as critical", () => {
+      const alerts = runWatchdog({
+        staubli: null, apera: null, network: [],
+        switchVpn: makeSwitchVpn({ vpn_reachable: false }),
+      });
+      expect(alerts.some(a => a.title === "Stridelinx VPN Down" && a.severity === "critical")).toBe(true);
+    });
+
+    it("flags VPN web UI down as warning", () => {
+      const alerts = runWatchdog({
+        staubli: null, apera: null, network: [],
+        switchVpn: makeSwitchVpn({ vpn_web_ok: false }),
+      });
+      expect(alerts.some(a => a.title === "Stridelinx Web UI Down" && a.severity === "warning")).toBe(true);
+    });
+
+    it("no alerts for healthy switch/VPN", () => {
+      const alerts = runWatchdog({
+        staubli: null, apera: null, network: [],
+        switchVpn: makeSwitchVpn(),
+      });
+      expect(alerts).toHaveLength(0);
+    });
+  });
+
+  describe("Pi 5 health rules", () => {
+    it("flags undervoltage as critical", () => {
+      const alerts = runWatchdog({
+        staubli: null, apera: null, network: [],
+        piHealth: makePiHealth({ undervoltage_now: true }),
+      });
+      expect(alerts.some(a => a.title === "Pi 5 Undervoltage" && a.severity === "critical")).toBe(true);
+    });
+
+    it("flags thermal throttle as warning", () => {
+      const alerts = runWatchdog({
+        staubli: null, apera: null, network: [],
+        piHealth: makePiHealth({ throttled_now: true }),
+      });
+      expect(alerts.some(a => a.title === "Pi 5 Thermal Throttle" && a.severity === "warning")).toBe(true);
+    });
+
+    it("flags CPU >= 80 as critical", () => {
+      const alerts = runWatchdog({
+        staubli: null, apera: null, network: [],
+        piHealth: makePiHealth({ cpu_temp_c: 82 }),
+      });
+      expect(alerts.some(a => a.title === "Pi 5 CPU Overheating" && a.severity === "critical")).toBe(true);
+    });
+
+    it("flags CPU >= 70 as warning", () => {
+      const alerts = runWatchdog({
+        staubli: null, apera: null, network: [],
+        piHealth: makePiHealth({ cpu_temp_c: 72 }),
+      });
+      expect(alerts.some(a => a.title === "Pi 5 CPU Warm" && a.severity === "warning")).toBe(true);
+    });
+
+    it("flags memory > 90% as warning", () => {
+      const alerts = runWatchdog({
+        staubli: null, apera: null, network: [],
+        piHealth: makePiHealth({ mem_used_pct: 92 }),
+      });
+      expect(alerts.some(a => a.title === "Pi 5 Memory Low" && a.severity === "warning")).toBe(true);
+    });
+
+    it("flags disk > 90% as warning", () => {
+      const alerts = runWatchdog({
+        staubli: null, apera: null, network: [],
+        piHealth: makePiHealth({ disk_used_pct: 95 }),
+      });
+      expect(alerts.some(a => a.title === "Pi 5 Disk Nearly Full" && a.severity === "warning")).toBe(true);
+    });
+
+    it("no alerts for healthy Pi", () => {
+      const alerts = runWatchdog({
+        staubli: null, apera: null, network: [],
+        piHealth: makePiHealth(),
+      });
+      expect(alerts).toHaveLength(0);
+    });
+  });
+
   describe("combined scenarios", () => {
     it("fires multiple alerts for cascading failure", () => {
       const alerts = runWatchdog({
@@ -371,7 +579,20 @@ describe("Cell Watchdog Rules", () => {
       });
 
       const criticals = alerts.filter(a => a.severity === "critical");
-      expect(criticals.length).toBeGreaterThanOrEqual(6); // estop + thermal + urps + chain + vision pipeline + camera + network
+      expect(criticals.length).toBeGreaterThanOrEqual(6);
+    });
+
+    it("fires infra alerts alongside cell alerts", () => {
+      const alerts = runWatchdog({
+        staubli: makeStaubli({ stop1_active: true }),
+        apera: null, network: [],
+        internet: makeInternet({ reachable: false }),
+        piHealth: makePiHealth({ undervoltage_now: true }),
+      });
+      expect(alerts.some(a => a.source === "Staubli")).toBe(true);
+      expect(alerts.some(a => a.source === "Infra")).toBe(true);
+      const criticals = alerts.filter(a => a.severity === "critical");
+      expect(criticals.length).toBeGreaterThanOrEqual(3); // estop + internet down + undervoltage
     });
   });
 });
