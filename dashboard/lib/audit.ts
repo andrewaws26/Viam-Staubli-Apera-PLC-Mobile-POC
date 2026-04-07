@@ -17,7 +17,10 @@ export type AuditAction =
   | "assignment_created"
   | "assignment_deleted"
   | "maintenance_logged"
-  | "maintenance_deleted";
+  | "maintenance_deleted"
+  | "work_order_created"
+  | "work_order_updated"
+  | "work_order_deleted";
 
 interface AuditEntry {
   action: AuditAction;

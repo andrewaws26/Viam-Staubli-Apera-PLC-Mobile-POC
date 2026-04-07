@@ -1,7 +1,42 @@
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import { headers } from "next/headers";
 import { ROUTE_PERMISSIONS, hasRole, canSeeAllTrucks } from "./auth";
 import { getSupabase } from "./supabase";
+
+/**
+ * Get the authenticated user ID.
+ * Tries Clerk session auth first (web browser), then falls back to
+ * Bearer token verification (mobile app in Clerk dev mode).
+ */
+export async function getAuthUserId(): Promise<string | null> {
+  // Try standard Clerk auth (works in browser with session cookies)
+  const { userId } = await auth();
+  if (userId) return userId;
+
+  // Fall back to Bearer token for mobile app (Clerk dev mode doesn't
+  // populate auth() from Bearer tokens without the dev browser cookie)
+  const headersList = await headers();
+  const authHeader = headersList.get("authorization");
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  if (!token) return null;
+
+  try {
+    // Decode Clerk session JWT — the "sub" claim contains the user ID
+    const payload = JSON.parse(
+      Buffer.from(token.split(".")[1], "base64url").toString()
+    );
+    if (payload.sub && typeof payload.sub === "string" && payload.sub.startsWith("user_")) {
+      // Verify the user actually exists in Clerk
+      const client = await clerkClient();
+      await client.users.getUser(payload.sub);
+      return payload.sub;
+    }
+  } catch {
+    // Invalid token or user not found
+  }
+  return null;
+}
 
 /**
  * Fetch the user's role from Clerk publicMetadata.
@@ -21,7 +56,7 @@ async function getUserRole(userId: string): Promise<string> {
  * Returns a 401/403 NextResponse if denied, or null if access is granted.
  */
 export async function requireRole(pathname: string) {
-  const { userId } = await auth();
+  const userId = await getAuthUserId();
 
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -47,7 +82,7 @@ export async function requireRole(pathname: string) {
 export async function requireTruckAccess(requestedTruckId: string | null) {
   if (!requestedTruckId) return null;
 
-  const { userId } = await auth();
+  const userId = await getAuthUserId();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

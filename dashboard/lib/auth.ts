@@ -17,9 +17,13 @@ export const ROUTE_PERMISSIONS: Record<string, UserRole[]> = {
   "/api/truck-notes": ["developer", "manager", "mechanic", "operator"],
   "/api/truck-assignments": ["developer", "manager", "mechanic", "operator"],
   "/api/audit-log": ["developer", "manager"],
+  "/api/user/push-token": ["developer", "manager", "mechanic", "operator"],
+  "/api/push/send": ["developer", "manager"],
   "/api/dtc-history": ["developer", "manager", "mechanic", "operator"],
   "/api/maintenance": ["developer", "manager", "mechanic", "operator"],
+  "/api/work-orders": ["developer", "manager", "mechanic", "operator"],
   "/fleet": ["developer", "manager", "mechanic"],
+  "/work": ["developer", "manager", "mechanic", "operator"],
   "/dev": ["developer"],
   "/admin": ["developer", "manager"],
 };
