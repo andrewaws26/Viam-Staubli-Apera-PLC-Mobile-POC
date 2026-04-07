@@ -20,6 +20,7 @@ Both sync to Viam Cloud at 1 Hz. A Next.js dashboard on Vercel shows live status
 - `packages/shared/src/` — Shared TypeScript types and utilities (sensor-types, auth, work-order, spn-lookup, pcode-lookup, gauge-thresholds, format, chat). Both dashboard and mobile re-export from here.
 - `modules/plc-sensor/src/` — PLC sensor module: plc_sensor.py (main), plc_utils.py, plc_offline.py, plc_metrics.py, plc_weather.py, diagnostics.py, system_health.py
 - `modules/j1939-sensor/src/models/` — J1939 sensor module: j1939_sensor.py (main), j1939_can.py, j1939_dtc.py, j1939_discovery.py, pgn_decoder.py, pgn_utils.py, pgn_dm1.py, obd2_poller.py, obd2_pids.py, obd2_dtc.py, obd2_diagnostics.py, vehicle_profiles.py
+- `modules/cell-sensor/src/` — Cell sensor module: cell_sensor.py (main), staubli_client.py (CS9 REST API), apera_client.py (Vue socket 14040), network_monitor.py (ping devices)
 - `dashboard/` — Next.js 14 app on Vercel
 - `dashboard/components/` — TruckPanel, GaugeGrid, DTCPanel, AIChatPanel, Dashboard, TPS/, DevTruck/, WorkBoard, Chat/
 - `dashboard/components/Chat/` — Team chat UI: ThreadView, ThreadList, MessageBubble, ChatInput, SnapshotCard, ReactionBar, TruckChatTab, WorkOrderChatTab, UserPicker
@@ -124,10 +125,16 @@ See `docs/encoder-distance.md` for the full explanation.
 
 Rolling signal metrics in `SignalMetrics` class: camera detection rate, eject rate, camera trend (stable/declining/dead/intermittent), encoder noise, Modbus response time, state durations.
 
-## Deployed module location
+## Deployed module locations
+**plc-sensor:**
 - Symlink: `/opt/viam-modules/plc-sensor/src/plc_sensor.py` → repo
 - Copies (must manually update): `/opt/viam-modules/plc-sensor/run.sh`, `requirements.txt`
-- After editing plc_sensor.py: `sudo systemctl restart viam-server`
+
+**cell-sensor:**
+- Symlinks: `/opt/viam-modules/cell-sensor/src/{cell_sensor,staubli_client,apera_client,network_monitor}.py` → repo
+- Copies (must manually update): `/opt/viam-modules/cell-sensor/run.sh`, `requirements.txt`
+
+- After editing any module: `sudo systemctl restart viam-server`
 
 ## Dashboard
 - Production: viam-staubli-apera-plc-mobile-poc.vercel.app
@@ -162,7 +169,7 @@ This repo serves a fleet of trucks. Each truck has two Raspberry Pis forming one
 
 | Pi | Hostname | Tailscale IP | Role | Module |
 |----|----------|-------------|------|--------|
-| Pi 5 | viam-pi | 100.112.68.52 | TPS monitoring, uploads, touch display | `modules/plc-sensor/` |
+| Pi 5 | viam-pi | 100.112.68.52 | TPS monitoring, cell monitoring, uploads, touch display | `modules/plc-sensor/`, `modules/cell-sensor/` |
 | Pi Zero 2 W | truck-diagnostics | 100.113.196.68 | J1939 CAN bus truck diagnostics (passive, listen-only) | `modules/j1939-sensor/` |
 
 **Repo locations:**
@@ -171,7 +178,7 @@ This repo serves a fleet of trucks. Each truck has two Raspberry Pis forming one
 - Both track `origin/main`. Auto-sync runs every 10 min via cron.
 
 **Viam machines** (same org & location `djgpitarpm`):
-- Pi 5 machine: `staubli-pi` → component `plc-monitor`
+- Pi 5 machine: `staubli-pi` → components `plc-monitor`, `cell-monitor`
 - Pi Zero machine: `truck-diagnostic` → component `truck-engine`
 
 **Dashboard** is on Vercel (not the Pis). Push to `main` triggers Vercel auto-deploy.

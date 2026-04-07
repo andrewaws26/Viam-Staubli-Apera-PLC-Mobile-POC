@@ -1,0 +1,17 @@
+{
+  "module_id": "viam-staubli-apera-poc:cell-sensor",
+  "visibility": "private",
+  "url": "",
+  "description": "Robot cell monitor — polls Staubli TX2-140 REST API, Apera Vue socket (14040), and cell network devices. Returns combined readings with cross-system watchdog alerts. Plug-and-play on Pi 5.",
+  "models": [
+    {
+      "api": "rdk:component:sensor",
+      "model": "viam-staubli-apera-poc:monitor:cell-sensor"
+    }
+  ],
+  "entrypoint": "run.sh",
+  "build": {
+    "build": "",
+    "setup": "./setup.sh"
+  }
+}
