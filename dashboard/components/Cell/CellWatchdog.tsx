@@ -64,10 +64,10 @@ function runWatchdog(input: WatchdogInput): CellAlert[] {
   }
 
   if (a) {
-    if (a.gpu_temp_c >= TEMP_THRESHOLDS.gpu_crit) {
-      alert("critical", "thermal", "Vision GPU Overheating", `GPU at ${cToF(a.gpu_temp_c)}°F. Vision processing will throttle or fail. Check Apera PC ventilation.`, "Apera");
-    } else if (a.gpu_temp_c >= TEMP_THRESHOLDS.gpu_warn) {
-      alert("warning", "thermal", "Vision GPU Running Hot", `GPU at ${cToF(a.gpu_temp_c)}°F. May affect detection speed.`, "Apera");
+    if (a.system_status === "down") {
+      alert("critical", "vision", "Apera Vue System Down", "Containerloader reports system is DOWN. Use Restart Apera button or check the vision PC directly.", "Apera");
+    } else if (a.system_status === "busy") {
+      alert("info", "vision", "Apera Vue Initializing", "Vision system is starting up (busy). Detections will resume once fully loaded.", "Apera");
     }
   }
 
@@ -101,12 +101,8 @@ function runWatchdog(input: WatchdogInput): CellAlert[] {
     if (a.pipeline_state === "error") {
       alert("critical", "vision", "Vision Pipeline Error", "Apera Vue pipeline is in error state. Try restarting via the RESTART VUE button or socket command to port 14050.", "Apera");
     }
-    if (!a.camera_1_ok || !a.camera_2_ok) {
-      const which = !a.camera_1_ok && !a.camera_2_ok ? "Both cameras" : !a.camera_1_ok ? "Camera 1" : "Camera 2";
-      alert("critical", "vision", `${which} Not Responding`, "Stereo vision requires both cameras. Check PoE connections and camera power.", "Apera");
-    }
-    if (a.gpu_memory_used_pct > 95) {
-      alert("warning", "vision", "GPU Memory Nearly Full", `${a.gpu_memory_used_pct.toFixed(0)}% GPU memory used. ML inference may fail. A vision system restart may be needed.`, "Apera");
+    if (!a.app_manager_ok && a.connected) {
+      alert("warning", "vision", "App Manager Unreachable", "Apera app manager on :44334 is not responding. Remote restart may not be available.", "Apera");
     }
     if (a.detection_confidence_avg > 0 && a.detection_confidence_avg < 0.4) {
       alert("warning", "vision", "Low Detection Confidence", `Average detection confidence is ${(a.detection_confidence_avg * 100).toFixed(0)}%. Parts may be getting misclassified. Check lighting, camera cleanliness, and calibration.`, "Apera");

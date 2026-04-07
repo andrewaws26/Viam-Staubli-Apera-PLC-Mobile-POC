@@ -14,17 +14,25 @@ never triggers pick cycles or robot motion.
 """
 
 import asyncio
+import json
 import logging
 import socket
 import time
 from dataclasses import dataclass, field
 from typing import Any
+from urllib.request import urlopen, Request
+from urllib.error import URLError
 
 logger = logging.getLogger("cell-sensor.apera")
 
 _CONNECT_TIMEOUT = 2.0
 _READ_TIMEOUT = 5.0
+_HTTP_TIMEOUT = 3.0
 _DEFAULT_PIPELINE = "RAIV_pick_belt_1"
+
+# Apera Vue management ports (from system dump)
+_HEALTH_PORT = 44333      # containerloader health check
+_APP_MANAGER_PORT = 44334  # app manager REST API
 
 # Known part classes at B&B (from pipeline config)
 _KNOWN_CLASSES = ["14in_plate", "18in_plate", "pandrol_plate", "anchor", "spike"]
@@ -57,11 +65,9 @@ class AperaState:
     last_cal_check: str = ""
     cal_residual_mm: float = 0.0
 
-    # Hardware (populated if we can reach system info)
-    camera_1_ok: bool = True
-    camera_2_ok: bool = True
-    gpu_temp_c: float = 0.0
-    gpu_memory_used_pct: float = 0.0
+    # System health (from containerloader health check on :44333)
+    system_status: str = "unknown"  # alive, busy, down, unreachable
+    app_manager_ok: bool = False    # :44334 responds
 
     def to_dict(self) -> dict[str, Any]:
         """Flatten to dict for Viam sensor readings."""
@@ -217,6 +223,16 @@ class AperaClient:
                 except Exception as e:
                     logger.debug("Detector query failed: %s", e)
 
+            # Step 3: System health check via HTTP management ports
+            # Only check periodically (every 10th poll) to avoid overhead
+            if self._poll_count % 10 == 0:
+                try:
+                    health = await self.check_health()
+                    state.system_status = health.get("system_status", "unknown")
+                    state.app_manager_ok = health.get("app_manager_ok", False)
+                except Exception:
+                    pass
+
             self._poll_count += 1
             self._consecutive_failures = 0
 
@@ -271,6 +287,114 @@ class AperaClient:
 
         except (ValueError, IndexError) as e:
             logger.warning("Failed to parse detector response: %s (%s)", resp[:100], e)
+
+    async def check_health(self) -> dict[str, Any]:
+        """Check Apera Vue system health via management HTTP endpoints.
+
+        Probes:
+          :44333 — containerloader health (returns {"status": "alive|busy|down"})
+          :44334 — app manager (responds = management API available)
+
+        These are unauthenticated HTTP endpoints on the Apera Ubuntu host.
+        """
+        result: dict[str, Any] = {
+            "system_status": "unreachable",
+            "app_manager_ok": False,
+            "health_latency_ms": 0,
+        }
+        t0 = time.monotonic()
+
+        # Check containerloader health (:44333)
+        try:
+            url = f"http://{self.host}:{_HEALTH_PORT}"
+            resp = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: urlopen(url, timeout=_HTTP_TIMEOUT)
+            )
+            if resp.status == 200:
+                body = json.loads(resp.read())
+                result["system_status"] = body.get("status", "unknown")
+            else:
+                result["system_status"] = "error"
+        except Exception as e:
+            logger.debug("Health check :44333 failed: %s", e)
+            result["system_status"] = "unreachable"
+
+        # Check app manager (:44334)
+        try:
+            url = f"http://{self.host}:{_APP_MANAGER_PORT}"
+            resp = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: urlopen(url, timeout=_HTTP_TIMEOUT)
+            )
+            result["app_manager_ok"] = resp.status < 500
+        except Exception:
+            result["app_manager_ok"] = False
+
+        result["health_latency_ms"] = round((time.monotonic() - t0) * 1000)
+        return result
+
+    async def reconnect(self) -> dict[str, Any]:
+        """Force-close and re-establish the TCP socket connection."""
+        await self._disconnect()
+        connected = await self._ensure_connected()
+        return {
+            "success": connected,
+            "message": "Socket reconnected" if connected else f"Cannot reach {self.host}:{self.port}",
+        }
+
+    async def restart_via_app_manager(self) -> dict[str, Any]:
+        """Attempt to restart Apera Vue via the app manager REST API on :44334.
+
+        The app manager container has Docker socket access and manages
+        container lifecycle. We probe known endpoints for restart capability.
+        """
+        endpoints_to_try = [
+            ("POST", f"http://{self.host}:{_APP_MANAGER_PORT}/restart"),
+            ("POST", f"http://{self.host}:{_APP_MANAGER_PORT}/api/restart"),
+            ("POST", f"http://{self.host}:{_APP_MANAGER_PORT}/api/v1/restart"),
+            ("GET", f"http://{self.host}:{_APP_MANAGER_PORT}/api/status"),
+        ]
+
+        results = []
+        for method, url in endpoints_to_try:
+            try:
+                req = Request(url, method=method)
+                if method == "POST":
+                    req.add_header("Content-Type", "application/json")
+                    req.data = b"{}"
+                resp = await asyncio.get_event_loop().run_in_executor(
+                    None, lambda r=req: urlopen(r, timeout=_HTTP_TIMEOUT)
+                )
+                body = resp.read().decode()
+                results.append({
+                    "endpoint": url,
+                    "method": method,
+                    "status": resp.status,
+                    "body": body[:500],
+                })
+                logger.info("App manager %s %s → %d: %s", method, url, resp.status, body[:200])
+            except URLError as e:
+                status = getattr(e, "code", None) or 0
+                results.append({
+                    "endpoint": url,
+                    "method": method,
+                    "status": status,
+                    "error": str(e.reason) if hasattr(e, "reason") else str(e),
+                })
+            except Exception as e:
+                results.append({
+                    "endpoint": url,
+                    "method": method,
+                    "status": 0,
+                    "error": str(e),
+                })
+
+        # Check if any endpoint returned a success
+        success = any(r.get("status", 0) in (200, 201, 202, 204) for r in results)
+        return {
+            "success": success,
+            "message": "Restart command sent" if success else "No restart endpoint responded — probe results attached",
+            "probes": results,
+        }
 
     async def close(self) -> None:
         await self._disconnect()

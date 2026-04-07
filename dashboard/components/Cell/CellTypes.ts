@@ -102,11 +102,9 @@ export interface AperaReadings {
   last_cal_check: string;      // ISO timestamp
   cal_residual_mm: number;     // avg translation error
 
-  // Hardware
-  camera_1_ok: boolean;
-  camera_2_ok: boolean;
-  gpu_temp_c: number;
-  gpu_memory_used_pct: number;
+  // System health (from management ports)
+  system_status: "alive" | "busy" | "down" | "unreachable" | "unknown";
+  app_manager_ok: boolean;
 }
 
 // ---------------------------------------------------------------------------

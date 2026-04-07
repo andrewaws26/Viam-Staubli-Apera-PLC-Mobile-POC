@@ -86,10 +86,8 @@ function transformReadings(flat: Record<string, unknown>) {
     calibration_status: str(flat.apera_calibration_status, "unchecked"),
     last_cal_check: str(flat.apera_last_cal_check),
     cal_residual_mm: num(flat.apera_cal_residual_mm),
-    camera_1_ok: bool(flat.apera_camera_1_ok, true),
-    camera_2_ok: bool(flat.apera_camera_2_ok, true),
-    gpu_temp_c: num(flat.apera_gpu_temp_c),
-    gpu_memory_used_pct: num(flat.apera_gpu_memory_used_pct),
+    system_status: str(flat.apera_system_status, "unknown"),
+    app_manager_ok: bool(flat.apera_app_manager_ok),
   };
 
   // -- Network devices --
@@ -252,9 +250,8 @@ function getSimData() {
       calibration_status: "ok" as const,
       last_cal_check: new Date(Date.now() - 3600000).toISOString(),
       cal_residual_mm: 0.3 + Math.random() * 0.2,
-      camera_1_ok: true, camera_2_ok: true,
-      gpu_temp_c: 58 + Math.random() * 10,
-      gpu_memory_used_pct: 65 + Math.random() * 15,
+      system_status: "alive" as const,
+      app_manager_ok: true,
     },
     network: [
       { name: "Staubli CS9", ip: "192.168.0.254", reachable: true, latency_ms: 2, last_seen: new Date().toISOString() },

@@ -383,6 +383,9 @@ class CellSensor(Sensor):
           {"command": "poll_all"}         — force immediate poll of all subsystems
           {"command": "raw_staubli"}      — last raw Staubli API response
           {"command": "raw_apera"}        — last raw Apera socket response
+          {"command": "apera_health"}     — check Apera Vue management ports
+          {"command": "apera_reconnect"}  — force reconnect Apera socket
+          {"command": "apera_restart"}    — restart Apera via app manager API
         """
         cmd = command.get("command", "")
 
@@ -394,6 +397,7 @@ class CellSensor(Sensor):
                 "staubli_api": self._staubli._discovered_api or "none",
                 "apera_connected": self._apera_state.connected,
                 "apera_pipeline_state": self._apera_state.pipeline_state,
+                "apera_system_status": self._apera_state.system_status,
                 "devices_reachable": sum(
                     1 for d in self._network_state if d.reachable
                 ),
@@ -424,6 +428,17 @@ class CellSensor(Sensor):
 
         if cmd == "raw_apera":
             return {"raw": self._apera.last_raw}
+
+        if cmd == "apera_health":
+            return await self._apera.check_health()
+
+        if cmd == "apera_reconnect":
+            LOGGER.info("Manual Apera socket reconnect requested")
+            return await self._apera.reconnect()
+
+        if cmd == "apera_restart":
+            LOGGER.warning("Apera restart requested via app manager API")
+            return await self._apera.restart_via_app_manager()
 
         return {"error": f"Unknown command: {cmd}"}
 
