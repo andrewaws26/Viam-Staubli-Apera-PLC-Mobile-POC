@@ -10,7 +10,7 @@ interface WorkState {
   workOrders: WorkOrder[];
   isLoading: boolean;
   error: string | null;
-  /** 'board' shows all grouped by status, 'my_work' shows assigned to current user + backlog */
+  /** 'board' shows all grouped by status, 'my_work' shows only work assigned to current user */
   viewMode: 'board' | 'my_work';
 
   setViewMode: (mode: 'board' | 'my_work') => void;

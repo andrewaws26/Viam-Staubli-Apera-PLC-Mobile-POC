@@ -71,11 +71,11 @@ export default function WorkScreen() {
     return groups;
   }, [workOrders]);
 
-  // Filter for "My Work" — assigned to current user OR unassigned (backlog)
+  // Filter for "My Work" — only work explicitly assigned to current user
   const myWork = useMemo(() => {
     if (!currentUser) return [];
     return workOrders.filter(
-      (wo) => wo.status !== 'done' && (wo.assigned_to === currentUser.id || wo.assigned_to === null),
+      (wo) => wo.status !== 'done' && wo.assigned_to === currentUser.id,
     );
   }, [workOrders, currentUser]);
 

@@ -95,11 +95,11 @@ export default function WorkBoard() {
     return g;
   }, [workOrders]);
 
-  // My Work: assigned to me + unassigned backlog (excludes done)
+  // My Work: only work orders explicitly assigned to me (excludes done)
   const myWork = useMemo(() => {
     if (!user) return [];
     return workOrders.filter(
-      (wo) => wo.status !== "done" && (wo.assigned_to === user.id || wo.assigned_to === null),
+      (wo) => wo.status !== "done" && wo.assigned_to === user.id,
     );
   }, [workOrders, user]);
 
