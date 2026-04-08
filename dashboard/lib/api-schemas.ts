@@ -145,6 +145,32 @@ export const TruckHistoryQuery = z.object({
   truck_id: z.string().optional(),
 });
 
+// ── Report Generator ────────────────────────────────────────────
+
+export const ReportGenerateBody = z.object({
+  prompt: z.string().min(5).max(2000),
+});
+export type ReportGenerateBodyType = z.infer<typeof ReportGenerateBody>;
+
+export const ReportSaveBody = z.object({
+  name: z.string().min(1).max(200),
+  description: z.string().max(1000).optional(),
+  prompt: z.string().min(1),
+  generated_sql: z.string().min(1),
+  category: z.string().optional(),
+  is_shared: z.boolean().optional(),
+});
+export type ReportSaveBodyType = z.infer<typeof ReportSaveBody>;
+
+export const ReportUpdateBody = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1).max(200).optional(),
+  description: z.string().max(1000).optional(),
+  category: z.string().optional(),
+  is_shared: z.boolean().optional(),
+});
+export type ReportUpdateBodyType = z.infer<typeof ReportUpdateBody>;
+
 // ── Parse Helper ──────────────────────────────────────────────────
 
 /**

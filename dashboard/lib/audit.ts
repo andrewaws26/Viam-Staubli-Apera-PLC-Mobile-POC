@@ -77,7 +77,12 @@ export type AuditAction =
   | "expense_rule_deleted"
   | "cc_transactions_imported"
   | "cc_transactions_categorized"
-  | "cc_transactions_posted";
+  | "cc_transactions_posted"
+  | "report_generated"
+  | "report_saved"
+  | "report_updated"
+  | "report_deleted"
+  | "report_run";
 
 interface AuditEntry {
   action: AuditAction;
