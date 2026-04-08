@@ -66,7 +66,9 @@ export default function AppNav({ pageTitle }: Props) {
             {isAdmin && <NavLink href="/accounting/bank" label="Bank" />}
             {isAdmin && <NavLink href="/accounting/recurring" label="Recurring" />}
             {isAdmin && <NavLink href="/accounting/periods" label="Periods" />}
+            {isAdmin && <NavLink href="/accounting/employee-tax" label="W-4" />}
             {isAdmin && <NavLink href="/accounting/payroll-run" label="Payroll" />}
+            {isAdmin && <NavLink href="/accounting/vendor-1099" label="1099" />}
             {isAdmin && <NavLink href="/accounting/budget" label="Budget" />}
             {isAdmin && <NavLink href="/accounting/fixed-assets" label="Assets" />}
             {isAdmin && <NavLink href="/accounting/estimates" label="Estimates" />}
@@ -127,6 +129,7 @@ export default function AppNav({ pageTitle }: Props) {
                     {isAdmin && <MenuLink href="/accounting/budget" label="Budget vs. Actual" />}
                     {isAdmin && <MenuLink href="/accounting/fixed-assets" label="Fixed Assets" />}
                     {isAdmin && <MenuLink href="/accounting/estimates" label="Estimates / Quotes" />}
+                    {isAdmin && <MenuLink href="/accounting/expense-rules" label="CC Rules & Expenses" />}
                     {isAdmin && <MenuLink href="/accounting/receipt-ocr" label="Receipt Scanner" />}
                     {isAdmin && <MenuLink href="/accounting/payment-reminders" label="Payment Reminders" />}
                     {isAdmin && <MenuLink href="/accounting/sales-tax" label="Sales Tax" />}

@@ -23,7 +23,7 @@ interface TaxRate {
 interface Exemption {
   id: string;
   customer_id: string;
-  customers?: { id: string; name: string } | null;
+  customers?: { id: string; company_name: string } | null;
   exemption_type: string;
   certificate_number: string | null;
   effective_date: string;
@@ -35,7 +35,7 @@ interface Exemption {
 
 interface Customer {
   id: string;
-  name: string;
+  company_name: string;
 }
 
 interface FilingByRate {
@@ -806,7 +806,7 @@ function ExemptionsTab({
   }
 
   async function handleDeactivate(ex: Exemption) {
-    const customerName = ex.customers?.name || "this customer";
+    const customerName = ex.customers?.company_name || "this customer";
     if (!confirm(`Deactivate exemption for "${customerName}"?`)) return;
     try {
       const res = await fetch("/api/accounting/sales-tax", {
@@ -856,7 +856,7 @@ function ExemptionsTab({
                 <option value="">Select customer...</option>
                 {customers.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.name}
+                    {c.company_name}
                   </option>
                 ))}
               </select>
@@ -960,7 +960,7 @@ function ExemptionsTab({
                     }`}
                   >
                     <td className="px-4 py-3 font-medium text-gray-200">
-                      {ex.customers?.name || "--"}
+                      {ex.customers?.company_name || "--"}
                     </td>
                     <td className="px-4 py-3 text-gray-400">
                       <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-violet-900/40 text-violet-300">

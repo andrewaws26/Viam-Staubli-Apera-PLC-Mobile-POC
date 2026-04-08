@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
     if (section === "exemptions") {
       let query = sb
         .from("sales_tax_exemptions")
-        .select("*, customers(id, name)")
+        .select("*, customers(id, company_name)")
         .order("created_at", { ascending: false });
 
       if (activeOnly) query = query.eq("is_active", true);
@@ -198,9 +198,9 @@ export async function GET(request: NextRequest) {
     if (section === "customers") {
       const { data, error } = await sb
         .from("customers")
-        .select("id, name")
+        .select("id, company_name")
         .eq("is_active", true)
-        .order("name");
+        .order("company_name");
 
       if (error) throw error;
       return NextResponse.json(data ?? []);
@@ -351,7 +351,7 @@ export async function POST(request: NextRequest) {
           expiration_date: expiration_date || null,
           notes: notes || null,
         })
-        .select("*, customers(id, name)")
+        .select("*, customers(id, company_name)")
         .single();
 
       if (error) throw error;
@@ -382,7 +382,7 @@ export async function POST(request: NextRequest) {
 
       const { data, error } = await sb
         .from("sales_tax_exemptions")
-        .select("*, customers(id, name)")
+        .select("*, customers(id, company_name)")
         .eq("customer_id", customerId)
         .eq("is_active", true)
         .lte("effective_date", today);
@@ -494,7 +494,7 @@ export async function PATCH(request: NextRequest) {
         .from("sales_tax_exemptions")
         .update(updates)
         .eq("id", id)
-        .select("*, customers(id, name)")
+        .select("*, customers(id, company_name)")
         .single();
 
       if (error) throw error;
