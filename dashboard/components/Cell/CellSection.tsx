@@ -92,7 +92,7 @@ export default function CellSection({ simMode = false }: Props) {
             Cell Network
           </h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
-            {data.network.map((dev) => (
+            {[...data.network].sort((a, b) => a.name.localeCompare(b.name)).map((dev) => (
               <div key={dev.ip} className={`flex items-center gap-2 p-2 rounded-lg border ${
                 dev.reachable
                   ? "bg-gray-900/30 border-gray-800/50"

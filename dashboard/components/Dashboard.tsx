@@ -14,8 +14,8 @@ import DiagnosticsPanel from "./DiagnosticsPanel";
 import HistoryPanel from "./HistoryPanel";
 import TruckPanel from "./TruckPanel";
 import { CellSection } from "./Cell";
-import PiHealthCard from "./PiHealthCard";
 import ConnectionDot from "./ConnectionDot";
+import DevDiagnostics from "./DevDiagnostics";
 import { UserButton, useUser } from "@clerk/nextjs";
 import { useAlarm, FlashOverlay } from "./DashboardAudio";
 import { useSensorPolling } from "../hooks/useSensorPolling";
@@ -37,6 +37,11 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
   const { user } = useUser();
   const userRole = (user?.publicMetadata as Record<string, unknown>)?.role as string || "operator";
   const isAdmin = userRole === "developer" || userRole === "manager";
+  const isDeveloper = userRole === "developer";
+  const [devMode, setDevMode] = useState(false);
+
+  // Track truck readings for dev diagnostics
+  const [truckReadings, setTruckReadings] = useState<Record<string, unknown> | null>(null);
 
   const [trucks, setTrucks] = useState<TruckListItem[]>([]);
 
@@ -69,7 +74,6 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
     historyError,
     fetchHistory,
     simMode,
-    setSimMode,
     pollIntervalMs,
   } = useSensorPolling(playAlarm, truckId);
 
@@ -172,20 +176,22 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
                 <span className="hidden sm:inline">Admin</span>
               </a>
             )}
-            <button
-              onClick={() => setSimMode((prev) => !prev)}
-              className={`text-[10px] sm:text-xs min-h-[44px] px-3 sm:px-3 py-2 rounded-lg font-bold transition-colors ${
-                simMode
-                  ? "bg-purple-700 text-white"
-                  : "border border-gray-700 text-gray-500 hover:text-gray-300"
-              }`}
-            >
-              {simMode ? "SIM ON" : "SIM"}
-            </button>
+            {isDeveloper && (
+              <button
+                onClick={() => setDevMode((prev) => !prev)}
+                className={`text-[10px] sm:text-xs min-h-[44px] px-3 py-2 rounded-lg font-bold uppercase tracking-wider transition-colors ${
+                  devMode
+                    ? "bg-amber-700 text-white"
+                    : "border border-gray-700 text-gray-500 hover:text-amber-400 hover:border-amber-700"
+                }`}
+              >
+                {devMode ? "DEV ON" : "DEV"}
+              </button>
+            )}
             <ConnectionDot
-              status={simMode ? "connected" : connectionStatus}
-              dataAge={simMode ? null : connectionDataAge}
-              error={simMode ? null : connectionError}
+              status={connectionStatus}
+              dataAge={connectionDataAge}
+              error={connectionError}
             />
             <UserButton
               appearance={{
@@ -198,13 +204,21 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
         </header>
         {simMode && (
           <div className="bg-purple-900/30 border-b border-purple-700/50 px-3 sm:px-5 py-1.5 text-[10px] sm:text-xs text-purple-300">
-            Simulation mode — showing simulated production data. <button onClick={() => setSimMode(false)} className="underline hover:text-white ml-1">Stop</button>
+            Demo Truck — showing simulated data. Select a production truck from the dropdown for live data.
           </div>
         )}
 
         {/* Alert Banner */}
-        {activeFaultLabels.length > 0 && (
+        {!simMode && activeFaultLabels.length > 0 && (
           <AlertBanner faultNames={activeFaultLabels} isEstop={false} />
+        )}
+
+        {/* Truck-off banner — clean messaging when no data flowing */}
+        {!simMode && connectionStatus === "truck-off" && (
+          <div className="bg-gray-800/50 border-b border-gray-700/50 px-3 sm:px-5 py-2 text-[10px] sm:text-xs text-gray-400 flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-gray-600" />
+            Truck is off — waiting for data. Readings will appear when the truck powers on.
+          </div>
         )}
 
         {/* Status Grid */}
@@ -213,12 +227,6 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
             {components.map((comp) => (
               <StatusCard key={comp.id} component={comp} />
             ))}
-          </div>
-
-          {/* Pi Health Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
-            <PiHealthCard label="TPS Monitoring" icon="&#x1F4BB;" host="tps" simMode={simMode} truckId={truckId} />
-            <PiHealthCard label="Truck Monitoring" icon="&#x1F69B;" host="truck" simMode={simMode} truckId={truckId} />
           </div>
 
           {/* Location & Weather bar */}
@@ -267,12 +275,22 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
           />
 
           {/* Truck Diagnostics */}
-          <TruckPanel simMode={simMode} truckId={truckId} />
+          <TruckPanel simMode={simMode} truckId={truckId} onReadingsChange={devMode ? setTruckReadings : undefined} />
 
           {/* Robot Cell Monitoring — Staubli + Apera + Watchdog */}
           <div id="cell-section">
             <CellSection simMode={simMode} />
           </div>
+
+          {/* Dev Diagnostics — developer role only */}
+          {devMode && isDeveloper && (
+            <DevDiagnostics
+              components={components}
+              truckReadings={truckReadings}
+              connectionStatus={connectionStatus}
+              connectionError={connectionError}
+            />
+          )}
 
           {/* Fault History */}
           <FaultHistory events={faultHistory} />
@@ -280,7 +298,7 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
 
         {/* Footer */}
         <footer className="border-t border-gray-800 px-3 sm:px-5 py-2 sm:py-3 text-[10px] sm:text-xs text-gray-700 flex items-center justify-between shrink-0">
-          <span>Polling every {pollIntervalMs / 1000}s</span>
+          <span>Polling every {pollIntervalMs / 1000}s{simMode ? " (demo)" : ""}</span>
           <span>
             Live — Viam Cloud ·{" "}
             {new Date().getFullYear()}

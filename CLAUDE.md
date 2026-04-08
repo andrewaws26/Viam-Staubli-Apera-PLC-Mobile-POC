@@ -1,13 +1,16 @@
 # TPS Remote Monitoring System
 
 ## What this is
-A fleet monitoring system for 30+ railroad trucks. Each truck has two Raspberry Pis:
-- **Pi 5**: Reads a Click PLC C0-10DD2E-D via Modbus TCP (TPS production monitoring)
-- **Pi Zero 2 W**: Reads J1939 CAN bus for truck engine/transmission diagnostics (passive, listen-only)
+A fleet monitoring system for 30+ railroad trucks. Each truck has a single **Raspberry Pi 5** running all three sensor modules:
+- **plc-sensor**: Reads a Click PLC C0-10DD2E-D via Modbus TCP (TPS production monitoring)
+- **j1939-sensor**: Reads J1939 CAN bus for truck engine/transmission diagnostics (passive, listen-only via CAN HAT)
+- **cell-sensor**: Reads Staubli robot + Apera vision (robot cell monitoring)
 
-Both sync to Viam Cloud at 1 Hz. A Next.js dashboard on Vercel shows live status, AI diagnostics, shift reports, and fleet overview.
+Data syncs to Viam Cloud at 1 Hz. A Next.js dashboard on Vercel shows live status, AI diagnostics, shift reports, and fleet overview.
 
 **There is NO E-Cat, NO servo/robot, NO vision in this system.**
+
+*Historical note: The system previously used a Pi Zero 2 W as a second device for J1939. This was consolidated to a single Pi 5 in April 2026 by moving the CAN HAT to the Pi 5.*
 
 ## Architecture
 - **Pi → PLC**: Modbus TCP (host: 169.168.10.21, port: 502) over Ethernet
@@ -125,7 +128,7 @@ See `docs/encoder-distance.md` for the full explanation.
 
 Rolling signal metrics in `SignalMetrics` class: camera detection rate, eject rate, camera trend (stable/declining/dead/intermittent), encoder noise, Modbus response time, state durations.
 
-## Deployed module locations
+## Deployed module locations (all on Pi 5)
 **plc-sensor:**
 - Symlink: `/opt/viam-modules/plc-sensor/src/plc_sensor.py` → repo
 - Copies (must manually update): `/opt/viam-modules/plc-sensor/run.sh`, `requirements.txt`
@@ -134,7 +137,11 @@ Rolling signal metrics in `SignalMetrics` class: camera detection rate, eject ra
 - Symlinks: `/opt/viam-modules/cell-sensor/src/{cell_sensor,staubli_client,apera_client,network_monitor}.py` → repo
 - Copies (must manually update): `/opt/viam-modules/cell-sensor/run.sh`, `requirements.txt`
 
-- After editing any module: `sudo systemctl restart viam-server`
+**j1939-sensor:**
+- Symlinks: `/opt/viam-modules/j1939-sensor/src/models/*.py` → repo
+- Copies (must manually update): `/opt/viam-modules/j1939-sensor/exec.sh`, `requirements.txt`
+
+After editing any module: `sudo systemctl restart viam-server`
 
 ## Dashboard
 - Production: viam-staubli-apera-plc-mobile-poc.vercel.app
@@ -151,11 +158,61 @@ Rolling signal metrics in `SignalMetrics` class: camera detection rate, eject ra
 
 ## SSH access
 - Tailscale IP: 100.112.68.52 (works from any network)
+- Claude Code is available on the Pi — SSH in and run `claude` in the repo dir
+- Full troubleshooting guide: `docs/pi-troubleshooting.md`
+
+## Field Test Logging
+
+Structured JSON-lines logging captures system state for post-test analysis:
+
+**Log file**: `/var/log/ironsight-field.jsonl`
+
+**Enable per-minute health snapshots** (during field testing):
+```bash
+(crontab -l; echo "* * * * * ~/Viam-Staubli-Apera-PLC-Mobile-POC/scripts/health-snapshot.sh") | crontab -
+```
+
+**Disable after testing**:
+```bash
+crontab -l | grep -v health-snapshot | crontab -
+```
+
+**Analyze results**:
+```bash
+python3 scripts/analyze-field-test.py                    # Full report
+python3 scripts/analyze-field-test.py --since "2026-04-08T10:00"  # Since timestamp
+```
+
+**Categories logged**: system health (CPU/mem/disk/throttle), service status, CAN bus (frames/listen-only), PLC connection (latency/availability), network (eth0/WiFi/internet), discovery events (timing/method), module activity (errors/readings).
+
+**Python API** (`scripts/lib/field_logger.py`):
+```python
+from lib.field_logger import field_log, FieldTimer
+field_log("plc", "modbus_read", success=True, duration_ms=12.5, registers=10)
+with FieldTimer("network", "plc_discovery") as t:
+    result = discover()
+    t.set(plc_ip=result)
+```
+
+## Network Auto-Discovery
+
+When plugged into a new truck's switch, the Pi auto-negotiates:
+
+1. **eth0 link-up** → NetworkManager dispatcher fires
+2. Restores last-known PLC subnet IP from `~/.ironsight/plc-network.conf`
+3. Triggers `plc-autodiscover.py` in background
+4. **Discovery scans**: configured IP → Click defaults → ARP → 8 subnet sweep
+5. When found: updates `viam-server.json`, sets eth0 IP, saves state, restarts viam-server
+6. **Watchdog** (every 5 min) re-triggers discovery if PLC becomes unreachable
+
+**Saved state**: `~/.ironsight/plc-network.conf` — written on every successful discovery, read on boot/link-up for instant subnet restoration.
+
+**Manual re-discovery**: `sudo python3 scripts/plc-autodiscover.py --force`
 
 ## Rules
 - **Never use DD1 for distance** — use DS10 countdown (see above)
-- **Never disable listen-only mode on the Pi Zero CAN bus** — normal mode ACKs truck frames and triggers DTCs/warning lights. OBD-II (which needs transmit) goes on a separate device.
-- **Pi Zero CAN = 250kbps J1939 only** — do not change bitrate to 500kbps or set protocol to obd2 on this device
+- **Never disable listen-only mode on the CAN bus** — normal mode ACKs truck frames and triggers DTCs/warning lights. OBD-II (which needs transmit) goes on a separate device.
+- **CAN bus = 250kbps J1939 only** — do not change bitrate to 500kbps or set protocol to obd2 on the truck bus
 - Robot cell monitoring code (Staubli, Apera, cell watchdog) lives in `dashboard/components/Cell/` and `dashboard/app/api/cell-readings/`
 - Keep dashboard mobile-friendly
 - All Viam credentials stay server-side (Next.js API route), never in browser
@@ -165,23 +222,23 @@ Rolling signal metrics in `SignalMetrics` class: camera detection rate, eject ra
 
 ## Fleet Architecture
 
-This repo serves a fleet of trucks. Each truck has two Raspberry Pis forming one unit:
+This repo serves a fleet of trucks. Each truck has a single **Raspberry Pi 5** running all modules:
 
-| Pi | Hostname | Tailscale IP | Role | Module |
-|----|----------|-------------|------|--------|
-| Pi 5 | viam-pi | 100.112.68.52 | TPS monitoring, cell monitoring, uploads, touch display | `modules/plc-sensor/`, `modules/cell-sensor/` |
-| Pi Zero 2 W | truck-diagnostics | 100.113.196.68 | J1939 CAN bus truck diagnostics (passive, listen-only) | `modules/j1939-sensor/` |
+| Component | Module | Connection | Frequency |
+|-----------|--------|------------|-----------|
+| plc-monitor | `modules/plc-sensor/` | Modbus TCP to Click PLC | 1 Hz |
+| cell-monitor | `modules/cell-sensor/` | REST/Socket to Staubli/Apera | 0.5 Hz |
+| truck-engine | `modules/j1939-sensor/` | CAN bus J1939 (listen-only) | 1 Hz |
 
-**Repo locations:**
-- Pi 5: `/home/andrew/Viam-Staubli-Apera-PLC-Mobile-POC` (origin)
-- Pi Zero: `/home/andrew/repo` (clone)
-- Both track `origin/main`. Auto-sync runs every 10 min via cron.
+**Pi 5** (hostname: `viam-pi`, Tailscale: `100.112.68.52`):
+- Repo: `/home/andrew/Viam-Staubli-Apera-PLC-Mobile-POC`
+- Tracks `origin/main`. Auto-sync runs every 10 min via cron.
 
-**Viam machines** (same org & location `djgpitarpm`):
-- Pi 5 machine: `staubli-pi` → components `plc-monitor`, `cell-monitor`
-- Pi Zero machine: `truck-diagnostic` → component `truck-engine`
+**Viam machine** (org & location `djgpitarpm`):
+- Machine: `staubli-pi` → components `plc-monitor`, `cell-monitor`, `truck-engine`
+- Single Part ID for all data queries
 
-**Dashboard** is on Vercel (not the Pis). Push to `main` triggers Vercel auto-deploy.
+**Dashboard** is on Vercel (not the Pi). Push to `main` triggers Vercel auto-deploy.
 
 ## Viam Data API Payload Structure
 
@@ -206,18 +263,17 @@ Organization API Key (VIAM_API_KEY / VIAM_API_KEY_ID)
   |-- Single key reads data from ANY machine in the organization
   +-- Set once in Vercel env vars -- never changes per truck
 
-Machine API Keys (TRUCK_VIAM_API_KEY / TRUCK_VIAM_API_KEY_ID)
+Machine API Key (per-truck, for direct commands)
   |-- Per-machine, used ONLY for direct commands (do_command)
   |-- Required for: DTC clear, PGN requests, bus stats
   +-- Needs WebRTC connection to specific machine
 
 Part IDs:
-  |-- VIAM_PART_ID: Pi 5 TPS machine (plc-monitor component)
-  |-- TRUCK_VIAM_PART_ID: Pi Zero truck machine (truck-engine component)
+  |-- VIAM_PART_ID: Single Pi 5 machine (all components: plc-monitor, cell-monitor, truck-engine)
   +-- Each truck in the fleet has a unique Part ID
 ```
 
-For 30+ truck fleet, the dashboard will need a truck registry (database or config)
+For 30+ truck fleet, the dashboard uses a truck registry (config/fleet.json or FLEET_TRUCKS env var)
 mapping truck identifiers to their Part IDs. The org-level API key queries all of them.
 
 ## Fleet Orchestration Rules
@@ -225,15 +281,14 @@ mapping truck identifiers to their Part IDs. The org-level API key queries all o
 Claude is the fleet orchestrator. When making ANY change:
 
 1. **Code changes go to git first, then deploy.** Never edit files on a Pi without committing.
-2. **Both Pis must stay on the same commit.** After pushing, verify both pulled.
-3. **Service restarts are safe.** Viam-server, CAN service, and all IronSight services auto-recover.
-4. **Dashboard changes** — push to git, Vercel auto-deploys. No action needed on Pis.
-5. **Module changes on Pi 5** — `sudo systemctl restart viam-server` after code change.
-6. **Module changes on Pi Zero** — `cd ~/repo && git pull && sudo systemctl restart viam-server`.
-7. **Health check** — run `/usr/local/bin/fleet-health.sh` to get JSON status of entire fleet.
-8. **Fleet sync** — `/usr/local/bin/fleet-sync.sh` runs on cron; can also be triggered manually.
-9. **If a Pi is unreachable**, check: WiFi (nmcli), Tailscale (tailscale status), power (PiSugar).
-10. **If Viam is down**, check: `sudo journalctl -u viam-server -n 30`. Common fixes: restart service, check credentials, check network.
+2. **Service restarts are safe.** Viam-server, CAN service, and all IronSight services auto-recover.
+3. **Dashboard changes** — push to git, Vercel auto-deploys. No action needed on Pi.
+4. **Module changes** — `sudo systemctl restart viam-server` after code change on Pi 5.
+5. **Health check** — run `/usr/local/bin/fleet-health.sh` to get JSON status.
+6. **Fleet sync** — `/usr/local/bin/fleet-sync.sh` runs on cron every 10 min; can also be triggered manually.
+7. **If Pi is unreachable**, check: WiFi (nmcli), Tailscale (tailscale status), power (PiSugar).
+8. **If Viam is down**, check: `sudo journalctl -u viam-server -n 30`. Common fixes: restart service, check credentials, check network.
+9. **If CAN bus is down**, check: `ip link show can0`, `systemctl status can0`. Common fix: `sudo systemctl restart can0`.
 
 ## AI Diagnostic System
 
@@ -262,7 +317,7 @@ The dashboard includes an AI-powered diagnostic system that uses Claude to help 
 - All diagnoses logged via `console.log("[AI-DIAGNOSIS-LOG]", ...)`
 - DTC clears and diagnostic commands logged via `console.log("[COMMAND-LOG]", ...)` in `dashboard/app/api/truck-command/route.ts`
 
-**Env vars needed:** `ANTHROPIC_API_KEY`, `TRUCK_VIAM_MACHINE_ADDRESS`, `TRUCK_VIAM_API_KEY`, `TRUCK_VIAM_API_KEY_ID`
+**Env vars needed:** `ANTHROPIC_API_KEY`, `VIAM_MACHINE_ADDRESS`, `VIAM_API_KEY`, `VIAM_API_KEY_ID`
 
 ## Team Chat System
 
@@ -299,7 +354,7 @@ Contextual team chat anchored to domain entities. Every conversation is tied to 
 
 ## OBD-II Passenger Vehicle Support (FUTURE — SEPARATE DEVICE)
 
-**The Pi Zero is J1939-only.** OBD-II support will live on a separate physical device and potentially a separate repo. Do NOT configure the Pi Zero for OBD-II — it must stay in listen-only mode at 250kbps for J1939 truck safety.
+**The Pi 5 CAN bus is J1939-only.** OBD-II support will live on a separate physical device and potentially a separate repo. Do NOT configure the Pi 5 CAN interface for OBD-II — it must stay in listen-only mode at 250kbps for J1939 truck safety.
 
 The OBD-II code remains in this repo for future use on a dedicated OBD-II device. The module auto-detects J1939 vs OBD-II based on CAN frame IDs when configured for the appropriate protocol.
 
@@ -316,12 +371,14 @@ forwards OBD-II commands to these classes. Keep this code intact for the future 
 
 ## J1939 Truck Sensor (modules/j1939-sensor/)
 
-Reads J1939 CAN bus data from heavy-duty trucks (2013+ Mack/Volvo) via Waveshare CAN HAT (B).
+Reads J1939 CAN bus data from heavy-duty trucks (2013+ Mack/Volvo) via Waveshare CAN HAT (B) on the Pi 5.
 Decodes 15 PGNs: engine RPM, temperatures, pressures, vehicle speed, fuel, battery, transmission, DTCs.
 
 **⚠️ CRITICAL: CAN Bus Safety — Listen-Only Mode Required**
 
-The Pi Zero MUST operate in **listen-only mode** on the J1939 truck bus. In normal mode, the MCP2515 ACKs every CAN frame, which adds an unauthorized node to the truck's bus. This disrupts ECU-to-ECU communication and triggers dashboard warning lights (DTCs). Listen-only mode makes the MCP2515 completely invisible on the bus.
+The Pi 5 MUST operate in **listen-only mode** on the J1939 truck bus. In normal mode, the MCP2515 ACKs every CAN frame, which adds an unauthorized node to the truck's bus. This disrupts ECU-to-ECU communication and triggers dashboard warning lights (DTCs). Listen-only mode makes the MCP2515 completely invisible on the bus.
+
+The `can0.service` systemd unit enforces listen-only mode on boot.
 
 **All CAN interface commands must include `listen-only on`:**
 ```bash
@@ -338,43 +395,24 @@ ip link set can0 up type can bitrate 250000 listen-only on
 - `dtoverlay=mcp2515-can0,oscillator=12000000,interrupt=25,spimaxfrequency=2000000`
 - 12MHz crystal (NOT 8MHz), GPIO25 interrupt, 250kbps bitrate, listen-only mode
 
-**Data capture** is enabled on the `truck-diagnostic` Viam machine:
+**Data capture** on the consolidated Pi 5 machine:
 - Capture: `Readings` method at 1 Hz on `truck-engine` component
 - Sync: every 6 seconds (0.1 min) to Viam Cloud
 - Capture dir: `/home/andrew/.viam/capture` (persistent, survives reboot)
 - Tags: `truck-diagnostics`, `ironsight`
 - Config note: Viam requires `api` field only — do NOT include `type`/`namespace` alongside `api` on components or services
 
-**SSH:** `ssh andrew@100.113.196.68` (password: 1111, test only)
-
 ## Truck Networking (Field Deployment)
 
-When on a truck (away from shop WiFi), the Pi 5 provides internet for the Pi Zero:
+When on a truck (away from shop WiFi), the Pi 5 connects via cellular:
 
 ```
 Cellular dongle/HAT → Pi 5 (internet)
-Pi 5 WiFi AP "IronSight-Truck" → Pi Zero (gets internet from Pi 5)
-Both Pis → Tailscale → Viam Cloud → Dashboard
+Pi 5 → Tailscale → Viam Cloud → Dashboard
 ```
 
 **Pre-configured and ready:**
-- Pi 5 hotspot: SSID `IronSight-Truck`, password `ironsight2026`, subnet `10.42.0.0/24`
-- Pi Zero auto-connects to `IronSight-Truck` at priority 200 (highest)
 - Cellular profile on Pi 5: auto-connects when USB modem/HAT is plugged in
-- Dispatcher script auto-activates hotspot when cellular comes up
-- IP forwarding enabled for NAT
-
-**Manual control:** `hotspot on/off/status` on the Pi 5
-
-**What happens when you plug in the cellular dongle:**
-1. ModemManager detects modem, NetworkManager activates "Cellular" profile
-2. Dispatcher detects cellular up, activates IronSight-Hotspot
-3. Pi Zero sees hotspot, auto-connects (priority 200 > home WiFi 100)
-4. Both Pis get internet through cellular, Tailscale reconnects, Viam syncs
-
-**WiFi priorities (Pi Zero):**
-- IronSight-Truck: 200 (truck/field)
-- Verizon_X6JPH6: 100 (home)
 
 **WiFi priorities (Pi 5):**
 - Andrew-Hotspot: 40

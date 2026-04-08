@@ -22,10 +22,6 @@ const ENV_VARS = [
   { name: "VIAM_API_KEY_ID", scope: "server" },
   { name: "VIAM_MACHINE_ADDRESS", scope: "server" },
   { name: "VIAM_PART_ID", scope: "server" },
-  { name: "TRUCK_VIAM_MACHINE_ADDRESS", scope: "server" },
-  { name: "TRUCK_VIAM_API_KEY", scope: "server" },
-  { name: "TRUCK_VIAM_API_KEY_ID", scope: "server" },
-  { name: "TRUCK_VIAM_PART_ID", scope: "server" },
   { name: "ANTHROPIC_API_KEY", scope: "server" },
   { name: "SUPABASE_URL", scope: "server" },
   { name: "SUPABASE_SERVICE_ROLE_KEY", scope: "server" },
@@ -202,9 +198,9 @@ export default function DevPage() {
         {/* Sections 2 & 3: Two-column Pi panels                             */}
         {/* ================================================================ */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Left: Pi Zero — Truck Diagnostics */}
+          {/* Left: Truck Diagnostics (J1939 CAN) */}
           <DevTruckPanel />
-          {/* Right: Pi 5 — TPS/PLC */}
+          {/* Right: TPS/PLC Production */}
           <DevTPSPanel />
         </div>
 
@@ -497,13 +493,8 @@ export default function DevPage() {
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <KV
-                    label="Pi 5 (TPS)"
+                    label="Pi 5 (All Modules)"
                     value="7c24d42f-1d66-4cae-81a4-97e3ff9404b4"
-                    mono
-                  />
-                  <KV
-                    label="Pi Zero (Truck)"
-                    value="ca039781-665c-47e3-9bc5-35f603f3baf1"
                     mono
                   />
                 </div>

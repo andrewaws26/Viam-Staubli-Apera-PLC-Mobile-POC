@@ -220,17 +220,6 @@ function countAlerts(data: CellData): { critical: number; warning: number } {
     if (sw.vpn_reachable && !sw.vpn_web_ok) warning++;
   }
 
-  // Pi 5 health
-  const pi = data.piHealth;
-  if (pi) {
-    if (pi.undervoltage_now) critical++;
-    if (pi.throttled_now) warning++;
-    if (pi.cpu_temp_c >= 80) critical++;
-    else if (pi.cpu_temp_c >= 70) warning++;
-    if (pi.mem_used_pct > 90) warning++;
-    if (pi.disk_used_pct > 90) warning++;
-  }
-
   return { critical, warning };
 }
 
@@ -488,41 +477,13 @@ export default function CellScreen() {
           <Text style={styles.waiting}>No data</Text>
         )}
 
-        {/* Pi 5 Health */}
-        <Text style={styles.subHeader}>Pi 5</Text>
-        {data?.piHealth ? (
-          <>
-            <View style={styles.kvRow}>
-              <KV label="CPU" value={`${cToF(data.piHealth.cpu_temp_c).toFixed(0)}°F`}
-                color={data.piHealth.cpu_temp_c >= 80 ? colors.dangerLight : data.piHealth.cpu_temp_c >= 70 ? colors.warningLight : undefined} />
-              <KV label="Load" value={data.piHealth.load_1m.toFixed(2)} color={data.piHealth.load_1m > 3 ? colors.warningLight : undefined} />
-              <KV label="Mem" value={`${data.piHealth.mem_used_pct.toFixed(0)}%`}
-                color={data.piHealth.mem_used_pct > 80 ? colors.warningLight : undefined} />
-              <KV label="Disk" value={`${data.piHealth.disk_used_pct.toFixed(0)}%`}
-                color={data.piHealth.disk_used_pct > 90 ? colors.warningLight : undefined} />
-            </View>
-            <View style={[styles.kvRow, { marginTop: spacing.sm }]}>
-              <KV label="Uptime" value={`${data.piHealth.uptime_hours.toFixed(1)}h`} />
-              <KV label="Free" value={`${data.piHealth.disk_free_gb.toFixed(0)} GB`} />
-            </View>
-            {(data.piHealth.undervoltage_now || data.piHealth.throttled_now || data.piHealth.freq_capped_now) && (
-              <View style={styles.throttleBanner}>
-                {data.piHealth.undervoltage_now && <Text style={styles.throttleText}>Undervoltage detected</Text>}
-                {data.piHealth.freq_capped_now && <Text style={[styles.throttleText, { color: colors.warningLight }]}>Frequency capped</Text>}
-                {data.piHealth.throttled_now && <Text style={[styles.throttleText, { color: colors.warningLight }]}>Thermal throttled</Text>}
-              </View>
-            )}
-          </>
-        ) : (
-          <Text style={styles.waiting}>No data</Text>
-        )}
       </Card>
 
       {/* ── Network Devices ── */}
       {data?.network && data.network.length > 0 && (
         <Card>
           <Text style={styles.sectionTitle}>Cell Network</Text>
-          {data.network.map((dev) => (
+          {[...data.network].sort((a, b) => a.name.localeCompare(b.name)).map((dev) => (
             <View key={dev.ip} style={styles.networkRow}>
               <View style={[styles.statusDot, {
                 backgroundColor: dev.reachable ? colors.success : colors.danger,

@@ -2,7 +2,7 @@
 
 Viam sensor module for reading J1939 CAN bus data from heavy-duty trucks via OBD-II.
 
-Built for the **Raspberry Pi Zero 2 W** with a **Waveshare Isolated RS485 CAN HAT (B)**, targeting 2013+ Mack/Volvo trucks. Designed for resilience in harsh truck environments — handles vibration, power loss, and intermittent CAN bus connectivity.
+Runs on the **Raspberry Pi 5** with a **Waveshare Isolated RS485 CAN HAT (B)**, targeting 2013+ Mack/Volvo trucks. Designed for resilience in harsh truck environments — handles vibration, power loss, and intermittent CAN bus connectivity. Previously ran on a separate Pi Zero 2 W; consolidated to the Pi 5 in April 2026.
 
 ## Supported Parameters
 

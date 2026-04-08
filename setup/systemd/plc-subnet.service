@@ -1,5 +1,5 @@
 [Unit]
-Description=Add secondary IP for Click PLC subnet
+Description=Restore PLC subnet IP on eth0 (auto-discovery updates this)
 After=network-online.target sys-subsystem-net-devices-eth0.device
 Wants=network-online.target
 StartLimitIntervalSec=60
@@ -7,10 +7,28 @@ StartLimitBurst=5
 
 [Service]
 Type=oneshot
-ExecStartPre=/bin/sh -c "ip link show eth0 > /dev/null 2>&1"
-ExecStart=/sbin/ip addr add 169.168.10.100/24 dev eth0
 RemainAfterExit=yes
-ExecStop=/sbin/ip addr del 169.168.10.100/24 dev eth0
+
+# Read the last-known PLC subnet from saved state, or fall back to default.
+# plc-autodiscover.py updates /home/andrew/.ironsight/plc-network.conf on success.
+ExecStartPre=/bin/sh -c "ip link show eth0 > /dev/null 2>&1"
+ExecStart=/bin/sh -c '\
+  CONF="/home/andrew/.ironsight/plc-network.conf"; \
+  if [ -f "$CONF" ]; then \
+    . "$CONF"; \
+    ip addr add ${PI_IP:-169.168.10.100}/24 dev eth0 2>/dev/null || true; \
+  else \
+    ip addr add 169.168.10.100/24 dev eth0 2>/dev/null || true; \
+  fi'
+
+ExecStop=/bin/sh -c '\
+  CONF="/home/andrew/.ironsight/plc-network.conf"; \
+  if [ -f "$CONF" ]; then \
+    . "$CONF"; \
+    ip addr del ${PI_IP:-169.168.10.100}/24 dev eth0 2>/dev/null || true; \
+  else \
+    ip addr del 169.168.10.100/24 dev eth0 2>/dev/null || true; \
+  fi'
 
 [Install]
 WantedBy=multi-user.target

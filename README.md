@@ -1,6 +1,6 @@
 # IronSight — Fleet Monitoring for TPS Railroad Trucks
 
-Production monitoring system for Tie Plate Systems (TPS) deployed on 30+ railroad trucks. Each truck has two Raspberry Pis: a **Pi 5** reading PLC registers via Modbus TCP, and a **Pi Zero 2 W** reading J1939 CAN bus truck diagnostics. Data syncs to Viam Cloud at 1 Hz, and a Next.js dashboard on Vercel provides live status, AI-powered diagnostics, shift reports, and fleet overview.
+Production monitoring system for Tie Plate Systems (TPS) deployed on 30+ railroad trucks. Each truck has a single **Raspberry Pi 5** running three sensor modules: PLC registers via Modbus TCP, J1939 CAN bus truck diagnostics (via CAN HAT), and robot cell monitoring. Data syncs to Viam Cloud at 1 Hz, and a Next.js dashboard on Vercel provides live status, AI-powered diagnostics, shift reports, and fleet overview.
 
 **Designed for fleet deployment** — plug in, power on, starts observing. Self-healing connections, offline buffering, zero manual configuration per truck.
 
@@ -18,7 +18,7 @@ All data from a Click PLC C0-10DD2E-D via Modbus TCP:
 | **DS Registers** (DS1-DS25) | Tie spacing, plate count, detector offset, HMI control |
 | **Diagnostics** | 19-rule engine across 5 categories (camera, encoder, eject, PLC, operation) |
 
-### Truck Diagnostics (J1939 Sensor — Pi Zero 2 W)
+### Truck Diagnostics (J1939 Sensor — Pi 5 CAN HAT)
 
 Passive CAN bus monitoring of heavy-duty trucks (2013+ Mack/Volvo):
 
@@ -42,16 +42,13 @@ Passive CAN bus monitoring of heavy-duty trucks (2013+ Mack/Volvo):
 ```
 Click PLC ──Modbus TCP──▶ Pi 5 ──Viam Cloud──▶ Vercel Dashboard
                            │                         │
-                           ├─ plc-sensor (1 Hz)       ├─ Live monitoring
-                           ├─ offline buffer (JSONL)  ├─ AI diagnostics (Claude)
-                           ├─ touch display (pygame)  ├─ Shift reports
-                           └─ health-check (:8081)    ├─ Fleet overview
-                                                      └─ PWA (iOS/Android)
-CAN Bus (J1939) ──▶ Pi Zero 2 W ──Viam Cloud──▶
-                     │
-                     ├─ j1939-sensor (listen-only, 250kbps)
-                     ├─ 15 PGN decoders
-                     └─ DTC tracking (per-ECU namespace)
+CAN Bus (J1939) ──CAN HAT─┤                         ├─ Live monitoring
+                           ├─ plc-sensor (1 Hz)       ├─ AI diagnostics (Claude)
+                           ├─ j1939-sensor (1 Hz)     ├─ Shift reports
+                           ├─ cell-sensor (0.5 Hz)    ├─ Fleet overview
+                           ├─ offline buffer (JSONL)  └─ PWA (iOS/Android)
+                           ├─ touch display (pygame)
+                           └─ health-check (:8081)
 ```
 
 ## Project Structure
@@ -159,8 +156,7 @@ Open http://localhost:3000 for TPS monitoring, http://localhost:3000/fleet for f
 1. **Deploy the Pi** — follow [docs/deploy-rpi5.md](docs/deploy-rpi5.md)
 2. **Set Vercel env vars:**
    - `VIAM_API_KEY` / `VIAM_API_KEY_ID` — Organization API key (reads all machines)
-   - `VIAM_MACHINE_ADDRESS` / `VIAM_PART_ID` — Pi 5 TPS machine
-   - `TRUCK_VIAM_MACHINE_ADDRESS` / `TRUCK_VIAM_API_KEY` / `TRUCK_VIAM_API_KEY_ID` — Pi Zero truck machine
+   - `VIAM_MACHINE_ADDRESS` / `VIAM_PART_ID` — Pi 5 machine (all components)
    - `ANTHROPIC_API_KEY` — For AI diagnostics
    - `FLEET_TRUCKS` — JSON array of truck configs (fleet page)
    - `NEXT_PUBLIC_MOCK_MODE=false`
@@ -182,7 +178,7 @@ cd dashboard && npx playwright install && npx playwright test
 
 ## Key Features
 
-- **Dual-sensor monitoring** — PLC production data + J1939 truck diagnostics on every truck
+- **Triple-sensor monitoring** — PLC production, J1939 truck diagnostics, and robot cell monitoring on every truck
 - **AI-powered diagnostics** — Claude-based mechanic chat and one-shot diagnosis from live readings
 - **19-rule diagnostic engine** — Real-time fault detection across camera, encoder, eject, PLC, and operation categories
 - **Fleet overview** — All trucks on one page with status cards and health indicators
@@ -196,14 +192,15 @@ cd dashboard && npx playwright install && npx playwright test
 
 ## Fleet Deployment
 
-Each truck runs two Pis:
+Each truck runs a single Pi 5 with all three modules:
 
-| Pi | Role | Module | Connection |
-|----|------|--------|------------|
-| **Pi 5** | TPS monitoring, uploads, touch display | `modules/plc-sensor/` | Modbus TCP to PLC |
-| **Pi Zero 2 W** | J1939 truck diagnostics (passive) | `modules/j1939-sensor/` | CAN bus (listen-only, 250kbps) |
+| Module | Role | Connection |
+|--------|------|------------|
+| `modules/plc-sensor/` | TPS production monitoring | Modbus TCP to PLC |
+| `modules/j1939-sensor/` | J1939 truck diagnostics (passive) | CAN bus via HAT (listen-only, 250kbps) |
+| `modules/cell-sensor/` | Robot cell monitoring | REST/Socket to Staubli/Apera |
 
-Both Pis sync to Viam Cloud. The dashboard reads from all machines using an organization-level API key.
+The Pi 5 syncs to Viam Cloud. The dashboard reads from all machines using an organization-level API key.
 
 For 30+ trucks:
 1. Create a Viam Fragment from `config/fragment-tps-truck.json`
@@ -228,7 +225,11 @@ Middleware is a no-op until `@clerk/nextjs` is installed.
 sudo journalctl -u viam-server -f | grep plc
 
 # J1939 sensor logs
-ssh andrew@100.113.196.68 "sudo journalctl -u viam-server -n 50"
+sudo journalctl -u viam-server -f | grep truck-engine
+
+# CAN bus status
+ip link show can0
+systemctl status can0
 
 # Test PLC connectivity
 python3 scripts/test_plc_modbus.py --host 169.168.10.21 --watch

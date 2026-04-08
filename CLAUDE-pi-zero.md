@@ -1,4 +1,8 @@
-# IronSight — Pi Zero 2 W "truck-diagnostics" Node
+# IronSight — Pi Zero 2 W "truck-diagnostics" Node (DEPRECATED)
+
+> **DEPRECATED (April 2026):** The Pi Zero 2 W has been consolidated into the Pi 5.
+> All three modules (plc-sensor, cell-sensor, j1939-sensor) now run on a single Pi 5.
+> This file is kept for historical reference only. See CLAUDE.md for current architecture.
 
 **Role:** J1939 CAN bus truck diagnostics sensor (passive, listen-only)
 

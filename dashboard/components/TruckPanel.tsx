@@ -50,7 +50,7 @@ const TRUCK_POLL_MS = 3000;
 
 type VehicleMode = "truck" | "car";
 
-export default function TruckPanel({ simMode = false, truckId }: { simMode?: boolean; truckId?: string }) {
+export default function TruckPanel({ simMode = false, truckId, onReadingsChange }: { simMode?: boolean; truckId?: string; onReadingsChange?: (r: Record<string, unknown> | null) => void }) {
   const [readings, setReadings] = useState<TruckReadings | null>(null);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -121,8 +121,11 @@ export default function TruckPanel({ simMode = false, truckId }: { simMode?: boo
 
   const simTickRef = React.useRef(0);
 
+  // Sim mode is determined by truck ID, not a prop toggle
+  const isSimTruck = truckId === "00";
+
   const fetchReadings = useCallback(async () => {
-    if (simMode) {
+    if (isSimTruck) {
       simTickRef.current += 1;
       const t = simTickRef.current;
       const rpm = 800 + Math.sin(t * 0.1) * 400 + Math.random() * 50;
@@ -257,18 +260,18 @@ export default function TruckPanel({ simMode = false, truckId }: { simMode?: boo
       if (!resp.ok) throw new Error(`API error: ${resp.status}`);
       const data = await resp.json();
 
-      // Handle offline state
+      // Handle offline state — truck is likely powered off
       if (data._offline) {
         setConnected(false);
-        setError("Vehicle offline — no recent data");
+        setError("Truck off — no data flowing");
         return;
       }
 
-      // Handle vehicle off
+      // Handle vehicle off (engine not running but Pi still sending data)
       if (data._vehicle_off) {
         setReadings(data as TruckReadings);
         setConnected(true);
-        setError("Vehicle off — engine not running");
+        setError("Engine off — ignition on");
         return;
       }
 
@@ -286,15 +289,26 @@ export default function TruckPanel({ simMode = false, truckId }: { simMode?: boo
       }
     } catch (err) {
       setConnected(false);
-      setError(err instanceof Error ? err.message : "Connection error");
+      const msg = err instanceof Error ? err.message : "Connection error";
+      // Don't show scary error messages — if API is unreachable, truck is likely off
+      if (msg.includes("502") || msg.includes("fetch") || msg.includes("network")) {
+        setError("Truck off — waiting for data");
+      } else {
+        setError(msg);
+      }
     }
-  }, [simMode, truckId]);
+  }, [isSimTruck, truckId]);
 
   useEffect(() => {
     fetchReadings();
     const id = setInterval(fetchReadings, TRUCK_POLL_MS);
     return () => clearInterval(id);
   }, [fetchReadings]);
+
+  // Forward readings to parent for dev diagnostics
+  useEffect(() => {
+    onReadingsChange?.(readings as Record<string, unknown> | null);
+  }, [readings, onReadingsChange]);
 
 
   // Accumulate trend data and score driver behavior when readings change

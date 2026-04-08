@@ -1,6 +1,10 @@
 #!/bin/bash
-# Ensure eth0 always has the PLC static IP when it comes up.
-# Also triggers PLC auto-discovery if the configured IP doesn't respond.
+# NetworkManager dispatcher: auto-negotiate PLC network on eth0 link-up.
+#
+# When eth0 comes up (cable plugged in to a truck switch):
+#   1. Accept DHCP if the switch provides it (gets us on the network fast)
+#   2. Restore last-known PLC subnet IP as secondary address
+#   3. Trigger PLC auto-discovery in background (finds PLC even on unknown subnets)
 #
 # Install: sudo cp scripts/10-plc-eth0-static /etc/NetworkManager/dispatcher.d/
 #          sudo chmod +x /etc/NetworkManager/dispatcher.d/10-plc-eth0-static
@@ -9,16 +13,28 @@ ACTION="$2"
 
 PROJECT_DIR="/home/andrew/Viam-Staubli-Apera-PLC-Mobile-POC"
 DISCOVER_SCRIPT="$PROJECT_DIR/scripts/plc-autodiscover.py"
+PLC_CONF="/home/andrew/.ironsight/plc-network.conf"
 
 if [ "$INTERFACE" = "eth0" ] && [ "$ACTION" = "up" ]; then
-    # Add default static IP so we can reach PLCs on the standard subnet
-    if ! ip addr show eth0 | grep -q "169.168.10.1/24"; then
-        logger -t plc-eth0 "eth0 came up without 169.168.10.1/24 — adding it"
-        ip addr add 169.168.10.1/24 dev eth0
+    # Restore last-known PLC subnet IP (if we've discovered before)
+    if [ -f "$PLC_CONF" ]; then
+        . "$PLC_CONF"
+        if [ -n "$PI_IP" ]; then
+            if ! ip addr show eth0 | grep -q "$PI_IP/24"; then
+                logger -t plc-eth0 "Restoring last-known PLC subnet IP: $PI_IP/24"
+                ip addr add "$PI_IP/24" dev eth0 2>/dev/null || true
+            fi
+        fi
+    else
+        # First time on this truck — add default IP to reach common PLC subnets
+        if ! ip addr show eth0 | grep -q "169.168.10."; then
+            logger -t plc-eth0 "First boot — adding default PLC subnet 169.168.10.100/24"
+            ip addr add 169.168.10.100/24 dev eth0 2>/dev/null || true
+        fi
     fi
 
-    # Trigger auto-discovery in background (finds PLC even if on different subnet)
-    if [ -x "$DISCOVER_SCRIPT" ] || [ -f "$DISCOVER_SCRIPT" ]; then
+    # Trigger auto-discovery in background (finds PLC on any subnet)
+    if [ -f "$DISCOVER_SCRIPT" ]; then
         logger -t plc-eth0 "Triggering PLC auto-discovery..."
         nohup python3 "$DISCOVER_SCRIPT" --on-link-up >> /var/log/ironsight-discovery.log 2>&1 &
     fi
