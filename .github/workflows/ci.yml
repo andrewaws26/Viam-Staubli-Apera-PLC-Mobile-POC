@@ -18,7 +18,7 @@ jobs:
           cache-dependency-path: dashboard/package-lock.json
       - run: cd dashboard && npm ci
       - run: cd dashboard && npx tsc --noEmit
-      - run: cd dashboard && npm run lint
+      - run: cd dashboard && npx eslint . --max-warnings 50
 
   test:
     runs-on: ubuntu-latest
