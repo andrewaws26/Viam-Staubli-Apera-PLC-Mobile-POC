@@ -112,6 +112,7 @@ export default function AppNav({ pageTitle }: Props) {
                     {isAdmin && <MenuLink href="/accounting/bank" label="Bank Reconciliation" />}
                     {isAdmin && <MenuLink href="/accounting/recurring" label="Recurring Entries" />}
                     {isAdmin && <MenuLink href="/accounting/periods" label="Accounting Periods" />}
+                    {isAdmin && <MenuLink href="/accounting/employee-tax" label="Employee Payroll Setup" />}
                     {isAdmin && <MenuLink href="/accounting/payroll-run" label="Run Payroll" />}
                     {isAdmin && <MenuLink href="/accounting/vendor-1099" label="1099 Tracking" />}
                     {isAdmin && <MenuLink href="/accounting/reports" label="Financial Reports" />}
