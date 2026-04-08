@@ -34,12 +34,16 @@ export async function GET(request: NextRequest) {
   try {
     const sb = getSupabase();
 
-    // Fetch all timesheets with logs + expenses + mileage for the admin overview.
-    // Expenses and mileage_pay are joined so we can compute financial totals
-    // without extra round-trips (migration_007 sub-section tables).
+    // Fetch all timesheets with logs + all sub-section tables for the admin overview.
+    // Joins all migration_007 sub-section tables so managers see complete data.
     let query = sb
       .from("timesheets")
-      .select("*, timesheet_daily_logs(*), timesheet_expenses(*), timesheet_mileage_pay(*)")
+      .select(
+        "*, timesheet_daily_logs(*), timesheet_railroad_timecards(*), " +
+        "timesheet_inspections(*), timesheet_ifta_entries(*), timesheet_expenses(*), " +
+        "timesheet_maintenance_time(*), timesheet_shop_time(*), timesheet_mileage_pay(*), " +
+        "timesheet_flight_pay(*), timesheet_holiday_pay(*), timesheet_vacation_pay(*)"
+      )
       .order("week_ending", { ascending: false })
       .limit(500);
 
@@ -55,12 +59,24 @@ export async function GET(request: NextRequest) {
       const logs = (ts.timesheet_daily_logs as Record<string, unknown>[]) ?? [];
       const expenses = (ts.timesheet_expenses as Record<string, unknown>[]) ?? [];
       const mileage = (ts.timesheet_mileage_pay as Record<string, unknown>[]) ?? [];
+      const maintenance = (ts.timesheet_maintenance_time as Record<string, unknown>[]) ?? [];
+      const shopTime = (ts.timesheet_shop_time as Record<string, unknown>[]) ?? [];
 
       let totalHours = 0;
       let totalTravel = 0;
       for (const log of logs) {
         totalHours += Number(log.hours_worked) || 0;
         totalTravel += Number(log.travel_hours) || 0;
+      }
+
+      // Add maintenance and shop hours to total
+      let totalMaintenanceHours = 0;
+      for (const m of maintenance) {
+        totalMaintenanceHours += Number(m.hours_worked) || 0;
+      }
+      let totalShopHours = 0;
+      for (const s of shopTime) {
+        totalShopHours += Number(s.hours_worked) || 0;
       }
 
       // Sum expense amounts for financial overview (migration_007)
@@ -81,13 +97,31 @@ export async function GET(request: NextRequest) {
           (a, b) => (a.sort_order as number) - (b.sort_order as number),
         ),
         timesheet_daily_logs: undefined,
-        // Rename joined sub-section keys for consistency
+        // Rename all joined sub-section keys for consistency
+        railroad_timecards: ts.timesheet_railroad_timecards ?? [],
+        timesheet_railroad_timecards: undefined,
+        inspections: ts.timesheet_inspections ?? [],
+        timesheet_inspections: undefined,
+        ifta_entries: ts.timesheet_ifta_entries ?? [],
+        timesheet_ifta_entries: undefined,
         expenses,
         timesheet_expenses: undefined,
+        maintenance_time: maintenance,
+        timesheet_maintenance_time: undefined,
+        shop_time: shopTime,
+        timesheet_shop_time: undefined,
         mileage_pay: mileage,
         timesheet_mileage_pay: undefined,
+        flight_pay: ts.timesheet_flight_pay ?? [],
+        timesheet_flight_pay: undefined,
+        holiday_pay: ts.timesheet_holiday_pay ?? [],
+        timesheet_holiday_pay: undefined,
+        vacation_pay: ts.timesheet_vacation_pay ?? [],
+        timesheet_vacation_pay: undefined,
         total_hours: totalHours,
         total_travel_hours: totalTravel,
+        total_maintenance_hours: totalMaintenanceHours,
+        total_shop_hours: totalShopHours,
         total_expenses: totalExpenses,
         total_mileage: totalMileage,
       } as Record<string, unknown>;

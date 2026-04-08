@@ -198,6 +198,100 @@ export async function POST(
 }
 
 /**
+ * PATCH /api/timesheets/[id]/sections?section=expenses&entry_id=xxx
+ * Update a specific entry in the given section.
+ */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { userId } = await auth();
+  if (!userId)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id } = await params;
+
+  const sectionResult = resolveSection(request);
+  if (sectionResult instanceof NextResponse) return sectionResult;
+  const { table } = sectionResult;
+
+  const entryId = request.nextUrl.searchParams.get("entry_id");
+  if (!entryId) {
+    return NextResponse.json(
+      { error: "Missing entry_id query parameter" },
+      { status: 400 },
+    );
+  }
+
+  const authResult = await authorizeTimesheetAccess(userId, id);
+  if (authResult instanceof NextResponse) return authResult;
+
+  // Only allow edits on draft timesheets (managers can edit any status)
+  const ts = (authResult as { data: Record<string, unknown> }).data;
+  const role = await getUserRole(userId);
+  const isManager = role === "developer" || role === "manager";
+  if (ts.status !== "draft" && !isManager) {
+    return NextResponse.json(
+      { error: "Cannot edit entries on a non-draft timesheet" },
+      { status: 400 },
+    );
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  try {
+    const sb = getSupabase();
+
+    // Verify the entry exists and belongs to this timesheet
+    const { data: entry, error: fetchErr } = await sb
+      .from(table)
+      .select("id, timesheet_id")
+      .eq("id", entryId)
+      .single();
+
+    if (fetchErr || !entry) {
+      return NextResponse.json({ error: "Entry not found" }, { status: 404 });
+    }
+
+    if (entry.timesheet_id !== id) {
+      return NextResponse.json(
+        { error: "Entry does not belong to this timesheet" },
+        { status: 403 },
+      );
+    }
+
+    // Strip id and timesheet_id from updates to prevent spoofing
+    const { id: _stripId, timesheet_id: _stripTsId, ...updates } = body;
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: "No fields to update" }, { status: 400 });
+    }
+
+    const { data, error } = await sb
+      .from(table)
+      .update(updates)
+      .eq("id", entryId)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return NextResponse.json(data);
+  } catch (err) {
+    console.error("[API-ERROR]", `/api/timesheets/${id}/sections PATCH`, err);
+    return NextResponse.json(
+      { error: "Failed to update section entry" },
+      { status: 502 },
+    );
+  }
+}
+
+/**
  * DELETE /api/timesheets/[id]/sections?section=expenses&entry_id=xxx
  * Delete a specific entry. Verifies the entry belongs to this timesheet.
  */

@@ -53,17 +53,22 @@ export async function GET() {
       return NextResponse.json(profile);
     }
 
-    // Auto-create a profile from Clerk data for first-time access
+    // Auto-create a profile from Clerk data for first-time access.
+    // Use upsert to handle race conditions where concurrent requests
+    // both pass the maybeSingle() check above.
     const { data: created, error: createErr } = await sb
       .from("profiles")
-      .insert({
-        user_id: userId,
-        display_name: userInfo.name,
-        email: userInfo.email,
-        role: userInfo.role,
-        first_name: userInfo.firstName || null,
-        last_name: userInfo.lastName || null,
-      })
+      .upsert(
+        {
+          user_id: userId,
+          display_name: userInfo.name,
+          email: userInfo.email,
+          role: userInfo.role,
+          first_name: userInfo.firstName || null,
+          last_name: userInfo.lastName || null,
+        },
+        { onConflict: "user_id", ignoreDuplicates: true },
+      )
       .select()
       .single();
 

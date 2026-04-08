@@ -260,6 +260,52 @@ export async function PATCH(
       }
     }
 
+    // Auto-generate per diem entries when a timesheet is approved.
+    // Uses the active per_diem_rate to compute amounts from nights_out + layovers.
+    if (update.status === "approved") {
+      const nightsOut = Number(body.nights_out ?? existing.nights_out) || 0;
+      const layoversCount = Number(body.layovers ?? existing.layovers) || 0;
+
+      if (nightsOut > 0 || layoversCount > 0) {
+        // Get the active per diem rate
+        const { data: rate } = await sb
+          .from("per_diem_rates")
+          .select("id, daily_rate, layover_rate")
+          .eq("is_active", true)
+          .order("effective_date", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (rate) {
+          const nightsAmount = nightsOut * Number(rate.daily_rate);
+          const layoverAmount = layoversCount * Number(rate.layover_rate);
+
+          // Upsert — one per diem entry per timesheet (UNIQUE constraint)
+          await sb.from("per_diem_entries").upsert(
+            {
+              timesheet_id: id,
+              user_id: existing.user_id,
+              user_name: existing.user_name,
+              rate_id: rate.id,
+              nights_count: nightsOut,
+              layover_count: layoversCount,
+              nights_amount: nightsAmount,
+              layover_amount: layoverAmount,
+              total_amount: nightsAmount + layoverAmount,
+              week_ending: existing.week_ending,
+              entry_date: existing.week_ending,
+            },
+            { onConflict: "timesheet_id" },
+          );
+        }
+      }
+    }
+
+    // If un-approved (back to draft), remove the per diem entry
+    if (update.status === "draft" || update.status === "rejected") {
+      await sb.from("per_diem_entries").delete().eq("timesheet_id", id);
+    }
+
     // Audit log
     const action = body.status === "submitted" ? "timesheet_submitted"
       : body.status === "approved" ? "timesheet_approved"
