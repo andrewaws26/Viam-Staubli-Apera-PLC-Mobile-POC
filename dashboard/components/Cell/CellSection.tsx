@@ -18,29 +18,38 @@ interface Props {
 }
 
 export default function CellSection({ simMode = false, truckId }: Props) {
-  // Only use sim mode for truck "00" — never for real trucks
+  // Sim mode is only allowed for truck "00" (the demo truck)
   const effectiveSimMode = truckId === "00" ? simMode : false;
 
   const [data, setData] = useState<CellState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
+  const [hasCell, setHasCell] = useState(true);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const poll = useCallback(async () => {
     try {
-      const url = `/api/cell-readings?sim=${effectiveSimMode ? "true" : "false"}`;
-      const res = await fetch(url);
+      const params = new URLSearchParams({
+        sim: effectiveSimMode ? "true" : "false",
+      });
+      if (truckId) params.set("truck", truckId);
+
+      const res = await fetch(`/api/cell-readings?${params}`);
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-      const json: CellState = await res.json();
-      // Don't show sim data as real for non-sim trucks
-      if ((json as any)._is_sim && truckId !== "00") {
+      const json = await res.json();
+
+      // API returns _no_cell when the truck has no cell-monitor configured
+      if (json._no_cell) {
         setData(null);
         setConnected(false);
-        setError("No cell data for this truck");
+        setHasCell(false);
+        setError(json._offline ? "Cell offline" : null);
         return;
       }
-      setData(json);
+
+      setData(json as CellState);
       setConnected(true);
+      setHasCell(true);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Cell poll failed");
@@ -49,12 +58,21 @@ export default function CellSection({ simMode = false, truckId }: Props) {
   }, [effectiveSimMode, truckId]);
 
   useEffect(() => {
+    // Reset state when truck changes
+    setData(null);
+    setConnected(false);
+    setHasCell(true);
+    setError(null);
+
     poll();
     timerRef.current = setInterval(poll, CELL_POLL_MS);
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [poll]);
+
+  // Don't render the cell section at all for trucks with no cell
+  if (!hasCell && !error) return null;
 
   return (
     <div className="space-y-2 sm:space-y-4">

@@ -157,7 +157,7 @@ export default function ProfileForm({ currentUserId, currentUserRole, targetUser
       const params = new URLSearchParams();
       if (targetUserId) params.set("user_id", targetUserId);
 
-      const res = await fetch(`/api/profile?${params}`, {
+      const res = await fetch(`/api/profiles?${params}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

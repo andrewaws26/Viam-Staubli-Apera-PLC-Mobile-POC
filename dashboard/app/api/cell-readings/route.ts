@@ -11,7 +11,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getLatestReading, resetDataClient } from "@/lib/viam-data";
-import { getDefaultTruck } from "@/lib/machines";
+import { getDefaultTruck, getTruckById } from "@/lib/machines";
 
 // ---------------------------------------------------------------------------
 // Flat → Nested transformer
@@ -320,29 +320,34 @@ const COMPONENT_NAME = "cell-monitor";
 
 export async function GET(request: NextRequest) {
   const sim = request.nextUrl.searchParams.get("sim");
+  const truckId = request.nextUrl.searchParams.get("truck");
   const component = request.nextUrl.searchParams.get("component") || COMPONENT_NAME;
 
-  // Sim mode — return fake data for UI development
-  if (sim === "true") {
+  // Sim mode — return fake data for UI development (only allowed for truck "00")
+  if (sim === "true" && (!truckId || truckId === "00")) {
     return NextResponse.json({ ...getSimData(), _is_sim: true });
   }
 
-  // Real mode — query Viam Data API for latest cell-monitor readings
-  const truck = getDefaultTruck();
+  // Resolve the truck config — use specific truck if provided, else default
+  const truck = truckId ? getTruckById(truckId) : getDefaultTruck();
+
   if (!truck?.tpsPartId) {
-    // No Part ID configured — fall back to sim data so the dashboard still works
-    console.warn("[cell-readings] No VIAM_PART_ID configured, falling back to sim data");
-    return NextResponse.json({ ...getSimData(), _is_sim: true });
+    // Truck has no Part ID → no cell data available (NOT sim fallback)
+    return NextResponse.json({
+      _no_cell: true,
+      _reason: truckId
+        ? `Truck "${truckId}" has no cell-monitor configured`
+        : "No VIAM_PART_ID configured",
+    });
   }
 
   try {
     const result = await getLatestReading(truck.tpsPartId, component);
 
     if (!result) {
-      // No recent data in Viam Cloud — return sim data with an offline flag
+      // No recent data in Viam — cell is offline
       return NextResponse.json({
-        ...getSimData(),
-        _is_sim: true,
+        _no_cell: true,
         _offline: true,
         _reason: "no_recent_data",
       });
@@ -353,6 +358,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       ...cellState,
+      _is_sim: false,
       _data_age_seconds: dataAgeSec,
       _source: "viam",
     });
@@ -360,10 +366,9 @@ export async function GET(request: NextRequest) {
     resetDataClient();
     console.error("[cell-readings] Viam query failed:", err);
 
-    // Return sim data on error so the dashboard doesn't break
+    // Return error state — NOT sim data
     return NextResponse.json({
-      ...getSimData(),
-      _is_sim: true,
+      _no_cell: true,
       _offline: true,
       _reason: "viam_error",
       _error: err instanceof Error ? err.message : String(err),

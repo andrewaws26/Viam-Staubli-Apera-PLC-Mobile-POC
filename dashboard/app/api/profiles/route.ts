@@ -41,7 +41,7 @@ export async function GET() {
 
     // Attempt to fetch existing profile
     const { data: profile, error: fetchErr } = await sb
-      .from("profiles")
+      .from("employee_profiles")
       .select("*")
       .eq("user_id", userId)
       .maybeSingle();
@@ -57,15 +57,12 @@ export async function GET() {
     // Use upsert to handle race conditions where concurrent requests
     // both pass the maybeSingle() check above.
     const { data: created, error: createErr } = await sb
-      .from("profiles")
+      .from("employee_profiles")
       .upsert(
         {
           user_id: userId,
-          display_name: userInfo.name,
-          email: userInfo.email,
-          role: userInfo.role,
-          first_name: userInfo.firstName || null,
-          last_name: userInfo.lastName || null,
+          user_name: userInfo.name,
+          user_email: userInfo.email,
         },
         { onConflict: "user_id", ignoreDuplicates: true },
       )
@@ -117,14 +114,14 @@ export async function PATCH(request: NextRequest) {
 
   // Whitelist of fields that can be updated
   const editableFields = [
-    "display_name",
-    "first_name",
-    "last_name",
+    "user_name",
+    "user_email",
     "phone",
     "job_title",
     "department",
     "emergency_contact_name",
     "emergency_contact_phone",
+    "hire_date",
     "profile_picture_url",
   ];
 
@@ -147,7 +144,7 @@ export async function PATCH(request: NextRequest) {
 
     // Verify the target profile exists
     const { data: existing } = await sb
-      .from("profiles")
+      .from("employee_profiles")
       .select("id")
       .eq("user_id", targetUserId)
       .maybeSingle();
@@ -157,7 +154,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const { data, error } = await sb
-      .from("profiles")
+      .from("employee_profiles")
       .update(update)
       .eq("user_id", targetUserId)
       .select()
