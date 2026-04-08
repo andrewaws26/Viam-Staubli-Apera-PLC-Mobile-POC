@@ -11,6 +11,9 @@ import { ComponentState, FaultEvent, SensorReadings } from "../lib/types";
 const POLL_INTERVAL_MS = 2000;
 const MAX_FAULT_HISTORY = 10;
 
+// Truck "00" always shows simulated data — no hardware required.
+const SIM_TRUCK_ID = "00";
+
 // ---------------------------------------------------------------------------
 // Return type
 // ---------------------------------------------------------------------------
@@ -19,7 +22,7 @@ export interface SensorPollingState {
   components: ComponentState[];
   faultHistory: FaultEvent[];
   activeFaultLabels: string[];
-  connectionStatus: "connected" | "stale" | "plc-disconnected" | "offline" | "loading";
+  connectionStatus: "connected" | "stale" | "plc-disconnected" | "offline" | "truck-off" | "loading";
   connectionDataAge: number | null;
   connectionError: string | null;
   flashKey: number;
@@ -29,7 +32,6 @@ export interface SensorPollingState {
   historyError: string | null;
   fetchHistory: () => Promise<void>;
   simMode: boolean;
-  setSimMode: (v: boolean | ((prev: boolean) => boolean)) => void;
   pollIntervalMs: number;
 }
 
@@ -84,6 +86,9 @@ function buildSimReadings(sim: { distance: number; plates: number; tick: number 
 // ---------------------------------------------------------------------------
 
 export function useSensorPolling(onNewFault: () => void, truckId?: string): SensorPollingState {
+  // Sim mode is determined entirely by truck ID — no toggle.
+  const simMode = truckId === SIM_TRUCK_ID;
+
   const [components, setComponents] = useState<ComponentState[]>(() =>
     SENSOR_CONFIGS.map((cfg) => ({
       id: cfg.id,
@@ -98,7 +103,7 @@ export function useSensorPolling(onNewFault: () => void, truckId?: string): Sens
 
   const [faultHistory, setFaultHistory] = useState<FaultEvent[]>([]);
   const [activeFaultLabels, setActiveFaultLabels] = useState<string[]>([]);
-  const [connectionStatus, setConnectionStatus] = useState<"connected" | "stale" | "plc-disconnected" | "offline" | "loading">("loading");
+  const [connectionStatus, setConnectionStatus] = useState<"connected" | "stale" | "plc-disconnected" | "offline" | "truck-off" | "loading">("loading");
   const [connectionDataAge, setConnectionDataAge] = useState<number | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [flashKey, setFlashKey] = useState(0);
@@ -108,7 +113,6 @@ export function useSensorPolling(onNewFault: () => void, truckId?: string): Sens
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
 
-  const [simMode, setSimMode] = useState(false);
   const simRef = useRef({ distance: 0, plates: 0, tick: 0 });
 
   const prevFaultIds = useRef<Set<string>>(new Set());
@@ -117,6 +121,13 @@ export function useSensorPolling(onNewFault: () => void, truckId?: string): Sens
   // Wrap the callback ref so it doesn't cause re-renders
   const onNewFaultRef = useRef(onNewFault);
   onNewFaultRef.current = onNewFault;
+
+  // Reset sim state when switching to sim truck
+  useEffect(() => {
+    if (simMode) {
+      simRef.current = { distance: 0, plates: 0, tick: 0 };
+    }
+  }, [simMode]);
 
   // -------------------------------------------------------------------------
   // Core poll
@@ -166,21 +177,23 @@ export function useSensorPolling(onNewFault: () => void, truckId?: string): Sens
           readings = await res.json() as SensorReadings;
 
           if (readings._offline) {
-            status = "error";
-            faultMessage = "No recent sensor data";
-            setConnectionStatus("offline");
+            // No data at all — truck is likely powered off
+            status = "pending";
+            faultMessage = "Truck off — no data";
+            setConnectionStatus("truck-off");
             setConnectionDataAge(null);
-            setConnectionError("No recent data");
+            setConnectionError(null);
           } else {
             const dataAge = typeof readings._data_age_seconds === "number"
               ? readings._data_age_seconds : null;
 
             if (dataAge !== null && dataAge > 120) {
-              status = "error";
-              faultMessage = `Sensor data is ${dataAge}s old`;
-              setConnectionStatus("offline");
+              // Data exists but is very stale — truck was recently turned off
+              status = "pending";
+              faultMessage = `Last data ${Math.round(dataAge / 60)}m ago — truck may be off`;
+              setConnectionStatus("truck-off");
               setConnectionDataAge(dataAge);
-              setConnectionError(`Last data ${dataAge}s ago`);
+              setConnectionError(null);
             } else {
               if (dataAge !== null && dataAge > 30) {
                 setConnectionStatus("stale");
@@ -213,9 +226,9 @@ export function useSensorPolling(onNewFault: () => void, truckId?: string): Sens
           }
         }
       } catch (err) {
-        status = "error";
-        faultMessage = "Sensor read error";
-        currentFaultIds.add(cfg.id);
+        // Network error or API failure — not the truck's fault
+        status = "pending";
+        faultMessage = "Waiting for data...";
         setConnectionStatus("offline");
         setConnectionDataAge(null);
         setConnectionError(err instanceof Error ? err.message : "Connection error");
@@ -259,7 +272,7 @@ export function useSensorPolling(onNewFault: () => void, truckId?: string): Sens
     setComponents(newStates);
     setActiveFaultLabels(
       newStates
-        .filter((c) => c.status === "fault" || c.status === "error")
+        .filter((c) => c.status === "fault")
         .map((c) => c.label)
     );
 
@@ -280,6 +293,7 @@ export function useSensorPolling(onNewFault: () => void, truckId?: string): Sens
   // Historical data — fetched once on mount
   // -------------------------------------------------------------------------
   const fetchHistory = useCallback(async () => {
+    if (simMode) return; // No history for demo truck
     setHistoryLoading(true);
     setHistoryError(null);
     try {
@@ -296,22 +310,11 @@ export function useSensorPolling(onNewFault: () => void, truckId?: string): Sens
     } finally {
       setHistoryLoading(false);
     }
-  }, [truckId]);
+  }, [truckId, simMode]);
 
   useEffect(() => {
     fetchHistory();
   }, [fetchHistory]);
-
-  // Reset sim state when entering sim mode
-  const wrappedSetSimMode = useCallback((v: boolean | ((prev: boolean) => boolean)) => {
-    setSimMode((prev) => {
-      const next = typeof v === "function" ? v(prev) : v;
-      if (next && !prev) {
-        simRef.current = { distance: 0, plates: 0, tick: 0 };
-      }
-      return next;
-    });
-  }, []);
 
   return {
     components,
@@ -326,7 +329,6 @@ export function useSensorPolling(onNewFault: () => void, truckId?: string): Sens
     historyError,
     fetchHistory,
     simMode,
-    setSimMode: wrappedSetSimMode,
     pollIntervalMs: POLL_INTERVAL_MS,
   };
 }

@@ -68,7 +68,6 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
     historyError,
     fetchHistory,
     simMode,
-    setSimMode,
     pollIntervalMs,
   } = useSensorPolling(playAlarm, truckId);
 
@@ -171,20 +170,10 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
                 <span className="hidden sm:inline">Admin</span>
               </a>
             )}
-            <button
-              onClick={() => setSimMode((prev) => !prev)}
-              className={`text-[10px] sm:text-xs min-h-[44px] px-3 sm:px-3 py-2 rounded-lg font-bold transition-colors ${
-                simMode
-                  ? "bg-purple-700 text-white"
-                  : "border border-gray-700 text-gray-500 hover:text-gray-300"
-              }`}
-            >
-              {simMode ? "SIM ON" : "SIM"}
-            </button>
             <ConnectionDot
-              status={simMode ? "connected" : connectionStatus}
-              dataAge={simMode ? null : connectionDataAge}
-              error={simMode ? null : connectionError}
+              status={connectionStatus}
+              dataAge={connectionDataAge}
+              error={connectionError}
             />
             <UserButton
               appearance={{
@@ -197,13 +186,21 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
         </header>
         {simMode && (
           <div className="bg-purple-900/30 border-b border-purple-700/50 px-3 sm:px-5 py-1.5 text-[10px] sm:text-xs text-purple-300">
-            Simulation mode — showing simulated production data. <button onClick={() => setSimMode(false)} className="underline hover:text-white ml-1">Stop</button>
+            Demo Truck — showing simulated data. Select a production truck from the dropdown for live data.
           </div>
         )}
 
         {/* Alert Banner */}
-        {activeFaultLabels.length > 0 && (
+        {!simMode && activeFaultLabels.length > 0 && (
           <AlertBanner faultNames={activeFaultLabels} isEstop={false} />
+        )}
+
+        {/* Truck-off banner — clean messaging when no data flowing */}
+        {!simMode && connectionStatus === "truck-off" && (
+          <div className="bg-gray-800/50 border-b border-gray-700/50 px-3 sm:px-5 py-2 text-[10px] sm:text-xs text-gray-400 flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-gray-600" />
+            Truck is off — waiting for data. Readings will appear when the truck powers on.
+          </div>
         )}
 
         {/* Status Grid */}
@@ -273,7 +270,7 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
 
         {/* Footer */}
         <footer className="border-t border-gray-800 px-3 sm:px-5 py-2 sm:py-3 text-[10px] sm:text-xs text-gray-700 flex items-center justify-between shrink-0">
-          <span>Polling every {pollIntervalMs / 1000}s</span>
+          <span>Polling every {pollIntervalMs / 1000}s{simMode ? " (demo)" : ""}</span>
           <span>
             Live — Viam Cloud ·{" "}
             {new Date().getFullYear()}

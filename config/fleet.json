@@ -2,19 +2,24 @@
   "$schema": "./fleet.schema.json",
   "_comment": [
     "Fleet truck registry — maps truck IDs to Viam machine Part IDs.",
-    "Single-Pi architecture: each truck has one Pi 5 running all modules",
-    "(plc-sensor, cell-sensor, j1939-sensor). One Part ID per truck.",
-    "Add a new truck by copying an entry and filling in the Part ID from app.viam.com.",
-    "The dashboard reads this file at startup. Changes require a redeploy on Vercel",
-    "or a restart of the dev server."
+    "Single-Pi architecture: each truck has one Pi 5 running all modules.",
+    "Truck 00 is a demo/sim truck that always shows simulated data.",
+    "Truck 01 is the first production truck with real hardware."
   ],
   "trucks": [
     {
-      "id": "truck-01",
+      "id": "00",
+      "name": "Demo Truck",
+      "tpsPartId": "",
+      "tpsMachineAddress": "",
+      "_comment": "Simulated data only — no hardware required"
+    },
+    {
+      "id": "01",
       "name": "Truck 01",
       "tpsPartId": "",
       "tpsMachineAddress": "",
-      "_comment": "Part ID filled from env vars at runtime when empty (backward compat)"
+      "_comment": "Production truck — Part ID filled from env vars at runtime"
     }
   ]
 }

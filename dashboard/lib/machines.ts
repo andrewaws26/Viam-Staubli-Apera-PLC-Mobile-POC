@@ -103,7 +103,15 @@ function loadSingleTruckFallback(): TruckConfig[] {
   console.log("[machines] Using single-truck fallback from env vars");
   return [
     {
-      id: "default",
+      id: "00",
+      name: "Demo Truck",
+      tpsPartId: "",
+      truckPartId: "",
+      tpsMachineAddress: "",
+      truckMachineAddress: "",
+    },
+    {
+      id: "01",
       name: "Truck 01",
       tpsPartId: partId,
       truckPartId: process.env.TRUCK_VIAM_PART_ID || partId,

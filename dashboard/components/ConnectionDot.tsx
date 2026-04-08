@@ -1,4 +1,4 @@
-export type ConnectionStatus = "connected" | "stale" | "plc-disconnected" | "offline" | "loading";
+export type ConnectionStatus = "connected" | "stale" | "plc-disconnected" | "offline" | "truck-off" | "loading";
 
 interface Props {
   status: ConnectionStatus;
@@ -29,12 +29,19 @@ export default function ConnectionDot({ status, dataAge, error }: Props) {
       subtitle: "PLC disconnected",
       tooltip: "Pi is reachable but PLC Modbus connection is failing",
     },
+    "truck-off": {
+      dotClass: "bg-gray-500",
+      textClass: "text-gray-500",
+      label: "Truck Off",
+      subtitle: dataAge ? `Last seen ${Math.round(dataAge / 60)}m ago` : "No data",
+      tooltip: "Truck is powered off — data will appear when truck starts",
+    },
     offline: {
       dotClass: "bg-red-500 animate-pulse",
       textClass: "text-red-400",
-      label: "Truck Offline",
+      label: "Offline",
       subtitle: error || "No data received",
-      tooltip: "No data from Pi 5 — truck may be off or out of range",
+      tooltip: "Cannot reach Viam Cloud — check internet connection",
     },
     loading: {
       dotClass: "bg-gray-500",
