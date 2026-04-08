@@ -59,7 +59,19 @@ export type AuditAction =
   | "invoice_voided"
   | "bill_created"
   | "bill_payment_recorded"
-  | "bill_voided";
+  | "bill_voided"
+  | "estimate_created"
+  | "estimate_sent"
+  | "estimate_accepted"
+  | "estimate_rejected"
+  | "estimate_expired"
+  | "estimate_converted"
+  | "estimate_deleted"
+  | "estimate_voided"
+  | "fixed_asset_created"
+  | "fixed_asset_updated"
+  | "fixed_asset_disposed"
+  | "depreciation_run";
 
 interface AuditEntry {
   action: AuditAction;
