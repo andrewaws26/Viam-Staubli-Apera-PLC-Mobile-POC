@@ -56,6 +56,7 @@ export default function TruckPanel({ simMode = false, truckId, onReadingsChange 
   const [error, setError] = useState<string | null>(null);
   const [vehicleMode, setVehicleMode] = useState<VehicleMode>("truck");
   const [modeAutoDetected, setModeAutoDetected] = useState(false);
+  const [dataAge, setDataAge] = useState<number | null>(null);
 
   // VIN selector for history filtering
   const [selectedHistoryVin, setSelectedHistoryVin] = useState<string>("");
@@ -275,12 +276,14 @@ export default function TruckPanel({ simMode = false, truckId, onReadingsChange 
       // Handle vehicle off (engine not running but Pi still sending data)
       if (data._vehicle_off) {
         setReadings(data as TruckReadings);
+        setDataAge(data._data_age_seconds ?? null);
         setConnected(true);
         setError("Engine off — ignition on");
         return;
       }
 
       setReadings(data as TruckReadings);
+      setDataAge(data._data_age_seconds ?? null);
       setConnected(true);
       setError(null);
       // Auto-detect vehicle mode from protocol field (only once)
@@ -446,6 +449,44 @@ export default function TruckPanel({ simMode = false, truckId, onReadingsChange 
         readings={readings}
         dtcFlash={dtcFlash}
       />
+
+      {/* Data freshness indicator */}
+      {connected && dataAge !== null && (
+        <div className={`flex items-center gap-2 px-3 py-1.5 mb-3 rounded-lg text-[10px] sm:text-xs ${
+          dataAge < 10 ? "bg-green-900/20 text-green-400 border border-green-800/30" :
+          dataAge < 60 ? "bg-yellow-900/20 text-yellow-400 border border-yellow-800/30" :
+          dataAge < 300 ? "bg-orange-900/20 text-orange-400 border border-orange-800/30" :
+          "bg-red-900/20 text-red-400 border border-red-800/30"
+        }`}>
+          <span className={`w-2 h-2 rounded-full ${
+            dataAge < 10 ? "bg-green-500" :
+            dataAge < 60 ? "bg-yellow-500" :
+            dataAge < 300 ? "bg-orange-500" :
+            "bg-red-500 animate-pulse"
+          }`} />
+          <span>
+            {dataAge < 10 ? "Live" :
+             dataAge < 60 ? `Data is ${dataAge}s old` :
+             dataAge < 3600 ? `Data is ${Math.floor(dataAge / 60)}m ${dataAge % 60}s old` :
+             `Data is ${Math.floor(dataAge / 3600)}h old — truck likely off`}
+          </span>
+        </div>
+      )}
+
+      {/* Show explicit "no data" when disconnected */}
+      {!connected && !simMode && (
+        <div className="bg-red-900/20 border border-red-800/30 rounded-lg px-3 py-2 mb-3 text-xs text-red-400 flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+          <span>No data — truck is offline or powered off</span>
+        </div>
+      )}
+
+      {/* Stale data warning banner */}
+      {dataAge !== null && dataAge > 120 && !simMode && (
+        <div className="bg-amber-900/30 border border-amber-700/50 rounded-lg px-3 py-2 mb-3 text-xs text-amber-300 font-medium">
+          ⚠ Stale data — last reading was {dataAge < 3600 ? `${Math.floor(dataAge / 60)} minutes` : `${Math.floor(dataAge / 3600)} hours`} ago. Truck may be off.
+        </div>
+      )}
 
       {/* Live Map */}
       {vehicleMode === "truck" && (

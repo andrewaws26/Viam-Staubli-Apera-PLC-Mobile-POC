@@ -324,7 +324,7 @@ export async function GET(request: NextRequest) {
 
   // Sim mode — return fake data for UI development
   if (sim === "true") {
-    return NextResponse.json(getSimData());
+    return NextResponse.json({ ...getSimData(), _is_sim: true });
   }
 
   // Real mode — query Viam Data API for latest cell-monitor readings
@@ -332,7 +332,7 @@ export async function GET(request: NextRequest) {
   if (!truck?.tpsPartId) {
     // No Part ID configured — fall back to sim data so the dashboard still works
     console.warn("[cell-readings] No VIAM_PART_ID configured, falling back to sim data");
-    return NextResponse.json(getSimData());
+    return NextResponse.json({ ...getSimData(), _is_sim: true });
   }
 
   try {
@@ -342,6 +342,7 @@ export async function GET(request: NextRequest) {
       // No recent data in Viam Cloud — return sim data with an offline flag
       return NextResponse.json({
         ...getSimData(),
+        _is_sim: true,
         _offline: true,
         _reason: "no_recent_data",
       });
@@ -362,6 +363,7 @@ export async function GET(request: NextRequest) {
     // Return sim data on error so the dashboard doesn't break
     return NextResponse.json({
       ...getSimData(),
+      _is_sim: true,
       _offline: true,
       _reason: "viam_error",
       _error: err instanceof Error ? err.message : String(err),

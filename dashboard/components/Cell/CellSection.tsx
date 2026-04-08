@@ -14,9 +14,13 @@ const CELL_POLL_MS = 2000;
 
 interface Props {
   simMode?: boolean;
+  truckId?: string;
 }
 
-export default function CellSection({ simMode = false }: Props) {
+export default function CellSection({ simMode = false, truckId }: Props) {
+  // Only use sim mode for truck "00" — never for real trucks
+  const effectiveSimMode = truckId === "00" ? simMode : false;
+
   const [data, setData] = useState<CellState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
@@ -24,10 +28,17 @@ export default function CellSection({ simMode = false }: Props) {
 
   const poll = useCallback(async () => {
     try {
-      const url = `/api/cell-readings?sim=${simMode ? "true" : "false"}`;
+      const url = `/api/cell-readings?sim=${effectiveSimMode ? "true" : "false"}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       const json: CellState = await res.json();
+      // Don't show sim data as real for non-sim trucks
+      if ((json as any)._is_sim && truckId !== "00") {
+        setData(null);
+        setConnected(false);
+        setError("No cell data for this truck");
+        return;
+      }
       setData(json);
       setConnected(true);
       setError(null);
@@ -35,7 +46,7 @@ export default function CellSection({ simMode = false }: Props) {
       setError(err instanceof Error ? err.message : "Cell poll failed");
       setConnected(false);
     }
-  }, [simMode]);
+  }, [effectiveSimMode, truckId]);
 
   useEffect(() => {
     poll();
@@ -55,7 +66,7 @@ export default function CellSection({ simMode = false }: Props) {
         <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400">
           Robot Cell Monitoring
         </h2>
-        {simMode && (
+        {effectiveSimMode && (
           <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-900/30 text-purple-400 border border-purple-800/50">
             SIM
           </span>

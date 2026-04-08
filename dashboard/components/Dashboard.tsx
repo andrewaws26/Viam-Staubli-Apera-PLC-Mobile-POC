@@ -383,7 +383,7 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
 
           {/* Robot Cell Monitoring — Staubli + Apera + Watchdog */}
           <div id="cell-section">
-            <CellSection simMode={simMode} />
+            <CellSection simMode={simMode} truckId={truckId} />
           </div>
 
           {/* Dev Diagnostics — developer role only */}
