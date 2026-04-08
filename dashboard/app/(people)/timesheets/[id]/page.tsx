@@ -6,7 +6,7 @@ import dynamic from "next/dynamic";
 import { useUser } from "@clerk/nextjs";
 import type { Timesheet } from "@ironsight/shared";
 
-const TimesheetForm = dynamic(() => import("../../../components/TimesheetForm"), {
+const TimesheetForm = dynamic(() => import("../../../../components/TimesheetForm"), {
   ssr: false,
   loading: () => (
     <div className="flex items-center justify-center py-20">

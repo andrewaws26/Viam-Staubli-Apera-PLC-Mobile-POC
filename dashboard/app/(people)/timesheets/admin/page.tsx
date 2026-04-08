@@ -1,44 +1,26 @@
 "use client";
 
-/**
- * /pto/admin — PTO Management page (manager/developer only).
- *
- * Gates access by role. Dynamically imports PTOAdmin component.
- */
-
 import dynamic from "next/dynamic";
 import { useUser } from "@clerk/nextjs";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
-import AppNav from "@/components/AppNav";
 
-const PTOAdmin = dynamic(() => import("../../../components/PTOAdmin"), {
+const TimesheetAdmin = dynamic(() => import("../../../../components/TimesheetAdmin"), {
   ssr: false,
   loading: () => (
     <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center gap-3">
       <div className="w-10 h-10 rounded-full border-2 border-gray-600 border-t-gray-300 animate-spin" />
       <p className="text-gray-600 text-sm uppercase tracking-widest">
-        Loading PTO Management
+        Loading Admin View
       </p>
     </div>
   ),
 });
 
-export default function PTOAdminPage() {
+export default function TimesheetAdminPage() {
   const { user, isLoaded } = useUser();
-  const router = useRouter();
-
   const role =
     ((user?.publicMetadata as Record<string, unknown>)?.role as string) ||
     "operator";
-  const isAuthorized = role === "developer" || role === "manager";
-
-  // Redirect unauthorized users back to /pto
-  useEffect(() => {
-    if (isLoaded && !isAuthorized) {
-      router.replace("/pto");
-    }
-  }, [isLoaded, isAuthorized, router]);
+  const isManager = role === "developer" || role === "manager";
 
   if (!isLoaded) {
     return (
@@ -48,19 +30,27 @@ export default function PTOAdminPage() {
     );
   }
 
-  if (!isAuthorized) {
+  if (!isManager) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <p className="text-gray-500">Redirecting...</p>
+        <div className="text-center">
+          <h1 className="text-xl font-bold text-gray-300">Access Denied</h1>
+          <p className="text-gray-500 mt-2">Manager or developer role required.</p>
+          <a
+            href="/timesheets"
+            className="inline-block mt-4 text-sm text-purple-400 hover:text-purple-300 underline"
+          >
+            Back to My Timesheets
+          </a>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <AppNav pageTitle="PTO Admin" />
       <main className="px-4 sm:px-6 py-6">
-        <PTOAdmin />
+        <TimesheetAdmin />
       </main>
     </div>
   );

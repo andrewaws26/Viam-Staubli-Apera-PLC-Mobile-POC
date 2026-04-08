@@ -2,9 +2,8 @@
 
 import dynamic from "next/dynamic";
 import { useUser } from "@clerk/nextjs";
-import AppNav from "@/components/AppNav";
 
-const TimesheetForm = dynamic(() => import("../../../components/TimesheetForm"), {
+const TimesheetForm = dynamic(() => import("../../../../components/TimesheetForm"), {
   ssr: false,
   loading: () => (
     <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center gap-3">
@@ -33,7 +32,6 @@ export default function NewTimesheetPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <AppNav pageTitle="New Timesheet" />
       <main className="px-4 sm:px-6 py-6">
         <TimesheetForm
           currentUserId={user.id}

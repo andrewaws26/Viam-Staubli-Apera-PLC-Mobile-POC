@@ -9,11 +9,10 @@
 
 import dynamic from "next/dynamic";
 import { useUser } from "@clerk/nextjs";
-import AppNav from "@/components/AppNav";
 import { useState, useEffect } from "react";
 import type { PTOBalance } from "@ironsight/shared";
 
-const PTOList = dynamic(() => import("../../components/PTOList"), {
+const PTOList = dynamic(() => import("../../../components/PTOList"), {
   ssr: false,
   loading: () => (
     <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center gap-3">
@@ -51,7 +50,6 @@ export default function PTOPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <AppNav pageTitle="Time Off" />
       <main className="px-4 sm:px-6 py-6">
         {/* Balance overview cards */}
         {balance && (

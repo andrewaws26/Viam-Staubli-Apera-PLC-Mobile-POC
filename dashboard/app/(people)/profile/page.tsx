@@ -1,28 +1,28 @@
 "use client";
 
 /**
- * /pto/new — Request Time Off page.
+ * /profile — My Profile page.
  *
- * Dynamically imports PTORequestForm.
+ * Dynamically imports ProfileForm to keep bundle size down.
+ * Reads the current user's Clerk metadata for role gating.
  */
 
 import dynamic from "next/dynamic";
 import { useUser } from "@clerk/nextjs";
-import AppNav from "@/components/AppNav";
 
-const PTORequestForm = dynamic(() => import("../../../components/PTORequestForm"), {
+const ProfileForm = dynamic(() => import("../../../components/ProfileForm"), {
   ssr: false,
   loading: () => (
     <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center gap-3">
       <div className="w-10 h-10 rounded-full border-2 border-gray-600 border-t-gray-300 animate-spin" />
       <p className="text-gray-600 text-sm uppercase tracking-widest">
-        Loading Form
+        Loading Profile
       </p>
     </div>
   ),
 });
 
-export default function NewPTOPage() {
+export default function ProfilePage() {
   const { user, isLoaded } = useUser();
 
   if (!isLoaded || !user) {
@@ -33,11 +33,17 @@ export default function NewPTOPage() {
     );
   }
 
+  const role =
+    ((user.publicMetadata as Record<string, unknown>)?.role as string) ||
+    "operator";
+
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <AppNav pageTitle="New PTO Request" />
       <main className="px-4 sm:px-6 py-6">
-        <PTORequestForm currentUserId={user.id} />
+        <ProfileForm
+          currentUserId={user.id}
+          currentUserRole={role}
+        />
       </main>
     </div>
   );
