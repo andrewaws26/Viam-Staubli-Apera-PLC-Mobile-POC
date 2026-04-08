@@ -48,9 +48,16 @@ export async function GET(request: NextRequest) {
 
   try {
     const sb = getSupabase();
+    // Join ALL sub-section tables so the response includes the full timesheet
+    // with every section embedded (migration_007 added 10 new sub-section tables).
     let query = sb
       .from("timesheets")
-      .select("*, timesheet_daily_logs(*)")
+      .select(
+        "*, timesheet_daily_logs(*), timesheet_railroad_timecards(*), " +
+        "timesheet_inspections(*), timesheet_ifta_entries(*), timesheet_expenses(*), " +
+        "timesheet_maintenance_time(*), timesheet_shop_time(*), timesheet_mileage_pay(*), " +
+        "timesheet_flight_pay(*), timesheet_holiday_pay(*), timesheet_vacation_pay(*)"
+      )
       .order("week_ending", { ascending: false })
       .limit(100);
 
@@ -64,15 +71,40 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query;
     if (error) throw error;
 
-    const result = (data ?? []).map((ts: Record<string, unknown>) => {
+    // Cast rows to Record — Supabase can't infer joined sub-section table types
+    // from the expanded select string, so the SDK returns a generic error type.
+    const rows = (data ?? []) as unknown as Record<string, unknown>[];
+    const result = rows.map((ts) => {
       const logs = (ts.timesheet_daily_logs as Record<string, unknown>[]) ?? [];
       const totals = computeTotals(logs);
       return {
         ...ts,
+        // Rename daily_logs from Supabase join key to TS-friendly name
         daily_logs: logs.sort(
           (a, b) => (a.sort_order as number) - (b.sort_order as number),
         ),
         timesheet_daily_logs: undefined,
+        // Rename all sub-section join keys to match TypeScript interface names
+        railroad_timecards: ts.timesheet_railroad_timecards ?? [],
+        timesheet_railroad_timecards: undefined,
+        inspections: ts.timesheet_inspections ?? [],
+        timesheet_inspections: undefined,
+        ifta_entries: ts.timesheet_ifta_entries ?? [],
+        timesheet_ifta_entries: undefined,
+        expenses: ts.timesheet_expenses ?? [],
+        timesheet_expenses: undefined,
+        maintenance_time: ts.timesheet_maintenance_time ?? [],
+        timesheet_maintenance_time: undefined,
+        shop_time: ts.timesheet_shop_time ?? [],
+        timesheet_shop_time: undefined,
+        mileage_pay: ts.timesheet_mileage_pay ?? [],
+        timesheet_mileage_pay: undefined,
+        flight_pay: ts.timesheet_flight_pay ?? [],
+        timesheet_flight_pay: undefined,
+        holiday_pay: ts.timesheet_holiday_pay ?? [],
+        timesheet_holiday_pay: undefined,
+        vacation_pay: ts.timesheet_vacation_pay ?? [],
+        timesheet_vacation_pay: undefined,
         ...totals,
       };
     });
@@ -105,8 +137,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { week_ending, railroad_working_on, chase_vehicles, semi_trucks,
-    work_location, nights_out, layovers, coworkers, notes, daily_logs,
+  // Destructure all timesheet-level fields including new migration_007 columns:
+  // norfolk_southern_job_code, ifta_odometer_start, ifta_odometer_end
+  const {
+    week_ending, railroad_working_on, norfolk_southern_job_code,
+    chase_vehicles, semi_trucks, work_location, nights_out, layovers,
+    coworkers, ifta_odometer_start, ifta_odometer_end, notes, daily_logs,
   } = body as Record<string, unknown>;
 
   if (!week_ending) {
@@ -139,12 +175,17 @@ export async function POST(request: NextRequest) {
         user_email: userInfo.email,
         week_ending,
         railroad_working_on: railroad_working_on || null,
+        // New migration_007 field: NS job code for Norfolk Southern work
+        norfolk_southern_job_code: norfolk_southern_job_code || null,
         chase_vehicles: chase_vehicles || [],
         semi_trucks: semi_trucks || [],
         work_location: work_location || null,
         nights_out: nights_out ?? 0,
         layovers: layovers ?? 0,
         coworkers: coworkers || [],
+        // New migration_007 fields: IFTA odometer readings for the week
+        ifta_odometer_start: ifta_odometer_start ?? null,
+        ifta_odometer_end: ifta_odometer_end ?? null,
         notes: notes || null,
       })
       .select()
@@ -152,7 +193,8 @@ export async function POST(request: NextRequest) {
 
     if (error) throw error;
 
-    // Create daily logs if provided
+    // Create daily logs if provided — includes new migration_007 per-day fields:
+    // lunch_minutes, semi_truck_travel, traveling_from, destination, travel_miles
     if (Array.isArray(daily_logs) && daily_logs.length > 0) {
       const logRows = (daily_logs as Record<string, unknown>[]).map((log, i) => ({
         timesheet_id: data.id,
@@ -161,7 +203,12 @@ export async function POST(request: NextRequest) {
         end_time: log.end_time || null,
         hours_worked: log.hours_worked ?? 0,
         travel_hours: log.travel_hours ?? 0,
+        lunch_minutes: log.lunch_minutes ?? 0,
         description: log.description || null,
+        semi_truck_travel: log.semi_truck_travel ?? false,
+        traveling_from: log.traveling_from || null,
+        destination: log.destination || null,
+        travel_miles: log.travel_miles ?? null,
         sort_order: i,
       }));
       await sb.from("timesheet_daily_logs").insert(logRows);

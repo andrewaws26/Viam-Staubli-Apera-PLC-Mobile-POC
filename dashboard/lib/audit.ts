@@ -25,7 +25,16 @@ export type AuditAction =
   | "timesheet_updated"
   | "timesheet_submitted"
   | "timesheet_approved"
-  | "timesheet_rejected";
+  | "timesheet_rejected"
+  | "profile_updated"
+  | "profile_picture_uploaded"
+  | "pto_requested"
+  | "pto_approved"
+  | "pto_rejected"
+  | "pto_cancelled"
+  | "training_recorded"
+  | "training_deleted"
+  | "per_diem_rate_updated";
 
 interface AuditEntry {
   action: AuditAction;

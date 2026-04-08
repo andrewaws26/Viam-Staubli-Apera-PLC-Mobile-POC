@@ -37,9 +37,16 @@ export async function GET(
 
   try {
     const sb = getSupabase();
+    // Join ALL sub-section tables so the single-timesheet response includes
+    // every section (migration_007 added 10 new sub-section tables).
     const { data, error } = await sb
       .from("timesheets")
-      .select("*, timesheet_daily_logs(*)")
+      .select(
+        "*, timesheet_daily_logs(*), timesheet_railroad_timecards(*), " +
+        "timesheet_inspections(*), timesheet_ifta_entries(*), timesheet_expenses(*), " +
+        "timesheet_maintenance_time(*), timesheet_shop_time(*), timesheet_mileage_pay(*), " +
+        "timesheet_flight_pay(*), timesheet_holiday_pay(*), timesheet_vacation_pay(*)"
+      )
       .eq("id", id)
       .single();
 
@@ -47,12 +54,16 @@ export async function GET(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
+    // Cast to Record — Supabase can't infer joined sub-section table types
+    // from the expanded select string, so the SDK returns a generic error type.
+    const ts = data as unknown as Record<string, unknown>;
+
     // Only the owner or managers can view
-    if (data.user_id !== userId && !isManager) {
+    if (ts.user_id !== userId && !isManager) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const logs = (data.timesheet_daily_logs as Record<string, unknown>[]) ?? [];
+    const logs = (ts.timesheet_daily_logs as Record<string, unknown>[]) ?? [];
     let totalHours = 0;
     let totalTravel = 0;
     for (const log of logs) {
@@ -61,11 +72,33 @@ export async function GET(
     }
 
     return NextResponse.json({
-      ...data,
+      ...ts,
+      // Rename daily_logs from Supabase join key to TS-friendly name
       daily_logs: logs.sort(
         (a, b) => (a.sort_order as number) - (b.sort_order as number),
       ),
       timesheet_daily_logs: undefined,
+      // Rename all sub-section join keys to match TypeScript interface names
+      railroad_timecards: ts.timesheet_railroad_timecards ?? [],
+      timesheet_railroad_timecards: undefined,
+      inspections: ts.timesheet_inspections ?? [],
+      timesheet_inspections: undefined,
+      ifta_entries: ts.timesheet_ifta_entries ?? [],
+      timesheet_ifta_entries: undefined,
+      expenses: ts.timesheet_expenses ?? [],
+      timesheet_expenses: undefined,
+      maintenance_time: ts.timesheet_maintenance_time ?? [],
+      timesheet_maintenance_time: undefined,
+      shop_time: ts.timesheet_shop_time ?? [],
+      timesheet_shop_time: undefined,
+      mileage_pay: ts.timesheet_mileage_pay ?? [],
+      timesheet_mileage_pay: undefined,
+      flight_pay: ts.timesheet_flight_pay ?? [],
+      timesheet_flight_pay: undefined,
+      holiday_pay: ts.timesheet_holiday_pay ?? [],
+      timesheet_holiday_pay: undefined,
+      vacation_pay: ts.timesheet_vacation_pay ?? [],
+      timesheet_vacation_pay: undefined,
       total_hours: totalHours,
       total_travel_hours: totalTravel,
     });
@@ -175,11 +208,15 @@ export async function PATCH(
       }
     }
 
-    // Only allow field edits on draft timesheets (or by managers)
+    // Only allow field edits on draft timesheets (or by managers).
+    // Includes new migration_007 fields: norfolk_southern_job_code,
+    // ifta_odometer_start, ifta_odometer_end.
     if (existing.status === "draft" || isManager) {
       const editableFields = [
-        "week_ending", "railroad_working_on", "chase_vehicles", "semi_trucks",
-        "work_location", "nights_out", "layovers", "coworkers", "notes",
+        "week_ending", "railroad_working_on", "norfolk_southern_job_code",
+        "chase_vehicles", "semi_trucks", "work_location", "nights_out",
+        "layovers", "coworkers", "ifta_odometer_start", "ifta_odometer_end",
+        "notes",
       ];
       for (const field of editableFields) {
         if (field in body) update[field] = body[field];
@@ -200,7 +237,8 @@ export async function PATCH(
       // Delete existing logs
       await sb.from("timesheet_daily_logs").delete().eq("timesheet_id", id);
 
-      // Insert new logs
+      // Insert new logs — includes new migration_007 per-day fields:
+      // lunch_minutes, semi_truck_travel, traveling_from, destination, travel_miles
       const logRows = (body.daily_logs as Record<string, unknown>[]).map((log, i) => ({
         timesheet_id: id,
         log_date: log.log_date,
@@ -208,7 +246,12 @@ export async function PATCH(
         end_time: log.end_time || null,
         hours_worked: log.hours_worked ?? 0,
         travel_hours: log.travel_hours ?? 0,
+        lunch_minutes: log.lunch_minutes ?? 0,
         description: log.description || null,
+        semi_truck_travel: log.semi_truck_travel ?? false,
+        traveling_from: log.traveling_from || null,
+        destination: log.destination || null,
+        travel_miles: log.travel_miles ?? null,
         sort_order: i,
       }));
 

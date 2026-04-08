@@ -48,6 +48,24 @@ export const ROUTE_PERMISSIONS: Record<string, UserRole[]> = {
   "/api/timesheets/admin": ["developer", "manager"],
   "/api/timesheets/vehicles": ["developer", "manager", "mechanic", "operator"],
 
+  // Profiles (all roles can view/edit own; manager+ can view all)
+  "/api/profiles": ["developer", "manager", "mechanic", "operator"],
+  "/api/profiles/upload": ["developer", "manager", "mechanic", "operator"],
+
+  // PTO (all roles can submit own; manager+ can approve/view all)
+  "/api/pto": ["developer", "manager", "mechanic", "operator"],
+  "/api/pto/admin": ["developer", "manager"],
+  "/api/pto/balance": ["developer", "manager", "mechanic", "operator"],
+
+  // Per Diem (all roles can view own; manager+ can manage rates)
+  "/api/per-diem": ["developer", "manager", "mechanic", "operator"],
+  "/api/per-diem/rates": ["developer", "manager"],
+
+  // Training (all roles can view own status; manager+ can manage records)
+  "/api/training": ["developer", "manager", "mechanic", "operator"],
+  "/api/training/requirements": ["developer", "manager", "mechanic", "operator"],
+  "/api/training/admin": ["developer", "manager"],
+
   // Admin
   "/api/audit-log": ["developer", "manager"],
 
@@ -56,7 +74,13 @@ export const ROUTE_PERMISSIONS: Record<string, UserRole[]> = {
   "/work": ["developer", "manager", "mechanic", "operator"],
   "/timesheets": ["developer", "manager", "mechanic", "operator"],
   "/timesheets/admin": ["developer", "manager"],
+  "/profile": ["developer", "manager", "mechanic", "operator"],
+  "/pto": ["developer", "manager", "mechanic", "operator"],
+  "/pto/admin": ["developer", "manager"],
+  "/training": ["developer", "manager", "mechanic", "operator"],
+  "/training/admin": ["developer", "manager"],
   "/dev": ["developer"],
+  "/vision": ["developer"],
   "/admin": ["developer", "manager"],
 };
 

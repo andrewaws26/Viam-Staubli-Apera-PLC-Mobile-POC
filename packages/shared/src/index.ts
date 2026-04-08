@@ -9,5 +9,9 @@ export * from './spn-lookup';
 export * from './pcode-lookup';
 export * from './chat';
 export * from './timesheet';
+export * from './profile';
+export * from './pto';
+export * from './training';
+export * from './per-diem';
 // format.ts requires date-fns — import directly when needed:
 // import { timeAgo, formatTemp } from '@ironsight/shared/format';

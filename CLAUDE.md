@@ -376,32 +376,107 @@ Contextual team chat anchored to domain entities. Every conversation is tied to 
 
 ## Timesheet System
 
-Weekly field operations time tracking with approval workflow. Employees submit timesheets, managers approve/reject.
+Weekly field operations time tracking with approval workflow and 12 specialized sub-sections. Employees submit timesheets, managers approve/reject.
 
-**Database tables:** `timesheets`, `timesheet_daily_logs`, `company_vehicles` — see `dashboard/supabase/migration_005_timesheets.sql`
+**Database tables:** `timesheets`, `timesheet_daily_logs`, `company_vehicles`, plus sub-section tables (`timesheet_railroad_time`, `timesheet_railroad_timecards`, `timesheet_inspections`, `timesheet_ifta`, `timesheet_expenses`, `timesheet_maintenance_time`, `timesheet_shop_time`, `timesheet_mileage_pay`, `timesheet_flight_pay`, `timesheet_holiday_pay`, `timesheet_vacation_pay`) — see `dashboard/supabase/migration_005_timesheets.sql` and `dashboard/supabase/migration_007_timesheet_sections_platform.sql`
 
-**Shared types:** `packages/shared/src/timesheet.ts` — Timesheet, TimesheetDailyLog, payloads, status labels, railroad options
+**Shared types:** `packages/shared/src/timesheet.ts` — Timesheet, TimesheetDailyLog, all 12 sub-section types, payloads, status labels, railroad options
 
 **API routes (`dashboard/app/api/timesheets/`):**
 - `timesheets/` — List (own) / create timesheets
 - `timesheets/[id]/` — Get / update / delete individual timesheet
+- `timesheets/[id]/sections?section=<name>` — Sub-section CRUD (GET/POST/PATCH/DELETE for any of the 12 section types)
 - `timesheets/admin/` — Manager overview with aggregated stats (developer/manager only)
 - `timesheets/vehicles/` — Company vehicle reference data for dropdowns
 
 **Dashboard pages:**
 - `/timesheets` — My Timesheets list (all roles)
 - `/timesheets/new` — Create new timesheet
-- `/timesheets/[id]` — View/edit timesheet (owner edits drafts, managers approve/reject)
+- `/timesheets/[id]` — View/edit timesheet with all 12 sections (owner edits drafts, managers approve/reject)
 - `/timesheets/admin` — Manager overview with pending approvals, employee summaries, bulk approve/reject
+
+**12 sub-sections:**
+1. Railroad Time — hours worked on railroad jobs, Norfolk Southern job code field
+2. Railroad Timecards — formal timecard entries per railroad
+3. Inspections — field inspection records
+4. IFTA — fuel tax tracking with odometer start/end readings
+5. Expenses — categorized expense line items
+6. Maintenance Time — equipment maintenance hours
+7. Shop Time — in-shop work hours
+8. Mileage Pay — mileage-based compensation
+9. Flight Pay — travel flight compensation
+10. Holiday Pay — holiday hours
+11. Vacation Pay — vacation hours used
+12. Daily Logs — start/end time, hours, travel, description per day, lunch_minutes, semi truck travel fields
 
 **Workflow:** draft → submitted → approved/rejected. Rejected timesheets can be edited and resubmitted. Managers can also withdraw submissions.
 
-**Fields per timesheet:** week ending date, railroad working on, chase vehicles, semi trucks, work location, nights out, layovers, co-workers, daily logs (start/end time, hours, travel, description per day), notes.
+**Fields per timesheet:** week ending date, railroad working on, chase vehicles, semi trucks, work location, nights out, layovers, co-workers, notes.
 
 **Roles:**
 - All roles: create/view/submit own timesheets
 - Manager/developer: view all timesheets, approve/reject, admin overview
 - Audit logged: all create/submit/approve/reject actions
+
+## Employee Profiles & Training
+
+Employee profiles extend Clerk auth with company-specific HR fields. Training compliance tracks certifications and expiry dates.
+
+**Database tables:** `employee_profiles`, `training_requirements`, `training_records` — see `dashboard/supabase/migration_006_profiles_pto_training.sql`
+
+**Shared types:** `packages/shared/src/profile.ts`, `packages/shared/src/training.ts`
+
+**API routes:**
+- `profiles/` — GET own (auto-create), PATCH update, upload picture
+- `profiles/[userId]/` — GET any user's profile
+- `profiles/upload/` — POST base64 image to Supabase Storage
+- `training/` — GET own records with compliance status
+- `training/requirements/` — GET all active requirements
+- `training/admin/` — GET compliance matrix, POST/DELETE records (manager+)
+
+**Dashboard pages:** `/profile`, `/training`, `/training/admin`
+
+**Training compliance logic:** current (not expired), expiring_soon (within 30 days), expired, missing. User is "compliant" when all required+active trainings are current.
+
+## PTO (Paid Time Off)
+
+Time-off request workflow with balance tracking.
+
+**Database tables:** `pto_balances`, `pto_requests` — see `dashboard/supabase/migration_006_profiles_pto_training.sql`
+
+**Shared types:** `packages/shared/src/pto.ts`
+
+**API routes:**
+- `pto/` — GET own requests, POST create (pending)
+- `pto/[id]/` — GET, PATCH status transitions, DELETE
+- `pto/admin/` — GET all requests + stats (manager+)
+- `pto/balance/` — GET own balance (auto-create), PATCH adjust (manager+)
+
+**Workflow:** pending → approved/rejected/cancelled. Approved requests deduct from balance. Default balances: 80h vacation, 40h sick, 24h personal.
+
+## Per Diem
+
+Auto-calculated from timesheet nights_out and layovers when timesheets are approved.
+
+**Database tables:** `per_diem_rates`, `per_diem_entries` — see `dashboard/supabase/migration_006_profiles_pto_training.sql`
+
+**API routes:** `per-diem/`, `per-diem/rates/`
+
+## Platform Foundation
+
+Cross-domain tables for the IronSight Company OS:
+- `documents` — polymorphic file attachments (entity_type + entity_id)
+- `activity_feed` — unified timeline across all modules
+- `entity_tags` — cross-domain categorization
+- `expense_categories` — reference data for expense tracking
+
+See `dashboard/supabase/migration_007_timesheet_sections_platform.sql`
+
+## Data Architecture
+
+Full data architecture documentation: `docs/data-architecture.md`
+
+Covers all 37+ tables, data flows, security model, cost strategy, scalability plan, and future module roadmap.
 
 ## OBD-II Passenger Vehicle Support (FUTURE — SEPARATE DEVICE)
 
