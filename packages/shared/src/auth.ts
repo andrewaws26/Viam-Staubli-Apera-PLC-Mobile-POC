@@ -66,6 +66,10 @@ export const ROUTE_PERMISSIONS: Record<string, UserRole[]> = {
   "/api/training/requirements": ["developer", "manager", "mechanic", "operator"],
   "/api/training/admin": ["developer", "manager"],
 
+  // Reports (manager+)
+  "/api/reports": ["developer", "manager"],
+  "/api/reports/generate": ["developer", "manager"],
+
   // Admin
   "/api/audit-log": ["developer", "manager"],
 
