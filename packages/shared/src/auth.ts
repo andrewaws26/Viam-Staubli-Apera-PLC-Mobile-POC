@@ -43,12 +43,19 @@ export const ROUTE_PERMISSIONS: Record<string, UserRole[]> = {
   // Team
   "/api/team-members": ["developer", "manager", "mechanic"],
 
+  // Timesheets (all roles can submit their own; manager+ can review)
+  "/api/timesheets": ["developer", "manager", "mechanic", "operator"],
+  "/api/timesheets/admin": ["developer", "manager"],
+  "/api/timesheets/vehicles": ["developer", "manager", "mechanic", "operator"],
+
   // Admin
   "/api/audit-log": ["developer", "manager"],
 
   // Web pages
   "/fleet": ["developer", "manager", "mechanic"],
   "/work": ["developer", "manager", "mechanic", "operator"],
+  "/timesheets": ["developer", "manager", "mechanic", "operator"],
+  "/timesheets/admin": ["developer", "manager"],
   "/dev": ["developer"],
   "/admin": ["developer", "manager"],
 };

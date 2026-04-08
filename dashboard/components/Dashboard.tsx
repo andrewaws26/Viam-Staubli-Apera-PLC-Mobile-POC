@@ -154,6 +154,15 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
               </svg>
               <span className="hidden sm:inline">Chat</span>
             </a>
+            <a
+              href="/timesheets"
+              className="min-h-[44px] px-3 sm:px-4 py-2 rounded-lg border border-indigo-600 hover:border-indigo-400 text-indigo-300 hover:text-white text-xs sm:text-sm font-bold uppercase tracking-wider transition-colors flex items-center gap-1.5"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.828a1 1 0 101.415-1.414L11 9.586V6z" clipRule="evenodd" />
+              </svg>
+              <span className="hidden sm:inline">Time</span>
+            </a>
             {userRole !== "operator" && (
               <a
                 href="/fleet"

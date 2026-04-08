@@ -374,6 +374,35 @@ Contextual team chat anchored to domain entities. Every conversation is tied to 
 
 **v2 candidates:** Supabase Realtime (replace polling), voice messages, photo annotation, daily digest, @role mentions, unified search.
 
+## Timesheet System
+
+Weekly field operations time tracking with approval workflow. Employees submit timesheets, managers approve/reject.
+
+**Database tables:** `timesheets`, `timesheet_daily_logs`, `company_vehicles` — see `dashboard/supabase/migration_005_timesheets.sql`
+
+**Shared types:** `packages/shared/src/timesheet.ts` — Timesheet, TimesheetDailyLog, payloads, status labels, railroad options
+
+**API routes (`dashboard/app/api/timesheets/`):**
+- `timesheets/` — List (own) / create timesheets
+- `timesheets/[id]/` — Get / update / delete individual timesheet
+- `timesheets/admin/` — Manager overview with aggregated stats (developer/manager only)
+- `timesheets/vehicles/` — Company vehicle reference data for dropdowns
+
+**Dashboard pages:**
+- `/timesheets` — My Timesheets list (all roles)
+- `/timesheets/new` — Create new timesheet
+- `/timesheets/[id]` — View/edit timesheet (owner edits drafts, managers approve/reject)
+- `/timesheets/admin` — Manager overview with pending approvals, employee summaries, bulk approve/reject
+
+**Workflow:** draft → submitted → approved/rejected. Rejected timesheets can be edited and resubmitted. Managers can also withdraw submissions.
+
+**Fields per timesheet:** week ending date, railroad working on, chase vehicles, semi trucks, work location, nights out, layovers, co-workers, daily logs (start/end time, hours, travel, description per day), notes.
+
+**Roles:**
+- All roles: create/view/submit own timesheets
+- Manager/developer: view all timesheets, approve/reject, admin overview
+- Audit logged: all create/submit/approve/reject actions
+
 ## OBD-II Passenger Vehicle Support (FUTURE — SEPARATE DEVICE)
 
 **The Pi 5 CAN bus is J1939-only.** OBD-II support will live on a separate physical device and potentially a separate repo. Do NOT configure the Pi 5 CAN interface for OBD-II — it must stay in listen-only mode at 250kbps for J1939 truck safety.
