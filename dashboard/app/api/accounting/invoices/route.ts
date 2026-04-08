@@ -32,11 +32,23 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const params = request.nextUrl.searchParams;
+  const id = params.get("id");
   const status = params.get("status");
   const customerId = params.get("customer_id");
 
   try {
     const sb = getSupabase();
+
+    // Single invoice with full details (for PDF, detail view)
+    if (id) {
+      const { data, error } = await sb.from("invoices")
+        .select("*, customers(company_name, contact_name, email, phone, billing_address), invoice_line_items(*)")
+        .eq("id", id)
+        .single();
+      if (error) throw error;
+      return NextResponse.json(data);
+    }
+
     let query = sb.from("invoices")
       .select("*, customers(company_name), invoice_line_items(count)")
       .order("invoice_date", { ascending: false });

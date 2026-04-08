@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import AppNav from "@/components/AppNav";
+import { generateInvoicePDF } from "@/lib/invoice-pdf";
 
 interface Customer { id: string; company_name: string; payment_terms: string }
 interface InvoiceRow {
@@ -324,6 +325,10 @@ export default function InvoicesPage() {
                           {inv.status !== "voided" && inv.status !== "paid" && (
                             <button onClick={() => handleAction(inv.id, "void")}
                               className="text-xs text-red-400 hover:text-red-300 font-bold uppercase">Void</button>
+                          )}
+                          {inv.status !== "draft" && (
+                            <button onClick={() => generateInvoicePDF(inv.id)}
+                              className="text-xs text-purple-400 hover:text-purple-300 font-bold uppercase">PDF</button>
                           )}
                         </div>
                       </td>
