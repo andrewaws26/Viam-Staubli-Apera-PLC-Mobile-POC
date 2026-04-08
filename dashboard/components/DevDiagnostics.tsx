@@ -8,8 +8,31 @@
  * Only visible to users with the "developer" role.
  */
 
+import { useState, useEffect } from "react";
 import { validateReadings, type RangeFlag } from "../lib/sensor-ranges";
 import type { ComponentState, SensorReadings } from "../lib/types";
+
+interface HealCheck {
+  check: string;
+  status: "ok" | "fixed" | "failed" | "skipped" | "attempted";
+  detail: string;
+}
+
+interface HealStatus {
+  timestamp: string;
+  checks: HealCheck[];
+  healthy: boolean;
+}
+
+interface Heartbeat {
+  ts: string;
+  epoch: number;
+  alive: boolean;
+  ok: boolean;
+  checks_run: number;
+  fixed: number;
+  failed: number;
+}
 
 interface Props {
   components: ComponentState[];
@@ -19,6 +42,68 @@ interface Props {
 }
 
 export default function DevDiagnostics({ components, truckReadings, connectionStatus, connectionError }: Props) {
+  const [healStatus, setHealStatus] = useState<HealStatus | null>(null);
+  const [heartbeat, setHeartbeat] = useState<Heartbeat | null>(null);
+  const [fixRunning, setFixRunning] = useState<string | null>(null);
+  const [fixResult, setFixResult] = useState<{ check: string; status: string; detail: string } | null>(null);
+
+  // Poll heal status from Pi via do_command
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const res = await fetch("/api/heal-command", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: true }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.heal_status) {
+            setHealStatus(data.heal_status as HealStatus);
+            // Extract heartbeat from the status if available
+            if (data.heal_status.timestamp) {
+              setHeartbeat({
+                ts: data.heal_status.timestamp,
+                epoch: Date.now() / 1000,
+                alive: true,
+                ok: data.heal_status.healthy ?? true,
+                checks_run: data.heal_status.checks?.length ?? 0,
+                fixed: data.heal_status.checks?.filter((c: HealCheck) => c.status === "fixed").length ?? 0,
+                failed: data.heal_status.checks?.filter((c: HealCheck) => c.status === "failed").length ?? 0,
+              });
+            }
+          }
+        }
+      } catch { /* Pi unreachable — that's fine */ }
+    };
+    poll();
+    const id = setInterval(poll, 15000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Trigger a targeted fix on the Pi
+  const triggerFix = async (checkName: string) => {
+    setFixRunning(checkName);
+    setFixResult(null);
+    try {
+      const res = await fetch("/api/heal-command", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ check: checkName }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setFixResult({ check: data.check || checkName, status: data.status, detail: data.detail || "" });
+      } else {
+        setFixResult({ check: checkName, status: "error", detail: `API returned ${res.status}` });
+      }
+    } catch (err) {
+      setFixResult({ check: checkName, status: "error", detail: err instanceof Error ? err.message : "Failed" });
+    } finally {
+      setFixRunning(null);
+    }
+  };
+
   // Validate PLC readings
   const plcComp = components.find((c) => c.id === "plc");
   const plcFlags = plcComp?.readings ? validateReadings(plcComp.readings as unknown as Record<string, unknown>) : [];
@@ -41,8 +126,17 @@ export default function DevDiagnostics({ components, truckReadings, connectionSt
 
   return (
     <div className="border border-amber-900/50 rounded-2xl bg-amber-950/10 overflow-hidden">
-      <div className="px-4 sm:px-5 py-3 border-b border-amber-900/30 flex items-center gap-2">
+      <div className="px-4 sm:px-5 py-3 border-b border-amber-900/30 flex items-center gap-2 flex-wrap">
         <span className="text-[10px] font-bold uppercase tracking-widest text-amber-500">Dev Diagnostics</span>
+        {heartbeat && (
+          <span className={`text-[10px] font-mono ${
+            (Date.now() / 1000 - heartbeat.epoch) < 180 ? "text-green-500" : "text-red-400"
+          }`}>
+            Pi {(Date.now() / 1000 - heartbeat.epoch) < 180 ? "alive" : "stale"} ({
+              Math.round((Date.now() / 1000 - heartbeat.epoch) / 60)
+            }m ago)
+          </span>
+        )}
         {errorFlags.length > 0 && (
           <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-900/30 text-red-400">{errorFlags.length} ERROR</span>
         )}
@@ -52,7 +146,18 @@ export default function DevDiagnostics({ components, truckReadings, connectionSt
         {allFlags.length === 0 && (
           <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-green-900/30 text-green-400">ALL OK</span>
         )}
-        <a href="/dev" className="ml-auto text-[10px] text-amber-600 hover:text-amber-400 transition-colors">
+        <button
+          onClick={() => triggerFix("all")}
+          disabled={!!fixRunning}
+          className={`ml-auto px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider transition-colors ${
+            fixRunning
+              ? "bg-amber-900/30 text-amber-600 cursor-wait"
+              : "bg-amber-900/50 text-amber-400 hover:bg-amber-800/50"
+          }`}
+        >
+          {fixRunning === "all" ? "Running..." : "Run All Checks"}
+        </button>
+        <a href="/dev" className="text-[10px] text-amber-600 hover:text-amber-400 transition-colors">
           Full Dev Panel &rarr;
         </a>
       </div>
@@ -152,6 +257,56 @@ export default function DevDiagnostics({ components, truckReadings, connectionSt
             )}
           </Section>
         )}
+
+        {/* ── Fix Result (if just triggered) ── */}
+        {fixResult && (
+          <div className={`p-2 rounded-lg border text-[10px] ${
+            fixResult.status === "ok" || fixResult.status === "fixed"
+              ? "border-green-800/50 bg-green-950/20 text-green-400"
+              : "border-red-800/50 bg-red-950/20 text-red-400"
+          }`}>
+            <span className="font-bold">{fixResult.check}:</span> {fixResult.status.toUpperCase()} — {fixResult.detail}
+          </div>
+        )}
+
+        {/* ── Self-Heal Status ── */}
+        <Section title={`Self-Heal${healStatus ? ` (${healStatus.timestamp?.split("T")[1]?.slice(0,5) ?? "?"})` : ""}`}>
+          {healStatus ? (
+            <>
+              {healStatus.checks.map((c, i) => (
+                <div key={i} className="flex items-center justify-between gap-2 text-[10px]">
+                  <span className="text-gray-500">{c.check}</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`font-mono ${
+                      c.status === "ok" ? "text-green-400" :
+                      c.status === "fixed" ? "text-cyan-400" :
+                      c.status === "failed" ? "text-red-400" :
+                      "text-gray-500"
+                    }`}>
+                      {c.status === "ok" ? "OK" : c.status === "fixed" ? "FIXED" : c.status.toUpperCase()}
+                    </span>
+                    {c.status === "failed" && (
+                      <button
+                        onClick={() => triggerFix(c.check)}
+                        disabled={!!fixRunning}
+                        className="px-1.5 py-0.5 rounded bg-amber-900/50 text-amber-400 hover:bg-amber-800/50 text-[9px] font-bold uppercase disabled:opacity-50 disabled:cursor-wait"
+                      >
+                        {fixRunning === c.check ? "..." : "Fix"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {healStatus.checks.filter(c => c.status !== "ok").map((c, i) => (
+                <div key={`d-${i}`} className="text-[10px] text-gray-600 pl-2 border-l border-gray-800">
+                  {c.check}: {c.detail}
+                </div>
+              ))}
+            </>
+          ) : (
+            <p className="text-[10px] text-gray-600">No heal data yet — waiting for first check cycle</p>
+          )}
+        </Section>
 
         {/* ── Truck DTCs ── */}
         {truckReadings && typeof truckReadings.active_dtc_count === "number" && (truckReadings.active_dtc_count as number) > 0 && (
