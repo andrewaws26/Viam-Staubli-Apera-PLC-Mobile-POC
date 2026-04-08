@@ -565,9 +565,17 @@ class PlcSensor(Sensor):
         """Execute remote commands on the PLC via Modbus writes.
 
         Delegates to plc_commands.dispatch_command() for all command handling.
+        Special 'heal' action runs the self-healing system without requiring
+        PLC connection (used for field diagnostics from the dashboard).
         """
+        action = command.get("action", "")
+
+        # Self-healing commands work even when PLC is disconnected
+        if action == "heal":
+            return self._run_heal_command(command)
+
         if not self.client or not self._ensure_connected():
-            return {"action": command.get("action", ""), "status": "error",
+            return {"action": action, "status": "error",
                     "message": "PLC not connected"}
 
         def _reset_plate_count():
@@ -583,6 +591,79 @@ class PlcSensor(Sensor):
         except Exception:
             LOGGER.debug("Failed to collect system health for do_command result")
         return result
+
+    def _run_heal_command(self, command: dict[str, Any]) -> dict[str, Any]:
+        """Run a targeted self-heal fix or full diagnostic sweep.
+
+        Triggered from the dashboard dev panel. Runs self-heal.py with --check
+        for targeted fixes or without flags for a full sweep.
+
+        Commands:
+            {"action": "heal", "check": "can-bus"}     — fix one specific issue
+            {"action": "heal", "check": "all"}          — run full sweep (Tier 1 only)
+            {"action": "heal", "list": true}             — list available checks
+            {"action": "heal", "status": true}           — get last heal status
+        """
+        import subprocess as _sp
+        import json as _json
+
+        heal_script = str(Path(__file__).resolve().parent.parent.parent.parent
+                          / "scripts" / "self-heal.py")
+
+        # List available checks
+        if command.get("list"):
+            try:
+                r = _sp.run(["python3", heal_script, "--list-checks"],
+                            capture_output=True, text=True, timeout=10)
+                checks = [c.strip() for c in r.stdout.strip().splitlines() if c.strip()]
+                return {"action": "heal", "status": "ok", "checks": checks}
+            except Exception as e:
+                return {"action": "heal", "status": "error", "message": str(e)}
+
+        # Return last heal status
+        if command.get("status"):
+            try:
+                status_file = Path("/tmp/ironsight-heal-status.json")
+                if status_file.exists():
+                    return {"action": "heal", "status": "ok",
+                            "heal_status": _json.loads(status_file.read_text())}
+                return {"action": "heal", "status": "ok", "heal_status": None}
+            except Exception as e:
+                return {"action": "heal", "status": "error", "message": str(e)}
+
+        # Run targeted or full check
+        check_name = command.get("check", "all")
+        LOGGER.info("Heal command received: check=%s", check_name)
+
+        try:
+            if check_name == "all":
+                cmd = ["python3", heal_script, "--force", "--no-escalate"]
+            else:
+                cmd = ["python3", heal_script, "--check", check_name]
+
+            r = _sp.run(cmd, capture_output=True, text=True, timeout=120)
+
+            # For targeted checks, stdout is JSON
+            if check_name != "all":
+                try:
+                    result = _json.loads(r.stdout.strip().splitlines()[-1])
+                    return {"action": "heal", **result}
+                except (_json.JSONDecodeError, IndexError):
+                    pass
+
+            # For full sweep, read the status file
+            status_file = Path("/tmp/ironsight-heal-status.json")
+            if status_file.exists():
+                return {"action": "heal", "status": "ok",
+                        "heal_status": _json.loads(status_file.read_text())}
+
+            return {"action": "heal", "status": "ok" if r.returncode == 0 else "error",
+                    "output": r.stdout[-500:] if r.stdout else "",
+                    "error": r.stderr[-500:] if r.stderr else ""}
+        except _sp.TimeoutExpired:
+            return {"action": "heal", "status": "error", "message": "Heal timed out (120s)"}
+        except Exception as e:
+            return {"action": "heal", "status": "error", "message": str(e)}
 
     async def close(self):
         LOGGER.info("%s is closing.", self.name)

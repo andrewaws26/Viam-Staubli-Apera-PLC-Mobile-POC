@@ -454,12 +454,69 @@ If you can't fix it, just write a diagnosis to the result file."""
 # Main
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Check registry — maps check names to functions
+# ---------------------------------------------------------------------------
+
+CHECK_REGISTRY: dict[str, callable] = {
+    "viam-server": check_viam_server,
+    "can-bus": check_can_bus,
+    "plc-connection": check_plc_connection,
+    "modules": check_modules,
+    "disk": check_disk,
+    "data-flow": check_data_flow,
+}
+
+
+def run_single_check(check_name: str, force: bool = True) -> dict:
+    """Run a single named check/fix. Returns the result dict.
+
+    Used for targeted fixes triggered from the dashboard.
+    Always skips cooldowns (force=True) since the user explicitly requested it.
+    """
+    check_fn = CHECK_REGISTRY.get(check_name)
+    if not check_fn:
+        return {"check": check_name, "status": "failed",
+                "detail": f"Unknown check '{check_name}'. Available: {', '.join(CHECK_REGISTRY.keys())}"}
+
+    log.info("Targeted fix: running '%s' check only", check_name)
+    field_log("heal", "targeted_fix", check=check_name, trigger="manual")
+
+    result = check_fn(force)
+
+    log.info("Targeted fix result: %s — %s", result["status"], result["detail"])
+    field_log("heal", "targeted_fix_result", check=check_name,
+              status=result["status"], detail=result.get("detail", ""))
+
+    # Write result with targeted flag so dashboard knows this was manual
+    write_status([{**result, "_targeted": True}])
+    return result
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="IronSight Self-Healing")
     parser.add_argument("--force", action="store_true", help="Skip cooldowns")
+    parser.add_argument("--check", metavar="NAME",
+                        help=f"Run only this check: {', '.join(CHECK_REGISTRY.keys())}")
+    parser.add_argument("--list-checks", action="store_true", help="List available checks")
+    parser.add_argument("--no-escalate", action="store_true",
+                        help="Skip Claude escalation (Tier 1 only)")
     args = parser.parse_args()
 
+    if args.list_checks:
+        for name in CHECK_REGISTRY:
+            print(name)
+        sys.exit(0)
+
+    # Targeted single check mode
+    if args.check:
+        result = run_single_check(args.check, force=True)
+        # Output JSON for programmatic consumption (do_command reads this)
+        print(json.dumps(result))
+        sys.exit(0 if result["status"] in ("ok", "fixed") else 1)
+
+    # Full autonomous cycle
     log.info("=" * 50)
     log.info("Self-healing check starting")
     log.info("=" * 50)
@@ -488,7 +545,7 @@ def main():
               ok=len(ok), fixed=len(fixed), failed=len(failed))
 
     # Tier 2: Escalate persistent failures to Claude
-    if failed:
+    if failed and not args.no_escalate:
         claude_result = escalate_to_claude(failed, args.force)
         if claude_result:
             results.append(claude_result)

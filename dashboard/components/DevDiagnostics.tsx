@@ -32,26 +32,54 @@ interface Props {
 }
 
 export default function DevDiagnostics({ components, truckReadings, connectionStatus, connectionError }: Props) {
-  // Poll heal status from Pi (via the pi-health data which includes system fields)
   const [healStatus, setHealStatus] = useState<HealStatus | null>(null);
+  const [fixRunning, setFixRunning] = useState<string | null>(null);
+  const [fixResult, setFixResult] = useState<{ check: string; status: string; detail: string } | null>(null);
+
+  // Poll heal status from Pi via do_command
   useEffect(() => {
     const poll = async () => {
       try {
-        const res = await fetch("/api/pi-health?host=tps");
+        const res = await fetch("/api/heal-command", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: true }),
+        });
         if (res.ok) {
           const data = await res.json();
-          // The heal status is available at /tmp/ironsight-heal-status.json on the Pi
-          // It gets included in the sensor readings if the plc-sensor module reads it
-          if (data._heal_status) {
-            setHealStatus(data._heal_status as HealStatus);
+          if (data.heal_status) {
+            setHealStatus(data.heal_status as HealStatus);
           }
         }
-      } catch { /* ignore */ }
+      } catch { /* Pi unreachable — that's fine */ }
     };
     poll();
-    const id = setInterval(poll, 10000);
+    const id = setInterval(poll, 15000);
     return () => clearInterval(id);
   }, []);
+
+  // Trigger a targeted fix on the Pi
+  const triggerFix = async (checkName: string) => {
+    setFixRunning(checkName);
+    setFixResult(null);
+    try {
+      const res = await fetch("/api/heal-command", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ check: checkName }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setFixResult({ check: data.check || checkName, status: data.status, detail: data.detail || "" });
+      } else {
+        setFixResult({ check: checkName, status: "error", detail: `API returned ${res.status}` });
+      }
+    } catch (err) {
+      setFixResult({ check: checkName, status: "error", detail: err instanceof Error ? err.message : "Failed" });
+    } finally {
+      setFixRunning(null);
+    }
+  };
 
   // Validate PLC readings
   const plcComp = components.find((c) => c.id === "plc");
@@ -86,7 +114,18 @@ export default function DevDiagnostics({ components, truckReadings, connectionSt
         {allFlags.length === 0 && (
           <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-green-900/30 text-green-400">ALL OK</span>
         )}
-        <a href="/dev" className="ml-auto text-[10px] text-amber-600 hover:text-amber-400 transition-colors">
+        <button
+          onClick={() => triggerFix("all")}
+          disabled={!!fixRunning}
+          className={`ml-auto px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider transition-colors ${
+            fixRunning
+              ? "bg-amber-900/30 text-amber-600 cursor-wait"
+              : "bg-amber-900/50 text-amber-400 hover:bg-amber-800/50"
+          }`}
+        >
+          {fixRunning === "all" ? "Running..." : "Run All Checks"}
+        </button>
+        <a href="/dev" className="text-[10px] text-amber-600 hover:text-amber-400 transition-colors">
           Full Dev Panel &rarr;
         </a>
       </div>
@@ -187,29 +226,55 @@ export default function DevDiagnostics({ components, truckReadings, connectionSt
           </Section>
         )}
 
-        {/* ── Self-Heal Status ── */}
-        {healStatus && (
-          <Section title={`Self-Heal (${healStatus.timestamp?.split("T")[1]?.slice(0,5) ?? "?"})`}>
-            {healStatus.checks.map((c, i) => (
-              <div key={i} className="flex items-center justify-between gap-2 text-[10px]">
-                <span className="text-gray-500">{c.check}</span>
-                <span className={`font-mono ${
-                  c.status === "ok" ? "text-green-400" :
-                  c.status === "fixed" ? "text-cyan-400" :
-                  c.status === "failed" ? "text-red-400" :
-                  "text-gray-500"
-                }`}>
-                  {c.status === "ok" ? "OK" : c.status === "fixed" ? "FIXED" : c.status.toUpperCase()}
-                </span>
-              </div>
-            ))}
-            {healStatus.checks.filter(c => c.status !== "ok").map((c, i) => (
-              <div key={`d-${i}`} className="text-[10px] text-gray-600 pl-2 border-l border-gray-800">
-                {c.check}: {c.detail}
-              </div>
-            ))}
-          </Section>
+        {/* ── Fix Result (if just triggered) ── */}
+        {fixResult && (
+          <div className={`p-2 rounded-lg border text-[10px] ${
+            fixResult.status === "ok" || fixResult.status === "fixed"
+              ? "border-green-800/50 bg-green-950/20 text-green-400"
+              : "border-red-800/50 bg-red-950/20 text-red-400"
+          }`}>
+            <span className="font-bold">{fixResult.check}:</span> {fixResult.status.toUpperCase()} — {fixResult.detail}
+          </div>
         )}
+
+        {/* ── Self-Heal Status ── */}
+        <Section title={`Self-Heal${healStatus ? ` (${healStatus.timestamp?.split("T")[1]?.slice(0,5) ?? "?"})` : ""}`}>
+          {healStatus ? (
+            <>
+              {healStatus.checks.map((c, i) => (
+                <div key={i} className="flex items-center justify-between gap-2 text-[10px]">
+                  <span className="text-gray-500">{c.check}</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`font-mono ${
+                      c.status === "ok" ? "text-green-400" :
+                      c.status === "fixed" ? "text-cyan-400" :
+                      c.status === "failed" ? "text-red-400" :
+                      "text-gray-500"
+                    }`}>
+                      {c.status === "ok" ? "OK" : c.status === "fixed" ? "FIXED" : c.status.toUpperCase()}
+                    </span>
+                    {c.status === "failed" && (
+                      <button
+                        onClick={() => triggerFix(c.check)}
+                        disabled={!!fixRunning}
+                        className="px-1.5 py-0.5 rounded bg-amber-900/50 text-amber-400 hover:bg-amber-800/50 text-[9px] font-bold uppercase disabled:opacity-50 disabled:cursor-wait"
+                      >
+                        {fixRunning === c.check ? "..." : "Fix"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {healStatus.checks.filter(c => c.status !== "ok").map((c, i) => (
+                <div key={`d-${i}`} className="text-[10px] text-gray-600 pl-2 border-l border-gray-800">
+                  {c.check}: {c.detail}
+                </div>
+              ))}
+            </>
+          ) : (
+            <p className="text-[10px] text-gray-600">No heal data yet — waiting for first check cycle</p>
+          )}
+        </Section>
 
         {/* ── Truck DTCs ── */}
         {truckReadings && typeof truckReadings.active_dtc_count === "number" && (truckReadings.active_dtc_count as number) > 0 && (
