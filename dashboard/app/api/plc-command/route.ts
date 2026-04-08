@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
   const truckDenied = await requireTruckAccess(truckId);
   if (truckDenied) return truckDenied;
 
-  const truck = truckId ? getTruckById(truckId) : getDefaultTruck();
+  const truck = truckId ? await getTruckById(truckId) : await getDefaultTruck();
   if (!truck) {
     return NextResponse.json(
       { error: "truck_not_found", truck_id: truckId },

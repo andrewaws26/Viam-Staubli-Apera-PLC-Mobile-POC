@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { getSupabase } from "@/lib/supabase";
 import { logAuditDirect } from "@/lib/audit";
+import { reloadFleetConfig } from "@/lib/machines";
 
 async function getUserInfo(userId: string) {
   try {
@@ -143,6 +144,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    reloadFleetConfig();
     return NextResponse.json(data, { status: 201 });
   } catch (err) {
     console.error("[API-ERROR]", "/api/fleet/manage POST", err);
@@ -244,6 +246,7 @@ export async function PATCH(request: NextRequest) {
       },
     });
 
+    reloadFleetConfig();
     return NextResponse.json(data);
   } catch (err) {
     console.error("[API-ERROR]", "/api/fleet/manage PATCH", err);
@@ -310,6 +313,7 @@ export async function DELETE(request: NextRequest) {
       },
     });
 
+    reloadFleetConfig();
     return NextResponse.json({ success: true, truck: data });
   } catch (err) {
     console.error("[API-ERROR]", "/api/fleet/manage DELETE", err);

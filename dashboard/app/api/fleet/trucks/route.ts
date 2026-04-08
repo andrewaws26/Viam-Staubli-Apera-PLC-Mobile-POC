@@ -8,5 +8,5 @@ import { NextResponse } from "next/server";
 import { listTrucks } from "@/lib/machines";
 
 export async function GET() {
-  return NextResponse.json(listTrucks());
+  return NextResponse.json(await listTrucks());
 }

@@ -5,12 +5,14 @@
  * (plc-sensor, cell-sensor, j1939-sensor). One Part ID per truck.
  *
  * Loading priority:
- *   1. config/fleet.json (version-controlled, human-editable)
- *   2. FLEET_TRUCKS env var (JSON array, for Vercel overrides)
- *   3. Single-truck fallback from individual env vars (backward compat)
+ *   1. Supabase `fleet_trucks` table (production, managed via Admin UI)
+ *   2. config/fleet.json (fallback, version-controlled)
+ *   3. FLEET_TRUCKS env var (Vercel overrides)
+ *   4. Single-truck fallback from individual env vars (backward compat)
  *
- * To add a new truck: edit config/fleet.json and add an entry with the
- * Part ID from app.viam.com. The dashboard reads this at startup.
+ * To add a new truck: use the Admin page Fleet Manager UI, or insert into
+ * the fleet_trucks Supabase table. The dashboard reads from the DB on each
+ * request (with a 30-second cache).
  */
 
 import fs from "fs";
@@ -27,19 +29,68 @@ export interface TruckConfig {
   truckMachineAddress?: string;
 }
 
+// ---------------------------------------------------------------------------
+// Supabase loader (primary source)
+// ---------------------------------------------------------------------------
+
+let _supabaseCache: TruckConfig[] | null = null;
+let _supabaseCacheTime = 0;
+const CACHE_TTL_MS = 30_000; // 30 seconds
+
+async function loadFromSupabase(): Promise<TruckConfig[] | null> {
+  // Return cached if fresh
+  if (_supabaseCache && Date.now() - _supabaseCacheTime < CACHE_TTL_MS) {
+    return _supabaseCache;
+  }
+
+  try {
+    // Dynamic import to avoid circular deps and to keep working if Supabase isn't configured
+    const { getSupabase } = await import("@/lib/supabase");
+    const sb = getSupabase();
+
+    const { data, error } = await sb
+      .from("fleet_trucks")
+      .select("id, name, viam_part_id, viam_machine_address, status, has_tps, has_cell, has_j1939")
+      .in("status", ["active", "inactive", "maintenance"])
+      .order("id", { ascending: true });
+
+    if (error || !data || data.length === 0) return null;
+
+    const partId = process.env.VIAM_PART_ID || "";
+    const machineAddr = process.env.VIAM_MACHINE_ADDRESS || "";
+
+    const trucks: TruckConfig[] = data.map((row) => ({
+      id: row.id,
+      name: row.name,
+      // Use DB part ID if set, otherwise fall back to env var for backward compat
+      tpsPartId: row.viam_part_id || (row.id === "01" ? partId : ""),
+      truckPartId: row.viam_part_id || (row.id === "01" ? partId : ""),
+      tpsMachineAddress: row.viam_machine_address || (row.id === "01" ? machineAddr : ""),
+      truckMachineAddress: row.viam_machine_address || (row.id === "01" ? machineAddr : ""),
+    }));
+
+    _supabaseCache = trucks;
+    _supabaseCacheTime = Date.now();
+    console.log(`[machines] Loaded ${trucks.length} truck(s) from Supabase fleet_trucks`);
+    return trucks;
+  } catch {
+    // Supabase not configured or table doesn't exist — fall through
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Static fallbacks (unchanged from before)
+// ---------------------------------------------------------------------------
+
 interface FleetFile {
   trucks: TruckConfig[];
 }
 
-/**
- * Try loading fleet.json from the repo config directory.
- * Returns null if the file doesn't exist or can't be parsed.
- */
 function loadFleetFile(): TruckConfig[] | null {
-  // Try multiple paths: repo root (dev) and Next.js CWD (Vercel)
   const candidates = [
-    path.resolve(process.cwd(), "..", "config", "fleet.json"),  // dashboard/../config/
-    path.resolve(process.cwd(), "config", "fleet.json"),         // if CWD is repo root
+    path.resolve(process.cwd(), "..", "config", "fleet.json"),
+    path.resolve(process.cwd(), "config", "fleet.json"),
   ];
 
   for (const filePath of candidates) {
@@ -50,7 +101,6 @@ function loadFleetFile(): TruckConfig[] | null {
       if (Array.isArray(data.trucks) && data.trucks.length > 0) {
         const partId = process.env.VIAM_PART_ID || "";
         const machineAddr = process.env.VIAM_MACHINE_ADDRESS || "";
-        // Single-Pi: truckPartId defaults to tpsPartId (same machine)
         const trucks = data.trucks.map((t) => ({
           ...t,
           tpsPartId: t.tpsPartId || partId,
@@ -62,23 +112,18 @@ function loadFleetFile(): TruckConfig[] | null {
         return trucks;
       }
     } catch {
-      // File exists but can't be parsed — fall through to next source
+      // fall through
     }
   }
   return null;
 }
 
-/**
- * Try loading from the FLEET_TRUCKS env var (JSON array).
- * Useful for Vercel overrides without changing the repo.
- */
 function loadFleetEnvVar(): TruckConfig[] | null {
   const fleetJson = process.env.FLEET_TRUCKS;
   if (!fleetJson) return null;
   try {
     const parsed = JSON.parse(fleetJson);
     if (Array.isArray(parsed) && parsed.length > 0) {
-      // Single-Pi: default truckPartId to tpsPartId
       const trucks = (parsed as TruckConfig[]).map((t) => ({
         ...t,
         truckPartId: t.truckPartId || t.tpsPartId || "",
@@ -93,10 +138,6 @@ function loadFleetEnvVar(): TruckConfig[] | null {
   return null;
 }
 
-/**
- * Single-truck fallback from individual env vars.
- * Single-Pi: truckPartId defaults to tpsPartId (same machine).
- */
 function loadSingleTruckFallback(): TruckConfig[] {
   const partId = process.env.VIAM_PART_ID || "";
   const machineAddr = process.env.VIAM_MACHINE_ADDRESS || "";
@@ -121,43 +162,45 @@ function loadSingleTruckFallback(): TruckConfig[] {
   ];
 }
 
-function loadTruckConfigs(): TruckConfig[] {
+// ---------------------------------------------------------------------------
+// Public API (async — reads from Supabase first, then static fallbacks)
+// ---------------------------------------------------------------------------
+
+export async function getTruckConfigs(): Promise<TruckConfig[]> {
+  const fromDb = await loadFromSupabase();
+  if (fromDb) return fromDb;
   return loadFleetFile() ?? loadFleetEnvVar() ?? loadSingleTruckFallback();
 }
 
-let _configs: TruckConfig[] | null = null;
-
-export function getTruckConfigs(): TruckConfig[] {
-  if (!_configs) _configs = loadTruckConfigs();
-  return _configs;
+export async function getTruckById(id: string): Promise<TruckConfig | null> {
+  const configs = await getTruckConfigs();
+  return configs.find((t) => t.id === id) || null;
 }
 
-export function getTruckById(id: string): TruckConfig | null {
-  return getTruckConfigs().find((t) => t.id === id) || null;
+export async function getDefaultTruck(): Promise<TruckConfig> {
+  const configs = await getTruckConfigs();
+  return configs[0];
 }
 
-export function getDefaultTruck(): TruckConfig {
-  return getTruckConfigs()[0];
-}
-
-export function listTrucks(): {
+export async function listTrucks(): Promise<{
   id: string;
   name: string;
   hasTPSMonitor: boolean;
   hasTruckDiagnostics: boolean;
-}[] {
-  return getTruckConfigs().map((t) => ({
+}[]> {
+  const configs = await getTruckConfigs();
+  return configs.map((t) => ({
     id: t.id,
     name: t.name,
     hasTPSMonitor: !!t.tpsPartId,
-    hasTruckDiagnostics: !!t.tpsPartId, // Same machine now
+    hasTruckDiagnostics: !!t.tpsPartId,
   }));
 }
 
 /**
- * Reload the fleet config (e.g. after editing fleet.json).
- * Only useful in dev; Vercel serverless functions are stateless.
+ * Invalidate the Supabase cache (e.g. after adding/editing a truck).
  */
 export function reloadFleetConfig(): void {
-  _configs = null;
+  _supabaseCache = null;
+  _supabaseCacheTime = 0;
 }

@@ -329,7 +329,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Resolve the truck config — use specific truck if provided, else default
-  const truck = truckId ? getTruckById(truckId) : getDefaultTruck();
+  const truck = truckId ? await getTruckById(truckId) : await getDefaultTruck();
 
   if (!truck?.tpsPartId) {
     // Truck has no Part ID → no cell data available (NOT sim fallback)

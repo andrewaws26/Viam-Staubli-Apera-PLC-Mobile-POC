@@ -193,7 +193,7 @@ export async function GET() {
   }
 
   try {
-    const trucks = getTruckConfigs();
+    const trucks = await getTruckConfigs();
 
     const results = await Promise.allSettled(
       trucks.map((truck) => fetchTruckStatus(truck)),

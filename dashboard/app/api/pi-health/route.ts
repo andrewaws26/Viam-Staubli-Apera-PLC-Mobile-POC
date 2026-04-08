@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
   let config: { component: string; hostname: string; tailscaleIp: string };
 
   if (truckId) {
-    const truck = getTruckById(truckId);
+    const truck = await getTruckById(truckId);
     if (!truck) {
       return NextResponse.json({ error: "truck_not_found", truck_id: truckId }, { status: 404 });
     }
