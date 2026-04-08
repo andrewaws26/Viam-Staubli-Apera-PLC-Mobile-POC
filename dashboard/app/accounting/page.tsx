@@ -578,12 +578,20 @@ export default function AccountingPage() {
             IronSight — Chart of Accounts & General Ledger
           </p>
         </div>
-        <a
-          href="/"
-          className="px-4 py-2 rounded-lg border border-gray-700 hover:border-gray-500 text-gray-400 hover:text-white text-sm font-bold uppercase tracking-wider transition-colors"
-        >
-          Dashboard
-        </a>
+        <div className="flex items-center gap-2">
+          <a
+            href="/accounting/reports"
+            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold uppercase tracking-wider transition-colors"
+          >
+            Reports
+          </a>
+          <a
+            href="/"
+            className="px-4 py-2 rounded-lg border border-gray-700 hover:border-gray-500 text-gray-400 hover:text-white text-sm font-bold uppercase tracking-wider transition-colors"
+          >
+            Dashboard
+          </a>
+        </div>
       </header>
 
       <main className="px-4 sm:px-6 py-6 max-w-6xl mx-auto">
