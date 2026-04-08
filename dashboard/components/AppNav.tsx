@@ -79,6 +79,7 @@ export default function AppNav({ pageTitle }: Props) {
             {isAdmin && <NavLink href="/accounting/reports" label="Reports" />}
             {isAdmin && <NavLink href="/accounting/audit-trail" label="Audit" />}
             {isAdmin && <NavLink href="/accounting/tax-reports" label="941" />}
+            {isAdmin && <NavLink href="/accounting/docs" label="Docs" />}
           </div>
 
           {/* User menu */}
@@ -136,6 +137,7 @@ export default function AppNav({ pageTitle }: Props) {
                     {isAdmin && <MenuLink href="/accounting/reports" label="Financial Reports" />}
                     {isAdmin && <MenuLink href="/accounting/audit-trail" label="Audit Trail" />}
                     {isAdmin && <MenuLink href="/accounting/tax-reports" label="Tax Reports (941)" />}
+                    {isAdmin && <MenuLink href="/accounting/docs" label="User Guide" />}
                     {isAdmin && <MenuLink href="/inventory" label="Inventory" />}
                     {isAdmin && <MenuLink href="/payroll" label="Payroll Export" />}
                   </div>
