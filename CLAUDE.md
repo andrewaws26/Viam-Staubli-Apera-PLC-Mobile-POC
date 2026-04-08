@@ -27,6 +27,8 @@ Data syncs to Viam Cloud at 1 Hz. A Next.js dashboard on Vercel shows live statu
 - `dashboard/` — Next.js 14 app on Vercel
 - `dashboard/components/` — TruckPanel, GaugeGrid, DTCPanel, AIChatPanel, Dashboard, TPS/, DevTruck/, WorkBoard, Chat/
 - `dashboard/components/Chat/` — Team chat UI: ThreadView, ThreadList, MessageBubble, ChatInput, SnapshotCard, ReactionBar, TruckChatTab, WorkOrderChatTab, UserPicker
+- `dashboard/app/accounting/` — Chart of Accounts and journal entry management pages
+- `dashboard/app/api/accounting/` — Accounting CRUD API routes (accounts, entries, trial balance)
 - `dashboard/app/api/` — API routes (sensor-readings, truck-readings, fleet/status, ai-chat, ai-diagnose, ai-suggest-steps, shift-report, work-orders, team-members, chat/, etc.)
 - `dashboard/app/api/chat/` — Team chat API: threads, messages, reactions, read, members, users, by-entity
 - `dashboard/lib/` — Re-exports from `@ironsight/shared` (sensor-types, auth, spn-lookup, pcode-lookup, chat) + app-specific libs (supabase, audit, ai, chat-push, chat-system-messages)
@@ -461,6 +463,34 @@ Auto-calculated from timesheet nights_out and layovers when timesheets are appro
 **Database tables:** `per_diem_rates`, `per_diem_entries` — see `dashboard/supabase/migration_006_profiles_pto_training.sql`
 
 **API routes:** `per-diem/`, `per-diem/rates/`
+
+## Accounting Module
+
+Double-entry bookkeeping foundation for the IronSight Company OS. Replaces QuickBooks with an integrated financial system connected to timesheets, per diem, and expenses.
+
+**Database tables:** `chart_of_accounts`, `journal_entries`, `journal_entry_lines` — see `dashboard/supabase/migrations/009_accounting.sql`
+
+**Shared types:** `packages/shared/src/accounting.ts` — Account, JournalEntry, JournalEntryLine, TrialBalance types + constants
+
+**API routes (`dashboard/app/api/accounting/`):**
+- `accounts/` — GET list (filter by type, active_only) / POST create
+- `accounts/[id]/` — GET single / PATCH update / DELETE soft-deactivate
+- `entries/` — GET list (filter by status, source, date range) / POST create with balanced lines
+- `entries/[id]/` — GET single with lines / PATCH (post draft, void posted, edit draft) / DELETE draft
+- `trial-balance/` — GET computed trial balance as of date
+
+**Dashboard pages:** `/accounting` (COA browser + journal entries list), `/accounting/new` (create entry), `/accounting/[id]` (entry detail with post/void)
+
+**Chart of Accounts:** 32 seeded accounts across 5 types: Assets (1000-1999), Liabilities (2000-2999), Equity (3000-3999), Revenue (4000-4999), Expenses (5000-9999). System accounts cannot be deleted.
+
+**Journal Entry workflow:** draft → posted → voided. Posting updates account balances. Voiding reverses balances and records reason.
+
+**Auto-generated entries:**
+- Timesheet approved with per diem → DR 5100 Per Diem Expense / CR 2110 Per Diem Payable (auto-posted)
+- Timesheet approved with expenses → DR expense accounts / CR 2120 Expense Reimbursements Payable (auto-posted)
+- Timesheet withdrawn/rejected → auto-generated entries voided and balances reversed
+
+**Roles:** Manager/developer can create accounts, post/void entries. All roles can view COA.
 
 ## Platform Foundation
 

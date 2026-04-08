@@ -401,6 +401,193 @@ export async function PATCH(
           console.error("[JOURNAL-ENTRY]", "Failed to auto-generate per diem JE", jeErr);
         }
       }
+
+      // ── Auto-generate journal entry for timesheet expenses ──────────
+      // DR various expense accounts (grouped) / CR 2120 or 1000
+      try {
+        const { data: tsExpenses } = await sb
+          .from("timesheet_expenses")
+          .select("*")
+          .eq("timesheet_id", id);
+
+        if (tsExpenses && tsExpenses.length > 0) {
+          // Map expense categories to COA account numbers
+          const categoryToAccount: Record<string, string> = {
+            "Fuel": "5400",
+            "Fuel & IFTA": "5400",
+            "Tools": "5600",
+            "Equipment": "5600",
+            "Tools & Supplies": "5600",
+            "Maintenance": "5500",
+            "Repairs": "5500",
+            "Travel": "6100",
+            "Hotel": "6100",
+            "Meals": "6100",
+            "Lodging": "6100",
+          };
+
+          // Group expenses by target account and reimbursement flag
+          const grouped: Record<string, { total: number; reimbursable: number; nonReimbursable: number }> = {};
+          for (const exp of tsExpenses as Record<string, unknown>[]) {
+            const cat = (exp.category as string) || "";
+            const acctNum = categoryToAccount[cat] || "6100";
+            const amount = Number(exp.amount) || 0;
+            if (amount <= 0) continue;
+
+            if (!grouped[acctNum]) {
+              grouped[acctNum] = { total: 0, reimbursable: 0, nonReimbursable: 0 };
+            }
+            grouped[acctNum].total += amount;
+            if (exp.needs_reimbursement) {
+              grouped[acctNum].reimbursable += amount;
+            } else {
+              grouped[acctNum].nonReimbursable += amount;
+            }
+          }
+
+          const acctNumbers = Object.keys(grouped);
+          if (acctNumbers.length > 0) {
+            // Compute totals for credit side
+            let totalReimbursable = 0;
+            let totalNonReimbursable = 0;
+            for (const g of Object.values(grouped)) {
+              totalReimbursable += g.reimbursable;
+              totalNonReimbursable += g.nonReimbursable;
+            }
+            const grandTotal = totalReimbursable + totalNonReimbursable;
+
+            if (grandTotal > 0) {
+              // Look up all needed accounts by account_number
+              const allNeededAcctNums = [...new Set([...acctNumbers, "2120", "1000"])];
+              const { data: coaAccounts } = await sb
+                .from("chart_of_accounts")
+                .select("id, account_number, current_balance, normal_balance")
+                .in("account_number", allNeededAcctNums);
+
+              const acctMap: Record<string, { id: string; current_balance: number; normal_balance: string }> = {};
+              if (coaAccounts) {
+                for (const a of coaAccounts as Record<string, unknown>[]) {
+                  acctMap[a.account_number as string] = {
+                    id: a.id as string,
+                    current_balance: Number(a.current_balance) || 0,
+                    normal_balance: (a.normal_balance as string) || "debit",
+                  };
+                }
+              }
+
+              // Verify we have at least one debit account and at least one credit account
+              const hasDebitAccounts = acctNumbers.some((n) => acctMap[n]);
+              const hasCreditAccount = (totalReimbursable > 0 && acctMap["2120"]) ||
+                (totalNonReimbursable > 0 && acctMap["1000"]);
+
+              if (hasDebitAccounts && hasCreditAccount) {
+                // Remove any existing expense JE for this timesheet
+                const { data: oldExpJe } = await sb
+                  .from("journal_entries")
+                  .select("id")
+                  .eq("source", "expense_approved")
+                  .eq("source_id", id)
+                  .neq("status", "voided")
+                  .maybeSingle();
+
+                if (oldExpJe) {
+                  await sb.from("journal_entry_lines").delete().eq("journal_entry_id", oldExpJe.id);
+                  await sb.from("journal_entries").delete().eq("id", oldExpJe.id);
+                }
+
+                // Create and auto-post the journal entry
+                const { data: expJe } = await sb
+                  .from("journal_entries")
+                  .insert({
+                    entry_date: existing.week_ending,
+                    description: `Expenses — ${existing.user_name} (${existing.week_ending})`,
+                    reference: `TS-EXP-${id.slice(0, 8)}`,
+                    source: "expense_approved",
+                    source_id: id,
+                    status: "posted",
+                    total_amount: grandTotal,
+                    created_by: userId,
+                    created_by_name: userInfo.name,
+                    posted_at: new Date().toISOString(),
+                  })
+                  .select("id")
+                  .single();
+
+                if (expJe) {
+                  const lines: Record<string, unknown>[] = [];
+                  let lineOrder = 0;
+
+                  // DR lines — one per grouped expense account
+                  for (const acctNum of acctNumbers) {
+                    const acct = acctMap[acctNum];
+                    if (!acct || grouped[acctNum].total <= 0) continue;
+                    lines.push({
+                      journal_entry_id: expJe.id,
+                      account_id: acct.id,
+                      debit: grouped[acctNum].total,
+                      credit: 0,
+                      description: `Expenses (acct ${acctNum}) — ${existing.user_name}`,
+                      line_order: lineOrder++,
+                    });
+                  }
+
+                  // CR lines — split by reimbursable vs non-reimbursable
+                  if (totalReimbursable > 0 && acctMap["2120"]) {
+                    lines.push({
+                      journal_entry_id: expJe.id,
+                      account_id: acctMap["2120"].id,
+                      debit: 0,
+                      credit: totalReimbursable,
+                      description: `Expense reimbursements payable — ${existing.user_name}`,
+                      line_order: lineOrder++,
+                    });
+                  }
+                  if (totalNonReimbursable > 0 && acctMap["1000"]) {
+                    lines.push({
+                      journal_entry_id: expJe.id,
+                      account_id: acctMap["1000"].id,
+                      debit: 0,
+                      credit: totalNonReimbursable,
+                      description: `Cash paid for expenses — ${existing.user_name}`,
+                      line_order: lineOrder++,
+                    });
+                  }
+
+                  if (lines.length > 0) {
+                    await sb.from("journal_entry_lines").insert(lines);
+
+                    // Update account balances
+                    for (const line of lines) {
+                      const acctId = line.account_id as string;
+                      const acct = Object.values(acctMap).find((a) => a.id === acctId);
+                      if (!acct) continue;
+
+                      const debitAmt = Number(line.debit) || 0;
+                      const creditAmt = Number(line.credit) || 0;
+                      const delta = acct.normal_balance === "debit"
+                        ? debitAmt - creditAmt
+                        : creditAmt - debitAmt;
+
+                      await sb
+                        .from("chart_of_accounts")
+                        .update({ current_balance: acct.current_balance + delta })
+                        .eq("id", acctId);
+
+                      // Update local cache so subsequent lines don't double-count
+                      acct.current_balance += delta;
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          console.log("[JOURNAL-ENTRY]", `Expense JE created for timesheet ${id}, ${tsExpenses.length} expenses`);
+        }
+      } catch (jeErr) {
+        // Expense journal entry generation is best-effort; don't block timesheet approval
+        console.error("[JOURNAL-ENTRY]", "Failed to auto-generate expense JE", jeErr);
+      }
     }
 
     // If un-approved (back to draft), remove per diem entry and void journal entries
