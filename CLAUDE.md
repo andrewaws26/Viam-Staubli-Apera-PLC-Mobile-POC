@@ -25,7 +25,7 @@ Data syncs to Viam Cloud at 1 Hz. A Next.js dashboard on Vercel shows live statu
 - `modules/j1939-sensor/src/models/` — J1939 sensor module: j1939_sensor.py (main), j1939_can.py, j1939_dtc.py, j1939_discovery.py, pgn_decoder.py, pgn_utils.py, pgn_dm1.py, obd2_poller.py, obd2_pids.py, obd2_dtc.py, obd2_diagnostics.py, vehicle_profiles.py
 - `modules/cell-sensor/src/` — Cell sensor module: cell_sensor.py (main), staubli_client.py (CS9 REST API), apera_client.py (Vue socket 14040), network_monitor.py (ping devices)
 - `dashboard/` — Next.js 14 app on Vercel
-- `dashboard/components/` — TruckPanel, GaugeGrid, DTCPanel, AIChatPanel, Dashboard, TPS/, DevTruck/, WorkBoard, Chat/
+- `dashboard/components/` — HomeScreen (OS launcher), AppNav (shared nav), Dashboard (truck view), TruckPanel, GaugeGrid, DTCPanel, AIChatPanel, TPS/, DevTruck/, WorkBoard, Chat/
 - `dashboard/components/Chat/` — Team chat UI: ThreadView, ThreadList, MessageBubble, ChatInput, SnapshotCard, ReactionBar, TruckChatTab, WorkOrderChatTab, UserPicker
 - `dashboard/app/accounting/` — Chart of Accounts and journal entry management pages
 - `dashboard/app/api/accounting/` — Accounting CRUD API routes (accounts, entries, trial balance)
@@ -147,6 +147,8 @@ After editing any module: `sudo systemctl restart viam-server`
 
 ## Dashboard
 - Production: viam-staubli-apera-plc-mobile-poc.vercel.app
+- Homepage: `/` — IronSight OS launcher (HomeScreen component) when no truck_id param; shows truck Dashboard when `?truck_id=XX` is present
+- Navigation: AppNav (shared top bar with logo, quick links, user dropdown) replaces the old 17-link header in Dashboard.tsx
 - Dev mode: viam-staubli-apera-plc-mobile-poc.vercel.app/dev
 - Env vars: VIAM_API_KEY, VIAM_API_KEY_ID, VIAM_MACHINE_ADDRESS, VIAM_PART_ID (server-side) + NEXT_PUBLIC_ variants (client-side)
 - Push to git **should** trigger Vercel redeploy, but the webhook is unreliable

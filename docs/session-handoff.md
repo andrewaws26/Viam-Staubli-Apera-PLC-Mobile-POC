@@ -1,240 +1,186 @@
-# Session Handoff: Pi Consolidation, Self-Healing & Field Test Prep
+# Session Handoff: IronSight Company OS
 
 **Date**: 2026-04-08
-**Branch**: `main` (merged)
-**Status**: Pi 5 field-deployed and validated. Self-healing system live. All modules running. CAN HAT verified with MCP2515.
-
-## First Field Test Deployment (2026-04-08)
-
-Pi 5 (`viam-pi`, Tailscale 100.112.68.52) bootstrapped and validated for new truck:
-
-**Completed:**
-- Bootstrap ran (all 10 phases): packages, Python deps, Viam server, modules, CAN overlay, sudoers, systemd, PLC discovery, kernel tuning, cron
-- FUSE mount exhaustion fixed (1,640 stale mounts from AppImage crash loop → cleaned, mount_max raised to 1000)
-- SPI conflict resolved: `mhs35ips` TFT display overlay disabled (was claiming spi0.0, blocking MCP2515 CAN HAT)
-- CAN HAT (Waveshare B, 12MHz) physically installed and verified: `MCP2515 successfully initialized`, `can0` UP
-- viam-server active with plc-sensor + cell-sensor modules constructing
-- ANTHROPIC_API_KEY set from Vercel production env (for self-heal Claude escalation)
-- Per-minute health snapshot cron enabled for field test logging
-- Passwordless sudo validated for self-heal
-
-**Known state at deployment:**
-- PLC connection failing (expected — not connected to truck system yet)
-- j1939-sensor module will start when CAN bus has traffic
-- TFT display overlay permanently disabled (Pi runs headless, dashboard is web-based)
-
-## Team Chat System (Added 2026-04-07)
-
-Contextual team chat anchored to domain entities. Branch: `claude/add-chat-feature-Uzld3`.
-
-**What's working in v1:**
-- Entity-anchored threads (truck, work order, DTC, direct message)
-- Auto-thread creation when opening truck panel or DTC
-- Sensor snapshot attachment on messages (auto-attached from truck panel)
-- @ai mention in any thread triggers AI diagnostic response
-- Domain-specific reactions (thumbs_up, wrench, checkmark, eyes)
-- Full CRUD: send, edit, soft-delete messages
-- Thread membership management
-- Unread count tracking
-- Push notifications to thread members
-- Dashboard: /chat page with split layout, TruckChatTab in TruckPanel, Chat nav link
-- Mobile: Chat tab, ChatListScreen, ThreadScreen, NewDMScreen, Zustand store
-- 21 unit tests, Playwright E2E test suite
-
-**Known limitations / v2 candidates:**
-- Uses polling (3s/5s) — upgrade to Supabase Realtime for true real-time
-- No voice messages
-- No photo annotation (drawing on images)
-- No daily digest emails
-- No @role mentions (e.g., @mechanics)
-- No unified search across threads
-- No file upload (photos are URL references only)
-- Work order status change system messages are TODO (noted in chat-system-messages.ts)
+**Branch**: `main` (production), `develop` (staging)
+**Status**: Company OS modules live. Homepage launched. 3 critical bugs fixed. All tests passing.
 
 ## Current State Summary
 
 | Metric | Value |
 |--------|-------|
 | Python tests | **297 passing** (148 j1939 + 149 plc) |
+| Dashboard unit tests | **430 passing** (vitest) |
 | Dashboard build | **Clean** (all routes compile) |
-| Playwright E2E | 18 tests configured (need `npx playwright install` to run) |
-| Files over 500 lines | **4 remaining** (was 20+) |
-| Total commits on branch | ~40 |
+| Playwright E2E | 18 tests configured |
+| Supabase migrations | **11 applied** (001–011) |
+| Production | Vercel auto-deploy from `main` |
 
-## What's Done (Committed & Pushed)
+## IronSight Company OS — What's Built
 
-### Wave 0 — Earlier Session
-- Created `dashboard/lib/sensor-types.ts` (TypeScript interfaces for all sensor readings)
-- Extracted `AIChatPanel.tsx`, `DTCPanel.tsx`, `GaugeGrid.tsx` from TruckPanel.tsx
-- Refactored TruckPanel.tsx from 1,671 to 773 lines
-- Added 122 Python tests (test_diagnostics.py + test_plc_utils.py)
-- Made system_health.py identical across both modules
-- Updated docs/architecture.md with Mermaid diagram
-- Added .claude/ to .gitignore
+### Homepage & Navigation (2026-04-08)
+- **OS-style homepage** at `/` — module cards organized by category (Fleet, Operations, HR, Finance, System)
+- **AppNav** shared top navigation — logo, quick links, user dropdown with sign-out
+- **Dashboard header** slimmed from 17 inline links to truck-specific controls only
+- Role-based visibility: operators see basic modules, managers see finance, developers see admin/dev tools
+- Time-of-day greeting from Clerk user data
 
-### Wave 1 — Quick Fixes (All Complete)
-1. **Docs**: Updated ~55 to ~100+ in 4 doc files
-2. **TypeScript types**: Fixed active_dtcs mismatch, vin phantom, added sync health fields, per-ECU lamp fields
-3. **plc_sensor.py logging**: Added exc_info=True to all error/warning calls
-4. **j1939_sensor.py DTC fix**: Per-ECU namespace tracking via `_SA_SUFFIX` mapping, `_apply_namespaced_dtcs()`
-5. **API error logging**: Added console.error to all API route catch blocks
-6. **Lamp indicators**: CHECK ENGINE/WARNING/STOP/PROTECT badges in TruckPanel header
-7. **AGENTS.md**: Comprehensive agent development guide
+### Accounting Module
+- **Double-entry bookkeeping** — Chart of Accounts (32 seeded accounts), Journal Entries with balanced debit/credit lines
+- **Trial Balance & P&L** reports at `/accounting/reports`
+- **Auto-journal entries** from timesheets: per diem (DR 5100 / CR 2110), expenses (category→account mapping)
+- **Workflow**: draft → posted → voided (with balance reversal)
+- **Pages**: `/accounting`, `/accounting/new`, `/accounting/[id]`, `/accounting/reports`
+- **API**: `/api/accounting/accounts`, `/api/accounting/entries`, `/api/accounting/trial-balance`
+- **Migration**: 009_accounting.sql (applied)
 
-### Wave 2 — File Splits (Completed)
-- [x] `shift-report/page.tsx` (1,111 → 415 lines) + 10 extracted sub-modules
-- [x] `DevTPSPanel.tsx` (999 → 3 lines) re-exports from TPS/index.tsx orchestrator
-- [x] `Dashboard.tsx` (512 → 185 lines) extracted DashboardAudio + useSensorPolling hook
-- [x] `DevTruckPanel.tsx` (767 → 222 lines) extracted DevTruck/ (BusStats, Command, Debug)
-- [x] `obd2_poller.py` (918 → 398 lines) extracted obd2_pids, obd2_dtc, obd2_diagnostics
-- [x] `plc_sensor.py` (1827 → 1300 lines) imports from plc_utils/offline/metrics/weather
-- [x] `shift-report/route.ts` (618 → 165 lines) extracted aggregation.ts + types.ts
-- [x] `ironsight-discover.py` (1281 → 18 lines) extracted to discovery/ package
-- [x] `ironsight-touch.py` extracted to touch_ui/ package (screens + widgets)
-- [x] `plc_sensor.py` sub-modules: plc_utils.py, plc_offline.py, plc_metrics.py, plc_weather.py
-- [x] `pgn_decoder.py` (1018 → 871 lines) imports from pgn_utils.py + pgn_dm1.py
-- [x] `scripts/lib/` additions: ai_prompts.py, plc_discovery.py, display_pages.py, config_updater.py, modbus_scanner.py, network_scanner.py
-- [x] `ironsight-server.py` (787 → 638 lines) imports from ai_prompts.py
-- [x] `ironsight-analyze.py` (721 → 451 lines) imports from plc_discovery.py
-- [x] `ironsight-display.py` (631 → 104 lines) imports from display_pages.py
-- [x] `ironsight-discovery-daemon.py` (628 → 431 lines) imports from config_updater.py
-- [x] `plc-autodiscover.py` (951 → 414 lines) imports from modbus_scanner.py + network_scanner.py
-- [x] `j1939_sensor.py` sub-modules CREATED: j1939_can.py (649), j1939_dtc.py (214), j1939_discovery.py (489)
+### Inventory & Parts Tracking
+- **Parts catalog** with categories, costs, reorder points (22 seeded heavy-duty truck parts)
+- **Usage logging** linked to trucks and maintenance entries
+- **Low-stock alerts** with reorder suggestions
+- **Pages**: `/inventory` (catalog, usage log, alerts tabs)
+- **API**: `/api/inventory`, `/api/inventory/[id]`, `/api/inventory/usage`, `/api/inventory/alerts`
+- **Shared types**: `packages/shared/src/inventory.ts`
+- **Migration**: 010_inventory.sql (applied)
 
-### Wave 4 — Features (Done)
-- [x] **PWA**: manifest.json + service worker (cache-first static, stale-while-revalidate API) + iOS meta tags
-- [x] **Auth scaffold**: middleware.ts (no-op until Clerk installed), lib/auth.ts (RBAC matrix), sign-in placeholder
-- [x] **Fleet overview**: /fleet page with truck status cards + /api/fleet/status route
-- [x] **DTC clearing fix**: Interface toggle (listen-only → normal → send DM11 → restore), 0xF9 SA, DM12 confirmation
-- [x] **Middleware fix**: No-op until @clerk/nextjs installed
-- [x] **Fleet registry**: dashboard/lib/machines.ts with FLEET_TRUCKS env var support
+### Payroll Export
+- **Payroll admin page** at `/payroll` — date range picker, employee aggregation
+- **CSV/JSON export** from approved timesheets with hours, per diem, mileage, expenses
+- **API**: `/api/payroll/export`
 
-### Documentation (Done)
-- [x] **README.md**: Comprehensive rewrite — covers both sensors, fleet architecture, AI diagnostics, PWA, auth, 315 tests, all modules
-- [x] **AGENTS.md**: Complete file map with every file, line count, test count, ownership rules
-- [x] **session-handoff.md**: This file — accurate status for next session
+### Timesheet Enhancements
+- **Receipt photo upload** to Supabase Storage (`expense-receipts` bucket)
+- **12 sub-sections** all functional on both dashboard and mobile
+- **Auto-journal entries** on approval (per diem + expense JEs, voided on rejection)
 
-### Test Infrastructure (Done)
-- [x] **Playwright E2E**: 18 tests across 3 suites (dashboard, truck-panel, fleet) with route interception
-- [x] **Python tests**: 297 total — all passing
-  - 86 diagnostic rule tests
-  - 36 plc_utils tests (serialise, uint16, offline buffer, chat queue)
-  - 25 diagnostic integration tests
-  - 69 PGN decoder tests (all imperial units verified)
-  - 24 j1939_sensor tests (config, readings, do_command, resilience)
-  - 24 OBD2 poller tests (PID formulas, bus tracking, integration)
-  - 31 PGN integration tests
-- [x] **Test fixes applied**:
-  - All PGN decoder tests updated from metric (°C, kPa, km/h) to imperial (°F, PSI, mph)
-  - DM1 lamp bit ordering corrected to match J1939 standard
-  - OBD2 tests updated for imperial field names
-  - Mock fixtures fixed for `can` module (FakeMsg, tx_bus mock)
-  - Import paths updated after module splits (plc_utils, plc_offline)
-- [x] **Test runner**: scripts/run-all-tests.sh
-- [x] **Dashboard build**: verified clean after all changes
+### Employee Profiles & Training
+- **Profile page** at `/profile` — photo upload, phone, emergency contact, hire date, job title, department
+- **Training compliance** at `/training` — current/expiring/expired status badges
+- **DB table**: `employee_profiles` (migration 006)
 
-## What's NOT Done Yet
+### PTO (Paid Time Off)
+- **Balance tracking** per user per year (vacation, sick, personal hours)
+- **Request workflow**: pending → approved/rejected/cancelled
+- **Balance cards** showing remaining hours
+- **DB table**: `pto_balances` with `_total`/`_used` columns (migration 011 fix applied)
 
-### Priority 1 — Remaining Files Over 500 Lines
+### Team Chat
+- Entity-anchored threads (truck, work order, DTC, direct message)
+- @ai mentions trigger Claude diagnostic response
+- Sensor snapshot auto-attachment
+- Domain-specific reactions
+- 21 unit tests
 
-| File | Lines | Action |
-|------|-------|--------|
-| pgn_decoder.py | 871 | Already imports from sub-modules, could extract more PGN groups |
-| j1939_sensor.py | 800 | Bitrate negotiation methods (~130 lines) could move to j1939_can.py |
-| plc_sensor.py | 706 | Close to target. Could extract Modbus read logic (~200 lines) |
-| ironsight-server.py | 638 | 390 Python + 248 HTML template — hard to split further |
-| diagnostics.py | 532 | Optional: split into detector plugins per category |
+## Bugs Fixed (2026-04-08)
 
-All the major splits are done. These remaining files are close to 500 or have structural reasons for their size.
+### Cell Sim Data Isolation (CRITICAL)
+**Root cause**: `cell-readings` API always called `getDefaultTruck()` (truck "00", empty Part ID) → fell back to sim data for ALL trucks. The `_is_sim` flag check in CellSection only caught explicitly-flagged sim data, but real Viam data had no `_is_sim` field, so it passed through.
 
-### Priority 2 — OBD2 Separation
-- Create `modules/obd2-sensor/` as separate Viam module
-- Move obd2_poller.py + obd2_pids.py + obd2_dtc.py + obd2_diagnostics.py
-- Extract shared code to `modules/common/` (vehicle_profiles.py)
-- Remove OBD-II routing from j1939_sensor.py (~400 lines)
-- Create new run.sh, meta.json, requirements.txt
+**Fix**:
+- API now accepts `?truck=<id>` param, uses `getTruckById()` for correct Part ID routing
+- Returns `_no_cell: true` instead of sim fallback when truck has no cell data
+- CellSection passes truckId in URL, handles `_no_cell` responses
+- Success path now sets `_is_sim: false` explicitly
+- **9 automated tests** in `tests/unit/cell-sim-isolation.test.ts` guard this permanently
 
-### Pi 5 Consolidation (Done — 2026-04-08)
-- [x] Merged Viam configs (viam-server.json now has all 3 modules)
-- [x] Created migration script (scripts/consolidate-to-pi5.sh)
-- [x] Updated fleet fragment (config/fragment-tps-truck.json) with all 3 modules
-- [x] Updated fleet scripts (fleet-health.sh, fleet-sync.sh) for single-Pi
-- [x] Removed top Pi health monitoring boxes from dashboard (PiHealthCard)
-- [x] Removed Pi 5 health section from mobile cell tab
-- [x] Updated all API routes and libs for single-machine architecture
-- [x] Updated DevStatusBar and DevPage for single-Pi
-- [x] Updated CLAUDE.md, README, architecture.md for single-Pi
-- [x] Pi 5 kernel optimizations (CAN buffer, swappiness)
-- [x] can0.service systemd unit for listen-only CAN boot
+### PTO Balance "h" Display
+**Root cause**: DB had columns `vacation_hours`, `sick_hours`, `personal_hours` but API expected `vacation_hours_total`, `vacation_hours_used`. Insert failed silently, error JSON was treated as balance data, React rendered `{undefined}h` as "h".
 
-### Self-Healing System (Done — 2026-04-08)
-- [x] scripts/self-heal.py — autonomous healing loop (cron every 2 min)
-- [x] Tier 1 offline playbook: 6 checks (viam-server, can-bus, plc-connection, modules, disk, data-flow)
-- [x] Tier 2 Claude CLI escalation (rate-limited, creates autofix/ branches)
-- [x] Targeted fix mode: --check NAME for single-fix from dashboard
-- [x] Heartbeat file for Pi liveness detection on dashboard
-- [x] Passwordless sudo for self-heal (sudoers.d/ironsight), with password fallback
-- [x] do_command("heal") on plc-sensor module — works even when PLC disconnected
-- [x] POST /api/heal-command — dashboard triggers fixes via Viam Cloud WebRTC
-- [x] "Fix" buttons next to each FAILED check in DevDiagnostics panel
-- [x] "Run All Checks" button for full sweep
+**Fix**: Migration 011 adds `_total`/`_used` columns, drops old single columns. Applied to Supabase.
 
-### Dev Mode & Sensor Diagnostics (Done — 2026-04-08)
-- [x] DEV toggle in dashboard header (developer role only via Clerk)
-- [x] DevDiagnostics panel: connection status, flagged values, hardware health
-- [x] sensor-ranges.ts: value validation from J1939-71 specs and PLC hardware manual
-- [x] Special 32°F/0°C default detection when engine is running
-- [x] Pi heartbeat display ("Pi alive 1m ago" vs "Pi stale 10m ago")
+### Profile "Failed to load"
+**Root cause**: API queried table `"profiles"` but DB table is `"employee_profiles"`. Also column mismatches (`display_name` vs `user_name`). ProfileForm save URL was `/api/profile` (singular) instead of `/api/profiles` (plural).
 
-### Per-Truck Sim & Offline Messaging (Done — 2026-04-08)
-- [x] Truck 00 = Demo (always simulated), Truck 01 = Production (always live)
-- [x] Removed global SIM ON/OFF toggle button
-- [x] "Truck Off" connection status (gray dot) instead of red errors
-- [x] Clean messaging: "Truck off — waiting for data" vs scary error states
-- [x] Cell Network device sort fix (cards no longer shuffle every poll)
+**Fix**: Corrected table name, column names, and save URL.
 
-### Network Auto-Negotiation (Done — 2026-04-08)
-- [x] plc-subnet.service reads saved state instead of hardcoded IP
-- [x] Dispatcher restores last-known PLC subnet on link-up
-- [x] Discovery link-up wait reduced from 3s to 1s
-- [x] Discovery saves state to ~/.ironsight/plc-network.conf
+## Architecture
 
-### Field Test Logging (Done — 2026-04-08)
-- [x] scripts/lib/field_logger.py — structured JSONL logger
-- [x] scripts/health-snapshot.sh — per-minute cron for field testing
-- [x] scripts/analyze-field-test.py — post-test report with recommendations
-- [x] docs/pi-troubleshooting.md — SSH quick-reference for Claude CLI
+### Database (Supabase)
+37+ tables across 11 migrations:
+- 001: Base schema (trucks, readings)
+- 002: Audit, maintenance, DTCs
+- 003: Work orders
+- 004: Team chat (threads, messages, reactions, reads)
+- 005: Timesheets + daily logs
+- 006: Profiles, PTO, training
+- 007: Timesheet sections + platform (documents, activity, tags)
+- 008: Mobile features
+- 009: Accounting (COA, journal entries)
+- 010: Inventory (parts, usage)
+- 011: PTO balance column fix
 
-### Priority 3 — Features
-- **Auth**: Install @clerk/nextjs, uncomment middleware, wrap layout
-- **Dev diagnostics + Claude Dev AI**: Register Inspector, /api/ai-dev-chat
-- **Logging**: JSON structured logging, remaining request timing
+### Shared Package (`packages/shared/src/`)
+Single source of truth for types: sensor-types, auth, work-order, spn-lookup, pcode-lookup, gauge-thresholds, chat, timesheet, profile, pto, training, per-diem, accounting, inventory, format.
 
-## Research Decisions (Reference)
-- **OBD2**: Separate module in same repo (`modules/obd2-sensor/`)
-- **iOS**: PWA first, Capacitor wrap later if App Store needed
-- **Auth**: Clerk with 4 roles (admin/mechanic/driver/viewer)
-- **Fleet**: One Vercel app, FLEET_TRUCKS env var, Vercel KV caching (future)
-- **Pi**: Consolidated to Pi 5 only (DONE — April 2026). CAN HAT + all modules on one Pi.
-- **DTC clearing**: DM11 is safe, needs interface toggle + 0xF9 source address
-- **All readings**: US imperial (°F, PSI, mph, miles, gallons)
+### Fleet Routing
+- `dashboard/lib/machines.ts` — truck registry (fleet.json → FLEET_TRUCKS env → fallback)
+- Truck "00" = Demo (empty Part ID, sim data allowed)
+- Truck "01" = Production (real Part ID, real data only)
+- Cell-readings API routes to correct truck's Part ID
+
+### Key Pages
+| Route | Purpose | Notes |
+|-------|---------|-------|
+| `/` | OS Homepage | Module launcher, no truck_id = home screen |
+| `/?truck_id=XX` | Truck Dashboard | Live production + diagnostics |
+| `/fleet` | Fleet Overview | All trucks status |
+| `/work` | Work Orders | Task management |
+| `/chat` | Team Chat | Entity-anchored threads |
+| `/shift-report` | Shift Reports | Production summaries |
+| `/timesheets` | Time Tracking | 12 sub-sections |
+| `/pto` | Time Off | Balances + requests |
+| `/training` | Training | Compliance tracking |
+| `/profile` | Employee Profile | HR fields + photo |
+| `/accounting` | Accounting | COA + journal entries |
+| `/accounting/reports` | Financial Reports | Trial Balance + P&L |
+| `/payroll` | Payroll | Export approved timesheets |
+| `/inventory` | Inventory | Parts catalog + alerts |
+| `/vision` | Vision | Product roadmap |
+| `/admin` | Admin | System settings |
+| `/dev` | Dev Tools | Diagnostics + API testing |
+
+## What's In Progress / Next
+
+### Navigation Consistency
+- AppNav added to homepage; other pages (fleet, timesheets, PTO, etc.) still have their own headers
+- Should add AppNav to all pages for consistent back-to-home navigation
+
+### Vision Page — B&B Metals Specific
+- User requested: update vision page to be B&B-specific for integration pitch
+- B&B Metals context: railroad TPS contractor, Shepherdsville KY, 36 Mack trucks, Norfolk Southern
+
+### Fleet Expansion
+- Currently 2 trucks (Demo + Truck 01)
+- Need to add more trucks as fleet grows
+- Each truck needs its own Pi 5 with Part ID in fleet.json
+
+### Mobile App Parity
+- Accounting pages added to mobile (index, detail)
+- Timesheet sections component added (520 lines, 10 sub-sections)
+- More mobile features may be needed as Company OS grows
 
 ## How to Pick Up
 
 ```bash
 # 1. Check branch status
-git checkout claude/code-review-suggestions-RiQah
+git checkout develop
 git log --oneline -5
 
 # 2. Verify everything works
 cd dashboard && npx next build
-cd .. && python3 -m pytest modules/plc-sensor/tests/ -v
-python3 -m pytest modules/j1939-sensor/tests/ -v
+cd dashboard && npx vitest run          # 430 tests
+cd .. && python3 -m pytest modules/plc-sensor/tests/ -v    # 149 tests
+python3 -m pytest modules/j1939-sensor/tests/ -v           # 148 tests
 
-# 3. Major splits are DONE. Remaining work:
-#    - pgn_decoder.py (871 lines) — extract more PGN decode groups
-#    - j1939_sensor.py (800 lines) — bitrate negotiation to j1939_can.py
-#    - OBD2 separation into modules/obd2-sensor/
-#    - Auth activation (install @clerk/nextjs)
-#    - iOS Capacitor wrap when needed
+# 3. Deploy
+git push origin develop                  # staging
+git checkout main && git merge develop   # production
+git push origin main                     # triggers Vercel
+vercel --prod --yes                      # force deploy if webhook fails
+
+# 4. Apply pending migrations
+# Use Supabase API:
+curl -X POST "https://api.supabase.com/v1/projects/bppztvrvaajrgyfwesoe/database/query" \
+  -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "SELECT 1;"}'
 ```
