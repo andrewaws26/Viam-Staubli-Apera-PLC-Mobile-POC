@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useUser } from "@clerk/nextjs";
+import AppNav from "@/components/AppNav";
 
 const TimesheetAdmin = dynamic(() => import("../../../components/TimesheetAdmin"), {
   ssr: false,
@@ -49,30 +50,7 @@ export default function TimesheetAdminPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <header className="border-b border-gray-800 px-4 sm:px-6 py-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-black tracking-widest uppercase text-gray-100">
-            Timesheet Management
-          </h1>
-          <p className="text-xs text-gray-600 mt-0.5 tracking-wide">
-            IronSight — Approve, review, and track team hours
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <a
-            href="/timesheets"
-            className="px-4 py-2 rounded-lg border border-gray-700 hover:border-gray-500 text-gray-400 hover:text-white text-sm font-bold uppercase tracking-wider transition-colors"
-          >
-            My Timesheets
-          </a>
-          <a
-            href="/"
-            className="px-4 py-2 rounded-lg border border-gray-700 hover:border-gray-500 text-gray-400 hover:text-white text-sm font-bold uppercase tracking-wider transition-colors"
-          >
-            Dashboard
-          </a>
-        </div>
-      </header>
+      <AppNav pageTitle="Timesheet Admin" />
       <main className="px-4 sm:px-6 py-6">
         <TimesheetAdmin />
       </main>

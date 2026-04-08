@@ -42,7 +42,10 @@ export type AuditAction =
   | "journal_entry_posted"
   | "journal_entry_voided"
   | "journal_entry_deleted"
-  | "inventory_updated";
+  | "inventory_updated"
+  | "fleet_truck_created"
+  | "fleet_truck_updated"
+  | "fleet_truck_decommissioned";
 
 interface AuditEntry {
   action: AuditAction;

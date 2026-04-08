@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useUser } from "@clerk/nextjs";
+import AppNav from "@/components/AppNav";
 
 const TimesheetForm = dynamic(() => import("../../../components/TimesheetForm"), {
   ssr: false,
@@ -32,22 +33,7 @@ export default function NewTimesheetPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <header className="border-b border-gray-800 px-4 sm:px-6 py-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-black tracking-widest uppercase text-gray-100">
-            New Timesheet
-          </h1>
-          <p className="text-xs text-gray-600 mt-0.5 tracking-wide">
-            IronSight — Weekly Time Tracking
-          </p>
-        </div>
-        <a
-          href="/timesheets"
-          className="px-4 py-2 rounded-lg border border-gray-700 hover:border-gray-500 text-gray-400 hover:text-white text-sm font-bold uppercase tracking-wider transition-colors"
-        >
-          Back
-        </a>
-      </header>
+      <AppNav pageTitle="New Timesheet" />
       <main className="px-4 sm:px-6 py-6">
         <TimesheetForm
           currentUserId={user.id}

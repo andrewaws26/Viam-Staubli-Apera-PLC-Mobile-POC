@@ -1,6 +1,8 @@
 "use client";
 
 import { useUser } from "@clerk/nextjs";
+import AppNav from "@/components/AppNav";
+import FleetManager from "@/components/FleetManager";
 import TruckAssignments from "@/components/TruckAssignments";
 import AuditLogViewer from "@/components/AuditLogViewer";
 
@@ -31,21 +33,9 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <header className="border-b border-gray-800 px-4 sm:px-6 py-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-lg sm:text-2xl font-black tracking-widest uppercase text-gray-100">Fleet Admin</h1>
-          <p className="text-[10px] sm:text-xs text-gray-600 mt-0.5 tracking-wide">
-            IronSight — Truck Assignments
-          </p>
-        </div>
-        <a
-          href="/"
-          className="min-h-[44px] px-4 py-2 rounded-lg border border-gray-700 hover:border-gray-500 text-gray-300 hover:text-white text-xs font-bold uppercase tracking-wider transition-colors flex items-center"
-        >
-          Dashboard
-        </a>
-      </header>
+      <AppNav pageTitle="Admin" />
       <main className="px-4 sm:px-6 py-6 max-w-6xl mx-auto space-y-8">
+        <FleetManager />
         <TruckAssignments />
         <AuditLogViewer />
       </main>

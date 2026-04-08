@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import AppNav from "@/components/AppNav";
 import DevStatusBar from "../../components/DevStatusBar";
 import DevTruckPanel from "../../components/DevTruckPanel";
 import DevTPSPanel from "../../components/DevTPSPanel";
@@ -178,20 +179,12 @@ export default function DevPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100">
+      <AppNav pageTitle="Dev Tools" />
+
       {/* ================================================================== */}
       {/* Section 1: System Status Bar (sticky)                              */}
       {/* ================================================================== */}
       <DevStatusBar />
-
-      {/* Page header */}
-      <header className="px-3 sm:px-6 pt-4 pb-2">
-        <h1 className="text-lg sm:text-2xl font-black tracking-widest uppercase text-gray-100 leading-none">
-          IronSight Dev Mode
-        </h1>
-        <p className="text-[10px] sm:text-xs text-gray-600 mt-0.5 tracking-wide">
-          Engineering cockpit &mdash; system diagnostics, testing, calibration
-        </p>
-      </header>
 
       <main className="px-3 sm:px-6 pb-6 space-y-4">
         {/* ================================================================ */}

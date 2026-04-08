@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import AppNav from "@/components/AppNav";
 import type { AccountType, TrialBalanceSummary, TrialBalanceRow } from "@ironsight/shared";
 import {
   ACCOUNT_TYPE_LABELS,
@@ -398,22 +399,7 @@ export default function FinancialReportsPage() {
         }
       `}</style>
 
-      <header className="border-b border-gray-800 px-4 sm:px-6 py-4 flex items-center justify-between no-print">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-black tracking-widest uppercase text-gray-100">
-            Financial Reports
-          </h1>
-          <p className="text-xs text-gray-600 mt-0.5 tracking-wide">
-            IronSight — Trial Balance &amp; Income Statement
-          </p>
-        </div>
-        <a
-          href="/accounting"
-          className="px-4 py-2 rounded-lg border border-gray-700 hover:border-gray-500 text-gray-400 hover:text-white text-sm font-bold uppercase tracking-wider transition-colors"
-        >
-          Back to Accounting
-        </a>
-      </header>
+      <AppNav pageTitle="Financial Reports" />
 
       <main className="px-4 sm:px-6 py-6 max-w-6xl mx-auto">
         {/* Date picker + Generate */}

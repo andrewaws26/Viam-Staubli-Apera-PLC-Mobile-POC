@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
+import AppNav from "@/components/AppNav";
 
 import { ShiftReport } from "./types";
 import { fmtTime, fmtDateLong, fmtDateTime, fmtHM, todayStr } from "./utils/timezone";
@@ -89,26 +90,9 @@ export default function ShiftReportPage() {
       <style>{PRINT_STYLES}</style>
 
       <div className="min-h-screen bg-gray-950 text-white flex flex-col">
-        {/* Header */}
-        <header className="border-b border-gray-800 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2 shrink-0 no-print">
-          <div className="min-w-0">
-            <a href="/" className="text-gray-500 hover:text-gray-300 text-xs uppercase tracking-widest">
-              &larr; Dashboard
-            </a>
-            <h1 className="text-lg sm:text-2xl font-black tracking-widest uppercase text-gray-100 leading-none mt-1">
-              Shift Report
-            </h1>
-            <p className="text-[10px] sm:text-xs text-gray-600 mt-0.5 tracking-wide">
-              IronSight Fleet Monitoring
-            </p>
-          </div>
-          <button
-            onClick={() => window.print()}
-            className="min-h-[44px] px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm font-semibold transition-colors"
-          >
-            Print
-          </button>
-        </header>
+        <div className="no-print">
+          <AppNav pageTitle="Shift Report" />
+        </div>
 
         {/* Controls: date + time range + preset pills */}
         <div className="px-3 sm:px-6 py-3 sm:py-4 border-b border-gray-800 no-print">
@@ -146,6 +130,12 @@ export default function ShiftReportPage() {
               className="min-h-[44px] px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-sm font-semibold transition-colors"
             >
               {loading ? "Loading..." : "Generate"}
+            </button>
+            <button
+              onClick={() => window.print()}
+              className="min-h-[44px] px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm font-semibold transition-colors"
+            >
+              Print
             </button>
           </div>
 

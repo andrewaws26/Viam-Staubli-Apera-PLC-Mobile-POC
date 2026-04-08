@@ -3,6 +3,7 @@
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import AppNav from "@/components/AppNav";
 
 function StatusBadge({ status }: { status: "built" | "in-progress" | "planned" }) {
   const styles = {
@@ -163,10 +164,12 @@ export default function VisionPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
+      <AppNav pageTitle="Vision" />
+
       {/* ------------------------------------------------------------------ */}
-      {/* Header                                                              */}
+      {/* Hero                                                                */}
       {/* ------------------------------------------------------------------ */}
-      <header className="relative overflow-hidden border-b border-gray-800">
+      <header className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-purple-950/50 via-gray-950 to-indigo-950/30" />
         <div className="relative max-w-6xl mx-auto px-6 py-16 sm:py-24 text-center">
           <div className="inline-flex items-center gap-2 mb-6 px-4 py-1.5 rounded-full bg-red-500/10 border border-red-500/30">
@@ -187,14 +190,6 @@ export default function VisionPage() {
             One platform for every piece of data in a field operations company — fleet diagnostics,
             workforce management, financials, compliance, and AI-powered insights.
           </p>
-          <div className="mt-8 flex justify-center">
-            <a
-              href="/"
-              className="px-5 py-2 rounded-lg border border-gray-700 hover:border-gray-500 text-gray-400 hover:text-white text-sm font-bold uppercase tracking-wider transition-colors"
-            >
-              Back to Dashboard
-            </a>
-          </div>
         </div>
       </header>
 
