@@ -64,6 +64,8 @@ export default function AppNav({ pageTitle }: Props) {
             {isAdmin && <NavLink href="/accounting/bills" label="Bills" />}
             {isAdmin && <NavLink href="/accounting/customers" label="Clients" />}
             {isAdmin && <NavLink href="/accounting/bank" label="Bank" />}
+            {isAdmin && <NavLink href="/accounting/recurring" label="Recurring" />}
+            {isAdmin && <NavLink href="/accounting/periods" label="Periods" />}
             {isAdmin && <NavLink href="/accounting/reports" label="Reports" />}
           </div>
 
@@ -107,6 +109,8 @@ export default function AppNav({ pageTitle }: Props) {
                     {isAdmin && <MenuLink href="/accounting/bills" label="Bills (AP)" />}
                     {isAdmin && <MenuLink href="/accounting/customers" label="Customers & Vendors" />}
                     {isAdmin && <MenuLink href="/accounting/bank" label="Bank Reconciliation" />}
+                    {isAdmin && <MenuLink href="/accounting/recurring" label="Recurring Entries" />}
+                    {isAdmin && <MenuLink href="/accounting/periods" label="Accounting Periods" />}
                     {isAdmin && <MenuLink href="/accounting/reports" label="Financial Reports" />}
                     {isAdmin && <MenuLink href="/inventory" label="Inventory" />}
                     {isAdmin && <MenuLink href="/payroll" label="Payroll" />}
