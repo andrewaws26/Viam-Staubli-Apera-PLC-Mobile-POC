@@ -54,7 +54,7 @@ export async function GET() {
     const userInfo = await getUserInfo(userId);
 
     // Try to fetch existing balance
-    const { data: balance, error: fetchErr } = await sb
+    let { data: balance, error: fetchErr } = await sb // eslint-disable-line prefer-const -- balance is reassigned below
       .from("pto_balances")
       .select("*")
       .eq("user_id", userId)
