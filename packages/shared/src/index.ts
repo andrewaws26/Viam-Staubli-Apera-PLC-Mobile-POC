@@ -14,5 +14,6 @@ export * from './pto';
 export * from './training';
 export * from './per-diem';
 export * from './accounting';
+export * from './inventory';
 // format.ts requires date-fns — import directly when needed:
 // import { timeAgo, formatTemp } from '@ironsight/shared/format';

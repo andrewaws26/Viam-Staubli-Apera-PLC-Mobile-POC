@@ -224,6 +224,18 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
             )}
             {isAdmin && (
               <a
+                href="/inventory"
+                className="min-h-[44px] px-3 sm:px-4 py-2 rounded-lg border border-lime-600 hover:border-lime-400 text-lime-300 hover:text-white text-xs sm:text-sm font-bold uppercase tracking-wider transition-colors flex items-center gap-1.5"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M4 3a2 2 0 100 4h12a2 2 0 100-4H4z" />
+                  <path fillRule="evenodd" d="M3 8h14v7a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm5 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" clipRule="evenodd" />
+                </svg>
+                <span className="hidden sm:inline">Inventory</span>
+              </a>
+            )}
+            {isAdmin && (
+              <a
                 href="/payroll"
                 className="min-h-[44px] px-3 sm:px-4 py-2 rounded-lg border border-lime-600 hover:border-lime-400 text-lime-300 hover:text-white text-xs sm:text-sm font-bold uppercase tracking-wider transition-colors flex items-center gap-1.5"
               >
