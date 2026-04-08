@@ -2,11 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import AppNav from "@/components/AppNav";
-import DevStatusBar from "../../components/DevStatusBar";
-import DevTruckPanel from "../../components/DevTruckPanel";
-import DevTPSPanel from "../../components/DevTPSPanel";
-import DevApiTester from "../../components/DevApiTester";
+import DevStatusBar from "../../../components/DevStatusBar";
+import DevTruckPanel from "../../../components/DevTruckPanel";
+import DevTPSPanel from "../../../components/DevTPSPanel";
+import DevApiTester from "../../../components/DevApiTester";
 
 // ---------------------------------------------------------------------------
 // Environment guard — production requires explicit opt-in
@@ -179,7 +178,6 @@ export default function DevPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100">
-      <AppNav pageTitle="Dev Tools" />
 
       {/* ================================================================== */}
       {/* Section 1: System Status Bar (sticky)                              */}

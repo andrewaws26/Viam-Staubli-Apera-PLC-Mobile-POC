@@ -3,7 +3,6 @@
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import AppNav from "@/components/AppNav";
 
 function StatusBadge({ status }: { status: "built" | "in-progress" | "planned" }) {
   const styles = {
@@ -164,7 +163,6 @@ export default function VisionPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <AppNav pageTitle="Vision" />
 
       {/* ------------------------------------------------------------------ */}
       {/* Hero                                                                */}

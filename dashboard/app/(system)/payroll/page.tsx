@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import AppNav from "@/components/AppNav";
 
 // ── Types matching API response ──────────────────────────────────────
 
@@ -225,7 +224,6 @@ export default function PayrollPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <AppNav pageTitle="Payroll" />
 
       <main className="px-4 sm:px-6 py-6 max-w-7xl mx-auto space-y-6">
         {/* ── Controls Row ── */}

@@ -2,7 +2,6 @@
 
 import { useState, useCallback } from "react";
 import dynamic from "next/dynamic";
-import AppNav from "@/components/AppNav";
 
 import { ShiftReport } from "./types";
 import { fmtTime, fmtDateLong, fmtDateTime, fmtHM, todayStr } from "./utils/timezone";
@@ -16,7 +15,7 @@ import { PrintReport } from "./components/PrintReport";
 import { PRINT_STYLES } from "./print-styles";
 import type { TimePreset } from "./types";
 
-const ShiftRouteMap = dynamic(() => import("../../components/ShiftRouteMap"), { ssr: false });
+const ShiftRouteMap = dynamic(() => import("../../../components/ShiftRouteMap"), { ssr: false });
 
 // ---------------------------------------------------------------------------
 // Page
@@ -90,7 +89,6 @@ export default function ShiftReportPage() {
 
       <div className="min-h-screen bg-gray-950 text-white flex flex-col">
         <div className="no-print">
-          <AppNav pageTitle="Shift Report" />
         </div>
 
         {/* Controls: date + time range + preset pills */}

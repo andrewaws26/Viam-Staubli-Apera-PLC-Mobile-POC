@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import AppNav from "@/components/AppNav";
 import type {
   Part,
   PartCategory,
@@ -1165,7 +1164,6 @@ export default function InventoryPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <AppNav pageTitle="Inventory" />
 
       <main className="px-4 sm:px-6 py-6 max-w-6xl mx-auto">
         {/* Alert Banner */}

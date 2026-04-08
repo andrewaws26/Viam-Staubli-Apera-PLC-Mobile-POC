@@ -1,7 +1,6 @@
 "use client";
 
 import { useUser } from "@clerk/nextjs";
-import AppNav from "@/components/AppNav";
 import FleetManager from "@/components/FleetManager";
 import TruckAssignments from "@/components/TruckAssignments";
 import AuditLogViewer from "@/components/AuditLogViewer";
@@ -33,7 +32,6 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <AppNav pageTitle="Admin" />
       <main className="px-4 sm:px-6 py-6 max-w-6xl mx-auto space-y-8">
         <FleetManager />
         <TruckAssignments />
