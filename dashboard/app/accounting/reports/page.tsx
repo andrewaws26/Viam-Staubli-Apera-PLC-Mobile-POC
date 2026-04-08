@@ -1,12 +1,70 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import AppNav from "@/components/AppNav";
 import type { AccountType, TrialBalanceSummary, TrialBalanceRow } from "@ironsight/shared";
 import {
   ACCOUNT_TYPE_LABELS,
   ACCOUNT_TYPE_COLORS,
 } from "@ironsight/shared";
+
+// ── Types for new reports ────────────────────────────────────────────
+
+interface BalanceSheetAccount {
+  account_id: string;
+  account_number: number;
+  account_name: string;
+  balance: number;
+}
+
+interface BalanceSheetSection {
+  label: string;
+  accounts: BalanceSheetAccount[];
+  total: number;
+}
+
+interface BalanceSheetData {
+  as_of_date: string;
+  assets: BalanceSheetSection;
+  liabilities: BalanceSheetSection;
+  equity: BalanceSheetSection;
+  retained_earnings: number;
+  total_equity_with_re: number;
+  total_liabilities_and_equity: number;
+  is_balanced: boolean;
+}
+
+interface GLLine {
+  line_id: string;
+  entry_id: string;
+  entry_date: string;
+  entry_description: string;
+  reference: string | null;
+  source: string;
+  account_id: string;
+  account_number: number;
+  account_name: string;
+  account_type: string;
+  line_description: string | null;
+  debit: number;
+  credit: number;
+  running_balance: number;
+}
+
+interface GLData {
+  lines: GLLine[];
+  count: number;
+  start_date: string | null;
+  end_date: string;
+  account_id: string | null;
+}
+
+interface AccountOption {
+  id: string;
+  account_number: number;
+  name: string;
+  account_type: string;
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -353,37 +411,299 @@ function ProfitLossReport({ data }: { data: TrialBalanceSummary }) {
 
 import { Fragment } from "react";
 
+// ── Balance Sheet Section ────────────────────────────────────────────
+
+function BalanceSheetReport({ data }: { data: BalanceSheetData }) {
+  function SectionTable({ section, color }: { section: BalanceSheetSection; color: string }) {
+    return (
+      <>
+        <tr className="bg-gray-800/40">
+          <td colSpan={3} className="px-4 py-2">
+            <div className="flex items-center gap-2">
+              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
+              <span className="text-xs font-bold uppercase tracking-wider text-gray-300">
+                {section.label}
+              </span>
+            </div>
+          </td>
+        </tr>
+        {section.accounts.length === 0 ? (
+          <tr>
+            <td colSpan={3} className="px-4 py-3 text-center text-gray-600 text-xs">
+              No {section.label.toLowerCase()} accounts with balances
+            </td>
+          </tr>
+        ) : (
+          section.accounts.map((acct) => (
+            <tr key={acct.account_id} className="border-t border-gray-800/50 hover:bg-gray-800/20 transition-colors">
+              <td className="px-4 py-2.5 font-mono text-gray-400 text-xs">{acct.account_number}</td>
+              <td className="px-4 py-2.5 text-gray-200">{acct.account_name}</td>
+              <td className="px-4 py-2.5 text-right font-mono text-gray-300">{fmtCurrency(acct.balance)}</td>
+            </tr>
+          ))
+        )}
+        <tr className="border-t border-gray-700">
+          <td colSpan={2} className="px-4 py-2 text-right">
+            <span className="text-[10px] uppercase tracking-wider text-gray-500">
+              Total {section.label}
+            </span>
+          </td>
+          <td className="px-4 py-2 text-right font-mono text-gray-200 font-medium border-t border-gray-700">
+            {fmtCurrency(section.total)}
+          </td>
+        </tr>
+      </>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-black uppercase tracking-widest text-gray-100">
+          Balance Sheet
+        </h2>
+        {data.is_balanced ? (
+          <span className="inline-block px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider bg-emerald-900/60 text-emerald-300 border border-emerald-700/50">
+            A = L + E
+          </span>
+        ) : (
+          <span className="inline-block px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider bg-red-900/60 text-red-300 border border-red-700/50">
+            UNBALANCED
+          </span>
+        )}
+      </div>
+
+      <p className="text-xs text-gray-500 tracking-wide">As of {data.as_of_date}</p>
+
+      <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
+        <table className="w-full text-sm min-w-[480px]">
+          <thead>
+            <tr className="text-[10px] uppercase tracking-wider text-gray-600 border-b border-gray-800">
+              <th className="text-left px-4 py-3 font-medium w-28">Acct #</th>
+              <th className="text-left px-4 py-3 font-medium">Account</th>
+              <th className="text-right px-4 py-3 font-medium w-36">Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {/* Assets */}
+            <SectionTable section={data.assets} color={ACCOUNT_TYPE_COLORS.asset} />
+
+            {/* Total Assets grand total */}
+            <tr className="border-t-2 border-gray-600 bg-gray-800/60">
+              <td colSpan={2} className="px-4 py-3 text-right">
+                <span className="text-xs font-bold uppercase tracking-wider text-gray-200">
+                  Total Assets
+                </span>
+              </td>
+              <td className="px-4 py-3 text-right font-mono text-white font-bold text-base">
+                {fmtCurrency(data.assets.total)}
+              </td>
+            </tr>
+
+            {/* Spacer */}
+            <tr><td colSpan={3} className="h-4" /></tr>
+
+            {/* Liabilities */}
+            <SectionTable section={data.liabilities} color={ACCOUNT_TYPE_COLORS.liability} />
+
+            {/* Equity */}
+            <SectionTable section={data.equity} color={ACCOUNT_TYPE_COLORS.equity} />
+
+            {/* Retained Earnings */}
+            <tr className="border-t border-gray-800/50 hover:bg-gray-800/20 transition-colors">
+              <td className="px-4 py-2.5 font-mono text-gray-400 text-xs" />
+              <td className="px-4 py-2.5 text-gray-200 italic">Retained Earnings (Net Income)</td>
+              <td className={`px-4 py-2.5 text-right font-mono ${data.retained_earnings >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                {data.retained_earnings >= 0 ? fmtCurrency(data.retained_earnings) : `(${fmtCurrency(Math.abs(data.retained_earnings))})`}
+              </td>
+            </tr>
+
+            {/* Total L+E */}
+            <tr className="border-t-2 border-gray-600 bg-gray-800/60">
+              <td colSpan={2} className="px-4 py-3 text-right">
+                <span className="text-xs font-bold uppercase tracking-wider text-gray-200">
+                  Total Liabilities + Equity
+                </span>
+              </td>
+              <td className="px-4 py-3 text-right font-mono text-white font-bold text-base">
+                {fmtCurrency(data.total_liabilities_and_equity)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── General Ledger Section ───────────────────────────────────────────
+
+function GeneralLedgerReport({ data }: { data: GLData }) {
+  // Group lines by account
+  const grouped = useMemo(() => {
+    const map = new Map<string, { account_number: number; account_name: string; account_type: string; lines: GLLine[] }>();
+    for (const line of data.lines) {
+      const key = line.account_id;
+      if (!map.has(key)) {
+        map.set(key, {
+          account_number: line.account_number,
+          account_name: line.account_name,
+          account_type: line.account_type,
+          lines: [],
+        });
+      }
+      map.get(key)!.lines.push(line);
+    }
+    return [...map.entries()].sort((a, b) => a[1].account_number - b[1].account_number);
+  }, [data.lines]);
+
+  if (data.lines.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-gray-600 text-sm">No posted transactions found for this period.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-lg font-black uppercase tracking-widest text-gray-100">
+        General Ledger
+      </h2>
+      <p className="text-xs text-gray-500 tracking-wide">
+        {data.start_date ? `${data.start_date} through ${data.end_date}` : `Through ${data.end_date}`}
+        {" "} &mdash; {data.count} transaction{data.count !== 1 ? "s" : ""}
+      </p>
+
+      {grouped.map(([accountId, group]) => {
+        const color = ACCOUNT_TYPE_COLORS[group.account_type as AccountType] || "#6b7280";
+        return (
+          <div key={accountId} className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
+            {/* Account header */}
+            <div className="px-4 py-3 bg-gray-800/40 flex items-center gap-2">
+              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
+              <span className="font-mono text-gray-400 text-xs">{group.account_number}</span>
+              <span className="font-bold text-gray-200 text-sm">{group.account_name}</span>
+              <span className="text-xs font-medium ml-auto" style={{ color }}>
+                {ACCOUNT_TYPE_LABELS[group.account_type as AccountType]}
+              </span>
+            </div>
+
+            <table className="w-full text-sm min-w-[700px]">
+              <thead>
+                <tr className="text-[10px] uppercase tracking-wider text-gray-600 border-b border-gray-800">
+                  <th className="text-left px-4 py-2 font-medium w-24">Date</th>
+                  <th className="text-left px-4 py-2 font-medium">Description</th>
+                  <th className="text-left px-4 py-2 font-medium w-20">Ref</th>
+                  <th className="text-right px-4 py-2 font-medium w-28">Debit</th>
+                  <th className="text-right px-4 py-2 font-medium w-28">Credit</th>
+                  <th className="text-right px-4 py-2 font-medium w-32">Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {group.lines.map((line) => (
+                  <tr key={line.line_id} className="border-t border-gray-800/50 hover:bg-gray-800/20 transition-colors">
+                    <td className="px-4 py-2 font-mono text-gray-400 text-xs">{line.entry_date}</td>
+                    <td className="px-4 py-2 text-gray-200 text-xs">
+                      {line.entry_description}
+                      {line.line_description && line.line_description !== line.entry_description && (
+                        <span className="text-gray-500 ml-1">— {line.line_description}</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 text-gray-500 text-xs">{line.reference || ""}</td>
+                    <td className="px-4 py-2 text-right font-mono text-gray-300">
+                      {line.debit > 0 ? fmtCurrency(line.debit) : ""}
+                    </td>
+                    <td className="px-4 py-2 text-right font-mono text-gray-300">
+                      {line.credit > 0 ? fmtCurrency(line.credit) : ""}
+                    </td>
+                    <td className={`px-4 py-2 text-right font-mono font-medium ${line.running_balance >= 0 ? "text-gray-200" : "text-red-400"}`}>
+                      {line.running_balance >= 0 ? fmtCurrency(line.running_balance) : `(${fmtCurrency(Math.abs(line.running_balance))})`}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Main Page ────────────────────────────────────────────────────────
 
-type ReportTab = "trial-balance" | "profit-loss";
+type ReportTab = "trial-balance" | "profit-loss" | "balance-sheet" | "general-ledger";
 
 export default function FinancialReportsPage() {
   const [asOf, setAsOf] = useState(todayISO());
   const [data, setData] = useState<TrialBalanceSummary | null>(null);
+  const [bsData, setBsData] = useState<BalanceSheetData | null>(null);
+  const [glData, setGlData] = useState<GLData | null>(null);
+  const [accounts, setAccounts] = useState<AccountOption[]>([]);
+  const [glAccountId, setGlAccountId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState<ReportTab>("trial-balance");
+
+  // Load account list for GL filter (once on first GL tab switch)
+  const loadAccounts = useCallback(async () => {
+    if (accounts.length > 0) return;
+    try {
+      const res = await fetch("/api/accounting/accounts?active_only=true");
+      if (res.ok) {
+        const list = await res.json();
+        setAccounts(list.map((a: { id: string; account_number: number; name: string; account_type: string }) => ({
+          id: a.id,
+          account_number: a.account_number,
+          name: a.name,
+          account_type: a.account_type,
+        })));
+      }
+    } catch { /* ignore */ }
+  }, [accounts.length]);
 
   async function generate() {
     setLoading(true);
     setError("");
     setData(null);
+    setBsData(null);
+    setGlData(null);
+
     try {
-      const res = await fetch(
-        `/api/accounting/trial-balance?as_of=${encodeURIComponent(asOf)}`
-      );
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || `HTTP ${res.status}`);
+      if (activeTab === "balance-sheet") {
+        const res = await fetch(`/api/accounting/balance-sheet?as_of=${encodeURIComponent(asOf)}`);
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || `HTTP ${res.status}`);
+        }
+        setBsData(await res.json());
+      } else if (activeTab === "general-ledger") {
+        const params = new URLSearchParams({ end_date: asOf });
+        if (glAccountId) params.set("account_id", glAccountId);
+        const res = await fetch(`/api/accounting/general-ledger?${params}`);
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || `HTTP ${res.status}`);
+        }
+        setGlData(await res.json());
+      } else {
+        // Trial balance + P&L share the same data
+        const res = await fetch(`/api/accounting/trial-balance?as_of=${encodeURIComponent(asOf)}`);
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || `HTTP ${res.status}`);
+        }
+        setData(await res.json());
       }
-      const summary: TrialBalanceSummary = await res.json();
-      setData(summary);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load report");
     } finally {
       setLoading(false);
     }
   }
+
+  const hasData = data || bsData || glData;
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
@@ -402,7 +722,30 @@ export default function FinancialReportsPage() {
       <AppNav pageTitle="Financial Reports" />
 
       <main className="px-4 sm:px-6 py-6 max-w-6xl mx-auto">
-        {/* Date picker + Generate */}
+        {/* Tab toggle — always visible */}
+        <div className="flex flex-wrap items-center gap-1 mb-6 bg-gray-900 rounded-xl p-1 w-fit no-print">
+          {(["trial-balance", "profit-loss", "balance-sheet", "general-ledger"] as ReportTab[]).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => {
+                setActiveTab(tab);
+                if (tab === "general-ledger") loadAccounts();
+              }}
+              className={`px-4 py-2 rounded-lg text-xs sm:text-sm font-bold uppercase tracking-wider transition-colors ${
+                activeTab === tab
+                  ? "bg-gray-800 text-white"
+                  : "text-gray-500 hover:text-gray-300"
+              }`}
+            >
+              {tab === "trial-balance" ? "Trial Balance" :
+               tab === "profit-loss" ? "P&L" :
+               tab === "balance-sheet" ? "Balance Sheet" :
+               "General Ledger"}
+            </button>
+          ))}
+        </div>
+
+        {/* Controls row */}
         <div className="flex flex-wrap items-end gap-3 mb-6 no-print">
           <div>
             <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">
@@ -415,6 +758,28 @@ export default function FinancialReportsPage() {
               className="px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white focus:outline-none focus:border-gray-600 [color-scheme:dark]"
             />
           </div>
+
+          {/* Account filter for GL */}
+          {activeTab === "general-ledger" && (
+            <div>
+              <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">
+                Account
+              </label>
+              <select
+                value={glAccountId}
+                onChange={(e) => setGlAccountId(e.target.value)}
+                className="px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white focus:outline-none focus:border-gray-600 min-w-[200px]"
+              >
+                <option value="">All Accounts</option>
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.account_number} — {a.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <button
             onClick={generate}
             disabled={loading}
@@ -423,7 +788,7 @@ export default function FinancialReportsPage() {
             {loading ? "Loading..." : "Generate"}
           </button>
 
-          {data && (
+          {hasData && (
             <button
               onClick={() => window.print()}
               className="px-4 py-2 rounded-lg border border-gray-700 hover:border-gray-500 text-gray-400 hover:text-white text-sm font-bold uppercase tracking-wider transition-colors"
@@ -441,7 +806,7 @@ export default function FinancialReportsPage() {
         )}
 
         {/* Empty state */}
-        {!data && !loading && !error && (
+        {!hasData && !loading && !error && (
           <div className="text-center py-20">
             <p className="text-gray-600 text-sm">
               Select a date and click Generate to view reports.
@@ -457,34 +822,12 @@ export default function FinancialReportsPage() {
         )}
 
         {/* Report content */}
-        {data && !loading && (
+        {!loading && (
           <>
-            {/* Tab toggle */}
-            <div className="flex items-center gap-1 mb-6 bg-gray-900 rounded-xl p-1 w-fit no-print">
-              <button
-                onClick={() => setActiveTab("trial-balance")}
-                className={`px-5 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors ${
-                  activeTab === "trial-balance"
-                    ? "bg-gray-800 text-white"
-                    : "text-gray-500 hover:text-gray-300"
-                }`}
-              >
-                Trial Balance
-              </button>
-              <button
-                onClick={() => setActiveTab("profit-loss")}
-                className={`px-5 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors ${
-                  activeTab === "profit-loss"
-                    ? "bg-gray-800 text-white"
-                    : "text-gray-500 hover:text-gray-300"
-                }`}
-              >
-                Profit &amp; Loss
-              </button>
-            </div>
-
-            {activeTab === "trial-balance" && <TrialBalanceReport data={data} />}
-            {activeTab === "profit-loss" && <ProfitLossReport data={data} />}
+            {activeTab === "trial-balance" && data && <TrialBalanceReport data={data} />}
+            {activeTab === "profit-loss" && data && <ProfitLossReport data={data} />}
+            {activeTab === "balance-sheet" && bsData && <BalanceSheetReport data={bsData} />}
+            {activeTab === "general-ledger" && glData && <GeneralLedgerReport data={glData} />}
           </>
         )}
       </main>

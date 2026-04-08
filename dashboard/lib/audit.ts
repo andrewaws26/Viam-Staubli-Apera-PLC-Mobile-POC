@@ -45,7 +45,21 @@ export type AuditAction =
   | "inventory_updated"
   | "fleet_truck_created"
   | "fleet_truck_updated"
-  | "fleet_truck_decommissioned";
+  | "fleet_truck_decommissioned"
+  | "accounting_period_close"
+  | "accounting_period_lock"
+  | "accounting_period_reopen"
+  | "year_end_close"
+  | "recurring_entry_created"
+  | "recurring_entries_generated"
+  | "recurring_entry_deleted"
+  | "invoice_created"
+  | "invoice_sent"
+  | "invoice_payment_recorded"
+  | "invoice_voided"
+  | "bill_created"
+  | "bill_payment_recorded"
+  | "bill_voided";
 
 interface AuditEntry {
   action: AuditAction;
