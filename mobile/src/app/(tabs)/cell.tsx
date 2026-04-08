@@ -483,7 +483,7 @@ export default function CellScreen() {
       {data?.network && data.network.length > 0 && (
         <Card>
           <Text style={styles.sectionTitle}>Cell Network</Text>
-          {data.network.map((dev) => (
+          {[...data.network].sort((a, b) => a.name.localeCompare(b.name)).map((dev) => (
             <View key={dev.ip} style={styles.networkRow}>
               <View style={[styles.statusDot, {
                 backgroundColor: dev.reachable ? colors.success : colors.danger,
