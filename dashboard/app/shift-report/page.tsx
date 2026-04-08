@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import dynamic from "next/dynamic";
 import AppNav from "@/components/AppNav";
 
@@ -60,9 +60,8 @@ export default function ShiftReportPage() {
     }
   }, [date, startH, startM, endH, endM]);
 
-  useEffect(() => {
-    fetchReport();
-  }, [fetchReport]);
+  // Don't auto-fetch on mount — wait for user to click "Generate"
+  // useEffect removed: was causing immediate report generation before user sets parameters
 
   function applyPreset(p: TimePreset) {
     setStartH(p.sh);
