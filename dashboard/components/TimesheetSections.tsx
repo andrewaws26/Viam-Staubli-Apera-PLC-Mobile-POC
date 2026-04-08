@@ -10,7 +10,7 @@
  * Maintenance Time, Shop Time, Mileage Pay, Flight Pay, Holiday Pay, Vacation Pay.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   EXPENSE_CATEGORIES,
   LUNCH_OPTIONS,
@@ -73,6 +73,69 @@ export default function TimesheetSections({ timesheetId, canEdit }: Props) {
   const [editingEntry, setEditingEntry] = useState<EntryRecord | null>(null);
   const [formData, setFormData] = useState<EntryRecord>({});
   const [saving, setSaving] = useState(false);
+
+  // ── Receipt upload state ────────────────────────────────────────────
+  const receiptInputRef = useRef<HTMLInputElement>(null);
+  const odometerInputRef = useRef<HTMLInputElement>(null);
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
+  const [odometerPreview, setOdometerPreview] = useState<string | null>(null);
+  const [receiptUploading, setReceiptUploading] = useState(false);
+  const [odometerUploading, setOdometerUploading] = useState(false);
+
+  function handleFileSelect(
+    file: File,
+    field: "receipt_image_url" | "odometer_image_url",
+  ) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      if (field === "receipt_image_url") {
+        setReceiptPreview(dataUrl);
+      } else {
+        setOdometerPreview(dataUrl);
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function uploadReceiptImage(
+    entryId: string,
+    field: "receipt_image_url" | "odometer_image_url",
+    preview: string,
+  ) {
+    const setUploading = field === "receipt_image_url" ? setReceiptUploading : setOdometerUploading;
+    setUploading(true);
+    try {
+      // Extract base64 and content type from data URL
+      const match = preview.match(/^data:(image\/\w+);base64,(.+)$/);
+      if (!match) return;
+      const [, content_type, image] = match;
+
+      const res = await fetch("/api/timesheets/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          image,
+          content_type,
+          timesheet_id: timesheetId,
+          entry_id: entryId,
+          field,
+        }),
+      });
+
+      if (res.ok) {
+        const { url } = await res.json();
+        setField(field, url);
+        if (field === "receipt_image_url") setReceiptPreview(null);
+        else setOdometerPreview(null);
+        // Refresh entries to show the new thumbnail
+        await fetchSection("expenses");
+      }
+    } catch {
+      // Silently fail
+    }
+    setUploading(false);
+  }
 
   // ── Fetch entries for a section ────────────────────────────────────
 
@@ -176,6 +239,8 @@ export default function TimesheetSections({ timesheetId, canEdit }: Props) {
     setShowForm(section);
     setEditingEntry(null);
     setFormData(getDefaultFormData(section));
+    setReceiptPreview(null);
+    setOdometerPreview(null);
   }
 
   // ── Cancel form ────────────────────────────────────────────────────
@@ -184,6 +249,8 @@ export default function TimesheetSections({ timesheetId, canEdit }: Props) {
     setShowForm(null);
     setEditingEntry(null);
     setFormData({});
+    setReceiptPreview(null);
+    setOdometerPreview(null);
   }
 
   // ── Update a form field ────────────────────────────────────────────
@@ -292,6 +359,158 @@ export default function TimesheetSections({ timesheetId, canEdit }: Props) {
                       {editingEntry ? "Edit" : "New"} {section.label.replace(/s$/, "")}
                     </h4>
                     {renderSectionForm(section.key, formData, setField)}
+
+                    {/* Receipt & Odometer upload — expenses only */}
+                    {section.key === "expenses" && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        {/* Receipt image */}
+                        <div>
+                          <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
+                            Receipt Photo
+                          </label>
+                          <input
+                            ref={receiptInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleFileSelect(file, "receipt_image_url");
+                              e.target.value = "";
+                            }}
+                          />
+                          <div className="flex items-center gap-3">
+                            {receiptPreview ? (
+                              <>
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={receiptPreview}
+                                  alt="Receipt preview"
+                                  className="w-10 h-10 rounded object-cover border border-gray-600"
+                                />
+                                {editingEntry ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => uploadReceiptImage(editingEntry.id as string, "receipt_image_url", receiptPreview)}
+                                    disabled={receiptUploading}
+                                    className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-colors disabled:opacity-50"
+                                  >
+                                    {receiptUploading ? "Uploading..." : "Upload Receipt"}
+                                  </button>
+                                ) : (
+                                  <span className="text-xs text-gray-500">Save entry first, then upload</span>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => setReceiptPreview(null)}
+                                  className="text-xs text-gray-500 hover:text-red-400"
+                                >
+                                  Remove
+                                </button>
+                              </>
+                            ) : formData.receipt_image_url ? (
+                              <>
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={formData.receipt_image_url as string}
+                                  alt="Receipt"
+                                  className="w-10 h-10 rounded object-cover border border-gray-600"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => receiptInputRef.current?.click()}
+                                  className="px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs font-bold transition-colors"
+                                >
+                                  Replace
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => receiptInputRef.current?.click()}
+                                className="px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs font-bold transition-colors"
+                              >
+                                Upload Receipt
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Odometer image */}
+                        <div>
+                          <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
+                            Odometer Photo
+                          </label>
+                          <input
+                            ref={odometerInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleFileSelect(file, "odometer_image_url");
+                              e.target.value = "";
+                            }}
+                          />
+                          <div className="flex items-center gap-3">
+                            {odometerPreview ? (
+                              <>
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={odometerPreview}
+                                  alt="Odometer preview"
+                                  className="w-10 h-10 rounded object-cover border border-gray-600"
+                                />
+                                {editingEntry ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => uploadReceiptImage(editingEntry.id as string, "odometer_image_url", odometerPreview)}
+                                    disabled={odometerUploading}
+                                    className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-colors disabled:opacity-50"
+                                  >
+                                    {odometerUploading ? "Uploading..." : "Upload Odometer"}
+                                  </button>
+                                ) : (
+                                  <span className="text-xs text-gray-500">Save entry first, then upload</span>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => setOdometerPreview(null)}
+                                  className="text-xs text-gray-500 hover:text-red-400"
+                                >
+                                  Remove
+                                </button>
+                              </>
+                            ) : formData.odometer_image_url ? (
+                              <>
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={formData.odometer_image_url as string}
+                                  alt="Odometer"
+                                  className="w-10 h-10 rounded object-cover border border-gray-600"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => odometerInputRef.current?.click()}
+                                  className="px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs font-bold transition-colors"
+                                >
+                                  Replace
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => odometerInputRef.current?.click()}
+                                className="px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs font-bold transition-colors"
+                              >
+                                Upload Odometer
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="flex gap-2 pt-2">
                       <button
                         onClick={() => saveEntry(section.key)}
@@ -402,6 +621,38 @@ function renderEntrySummary(section: string, entry: EntryRecord): React.ReactNod
           </span>
           {entry.description ? (
             <span className="text-gray-500 truncate">{String(entry.description)}</span>
+          ) : null}
+          {entry.receipt_image_url ? (
+            <a
+              href={entry.receipt_image_url as string}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="View receipt"
+              className="shrink-0"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={entry.receipt_image_url as string}
+                alt="Receipt"
+                className="w-10 h-10 rounded object-cover border border-gray-600 hover:border-rose-400 transition-colors"
+              />
+            </a>
+          ) : null}
+          {entry.odometer_image_url ? (
+            <a
+              href={entry.odometer_image_url as string}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="View odometer"
+              className="shrink-0"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={entry.odometer_image_url as string}
+                alt="Odometer"
+                className="w-10 h-10 rounded object-cover border border-gray-600 hover:border-rose-400 transition-colors"
+              />
+            </a>
           ) : null}
         </div>
       );
