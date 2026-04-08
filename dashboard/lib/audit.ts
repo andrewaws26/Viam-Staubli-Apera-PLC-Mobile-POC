@@ -34,7 +34,14 @@ export type AuditAction =
   | "pto_cancelled"
   | "training_recorded"
   | "training_deleted"
-  | "per_diem_rate_updated";
+  | "per_diem_rate_updated"
+  | "account_created"
+  | "account_updated"
+  | "account_deactivated"
+  | "journal_entry_created"
+  | "journal_entry_posted"
+  | "journal_entry_voided"
+  | "journal_entry_deleted";
 
 interface AuditEntry {
   action: AuditAction;
