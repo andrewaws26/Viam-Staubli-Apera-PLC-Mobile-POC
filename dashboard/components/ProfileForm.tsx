@@ -211,7 +211,6 @@ export default function ProfileForm({ currentUserId, currentUserRole, targetUser
         <div className="relative group shrink-0">
           <div className="w-24 h-24 rounded-full bg-gray-800 border-2 border-gray-700 overflow-hidden flex items-center justify-center">
             {pictureUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={pictureUrl}
                 alt="Profile"

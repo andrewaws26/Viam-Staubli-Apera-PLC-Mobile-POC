@@ -54,7 +54,7 @@ export async function GET() {
     const userInfo = await getUserInfo(userId);
 
     // Try to fetch existing balance
-    let { data: balance, error: fetchErr } = await sb
+    const { data: balance, error: fetchErr } = await sb
       .from("pto_balances")
       .select("*")
       .eq("user_id", userId)

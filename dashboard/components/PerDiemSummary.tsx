@@ -84,7 +84,6 @@ export default function PerDiemSummary({ currentUserId, currentUserRole }: Props
 
   useEffect(() => {
     loadSummary();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startDate, endDate, selectedUserId]);
 
   return (

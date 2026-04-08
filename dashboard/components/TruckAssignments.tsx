@@ -61,7 +61,7 @@ export default function TruckAssignments() {
         if (list.length > 0 && !formTruckId) setFormTruckId(list[0].id);
       })
       .catch(() => {});
-  }, [fetchAssignments]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fetchAssignments]);
 
   async function handleAssign(e: React.FormEvent) {
     e.preventDefault();

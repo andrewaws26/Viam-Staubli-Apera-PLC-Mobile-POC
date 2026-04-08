@@ -42,7 +42,6 @@ export default function TimesheetAdmin() {
 
   useEffect(() => {
     loadData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, weekFilter]);
 
   async function handleAction(id: string, action: "approved" | "rejected", reason?: string) {

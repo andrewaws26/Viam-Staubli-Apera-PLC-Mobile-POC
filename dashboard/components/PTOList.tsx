@@ -58,7 +58,6 @@ export default function PTOList({ currentUserRole }: Props) {
 
   useEffect(() => {
     loadRequests();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter]);
 
   // ── Cancel a pending request ────────────────────────────────────────
