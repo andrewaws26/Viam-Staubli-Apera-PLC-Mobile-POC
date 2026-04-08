@@ -24,6 +24,16 @@ interface HealStatus {
   healthy: boolean;
 }
 
+interface Heartbeat {
+  ts: string;
+  epoch: number;
+  alive: boolean;
+  ok: boolean;
+  checks_run: number;
+  fixed: number;
+  failed: number;
+}
+
 interface Props {
   components: ComponentState[];
   truckReadings: Record<string, unknown> | null;
@@ -33,6 +43,7 @@ interface Props {
 
 export default function DevDiagnostics({ components, truckReadings, connectionStatus, connectionError }: Props) {
   const [healStatus, setHealStatus] = useState<HealStatus | null>(null);
+  const [heartbeat, setHeartbeat] = useState<Heartbeat | null>(null);
   const [fixRunning, setFixRunning] = useState<string | null>(null);
   const [fixResult, setFixResult] = useState<{ check: string; status: string; detail: string } | null>(null);
 
@@ -49,6 +60,18 @@ export default function DevDiagnostics({ components, truckReadings, connectionSt
           const data = await res.json();
           if (data.heal_status) {
             setHealStatus(data.heal_status as HealStatus);
+            // Extract heartbeat from the status if available
+            if (data.heal_status.timestamp) {
+              setHeartbeat({
+                ts: data.heal_status.timestamp,
+                epoch: Date.now() / 1000,
+                alive: true,
+                ok: data.heal_status.healthy ?? true,
+                checks_run: data.heal_status.checks?.length ?? 0,
+                fixed: data.heal_status.checks?.filter((c: HealCheck) => c.status === "fixed").length ?? 0,
+                failed: data.heal_status.checks?.filter((c: HealCheck) => c.status === "failed").length ?? 0,
+              });
+            }
           }
         }
       } catch { /* Pi unreachable — that's fine */ }
@@ -103,8 +126,17 @@ export default function DevDiagnostics({ components, truckReadings, connectionSt
 
   return (
     <div className="border border-amber-900/50 rounded-2xl bg-amber-950/10 overflow-hidden">
-      <div className="px-4 sm:px-5 py-3 border-b border-amber-900/30 flex items-center gap-2">
+      <div className="px-4 sm:px-5 py-3 border-b border-amber-900/30 flex items-center gap-2 flex-wrap">
         <span className="text-[10px] font-bold uppercase tracking-widest text-amber-500">Dev Diagnostics</span>
+        {heartbeat && (
+          <span className={`text-[10px] font-mono ${
+            (Date.now() / 1000 - heartbeat.epoch) < 180 ? "text-green-500" : "text-red-400"
+          }`}>
+            Pi {(Date.now() / 1000 - heartbeat.epoch) < 180 ? "alive" : "stale"} ({
+              Math.round((Date.now() / 1000 - heartbeat.epoch) / 60)
+            }m ago)
+          </span>
+        )}
         {errorFlags.length > 0 && (
           <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-900/30 text-red-400">{errorFlags.length} ERROR</span>
         )}

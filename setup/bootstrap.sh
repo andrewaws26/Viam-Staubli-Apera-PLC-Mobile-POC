@@ -113,6 +113,20 @@ if ! grep -q "^dtoverlay=mcp2515-can0" "$BOOT_CONFIG" 2>/dev/null; then
     echo "  + MCP2515 CAN overlay added (12MHz crystal, GPIO25)"
 fi
 
+# ── 5b. Passwordless sudo for self-healing ──
+echo "  Configuring passwordless sudo for $USER..."
+cat > /etc/sudoers.d/ironsight << EOSUDO
+# IronSight self-healing: allow andrew to restart services and read logs without password.
+# Required because self-heal.py runs from cron (no TTY for password prompt).
+$USER ALL=(ALL) NOPASSWD: /bin/systemctl restart viam-server, /bin/systemctl restart can0, /bin/systemctl restart NetworkManager
+$USER ALL=(ALL) NOPASSWD: /bin/systemctl start viam-server, /bin/systemctl start can0
+$USER ALL=(ALL) NOPASSWD: /bin/systemctl stop can0
+$USER ALL=(ALL) NOPASSWD: /sbin/ip link set can0 *
+$USER ALL=(ALL) NOPASSWD: /bin/journalctl *
+EOSUDO
+chmod 440 /etc/sudoers.d/ironsight
+visudo -c -f /etc/sudoers.d/ironsight 2>/dev/null && echo "  sudoers validated" || echo "  WARNING: sudoers syntax error"
+
 # ── 6. Systemd services ──
 echo "[6/10] Installing systemd services..."
 cp "$SETUP_DIR/systemd/viam-server.service" /etc/systemd/system/

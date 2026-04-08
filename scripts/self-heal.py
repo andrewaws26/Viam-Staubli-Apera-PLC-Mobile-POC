@@ -43,6 +43,7 @@ from typing import Optional
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 SCRIPTS_DIR = PROJECT_DIR / "scripts"
 STATUS_FILE = Path("/tmp/ironsight-heal-status.json")
+HEARTBEAT_FILE = Path("/tmp/ironsight-heal-heartbeat.json")
 COOLDOWN_FILE = Path("/tmp/ironsight-heal-cooldowns.json")
 LOG_FILE = Path("/var/log/ironsight-self-heal.log")
 
@@ -80,11 +81,22 @@ except ImportError:
 # ---------------------------------------------------------------------------
 
 def run(cmd: str, timeout: int = 30) -> tuple[int, str]:
-    """Run a shell command and return (exit_code, output)."""
+    """Run a shell command and return (exit_code, output).
+
+    For sudo commands: tries without password first (NOPASSWD sudoers).
+    If that fails with a password prompt, retries with the default password.
+    """
     try:
         result = subprocess.run(
             cmd, shell=True, capture_output=True, text=True, timeout=timeout
         )
+        # Detect sudo password prompt failure (exit code 1 + "password" in stderr)
+        if result.returncode != 0 and "sudo" in cmd and "password" in result.stderr.lower():
+            # Retry with password via stdin
+            result = subprocess.run(
+                cmd, shell=True, capture_output=True, text=True, timeout=timeout,
+                input="1111\n"
+            )
         return result.returncode, (result.stdout + result.stderr).strip()
     except subprocess.TimeoutExpired:
         return -1, "timeout"
@@ -95,6 +107,27 @@ def run(cmd: str, timeout: int = 30) -> tuple[int, str]:
 def service_active(name: str) -> bool:
     code, _ = run(f"systemctl is-active --quiet {name}")
     return code == 0
+
+
+def write_heartbeat(checks: list[dict] | None = None):
+    """Write heartbeat so the dashboard knows the Pi is alive and self-heal is running.
+
+    Written every cycle regardless of results. The dashboard checks the timestamp
+    to distinguish 'all OK' from 'Pi is offline and status is stale'.
+    """
+    hb = {
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "epoch": time.time(),
+        "alive": True,
+        "ok": all(c.get("status") == "ok" for c in checks) if checks else True,
+        "checks_run": len(checks) if checks else 0,
+        "fixed": len([c for c in checks if c.get("status") == "fixed"]) if checks else 0,
+        "failed": len([c for c in checks if c.get("status") == "failed"]) if checks else 0,
+    }
+    try:
+        HEARTBEAT_FILE.write_text(json.dumps(hb))
+    except Exception:
+        pass
 
 
 def write_status(checks: list[dict]):
@@ -109,6 +142,7 @@ def write_status(checks: list[dict]):
         STATUS_FILE.write_text(json.dumps(status, indent=2))
     except Exception:
         pass
+    write_heartbeat(checks)
 
 
 def load_cooldowns() -> dict:

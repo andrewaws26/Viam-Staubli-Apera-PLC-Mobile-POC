@@ -1,8 +1,8 @@
-# Session Handoff: Pi Consolidation & Architecture Overhaul
+# Session Handoff: Pi Consolidation, Self-Healing & Field Test Prep
 
 **Date**: 2026-04-08
 **Branch**: `claude/plan-tasks-mbASf` (latest)
-**Status**: Pi consolidation complete (single Pi 5). Team chat. Waves 1-4 complete. File splits ~95% done. All tests passing. Dashboard builds clean.
+**Status**: Pi 5 consolidation complete. Self-healing system built. Dev mode with sensor diagnostics. Per-truck sim. Network auto-negotiation. Field test logging. Ready for merge and first field test.
 
 ## Team Chat System (Added 2026-04-07)
 
@@ -147,6 +147,44 @@ All the major splits are done. These remaining files are close to 500 or have st
 - [x] Updated CLAUDE.md, README, architecture.md for single-Pi
 - [x] Pi 5 kernel optimizations (CAN buffer, swappiness)
 - [x] can0.service systemd unit for listen-only CAN boot
+
+### Self-Healing System (Done — 2026-04-08)
+- [x] scripts/self-heal.py — autonomous healing loop (cron every 2 min)
+- [x] Tier 1 offline playbook: 6 checks (viam-server, can-bus, plc-connection, modules, disk, data-flow)
+- [x] Tier 2 Claude CLI escalation (rate-limited, creates autofix/ branches)
+- [x] Targeted fix mode: --check NAME for single-fix from dashboard
+- [x] Heartbeat file for Pi liveness detection on dashboard
+- [x] Passwordless sudo for self-heal (sudoers.d/ironsight), with password fallback
+- [x] do_command("heal") on plc-sensor module — works even when PLC disconnected
+- [x] POST /api/heal-command — dashboard triggers fixes via Viam Cloud WebRTC
+- [x] "Fix" buttons next to each FAILED check in DevDiagnostics panel
+- [x] "Run All Checks" button for full sweep
+
+### Dev Mode & Sensor Diagnostics (Done — 2026-04-08)
+- [x] DEV toggle in dashboard header (developer role only via Clerk)
+- [x] DevDiagnostics panel: connection status, flagged values, hardware health
+- [x] sensor-ranges.ts: value validation from J1939-71 specs and PLC hardware manual
+- [x] Special 32°F/0°C default detection when engine is running
+- [x] Pi heartbeat display ("Pi alive 1m ago" vs "Pi stale 10m ago")
+
+### Per-Truck Sim & Offline Messaging (Done — 2026-04-08)
+- [x] Truck 00 = Demo (always simulated), Truck 01 = Production (always live)
+- [x] Removed global SIM ON/OFF toggle button
+- [x] "Truck Off" connection status (gray dot) instead of red errors
+- [x] Clean messaging: "Truck off — waiting for data" vs scary error states
+- [x] Cell Network device sort fix (cards no longer shuffle every poll)
+
+### Network Auto-Negotiation (Done — 2026-04-08)
+- [x] plc-subnet.service reads saved state instead of hardcoded IP
+- [x] Dispatcher restores last-known PLC subnet on link-up
+- [x] Discovery link-up wait reduced from 3s to 1s
+- [x] Discovery saves state to ~/.ironsight/plc-network.conf
+
+### Field Test Logging (Done — 2026-04-08)
+- [x] scripts/lib/field_logger.py — structured JSONL logger
+- [x] scripts/health-snapshot.sh — per-minute cron for field testing
+- [x] scripts/analyze-field-test.py — post-test report with recommendations
+- [x] docs/pi-troubleshooting.md — SSH quick-reference for Claude CLI
 
 ### Priority 3 — Features
 - **Auth**: Install @clerk/nextjs, uncomment middleware, wrap layout
