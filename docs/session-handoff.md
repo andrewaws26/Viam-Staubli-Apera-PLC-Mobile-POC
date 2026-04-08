@@ -1,8 +1,27 @@
 # Session Handoff: Pi Consolidation, Self-Healing & Field Test Prep
 
 **Date**: 2026-04-08
-**Branch**: `claude/plan-tasks-mbASf` (latest)
-**Status**: Pi 5 consolidation complete. Self-healing system built. Dev mode with sensor diagnostics. Per-truck sim. Network auto-negotiation. Field test logging. Ready for merge and first field test.
+**Branch**: `main` (merged)
+**Status**: Pi 5 field-deployed and validated. Self-healing system live. All modules running. CAN HAT verified with MCP2515.
+
+## First Field Test Deployment (2026-04-08)
+
+Pi 5 (`viam-pi`, Tailscale 100.112.68.52) bootstrapped and validated for new truck:
+
+**Completed:**
+- Bootstrap ran (all 10 phases): packages, Python deps, Viam server, modules, CAN overlay, sudoers, systemd, PLC discovery, kernel tuning, cron
+- FUSE mount exhaustion fixed (1,640 stale mounts from AppImage crash loop → cleaned, mount_max raised to 1000)
+- SPI conflict resolved: `mhs35ips` TFT display overlay disabled (was claiming spi0.0, blocking MCP2515 CAN HAT)
+- CAN HAT (Waveshare B, 12MHz) physically installed and verified: `MCP2515 successfully initialized`, `can0` UP
+- viam-server active with plc-sensor + cell-sensor modules constructing
+- ANTHROPIC_API_KEY set from Vercel production env (for self-heal Claude escalation)
+- Per-minute health snapshot cron enabled for field test logging
+- Passwordless sudo validated for self-heal
+
+**Known state at deployment:**
+- PLC connection failing (expected — not connected to truck system yet)
+- j1939-sensor module will start when CAN bus has traffic
+- TFT display overlay permanently disabled (Pi runs headless, dashboard is web-based)
 
 ## Team Chat System (Added 2026-04-07)
 
