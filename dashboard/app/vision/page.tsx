@@ -184,16 +184,95 @@ export default function VisionPage() {
             </span>
           </h1>
           <p className="mt-3 text-xl sm:text-2xl font-light text-gray-400 tracking-wide">
-            Company OS
+            Company OS for B&B Metals
           </p>
           <p className="mt-6 text-gray-500 text-sm max-w-xl mx-auto leading-relaxed">
-            One platform for every piece of data in a field operations company — fleet diagnostics,
-            workforce management, financials, compliance, and AI-powered insights.
+            One platform replacing QuickBooks, paper timesheets, and a dozen spreadsheets for a 34-truck
+            railroad contractor. Fleet diagnostics, workforce management, financials, compliance, and
+            AI-powered insights — connected end to end.
           </p>
         </div>
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-16 space-y-24">
+        {/* ---------------------------------------------------------------- */}
+        {/* Section 0: B&B Metals — Who We Are                                */}
+        {/* ---------------------------------------------------------------- */}
+        <section>
+          <SectionHeading
+            title="B&B Metals, Inc."
+            subtitle="Founded 1989. Shepherdsville, KY. The largest mechanized tie plate distribution fleet in the United States."
+            accent="amber"
+          />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-gradient-to-br from-amber-950/30 to-gray-900 rounded-xl p-6 border border-amber-500/20">
+              <h3 className="text-lg font-bold text-white mb-3">The Company</h3>
+              <p className="text-gray-400 text-sm leading-relaxed mb-4">
+                Bill Coots started B&B Metals in 1989 with a torch, a tractor, and one employee.
+                Today we operate <span className="text-amber-400 font-bold">34 registered trucks</span>, employ 20+ people,
+                and hold contracts with Norfolk Southern and other Class I railroads.
+              </p>
+              <p className="text-gray-400 text-sm leading-relaxed">
+                B&B pioneered mechanized tie plate distribution in the 1990s — the first company to
+                replace hand-placed plates with a synchronized conveyor system. We now own the largest
+                TPS fleet in the country.
+              </p>
+            </div>
+            <div className="bg-gradient-to-br from-amber-950/30 to-gray-900 rounded-xl p-6 border border-amber-500/20">
+              <h3 className="text-lg font-bold text-white mb-3">The Problem</h3>
+              <div className="space-y-3 text-sm">
+                <p className="text-gray-300 font-semibold italic">
+                  &quot;What&apos;s our profit margin on the Norfolk Southern contract?&quot;
+                </p>
+                <p className="text-gray-500">
+                  Today, answering this requires pulling from QuickBooks + paper timesheets + fuel receipts
+                  + per diem spreadsheets + parts invoices + maintenance logs. Five systems, three people,
+                  two days.
+                </p>
+                <p className="text-gray-400">
+                  IronSight answers it in <span className="text-amber-400 font-bold">one query</span> because
+                  every piece of data — from the PLC counting tie plates to the journal entry that bills
+                  the railroad — lives in one connected system.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* What B&B uses today vs IronSight */}
+          <div className="mt-8 bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl border border-gray-700/50 overflow-hidden">
+            <div className="grid grid-cols-2 divide-x divide-gray-800">
+              <div className="p-5">
+                <p className="text-xs text-red-400 uppercase tracking-wider font-bold mb-3">Today (Fragmented)</p>
+                <ul className="space-y-2 text-sm text-gray-400">
+                  <li>QuickBooks — accounting</li>
+                  <li>Paper forms — timesheets</li>
+                  <li>Excel — IFTA tracking</li>
+                  <li>Whiteboard — fleet maintenance</li>
+                  <li>Filing cabinet — training certs</li>
+                  <li>Spreadsheet — per diem calc</li>
+                  <li>Paper — PTO requests</li>
+                  <li>Nothing — truck diagnostics</li>
+                  <li>Nothing — TPS production data</li>
+                </ul>
+              </div>
+              <div className="p-5">
+                <p className="text-xs text-emerald-400 uppercase tracking-wider font-bold mb-3">IronSight (One System)</p>
+                <ul className="space-y-2 text-sm text-gray-300">
+                  <li>Double-entry accounting</li>
+                  <li>12-section digital timesheets</li>
+                  <li>IFTA auto-captured from timesheets</li>
+                  <li>Fleet diagnostics + maintenance</li>
+                  <li>Training compliance tracking</li>
+                  <li>Per diem auto-calculated</li>
+                  <li>PTO workflow + balances</li>
+                  <li>Real-time J1939 CAN bus data</li>
+                  <li>Live TPS plate count + speed</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* ---------------------------------------------------------------- */}
         {/* Section 1: What IronSight Is Today                                */}
         {/* ---------------------------------------------------------------- */}
@@ -273,11 +352,11 @@ export default function VisionPage() {
                   <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
                 </svg>
               </div>
-              <h3 className="text-lg font-bold text-white mb-3">For Employees</h3>
+              <h3 className="text-lg font-bold text-white mb-3">For the Crew</h3>
               <p className="text-gray-400 text-sm leading-relaxed">
-                One app for everything — timesheets, PTO, training, work orders, fleet data.
-                No more paper forms or disconnected systems. Submit a timesheet, check truck
-                diagnostics, and request PTO from the same screen.
+                One app replaces paper timesheets, PTO request forms, and phone calls to the shop.
+                Jake can submit his timesheet from the NS Corbin yard, check Truck 01&apos;s engine
+                codes, and request vacation — all from his phone.
               </p>
             </div>
             <div className="bg-gradient-to-br from-amber-950/30 to-gray-900 rounded-xl p-6 border border-amber-500/20">
@@ -289,9 +368,9 @@ export default function VisionPage() {
               </div>
               <h3 className="text-lg font-bold text-white mb-3">For Management</h3>
               <p className="text-gray-400 text-sm leading-relaxed">
-                Complete visibility into operations, compliance, and costs. Real-time dashboards,
-                approval workflows, and audit trails. Know exactly where every truck is, what every
-                employee worked on, and what every project costs.
+                See every truck, every crew, every dollar in real time. Approve timesheets that
+                auto-generate journal entries. Track NS contract costs without touching QuickBooks.
+                Get alerted when a training cert expires 30 days before the NS audit.
               </p>
             </div>
             <div className="bg-gradient-to-br from-purple-950/30 to-gray-900 rounded-xl p-6 border border-purple-500/20">
@@ -302,9 +381,9 @@ export default function VisionPage() {
               </div>
               <h3 className="text-lg font-bold text-white mb-3">For the Business</h3>
               <p className="text-gray-400 text-sm leading-relaxed">
-                Eliminate QuickBooks, paper timesheets, and spreadsheet tracking. Reduce admin
-                overhead by 80%. Cross-domain insights that no collection of separate tools can
-                provide — because every piece of data lives in one connected system.
+                Replace QuickBooks ($250/mo + add-ons), paper timesheets, and 5 spreadsheets with
+                one system at ~$20/mo. B&B becomes the most technologically advanced railroad
+                contractor in the country — and IronSight becomes a product to sell to others.
               </p>
             </div>
           </div>
@@ -315,53 +394,54 @@ export default function VisionPage() {
         {/* ---------------------------------------------------------------- */}
         <section>
           <SectionHeading
-            title="The Competitive Moat"
-            subtitle="Why this can't be easily replicated."
+            title="Why Nobody Else Can Do This"
+            subtitle="B&B's trucks aren't just trucks. Each one is a TPS conveyor + Click PLC + Staubli robot + Apera vision + J1939 CAN bus. No single vendor monitors all of that."
             accent="rose"
           />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-6 border border-rose-500/20">
               <h3 className="text-white font-bold mb-2 flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-rose-500" />
-                Vertical Integration
+                TPS Production Data (Unique Moat)
               </h3>
               <p className="text-gray-400 text-sm leading-relaxed">
-                From CAN bus sensor data to financial reporting in one system. No other platform
-                connects a truck&apos;s engine telemetry to the work order that fixed it to the
-                timesheet that billed it to the invoice that collected payment.
+                IronSight reads encoder counts, plate counts, plates per minute, and detector
+                offsets directly from the Click PLC at 1 Hz. No other system in the world connects
+                tie plate production telemetry to the truck that carried the plates, the crew that
+                ran the machine, the timesheet that billed it, and the invoice that collected payment.
               </p>
             </div>
             <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-6 border border-rose-500/20">
               <h3 className="text-white font-bold mb-2 flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-rose-500" />
-                Data Connectivity
+                Full Vertical Integration
               </h3>
               <p className="text-gray-400 text-sm leading-relaxed">
-                Every piece of data in the company is linked and queryable. A truck&apos;s DTC
-                history, the mechanic who fixed it, the parts used, the hours billed, the training
-                certifications — all in one graph.
+                CAN bus data tells us the engine is running. PLC data tells us plates are being laid.
+                The timesheet records who ran the job. The journal entry posts the expense. The
+                invoice bills the railroad. One system, zero re-entry — from sensor to spreadsheet.
               </p>
             </div>
             <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-6 border border-rose-500/20">
               <h3 className="text-white font-bold mb-2 flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-rose-500" />
-                AI-Native
+                AI-Native Diagnostics
               </h3>
               <p className="text-gray-400 text-sm leading-relaxed">
-                Claude-powered diagnostics, smart receipt scanning, and natural language reporting
-                built into the core — not bolted on. The AI has full context because it can access
-                every domain in the system.
+                Truck 01 throws a DTC on a job site 400 miles from Shepherdsville. Today: driver
+                calls shop, describes the warning light, mechanic guesses. With IronSight: real-time
+                J1939 data, Claude-powered AI diagnosis, work order created before the call ends.
               </p>
             </div>
             <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-6 border border-rose-500/20">
               <h3 className="text-white font-bold mb-2 flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-rose-500" />
-                Industry-Specific
+                NS Compliance Built In
               </h3>
               <p className="text-gray-400 text-sm leading-relaxed">
-                Built for railroad and industrial field operations, not generic SaaS. IFTA tracking,
-                DOT compliance, per diem rules, chase vehicle logs — domain knowledge baked into
-                every feature.
+                Norfolk Southern requires Roadway Worker Protection training, insurance certs, Right
+                of Entry Agreements, OSHA compliance, and PPE records for every crew member on track.
+                IronSight tracks all of it — expiry alerts 30 days out, compliance dashboard for audits.
               </p>
             </div>
           </div>
@@ -403,45 +483,84 @@ export default function VisionPage() {
               ]}
             />
             <RoadmapCard
-              status="planned"
-              title="Documentation Management"
-              details={[
-                "Contracts, SOPs, safety manuals",
-                "Version control, signatures",
-              ]}
-            />
-            <RoadmapCard
-              status="planned"
+              status="built"
               title="Inventory & Parts Tracking"
               details={[
-                "Linked to maintenance time entries",
-                "Automatic reorder points",
+                "22 seeded heavy-duty truck parts with stock levels",
+                "Usage logging linked to trucks and maintenance",
+                "Low-stock alerts with reorder suggestions",
+              ]}
+            />
+            <RoadmapCard
+              status="built"
+              title="Fleet Truck Management"
+              details={[
+                "Add/edit/decommission trucks from admin panel",
+                "VIN, year/make/model, Viam Part ID, capabilities",
+                "Status tracking: active, inactive, maintenance",
+              ]}
+            />
+            <RoadmapCard
+              status="in-progress"
+              title="Accounts Receivable & Invoicing"
+              details={[
+                "Customer management (Norfolk Southern, CSX, etc.)",
+                "Invoice generation from work completed",
+                "Payment recording and aging reports",
+              ]}
+            />
+            <RoadmapCard
+              status="in-progress"
+              title="Accounts Payable"
+              details={[
+                "Vendor bill tracking and payment scheduling",
+                "Purchase orders for parts and supplies",
+                "Aging reports for cash flow management",
               ]}
             />
             <RoadmapCard
               status="planned"
-              title="DOT/OSHA Compliance Center"
+              title="DOT/FMCSA Compliance Center"
               details={[
-                "IFTA quarterly filing (already capturing data)",
-                "Training certification management (already built)",
-                "Inspection records",
+                "IFTA quarterly filing (already capturing odometer data)",
+                "CDL driver qualifications and medical cards",
+                "Vehicle inspection records, CSA score tracking",
               ]}
             />
             <RoadmapCard
               status="planned"
-              title="Client Portal"
+              title="NS Contractor Compliance"
               details={[
-                "Railroad customers can view work reports",
-                "Billing integration",
+                "Roadway Worker Protection training tracking",
+                "Insurance cert management with expiry alerts",
+                "Right of Entry Agreement tracking per job site",
+              ]}
+            />
+            <RoadmapCard
+              status="planned"
+              title="Payroll Independence"
+              details={[
+                "Tax calculation (federal, state, FICA, FUTA)",
+                "Direct deposit / ACH file generation",
+                "W-2 and 1099 generation, quarterly tax filings",
+              ]}
+            />
+            <RoadmapCard
+              status="planned"
+              title="Bank Integration & Reconciliation"
+              details={[
+                "Plaid bank feed for automatic transaction import",
+                "Bank reconciliation workflow",
+                "Balance Sheet and Cash Flow Statement reports",
               ]}
             />
             <RoadmapCard
               status="planned"
               title="Advanced Analytics & AI"
               details={[
-                "Natural language queries across all company data",
-                "Predictive maintenance from fleet data",
-                "Cost optimization recommendations",
+                "\"What's our margin on the NS contract?\" — one query",
+                "Predictive maintenance from fleet + TPS data",
+                "Natural language reporting across all company data",
               ]}
             />
           </div>
@@ -481,46 +600,99 @@ export default function VisionPage() {
         {/* ---------------------------------------------------------------- */}
         <section>
           <SectionHeading
-            title="The QuickBooks Opportunity"
-            subtitle="The highest-value module on the roadmap. A dedicated analysis exists separately."
+            title="Replacing QuickBooks"
+            subtitle="The highest-value module. Detailed roadmap: docs/quickbooks-replacement-roadmap.md"
             accent="purple"
           />
           <div className="bg-gradient-to-br from-purple-950/30 to-gray-900 rounded-xl p-6 sm:p-8 border border-purple-500/20">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               <div>
-                <p className="text-3xl font-black text-white">6M+</p>
+                <p className="text-3xl font-black text-white">$250+/mo</p>
                 <p className="text-gray-400 text-sm mt-1">
-                  Small businesses use QuickBooks. Most hate it but feel locked in.
+                  Current QuickBooks cost with add-ons. IronSight runs on ~$20/mo infrastructure.
                 </p>
               </div>
               <div>
-                <p className="text-3xl font-black text-white">80%</p>
+                <p className="text-3xl font-black text-white">34 trucks</p>
                 <p className="text-gray-400 text-sm mt-1">
-                  Reduction in admin overhead when financials connect to timesheets, expenses, and per diem automatically.
+                  FMCSA-registered fleet. Each truck generates maintenance, fuel, IFTA, and payroll data daily.
+                </p>
+              </div>
+              <div>
+                <p className="text-3xl font-black text-white">0 re-entry</p>
+                <p className="text-gray-400 text-sm mt-1">
+                  Approve a timesheet — per diem, expenses, and journal entries post automatically.
                 </p>
               </div>
             </div>
             <div className="mt-8 space-y-4">
               <div className="flex items-start gap-3">
-                <span className="mt-1 w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0" />
+                <span className="mt-1 w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
                 <p className="text-gray-300 text-sm leading-relaxed">
-                  IronSight can offer a seamlessly integrated alternative — financials that already
-                  know about every hour worked, every per diem earned, every part ordered.
+                  <span className="text-emerald-400 font-bold">Already built:</span> Double-entry bookkeeping,
+                  chart of accounts (32 accounts), journal entries, trial balance, P&L report, auto-JE from
+                  timesheet approval, payroll export, inventory tracking.
+                </p>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="mt-1 w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                <p className="text-gray-300 text-sm leading-relaxed">
+                  <span className="text-amber-400 font-bold">Next up:</span> Accounts Receivable (invoicing NS),
+                  Accounts Payable (vendor bills), bank reconciliation, Balance Sheet report, General Ledger report.
+                </p>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="mt-1 w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+                <p className="text-gray-300 text-sm leading-relaxed">
+                  <span className="text-blue-400 font-bold">Phase 2:</span> Tax calculation, direct deposit, W-2/1099
+                  generation, bank feed integration via Plaid. Full payroll independence.
                 </p>
               </div>
               <div className="flex items-start gap-3">
                 <span className="mt-1 w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0" />
                 <p className="text-gray-300 text-sm leading-relaxed">
-                  Data migration automation makes switching painless. Import historical data from
-                  QuickBooks on day one.
-                </p>
-              </div>
-              <div className="flex items-start gap-3">
-                <span className="mt-1 w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0" />
-                <p className="text-gray-300 text-sm leading-relaxed">
-                  Once financials are in, customer churn approaches zero. Every other module feeds
+                  <span className="text-purple-400 font-bold">The lock-in:</span> Once financials are connected
+                  to timesheets, inventory, and fleet data, switching back is unthinkable. Every module feeds
                   into and depends on the financial core.
                 </p>
+              </div>
+            </div>
+          </div>
+        </section>
+        {/* ---------------------------------------------------------------- */}
+        {/* Section 7: The Bigger Play                                        */}
+        {/* ---------------------------------------------------------------- */}
+        <section>
+          <SectionHeading
+            title="Beyond B&B"
+            subtitle="B&B is customer zero. The platform is industry-agnostic."
+            accent="indigo"
+          />
+          <div className="bg-gradient-to-br from-indigo-950/30 to-gray-900 rounded-xl p-6 sm:p-8 border border-indigo-500/20">
+            <div className="space-y-4">
+              <p className="text-gray-300 text-sm leading-relaxed">
+                Every railroad contractor running TPS trucks has the same fragmented tooling problem.
+                Every industrial fleet operator — concrete, logging, mining, construction — manages
+                trucks + crews + timesheets + compliance with the same disconnected mess.
+              </p>
+              <p className="text-gray-300 text-sm leading-relaxed">
+                IronSight starts as B&B&apos;s internal operating system. But the architecture is already
+                multi-tenant capable: fleet registry per org, role-based access, Clerk RBAC, Supabase
+                row-level security.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
+                <div className="text-center p-4 rounded-lg bg-gray-900/50 border border-gray-800">
+                  <p className="text-2xl font-black text-indigo-400">Year 1</p>
+                  <p className="text-gray-500 text-xs mt-1">B&B internal — prove the platform</p>
+                </div>
+                <div className="text-center p-4 rounded-lg bg-gray-900/50 border border-gray-800">
+                  <p className="text-2xl font-black text-indigo-400">Year 2</p>
+                  <p className="text-gray-500 text-xs mt-1">Sell to 3-5 railroad contractors</p>
+                </div>
+                <div className="text-center p-4 rounded-lg bg-gray-900/50 border border-gray-800">
+                  <p className="text-2xl font-black text-indigo-400">Year 3</p>
+                  <p className="text-gray-500 text-xs mt-1">Expand to industrial fleets broadly</p>
+                </div>
               </div>
             </div>
           </div>
@@ -532,7 +704,7 @@ export default function VisionPage() {
       {/* ------------------------------------------------------------------ */}
       <footer className="border-t border-gray-800 py-8 text-center">
         <p className="text-gray-600 text-xs uppercase tracking-widest">
-          IronSight — B&B Metals — Confidential
+          IronSight — B&B Metals, Inc. — Shepherdsville, KY — Confidential
         </p>
       </footer>
     </div>
