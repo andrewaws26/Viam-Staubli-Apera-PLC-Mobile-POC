@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Analytics } from "@vercel/analytics/react";
+import HelpButton from "@/components/help/HelpButton";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -41,6 +42,7 @@ export default function RootLayout({
           }}
         >
           {children}
+          <HelpButton />
         </ClerkProvider>
         <Analytics />
         <script
