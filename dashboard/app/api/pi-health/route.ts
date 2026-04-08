@@ -1,11 +1,11 @@
 /**
  * API route to get Pi health data via Viam Data API.
  *
- * Uses the shared Viam Data client (lib/viam-data.ts) over HTTPS.
- * No WebRTC, no NEXT_PUBLIC_ env vars — works on Vercel serverless and
- * through CGNAT (iPhone hotspot).
+ * Single-Pi architecture: all components (plc-monitor, cell-monitor, truck-engine)
+ * run on the same Pi 5. The "host" parameter selects which component to query for
+ * health data, but they all share the same Part ID.
  *
- * GET /api/pi-health?host=tps|truck
+ * GET /api/pi-health?host=tps
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -13,23 +13,18 @@ import { getLatestReading, resetDataClient } from "@/lib/viam-data";
 import { getTruckById } from "@/lib/machines";
 import { requireTruckAccess } from "@/lib/auth-guard";
 
-const TPS_PART_ID = process.env.VIAM_PART_ID || "7c24d42f-1d66-4cae-81a4-97e3ff9404b4";
-const TRUCK_PART_ID = process.env.TRUCK_VIAM_PART_ID || "ca039781-665c-47e3-9bc5-35f603f3baf1";
+const PART_ID = process.env.VIAM_PART_ID || "7c24d42f-1d66-4cae-81a4-97e3ff9404b4";
 
-const HOST_CONFIGS: Record<string, { partId: string; component: string; hostname: string; tailscaleIp: string; defaultMemTotal: number }> = {
+const HOST_CONFIGS: Record<string, { component: string; hostname: string; tailscaleIp: string }> = {
   tps: {
-    partId: TPS_PART_ID,
     component: "plc-monitor",
     hostname: "viam-pi",
     tailscaleIp: "100.112.68.52",
-    defaultMemTotal: 8192,
   },
   truck: {
-    partId: TRUCK_PART_ID,
     component: "truck-engine",
-    hostname: "truck-diagnostics",
-    tailscaleIp: "100.113.196.68",
-    defaultMemTotal: 512,
+    hostname: "viam-pi",
+    tailscaleIp: "100.112.68.52",
   },
 };
 
@@ -40,20 +35,19 @@ export async function GET(request: NextRequest) {
   const truckDenied = await requireTruckAccess(truckId);
   if (truckDenied) return truckDenied;
 
-  let config: { partId: string; component: string; hostname: string; tailscaleIp: string; defaultMemTotal: number };
+  let partId = PART_ID;
+  let config: { component: string; hostname: string; tailscaleIp: string };
 
   if (truckId) {
     const truck = getTruckById(truckId);
     if (!truck) {
       return NextResponse.json({ error: "truck_not_found", truck_id: truckId }, { status: 404 });
     }
-    const isTruck = host === "truck";
+    partId = truck.tpsPartId;
     config = {
-      partId: isTruck ? truck.truckPartId : truck.tpsPartId,
-      component: isTruck ? "truck-engine" : "plc-monitor",
-      hostname: isTruck ? `${truck.id}-truck` : `${truck.id}-tps`,
+      component: host === "truck" ? "truck-engine" : "plc-monitor",
+      hostname: `${truck.id}-pi`,
       tailscaleIp: "",
-      defaultMemTotal: isTruck ? 512 : 8192,
     };
   } else {
     const c = HOST_CONFIGS[host];
@@ -64,7 +58,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const result = await getLatestReading(config.partId, config.component);
+    const result = await getLatestReading(partId, config.component);
 
     if (!result) {
       return NextResponse.json({
@@ -84,7 +78,7 @@ export async function GET(request: NextRequest) {
       cpu_usage_pct: r.cpu_usage_pct ?? null,
       memory_used_pct: r.memory_used_pct ?? null,
       memory_used_mb: r.memory_used_mb ?? null,
-      memory_total_mb: r.memory_total_mb ?? config.defaultMemTotal,
+      memory_total_mb: r.memory_total_mb ?? 8192,
       disk_used_pct: r.disk_used_pct ?? null,
       disk_free_gb: r.disk_free_gb ?? null,
       uptime_hours: r.uptime_seconds ? (r.uptime_seconds as number) / 3600 : null,

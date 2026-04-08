@@ -2,9 +2,9 @@
 
 ## Overview
 
-This document describes the architecture for a remote monitoring system for RAIV railroad Tie Plate Systems (TPS) using Viam Robotics. The system provides real-time machine state monitoring, encoder-based track distance measurement, and production analytics (plate drop counting) from a fleet of 30+ trucks, each equipped with a Click PLC and Raspberry Pi 5.
+This document describes the architecture for a remote monitoring system for RAIV railroad Tie Plate Systems (TPS) using Viam Robotics. The system provides real-time machine state monitoring, encoder-based track distance measurement, production analytics, and truck engine diagnostics from a fleet of 30+ trucks, each equipped with a single Raspberry Pi 5 running all sensor modules.
 
-**One-sentence summary:** Monitor every TPS truck's PLC state, encoder distance, and plate drops from anywhere with a browser.
+**One-sentence summary:** Monitor every TPS truck's PLC state, encoder distance, plate drops, and engine health from anywhere with a browser.
 
 ```mermaid
 graph TB
@@ -15,25 +15,19 @@ graph TB
         
         subgraph Pi5["Raspberry Pi 5 (viam-pi)"]
             PLC_MOD["plc-sensor module<br/>1 Hz Modbus reads"]
-            BUF1["Offline Buffer<br/>JSONL 50MB cap"]
-            VIAM1["viam-server"]
-            HOTSPOT["WiFi Hotspot<br/>IronSight-Truck"]
-        end
-        
-        subgraph PiZero["Pi Zero 2 W (truck-diagnostics)"]
-            J1939_MOD["j1939-sensor module<br/>Listen-only CAN"]
-            BUF2["Offline Buffer"]
-            VIAM2["viam-server"]
+            J1939_MOD["j1939-sensor module<br/>Listen-only CAN via HAT"]
+            CELL_MOD["cell-sensor module<br/>Staubli + Apera"]
+            BUF["Offline Buffer<br/>JSONL 50MB cap"]
+            VIAM["viam-server"]
         end
         
         ENC -->|"HSC pulses"| PLC
         PLC -->|"Ethernet"| PLC_MOD
-        PLC_MOD --> BUF1
-        PLC_MOD --> VIAM1
         CAN -->|"Listen-only"| J1939_MOD
-        J1939_MOD --> BUF2
-        J1939_MOD --> VIAM2
-        HOTSPOT -.->|"WiFi"| PiZero
+        PLC_MOD --> BUF
+        PLC_MOD --> VIAM
+        J1939_MOD --> VIAM
+        CELL_MOD --> VIAM
     end
     
     subgraph Cloud["Viam Cloud"]
@@ -48,8 +42,7 @@ graph TB
     
     CELL["Cellular / WiFi"] 
     
-    VIAM1 -->|"Capture + Sync"| DATA
-    VIAM2 -->|"Capture + Sync"| DATA
+    VIAM -->|"Capture + Sync"| DATA
     Pi5 -->|"Tailscale"| CELL
     DATA -->|"Data API"| API
     API --> DASH

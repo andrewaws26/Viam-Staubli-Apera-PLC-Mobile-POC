@@ -14,7 +14,6 @@ import DiagnosticsPanel from "./DiagnosticsPanel";
 import HistoryPanel from "./HistoryPanel";
 import TruckPanel from "./TruckPanel";
 import { CellSection } from "./Cell";
-import PiHealthCard from "./PiHealthCard";
 import ConnectionDot from "./ConnectionDot";
 import { UserButton, useUser } from "@clerk/nextjs";
 import { useAlarm, FlashOverlay } from "./DashboardAudio";
@@ -213,12 +212,6 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
             {components.map((comp) => (
               <StatusCard key={comp.id} component={comp} />
             ))}
-          </div>
-
-          {/* Pi Health Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
-            <PiHealthCard label="TPS Monitoring" icon="&#x1F4BB;" host="tps" simMode={simMode} truckId={truckId} />
-            <PiHealthCard label="Truck Monitoring" icon="&#x1F69B;" host="truck" simMode={simMode} truckId={truckId} />
           </div>
 
           {/* Location & Weather bar */}

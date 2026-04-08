@@ -101,11 +101,13 @@ export async function GET(request: NextRequest) {
   try {
     const dc = await getDataClient();
 
-    // Fetch TPS + truck data in parallel
+    // Fetch TPS + truck data in parallel (same machine, same Part ID)
+    const partId = truck.tpsPartId;
+    const truckPartId = truck.truckPartId || partId;
     const [tpsRows, truckRows] = await Promise.all([
-      dc.exportTabularData(truck.tpsPartId, "plc-monitor", RESOURCE_SUBTYPE, METHOD_NAME, start, end)
+      dc.exportTabularData(partId, "plc-monitor", RESOURCE_SUBTYPE, METHOD_NAME, start, end)
         .catch(() => [] as TabularDataPoint[]),
-      dc.exportTabularData(truck.truckPartId, "truck-engine", RESOURCE_SUBTYPE, METHOD_NAME, start, end)
+      dc.exportTabularData(truckPartId, "truck-engine", RESOURCE_SUBTYPE, METHOD_NAME, start, end)
         .catch(() => [] as TabularDataPoint[]),
     ]);
 

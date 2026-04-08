@@ -1,5 +1,6 @@
-// Truck Viam client — browser-side WebRTC connection to truck-diagnostics machine.
-// Separate client from TPS since it's a different Viam machine.
+// Truck Viam client — browser-side WebRTC connection to truck-engine component.
+// Single-Pi architecture: truck-engine runs on the same machine as plc-monitor.
+// Falls back to TPS credentials when TRUCK_VIAM_* env vars aren't set.
 
 import { createRobotClient, SensorClient } from "@viamrobotics/sdk";
 import type { RobotClient } from "@viamrobotics/sdk";
@@ -17,14 +18,15 @@ async function getTruckClient(): Promise<RobotClient> {
     throw new Error("Connection in progress");
   }
 
-  const host = process.env.NEXT_PUBLIC_TRUCK_VIAM_MACHINE_ADDRESS;
-  const apiKeyId = process.env.NEXT_PUBLIC_TRUCK_VIAM_API_KEY_ID;
-  const apiKey = process.env.NEXT_PUBLIC_TRUCK_VIAM_API_KEY;
+  // Single-Pi: fall back to TPS credentials (same machine)
+  const host = process.env.NEXT_PUBLIC_TRUCK_VIAM_MACHINE_ADDRESS || process.env.NEXT_PUBLIC_VIAM_MACHINE_ADDRESS;
+  const apiKeyId = process.env.NEXT_PUBLIC_TRUCK_VIAM_API_KEY_ID || process.env.NEXT_PUBLIC_VIAM_API_KEY_ID;
+  const apiKey = process.env.NEXT_PUBLIC_TRUCK_VIAM_API_KEY || process.env.NEXT_PUBLIC_VIAM_API_KEY;
 
   if (!host || !apiKeyId || !apiKey) {
     throw new Error(
-      "Missing truck Viam credentials. Set NEXT_PUBLIC_TRUCK_VIAM_MACHINE_ADDRESS, " +
-        "NEXT_PUBLIC_TRUCK_VIAM_API_KEY_ID, and NEXT_PUBLIC_TRUCK_VIAM_API_KEY."
+      "Missing Viam credentials. Set NEXT_PUBLIC_VIAM_MACHINE_ADDRESS, " +
+        "NEXT_PUBLIC_VIAM_API_KEY_ID, and NEXT_PUBLIC_VIAM_API_KEY."
     );
   }
 

@@ -17,29 +17,18 @@ const STATUS_POLL_MS = 5000;
 
 export default function DevStatusBar() {
   const [tps, setTps] = useState<PiStatus | null>(null);
-  const [truck, setTruck] = useState<PiStatus | null>(null);
   const [viamOk, setViamOk] = useState<boolean | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     const poll = async () => {
       try {
-        const [tpsRes, truckRes] = await Promise.all([
-          fetch("/api/pi-health?host=tps")
-            .then((r) => (r.ok ? r.json() : null))
-            .catch(() => null),
-          fetch("/api/pi-health?host=truck")
-            .then((r) => (r.ok ? r.json() : null))
-            .catch(() => null),
-        ]);
+        const tpsRes = await fetch("/api/pi-health?host=tps")
+          .then((r) => (r.ok ? r.json() : null))
+          .catch(() => null);
         if (cancelled) return;
         setTps(tpsRes);
-        setTruck(truckRes);
-        // Viam Cloud is reachable if either pi-health returned data (uses Viam Data API)
-        setViamOk(
-          (tpsRes !== null && !tpsRes.error) ||
-            (truckRes !== null && !truckRes.error)
-        );
+        setViamOk(tpsRes !== null && !tpsRes.error);
       } catch {
         if (!cancelled) setViamOk(false);
       }
@@ -57,16 +46,9 @@ export default function DevStatusBar() {
       <div className="px-3 sm:px-6 py-2 flex items-center gap-3 sm:gap-5 text-[10px] sm:text-xs overflow-x-auto">
         <PiIndicator
           label="Pi 5"
-          detail="TPS"
+          detail="All Modules"
           status={tps}
           defaultIp="100.112.68.52"
-        />
-        <Sep />
-        <PiIndicator
-          label="Pi Zero"
-          detail="Truck"
-          status={truck}
-          defaultIp="100.113.196.68"
         />
         <Sep />
         <div className="flex items-center gap-1.5 shrink-0">

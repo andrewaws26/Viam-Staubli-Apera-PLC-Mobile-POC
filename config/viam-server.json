@@ -9,6 +9,11 @@
       "type": "local",
       "name": "cell-sensor-module",
       "executable_path": "/home/andrew/Viam-Staubli-Apera-PLC-Mobile-POC/modules/cell-sensor/run.sh"
+    },
+    {
+      "type": "local",
+      "name": "j1939-truck-sensor",
+      "executable_path": "/home/andrew/Viam-Staubli-Apera-PLC-Mobile-POC/modules/j1939-sensor/exec.sh"
     }
   ],
   "components": [
@@ -66,6 +71,31 @@
           }
         }
       ]
+    },
+    {
+      "name": "truck-engine",
+      "api": "rdk:component:sensor",
+      "model": "ironsight:j1939-truck-sensor:can-sensor",
+      "attributes": {
+        "bitrate": 250000,
+        "can_interface": "can0",
+        "protocol": "j1939"
+      },
+      "depends_on": [],
+      "service_configs": [
+        {
+          "type": "data_manager",
+          "attributes": {
+            "capture_methods": [
+              {
+                "method": "Readings",
+                "capture_frequency_hz": 1,
+                "additional_params": {}
+              }
+            ]
+          }
+        }
+      ]
     }
   ],
   "services": [
@@ -76,7 +106,7 @@
         "capture_dir": "/home/andrew/.viam/capture",
         "sync_interval_mins": 0.1,
         "sync_disabled": false,
-        "tags": ["tps-monitor", "cell-monitor", "truck-dev"]
+        "tags": ["tps-monitor", "cell-monitor", "truck-diagnostics", "ironsight"]
       }
     }
   ]

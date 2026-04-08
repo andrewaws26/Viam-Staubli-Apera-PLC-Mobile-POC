@@ -1,13 +1,16 @@
 /**
  * Fleet machine registry — maps truck IDs to Viam part IDs and machine addresses.
  *
+ * Single-Pi architecture: each truck has one Pi 5 running all modules
+ * (plc-sensor, cell-sensor, j1939-sensor). One Part ID per truck.
+ *
  * Loading priority:
  *   1. config/fleet.json (version-controlled, human-editable)
  *   2. FLEET_TRUCKS env var (JSON array, for Vercel overrides)
  *   3. Single-truck fallback from individual env vars (backward compat)
  *
  * To add a new truck: edit config/fleet.json and add an entry with the
- * Part IDs from app.viam.com. The dashboard reads this at startup.
+ * Part ID from app.viam.com. The dashboard reads this at startup.
  */
 
 import fs from "fs";
@@ -17,8 +20,10 @@ export interface TruckConfig {
   id: string;
   name: string;
   tpsPartId: string;
+  /** @deprecated Use tpsPartId — all components now run on one machine */
   truckPartId: string;
   tpsMachineAddress?: string;
+  /** @deprecated Use tpsMachineAddress — all components now run on one machine */
   truckMachineAddress?: string;
 }
 
@@ -43,13 +48,15 @@ function loadFleetFile(): TruckConfig[] | null {
       const raw = fs.readFileSync(filePath, "utf-8");
       const data: FleetFile = JSON.parse(raw);
       if (Array.isArray(data.trucks) && data.trucks.length > 0) {
-        // Fill empty Part IDs from env vars (backward compat for single-truck setups)
+        const partId = process.env.VIAM_PART_ID || "";
+        const machineAddr = process.env.VIAM_MACHINE_ADDRESS || "";
+        // Single-Pi: truckPartId defaults to tpsPartId (same machine)
         const trucks = data.trucks.map((t) => ({
           ...t,
-          tpsPartId: t.tpsPartId || process.env.VIAM_PART_ID || "",
-          truckPartId: t.truckPartId || process.env.TRUCK_VIAM_PART_ID || "",
-          tpsMachineAddress: t.tpsMachineAddress || process.env.VIAM_MACHINE_ADDRESS || "",
-          truckMachineAddress: t.truckMachineAddress || process.env.TRUCK_VIAM_MACHINE_ADDRESS || "",
+          tpsPartId: t.tpsPartId || partId,
+          truckPartId: t.truckPartId || t.tpsPartId || partId,
+          tpsMachineAddress: t.tpsMachineAddress || machineAddr,
+          truckMachineAddress: t.truckMachineAddress || t.tpsMachineAddress || machineAddr,
         }));
         console.log(`[machines] Loaded ${trucks.length} truck(s) from ${filePath}`);
         return trucks;
@@ -71,8 +78,14 @@ function loadFleetEnvVar(): TruckConfig[] | null {
   try {
     const parsed = JSON.parse(fleetJson);
     if (Array.isArray(parsed) && parsed.length > 0) {
-      console.log(`[machines] Loaded ${parsed.length} truck(s) from FLEET_TRUCKS env var`);
-      return parsed as TruckConfig[];
+      // Single-Pi: default truckPartId to tpsPartId
+      const trucks = (parsed as TruckConfig[]).map((t) => ({
+        ...t,
+        truckPartId: t.truckPartId || t.tpsPartId || "",
+        truckMachineAddress: t.truckMachineAddress || t.tpsMachineAddress || "",
+      }));
+      console.log(`[machines] Loaded ${trucks.length} truck(s) from FLEET_TRUCKS env var`);
+      return trucks;
     }
   } catch (e) {
     console.error("[machines] Failed to parse FLEET_TRUCKS env var:", e);
@@ -82,17 +95,20 @@ function loadFleetEnvVar(): TruckConfig[] | null {
 
 /**
  * Single-truck fallback from individual env vars.
+ * Single-Pi: truckPartId defaults to tpsPartId (same machine).
  */
 function loadSingleTruckFallback(): TruckConfig[] {
+  const partId = process.env.VIAM_PART_ID || "";
+  const machineAddr = process.env.VIAM_MACHINE_ADDRESS || "";
   console.log("[machines] Using single-truck fallback from env vars");
   return [
     {
       id: "default",
       name: "Truck 01",
-      tpsPartId: process.env.VIAM_PART_ID || "",
-      truckPartId: process.env.TRUCK_VIAM_PART_ID || "",
-      tpsMachineAddress: process.env.VIAM_MACHINE_ADDRESS || "",
-      truckMachineAddress: process.env.TRUCK_VIAM_MACHINE_ADDRESS || "",
+      tpsPartId: partId,
+      truckPartId: process.env.TRUCK_VIAM_PART_ID || partId,
+      tpsMachineAddress: machineAddr,
+      truckMachineAddress: process.env.TRUCK_VIAM_MACHINE_ADDRESS || machineAddr,
     },
   ];
 }
@@ -126,7 +142,7 @@ export function listTrucks(): {
     id: t.id,
     name: t.name,
     hasTPSMonitor: !!t.tpsPartId,
-    hasTruckDiagnostics: !!t.truckPartId,
+    hasTruckDiagnostics: !!t.tpsPartId, // Same machine now
   }));
 }
 

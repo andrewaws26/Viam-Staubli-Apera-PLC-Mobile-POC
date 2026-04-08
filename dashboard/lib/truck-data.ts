@@ -1,6 +1,10 @@
 /**
  * Shared truck data access — fetch and summary builder for truck engine data.
  *
+ * Single-Pi architecture: truck-engine component runs on the same machine as
+ * plc-monitor and cell-monitor. Uses the same Part ID (VIAM_PART_ID).
+ * TRUCK_VIAM_PART_ID is kept for backward compat but defaults to VIAM_PART_ID.
+ *
  * Used by both the /api/truck-history route and the AI history module.
  * Uses the shared Viam Data client (lib/viam-data.ts) for all queries.
  */
@@ -10,8 +14,8 @@ import { fetchSensorData, resetDataClient, type RawPoint } from "@/lib/viam-data
 export type { RawPoint };
 
 // ── Module state ───────────────────────────────────────────────────
-
-const TRUCK_PART_ID = process.env.TRUCK_VIAM_PART_ID || "ca039781-665c-47e3-9bc5-35f603f3baf1";
+// Single-Pi: truck-engine is on the same machine, default to VIAM_PART_ID
+const TRUCK_PART_ID = process.env.TRUCK_VIAM_PART_ID || process.env.VIAM_PART_ID || "7c24d42f-1d66-4cae-81a4-97e3ff9404b4";
 const RESOURCE_NAME = "truck-engine";
 const MAX_POINTS = 500;
 

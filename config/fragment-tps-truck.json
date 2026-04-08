@@ -1,6 +1,11 @@
 {
   "_comment": [
-    "Viam Fragment template for TPS truck fleet deployment.",
+    "Viam Fragment template for consolidated TPS truck fleet deployment.",
+    "",
+    "Each truck has a single Pi 5 running all three modules:",
+    "  - plc-sensor: Modbus TCP to Click PLC (TPS production monitoring)",
+    "  - cell-sensor: Staubli REST + Apera socket (robot cell monitoring)",
+    "  - j1939-sensor: CAN bus J1939 (truck engine diagnostics, listen-only)",
     "",
     "How to use:",
     "  1. In app.viam.com → Fragments → Create Fragment",
@@ -12,14 +17,26 @@
     "  - components.plc-monitor.attributes.host  → truck's PLC IP (required)",
     "  - services.data-manager.attributes.tags   → add truck-specific tags",
     "",
-    "The fragment provides the complete module + component + data manager",
-    "config so each truck only needs the fragment + its IP override."
+    "Prerequisites on each Pi 5:",
+    "  - CAN HAT installed with /boot/firmware/config.txt overlay",
+    "  - can0 interface configured at 250kbps listen-only",
+    "  - All three modules deployed to /opt/viam-modules/"
   ],
   "modules": [
     {
       "type": "local",
       "name": "plc-sensor-module",
       "executable_path": "/opt/viam-modules/plc-sensor/run.sh"
+    },
+    {
+      "type": "local",
+      "name": "cell-sensor-module",
+      "executable_path": "/opt/viam-modules/cell-sensor/run.sh"
+    },
+    {
+      "type": "local",
+      "name": "j1939-truck-sensor",
+      "executable_path": "/opt/viam-modules/j1939-sensor/exec.sh"
     }
   ],
   "components": [
@@ -49,6 +66,58 @@
           }
         }
       ]
+    },
+    {
+      "name": "cell-monitor",
+      "api": "rdk:component:sensor",
+      "model": "viam-staubli-apera-poc:monitor:cell-sensor",
+      "attributes": {
+        "staubli_host": "192.168.0.254",
+        "staubli_port": 80,
+        "apera_host": "192.168.3.151",
+        "apera_port": 14040,
+        "apera_pipeline": "RAIV_pick_belt_1"
+      },
+      "depends_on": [],
+      "service_configs": [
+        {
+          "type": "data_manager",
+          "attributes": {
+            "capture_methods": [
+              {
+                "method": "Readings",
+                "capture_frequency_hz": 0.5,
+                "additional_params": {}
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "truck-engine",
+      "api": "rdk:component:sensor",
+      "model": "ironsight:j1939-truck-sensor:can-sensor",
+      "attributes": {
+        "bitrate": 250000,
+        "can_interface": "can0",
+        "protocol": "j1939"
+      },
+      "depends_on": [],
+      "service_configs": [
+        {
+          "type": "data_manager",
+          "attributes": {
+            "capture_methods": [
+              {
+                "method": "Readings",
+                "capture_frequency_hz": 1,
+                "additional_params": {}
+              }
+            ]
+          }
+        }
+      ]
     }
   ],
   "services": [
@@ -59,7 +128,7 @@
         "capture_dir": "/home/pi/.viam/capture",
         "sync_interval_mins": 0.1,
         "sync_disabled": false,
-        "tags": ["tps-monitor", "OVERRIDE_WITH_TRUCK_ID"]
+        "tags": ["tps-monitor", "cell-monitor", "truck-diagnostics", "OVERRIDE_WITH_TRUCK_ID"]
       }
     }
   ]

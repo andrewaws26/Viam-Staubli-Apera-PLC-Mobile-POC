@@ -1,8 +1,8 @@
-# Session Handoff: Code Review & Architecture Overhaul
+# Session Handoff: Pi Consolidation & Architecture Overhaul
 
-**Date**: 2026-04-07
-**Branch**: `claude/add-chat-feature-Uzld3` (latest), `claude/code-review-suggestions-RiQah` (prior)
-**Status**: Team chat system added. Waves 1-4 complete. File splits ~95% done. All tests passing. Dashboard builds clean.
+**Date**: 2026-04-08
+**Branch**: `claude/plan-tasks-mbASf` (latest)
+**Status**: Pi consolidation complete (single Pi 5). Team chat. Waves 1-4 complete. File splits ~95% done. All tests passing. Dashboard builds clean.
 
 ## Team Chat System (Added 2026-04-07)
 
@@ -135,18 +135,30 @@ All the major splits are done. These remaining files are close to 500 or have st
 - Remove OBD-II routing from j1939_sensor.py (~400 lines)
 - Create new run.sh, meta.json, requirements.txt
 
+### Pi 5 Consolidation (Done — 2026-04-08)
+- [x] Merged Viam configs (viam-server.json now has all 3 modules)
+- [x] Created migration script (scripts/consolidate-to-pi5.sh)
+- [x] Updated fleet fragment (config/fragment-tps-truck.json) with all 3 modules
+- [x] Updated fleet scripts (fleet-health.sh, fleet-sync.sh) for single-Pi
+- [x] Removed top Pi health monitoring boxes from dashboard (PiHealthCard)
+- [x] Removed Pi 5 health section from mobile cell tab
+- [x] Updated all API routes and libs for single-machine architecture
+- [x] Updated DevStatusBar and DevPage for single-Pi
+- [x] Updated CLAUDE.md, README, architecture.md for single-Pi
+- [x] Pi 5 kernel optimizations (CAN buffer, swappiness)
+- [x] can0.service systemd unit for listen-only CAN boot
+
 ### Priority 3 — Features
 - **Auth**: Install @clerk/nextjs, uncomment middleware, wrap layout
 - **Dev diagnostics + Claude Dev AI**: Register Inspector, /api/ai-dev-chat
 - **Logging**: JSON structured logging, remaining request timing
-- **Pi consolidation**: Move CAN HAT to Pi 5, merge configs
 
 ## Research Decisions (Reference)
 - **OBD2**: Separate module in same repo (`modules/obd2-sensor/`)
 - **iOS**: PWA first, Capacitor wrap later if App Store needed
 - **Auth**: Clerk with 4 roles (admin/mechanic/driver/viewer)
 - **Fleet**: One Vercel app, FLEET_TRUCKS env var, Vercel KV caching (future)
-- **Pi**: Consolidate to Pi 5 only, CAN HAT works with zero config changes
+- **Pi**: Consolidated to Pi 5 only (DONE — April 2026). CAN HAT + all modules on one Pi.
 - **DTC clearing**: DM11 is safe, needs interface toggle + 0xF9 source address
 - **All readings**: US imperial (°F, PSI, mph, miles, gallons)
 
