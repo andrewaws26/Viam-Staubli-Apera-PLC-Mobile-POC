@@ -71,15 +71,15 @@ export default function PTOPage() {
         {balance && (
           <div className="max-w-4xl mx-auto grid grid-cols-3 gap-4 mb-6">
             <div className="p-4 rounded-xl bg-blue-900/20 border border-blue-800">
-              <div className="text-2xl font-black text-blue-400">{balance.vacation_hours}h</div>
+              <div className="text-2xl font-black text-blue-400">{balance.vacation_remaining}h</div>
               <div className="text-xs text-blue-300/70 uppercase tracking-wider mt-1">Vacation Left</div>
             </div>
             <div className="p-4 rounded-xl bg-amber-900/20 border border-amber-800">
-              <div className="text-2xl font-black text-amber-400">{balance.sick_hours}h</div>
+              <div className="text-2xl font-black text-amber-400">{balance.sick_remaining}h</div>
               <div className="text-xs text-amber-300/70 uppercase tracking-wider mt-1">Sick Left</div>
             </div>
             <div className="p-4 rounded-xl bg-purple-900/20 border border-purple-800">
-              <div className="text-2xl font-black text-purple-400">{balance.personal_hours}h</div>
+              <div className="text-2xl font-black text-purple-400">{balance.personal_remaining}h</div>
               <div className="text-xs text-purple-300/70 uppercase tracking-wider mt-1">Personal Left</div>
             </div>
           </div>

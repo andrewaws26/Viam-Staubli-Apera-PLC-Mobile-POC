@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect } from "react";
-import type { PTORequest, PTOStatus, PTOBalance } from "@ironsight/shared";
+import type { PTORequest, PTOStatus, PTOAdminResponse } from "@ironsight/shared";
 import { PTO_TYPE_LABELS, PTO_STATUS_LABELS } from "@ironsight/shared";
 
 // ── Status badge styles ──────────────────────────────────────────────
@@ -22,25 +22,8 @@ const STATUS_BADGE: Record<PTOStatus, { bg: string; text: string }> = {
   cancelled: { bg: "bg-gray-700",      text: "text-gray-400" },
 };
 
-interface AdminData {
-  pending: PTORequest[];
-  approved_this_month: PTORequest[];
-  total_hours_approved_this_month: number;
-  employee_usage: {
-    user_id: string;
-    user_name: string;
-    vacation_total: number;
-    vacation_used: number;
-    sick_total: number;
-    sick_used: number;
-    personal_total: number;
-    personal_used: number;
-  }[];
-  upcoming_out: PTORequest[];
-}
-
 export default function PTOAdmin() {
-  const [data, setData] = useState<AdminData | null>(null);
+  const [data, setData] = useState<PTOAdminResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -115,21 +98,24 @@ export default function PTOAdmin() {
 
   if (!data) return null;
 
+  // Derive pending requests from the full list
+  const pendingRequests = data.requests.filter((r) => r.status === "pending");
+
   return (
     <div className="max-w-6xl mx-auto">
       {/* Summary stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-8">
         <div className="p-4 rounded-xl bg-amber-900/20 border border-amber-800">
-          <div className="text-2xl font-black text-amber-400">{data.pending.length}</div>
+          <div className="text-2xl font-black text-amber-400">{data.summary.pending_count}</div>
           <div className="text-xs text-amber-300/70 uppercase tracking-wider mt-1">Pending Approval</div>
         </div>
         <div className="p-4 rounded-xl bg-green-900/20 border border-green-800">
-          <div className="text-2xl font-black text-green-400">{data.approved_this_month.length}</div>
+          <div className="text-2xl font-black text-green-400">{data.summary.approved_this_month}</div>
           <div className="text-xs text-green-300/70 uppercase tracking-wider mt-1">Approved This Month</div>
         </div>
         <div className="p-4 rounded-xl bg-rose-900/20 border border-rose-800">
-          <div className="text-2xl font-black text-rose-400">{data.total_hours_approved_this_month}h</div>
-          <div className="text-xs text-rose-300/70 uppercase tracking-wider mt-1">Hours Approved (Month)</div>
+          <div className="text-2xl font-black text-rose-400">{data.summary.total}</div>
+          <div className="text-xs text-rose-300/70 uppercase tracking-wider mt-1">Total Requests</div>
         </div>
       </div>
 
@@ -142,11 +128,11 @@ export default function PTOAdmin() {
           Pending Approval
         </h3>
 
-        {data.pending.length === 0 ? (
+        {pendingRequests.length === 0 ? (
           <p className="text-gray-500 text-sm py-4">No pending requests. All caught up!</p>
         ) : (
           <div className="space-y-3">
-            {data.pending.map((req) => {
+            {pendingRequests.map((req) => {
               const startFormatted = new Date(req.start_date + "T12:00:00").toLocaleDateString("en-US", {
                 month: "short", day: "numeric",
               });
@@ -162,17 +148,17 @@ export default function PTOAdmin() {
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-sm font-bold text-gray-100">{req.user_name}</span>
                         <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-blue-900/50 text-blue-300">
-                          {PTO_TYPE_LABELS[req.request_type]}
+                          {PTO_TYPE_LABELS[req.pto_type]}
                         </span>
                       </div>
                       <p className="text-xs text-gray-500">
-                        {startFormatted} - {endFormatted} ({req.hours_requested}h)
+                        {startFormatted} - {endFormatted} ({req.hours}h)
                       </p>
-                      {req.reason && (
-                        <p className="text-xs text-gray-400 mt-1">{req.reason}</p>
+                      {req.notes && (
+                        <p className="text-xs text-gray-400 mt-1">{req.notes}</p>
                       )}
                     </div>
-                    <div className="text-lg font-bold text-rose-400 shrink-0">{req.hours_requested}h</div>
+                    <div className="text-lg font-bold text-rose-400 shrink-0">{req.hours}h</div>
                   </div>
 
                   {/* Manager notes input + action buttons */}
@@ -209,7 +195,7 @@ export default function PTOAdmin() {
       </section>
 
       {/* Employee PTO Usage Table */}
-      {data.employee_usage.length > 0 && (
+      {data.summary.by_employee.length > 0 && (
         <section className="mb-8 p-5 rounded-xl bg-gray-900/50 border border-gray-800">
           <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider mb-4">Employee PTO Usage</h3>
           <div className="overflow-x-auto">
@@ -217,30 +203,18 @@ export default function PTOAdmin() {
               <thead>
                 <tr className="text-left text-xs text-gray-500 uppercase">
                   <th className="pb-3 pr-4">Employee</th>
-                  <th className="pb-3 pr-4 text-center" colSpan={2}>Vacation</th>
-                  <th className="pb-3 pr-4 text-center" colSpan={2}>Sick</th>
-                  <th className="pb-3 text-center" colSpan={2}>Personal</th>
-                </tr>
-                <tr className="text-left text-[10px] text-gray-600 uppercase">
-                  <th className="pb-2 pr-4"></th>
-                  <th className="pb-2 pr-2 text-center">Used</th>
-                  <th className="pb-2 pr-4 text-center">Left</th>
-                  <th className="pb-2 pr-2 text-center">Used</th>
-                  <th className="pb-2 pr-4 text-center">Left</th>
-                  <th className="pb-2 pr-2 text-center">Used</th>
-                  <th className="pb-2 text-center">Left</th>
+                  <th className="pb-3 pr-4 text-center">Pending</th>
+                  <th className="pb-3 pr-4 text-center">Approved Hours</th>
+                  <th className="pb-3 text-center">Total Requests</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800">
-                {data.employee_usage.map((emp) => (
+                {data.summary.by_employee.map((emp) => (
                   <tr key={emp.user_id} className="text-gray-300">
-                    <td className="py-2.5 pr-4 font-medium">{emp.user_name}</td>
-                    <td className="py-2.5 pr-2 text-center font-mono text-amber-400">{emp.vacation_used}h</td>
-                    <td className="py-2.5 pr-4 text-center font-mono text-green-400">{emp.vacation_total - emp.vacation_used}h</td>
-                    <td className="py-2.5 pr-2 text-center font-mono text-amber-400">{emp.sick_used}h</td>
-                    <td className="py-2.5 pr-4 text-center font-mono text-green-400">{emp.sick_total - emp.sick_used}h</td>
-                    <td className="py-2.5 pr-2 text-center font-mono text-amber-400">{emp.personal_used}h</td>
-                    <td className="py-2.5 text-center font-mono text-green-400">{emp.personal_total - emp.personal_used}h</td>
+                    <td className="py-2.5 pr-4 font-medium">{emp.name}</td>
+                    <td className="py-2.5 pr-4 text-center font-mono text-amber-400">{emp.pending}</td>
+                    <td className="py-2.5 pr-4 text-center font-mono text-green-400">{emp.approved_hours}h</td>
+                    <td className="py-2.5 text-center font-mono text-gray-400">{emp.total_requests}</td>
                   </tr>
                 ))}
               </tbody>
@@ -250,7 +224,7 @@ export default function PTOAdmin() {
       )}
 
       {/* Upcoming Out Calendar */}
-      {data.upcoming_out.length > 0 && (
+      {data.upcoming.length > 0 && (
         <section className="mb-8 p-5 rounded-xl bg-gray-900/50 border border-gray-800">
           <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider mb-4 flex items-center gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-rose-400" viewBox="0 0 20 20" fill="currentColor">
@@ -260,7 +234,7 @@ export default function PTOAdmin() {
           </h3>
 
           <div className="space-y-2">
-            {data.upcoming_out.map((req) => {
+            {data.upcoming.map((req) => {
               const start = new Date(req.start_date + "T12:00:00");
               const end = new Date(req.end_date + "T12:00:00");
               const startLabel = start.toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -277,7 +251,7 @@ export default function PTOAdmin() {
                     </span>
                   </div>
                   <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-rose-900/40 text-rose-300 shrink-0">
-                    {PTO_TYPE_LABELS[req.request_type]}
+                    {PTO_TYPE_LABELS[req.pto_type]}
                   </span>
                 </div>
               );

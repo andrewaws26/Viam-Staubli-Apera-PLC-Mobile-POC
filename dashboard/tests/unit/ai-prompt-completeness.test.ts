@@ -47,6 +47,14 @@ const diagnoseRouteSource = readFileSync(
   "utf-8"
 );
 
+// Vehicle history config — fleet-specific strings (VIN, company name, etc.)
+// were moved here from the route files. Both routes import getVehicleHistoryText
+// which loads these strings at runtime.
+const vehicleHistorySource = readFileSync(
+  resolve(DASHBOARD_ROOT, "lib/vehicle-history.ts"),
+  "utf-8"
+);
+
 // ── Aftertreatment Domain Knowledge ───────────────────────────────
 // Both prompts MUST contain these concepts for accurate J1939 truck diagnosis.
 
@@ -189,20 +197,21 @@ describe("ai-diagnose prompt: safety guardrails", () => {
 // This is fleet-specific context that improves diagnosis accuracy.
 
 describe("fleet-specific context", () => {
-  it("ai-chat includes Mack Granite VIN", () => {
-    expect(chatRouteSource).toContain("1M2GR4GC7RM039830");
+  it("vehicle-history config includes Mack Granite VIN", () => {
+    expect(vehicleHistorySource).toContain("1M2GR4GC7RM039830");
   });
 
-  it("ai-diagnose includes Mack Granite VIN", () => {
-    expect(diagnoseRouteSource).toContain("1M2GR4GC7RM039830");
+  it("vehicle-history config mentions B&B Metals fleet", () => {
+    expect(vehicleHistorySource).toContain("B&B Metals");
   });
 
-  it("ai-chat mentions B&B Metals fleet", () => {
-    expect(chatRouteSource).toContain("B&B Metals");
+  it("vehicle-history config mentions in-house repairs", () => {
+    expect(vehicleHistorySource).toContain("in-house");
   });
 
-  it("ai-chat mentions in-house repairs", () => {
-    expect(chatRouteSource).toContain("in-house");
+  it("both routes import getVehicleHistoryText to load fleet context", () => {
+    expect(chatRouteSource).toContain("getVehicleHistoryText");
+    expect(diagnoseRouteSource).toContain("getVehicleHistoryText");
   });
 });
 

@@ -104,9 +104,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Missing start_date or end_date" }, { status: 400 });
   }
 
-  if (!pto_type || !["vacation", "sick", "personal"].includes(pto_type as string)) {
+  if (!pto_type || !["vacation", "sick", "personal", "bereavement", "other"].includes(pto_type as string)) {
     return NextResponse.json(
-      { error: "pto_type must be one of: vacation, sick, personal" },
+      { error: "pto_type must be one of: vacation, sick, personal, bereavement, other" },
       { status: 400 },
     );
   }

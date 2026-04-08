@@ -20,7 +20,11 @@ import {
   type EmployeeProfile,
   type UpdateProfilePayload,
 } from "@ironsight/shared";
-import type { UserTrainingStatus } from "@ironsight/shared";
+interface TrainingRecord {
+  id: string;
+  compliance_status: "current" | "expiring" | "expired";
+  [key: string]: unknown;
+}
 
 interface Props {
   /** Clerk user ID of the profile to display. */
@@ -57,7 +61,7 @@ export default function ProfileForm({ currentUserId, currentUserRole, targetUser
   const [uploading, setUploading] = useState(false);
 
   // ── Training compliance ─────────────────────────────────────────────
-  const [trainingStatus, setTrainingStatus] = useState<UserTrainingStatus | null>(null);
+  const [trainingStatus, setTrainingStatus] = useState<{ is_compliant: boolean; expired: number } | null>(null);
 
   // ── Load profile data ───────────────────────────────────────────────
   useEffect(() => {
@@ -67,7 +71,7 @@ export default function ProfileForm({ currentUserId, currentUserRole, targetUser
     const params = new URLSearchParams();
     if (targetUserId) params.set("user_id", targetUserId);
 
-    fetch(`/api/profile?${params}`)
+    fetch(`/api/profiles?${params}`)
       .then((r) => {
         if (!r.ok) throw new Error("Failed to load profile");
         return r.json();
@@ -91,9 +95,14 @@ export default function ProfileForm({ currentUserId, currentUserRole, targetUser
     const params = new URLSearchParams();
     if (targetUserId) params.set("user_id", targetUserId);
 
-    fetch(`/api/training/status?${params}`)
+    fetch(`/api/training?${params}`)
       .then((r) => r.json())
-      .then((data: UserTrainingStatus) => setTrainingStatus(data))
+      .then((records: TrainingRecord[]) => {
+        if (!Array.isArray(records)) return;
+        const expired = records.filter((r) => r.compliance_status === "expired").length;
+        const is_compliant = expired === 0 && records.length > 0;
+        setTrainingStatus({ is_compliant, expired });
+      })
       .catch(() => {}); // Non-critical — badge just won't show
   }, [targetUserId]);
 
@@ -107,7 +116,7 @@ export default function ProfileForm({ currentUserId, currentUserRole, targetUser
       formData.append("file", file);
       if (targetUserId) formData.append("user_id", targetUserId);
 
-      const res = await fetch("/api/profile/picture", {
+      const res = await fetch("/api/profiles/upload", {
         method: "POST",
         body: formData,
       });

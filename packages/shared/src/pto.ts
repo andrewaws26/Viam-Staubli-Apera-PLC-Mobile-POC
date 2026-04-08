@@ -14,52 +14,78 @@
 export type PTORequestType = 'vacation' | 'sick' | 'personal' | 'bereavement' | 'other';
 export type PTOStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 
-/** Available PTO hours per category for a given year. */
+/** Available PTO hours per category for a given year (matches DB columns). */
 export interface PTOBalance {
   id: string;
   user_id: string;
+  user_name?: string;
   year: number;
-  vacation_hours: number;
-  sick_hours: number;
-  personal_hours: number;
+  vacation_hours_total: number;
+  vacation_hours_used: number;
+  sick_hours_total: number;
+  sick_hours_used: number;
+  personal_hours_total: number;
+  personal_hours_used: number;
+  /** Computed by API: total - used */
+  vacation_remaining: number;
+  sick_remaining: number;
+  personal_remaining: number;
   created_at: string;
   updated_at: string;
 }
 
-/** A single PTO request with approval workflow fields. */
+/** A single PTO request with approval workflow fields (matches DB columns). */
 export interface PTORequest {
   id: string;
   user_id: string;
   user_name: string;
   user_email: string;
-  request_type: PTORequestType;
+  pto_type: PTORequestType;
   start_date: string;
   end_date: string;
-  hours_requested: number;
+  hours: number;
   status: PTOStatus;
-  reason: string | null;
+  notes: string | null;
   manager_notes: string | null;
-  approved_by: string | null;
-  approved_by_name: string | null;
-  approved_at: string | null;
+  reviewed_by: string | null;
+  reviewed_by_name: string | null;
+  reviewed_at: string | null;
   created_at: string;
   updated_at: string;
 }
 
-/** Payload for creating a new PTO request. */
+/** Payload for creating a new PTO request (matches API expected fields). */
 export interface CreatePTORequestPayload {
-  request_type: PTORequestType;
+  pto_type: PTORequestType;
   start_date: string;
   end_date: string;
-  hours_requested: number;
-  reason?: string;
+  hours: number;
+  notes?: string;
 }
 
 /** Payload for updating a PTO request (status transitions, manager notes). */
 export interface UpdatePTORequestPayload {
   status?: PTOStatus;
   manager_notes?: string;
-  reason?: string;
+  notes?: string;
+}
+
+/** Admin API response from GET /api/pto/admin. */
+export interface PTOAdminResponse {
+  requests: PTORequest[];
+  summary: {
+    total: number;
+    pending_count: number;
+    approved_this_month: number;
+    by_employee: {
+      user_id: string;
+      name: string;
+      pending: number;
+      approved_hours: number;
+      total_requests: number;
+    }[];
+  };
+  upcoming: PTORequest[];
 }
 
 /** Human-readable labels for PTO request types. */

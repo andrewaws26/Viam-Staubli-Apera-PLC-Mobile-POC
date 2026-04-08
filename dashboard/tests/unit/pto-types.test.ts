@@ -120,38 +120,38 @@ describe("PTO_STATUS_COLORS", () => {
 // ── CreatePTORequestPayload ─────────────────────────────────────────
 
 describe("CreatePTORequestPayload", () => {
-  it("requires request_type, start_date, end_date, and hours_requested", () => {
+  it("requires pto_type, start_date, end_date, and hours", () => {
     const payload: CreatePTORequestPayload = {
-      request_type: "vacation",
+      pto_type: "vacation",
       start_date: "2026-07-04",
       end_date: "2026-07-05",
-      hours_requested: 16,
+      hours: 16,
     };
-    expect(payload.request_type).toBe("vacation");
+    expect(payload.pto_type).toBe("vacation");
     expect(payload.start_date).toBe("2026-07-04");
     expect(payload.end_date).toBe("2026-07-05");
-    expect(payload.hours_requested).toBe(16);
+    expect(payload.hours).toBe(16);
   });
 
-  it("accepts optional reason field", () => {
-    const payloadWithReason: CreatePTORequestPayload = {
-      request_type: "sick",
+  it("accepts optional notes field", () => {
+    const payloadWithNotes: CreatePTORequestPayload = {
+      pto_type: "sick",
       start_date: "2026-04-08",
       end_date: "2026-04-08",
-      hours_requested: 8,
-      reason: "Doctor appointment",
+      hours: 8,
+      notes: "Doctor appointment",
     };
-    expect(payloadWithReason.reason).toBe("Doctor appointment");
+    expect(payloadWithNotes.notes).toBe("Doctor appointment");
   });
 
-  it("works without optional reason field", () => {
-    const payloadNoReason: CreatePTORequestPayload = {
-      request_type: "personal",
+  it("works without optional notes field", () => {
+    const payloadNoNotes: CreatePTORequestPayload = {
+      pto_type: "personal",
       start_date: "2026-05-01",
       end_date: "2026-05-01",
-      hours_requested: 4,
+      hours: 4,
     };
-    expect(payloadNoReason.reason).toBeUndefined();
+    expect(payloadNoNotes.notes).toBeUndefined();
   });
 
   it("accepts all PTO request types", () => {
@@ -159,12 +159,12 @@ describe("CreatePTORequestPayload", () => {
     const types: PTORequestType[] = ["vacation", "sick", "personal", "bereavement", "other"];
     for (const type of types) {
       const payload: CreatePTORequestPayload = {
-        request_type: type,
+        pto_type: type,
         start_date: "2026-01-01",
         end_date: "2026-01-01",
-        hours_requested: 8,
+        hours: 8,
       };
-      expect(payload.request_type).toBe(type);
+      expect(payload.pto_type).toBe(type);
     }
   });
 });

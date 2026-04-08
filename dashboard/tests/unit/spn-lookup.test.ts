@@ -25,7 +25,7 @@ import {
   lookupFMI,
   SPN_LOOKUP,
   FMI_DESCRIPTIONS,
-  type _SPNInfo,
+  type SPNInfo,
 } from "@/lib/spn-lookup";
 
 // ── SPN Lookup Function Tests ─────────────────────────────────────

@@ -146,7 +146,7 @@ export default function PTOList({ currentUserRole }: Props) {
         <div className="space-y-3">
           {requests.map((req) => {
             const statusBadge = STATUS_BADGE[req.status];
-            const typeBadge = TYPE_BADGE[req.request_type];
+            const typeBadge = TYPE_BADGE[req.pto_type];
             const startFormatted = new Date(req.start_date + "T12:00:00").toLocaleDateString("en-US", {
               month: "short", day: "numeric",
             });
@@ -167,7 +167,7 @@ export default function PTOList({ currentUserRole }: Props) {
                         {startFormatted} - {endFormatted}
                       </span>
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${typeBadge.bg} ${typeBadge.text}`}>
-                        {PTO_TYPE_LABELS[req.request_type]}
+                        {PTO_TYPE_LABELS[req.pto_type]}
                       </span>
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${statusBadge.bg} ${statusBadge.text}`}>
                         {PTO_STATUS_LABELS[req.status]}
@@ -175,8 +175,8 @@ export default function PTOList({ currentUserRole }: Props) {
                     </div>
 
                     {/* Reason preview */}
-                    {req.reason && (
-                      <p className="text-xs text-gray-500 truncate max-w-md">{req.reason}</p>
+                    {req.notes && (
+                      <p className="text-xs text-gray-500 truncate max-w-md">{req.notes}</p>
                     )}
 
                     {/* Manager notes */}
@@ -189,7 +189,7 @@ export default function PTOList({ currentUserRole }: Props) {
 
                   {/* Hours and actions */}
                   <div className="text-right shrink-0 flex flex-col items-end gap-2">
-                    <div className="text-lg font-bold text-rose-400">{req.hours_requested}h</div>
+                    <div className="text-lg font-bold text-rose-400">{req.hours}h</div>
                     {req.status === "pending" && (
                       <button
                         onClick={() => handleCancel(req.id)}

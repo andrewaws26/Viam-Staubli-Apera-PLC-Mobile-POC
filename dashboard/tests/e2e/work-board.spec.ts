@@ -26,7 +26,7 @@ async function setupWorkBoardMocks(page: Page) {
       return route.fulfill({
         status: 201,
         contentType: "application/json",
-        body: JSON.stringify({ id: "wo-new", ...mockWorkOrders[0] }),
+        body: JSON.stringify({ ...mockWorkOrders[0], id: "wo-new" }),
       });
     }
     return route.continue();

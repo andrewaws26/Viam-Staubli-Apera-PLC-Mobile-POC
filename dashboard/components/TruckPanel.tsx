@@ -121,6 +121,11 @@ export default function TruckPanel({ simMode = false, truckId, onReadingsChange 
 
   const simTickRef = React.useRef(0);
 
+  // Reset sim tick counter when switching trucks to prevent stale sim data
+  useEffect(() => {
+    simTickRef.current = 0;
+  }, [truckId]);
+
   // Sim mode is determined by truck ID, not a prop toggle
   const isSimTruck = truckId === "00";
 

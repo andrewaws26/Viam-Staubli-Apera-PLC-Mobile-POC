@@ -85,9 +85,9 @@ export default function PTORequestForm({ currentUserId }: Props) {
   function getRemainingBalance(): number | null {
     if (!balance) return null;
     switch (requestType) {
-      case "vacation": return balance.vacation_hours;
-      case "sick": return balance.sick_hours;
-      case "personal": return balance.personal_hours;
+      case "vacation": return balance.vacation_remaining;
+      case "sick": return balance.sick_remaining;
+      case "personal": return balance.personal_remaining;
       default: return null; // bereavement and other have no tracked balance
     }
   }
@@ -120,11 +120,11 @@ export default function PTORequestForm({ currentUserId }: Props) {
 
     try {
       const payload: CreatePTORequestPayload = {
-        request_type: requestType,
+        pto_type: requestType,
         start_date: startDate,
         end_date: endDate,
-        hours_requested: hours,
-        reason: reason || undefined,
+        hours: hours,
+        notes: reason || undefined,
       };
 
       const res = await fetch("/api/pto", {
@@ -162,15 +162,15 @@ export default function PTORequestForm({ currentUserId }: Props) {
       {!loadingBalance && balance && (
         <section className="mb-8 grid grid-cols-3 gap-4">
           <div className="p-4 rounded-xl bg-blue-900/20 border border-blue-800">
-            <div className="text-2xl font-black text-blue-400">{balance.vacation_hours}h</div>
+            <div className="text-2xl font-black text-blue-400">{balance.vacation_remaining}h</div>
             <div className="text-xs text-blue-300/70 uppercase tracking-wider mt-1">Vacation</div>
           </div>
           <div className="p-4 rounded-xl bg-amber-900/20 border border-amber-800">
-            <div className="text-2xl font-black text-amber-400">{balance.sick_hours}h</div>
+            <div className="text-2xl font-black text-amber-400">{balance.sick_remaining}h</div>
             <div className="text-xs text-amber-300/70 uppercase tracking-wider mt-1">Sick</div>
           </div>
           <div className="p-4 rounded-xl bg-purple-900/20 border border-purple-800">
-            <div className="text-2xl font-black text-purple-400">{balance.personal_hours}h</div>
+            <div className="text-2xl font-black text-purple-400">{balance.personal_remaining}h</div>
             <div className="text-xs text-purple-300/70 uppercase tracking-wider mt-1">Personal</div>
           </div>
         </section>
