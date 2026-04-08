@@ -580,80 +580,86 @@ The current payroll export provides raw data from approved timesheets. To fully 
 
 ---
 
-## 8. Implementation Priority
+## 8. Implementation Priority & Status
 
-### Phase 1 — Replace QB Core Accounting (Target: 3-4 months)
+### Phase 1 — Replace QB Core Accounting ✅ COMPLETE (shipped 2026-04-08)
 
-These features let B&B stop using QuickBooks for daily bookkeeping. Payroll can continue through a standalone service (ADP, Gusto) during this phase.
+| Feature | Section | Status | Migration |
+|---------|---------|--------|-----------|
+| **Balance Sheet** | 2.5 | ✅ Live | (reports page) |
+| **General Ledger Report** | 2.4 | ✅ Live | (API + reports tab) |
+| **Accounts Receivable** | 2.2 | ✅ Live | 010_ar_ap.sql |
+| **Invoice Generation** | 4.2 | ✅ Live | 010_ar_ap.sql |
+| **Invoice PDF/Email** | 4.3 | ✅ Live | lib/invoice-pdf.ts (jsPDF) |
+| **Payment Recording** | 4.4 | ✅ Live | 010_ar_ap.sql |
+| **Customer Management** | 4.1 | ✅ Live | 010_ar_ap.sql |
+| **Accounts Payable** | 2.1 | ✅ Live | 010_ar_ap.sql |
+| **Bank Reconciliation** | 2.3 | ✅ Live | 011_bank_reconciliation.sql |
+| **Recurring Journal Entries** | 2.9 | ✅ Live | 014_accounting_periods.sql |
+| **Multi-Period Closing** | 2.10 | ✅ Live | 014_accounting_periods.sql |
+| **Year-End Closing** | 6.5 | ✅ Live | (in periods page) |
+| **Aging Reports (AR/AP)** | — | ✅ Live | (reports API) |
+| **Cash Flow Statement** | 2.6 | ✅ Live | (reports API) |
 
-| Feature | Section | Complexity | Est. Effort | Priority Rationale |
-|---------|---------|------------|-------------|-------------------|
-| **Balance Sheet** | 2.5 | Small | 1-2 days | Low effort, high value. Completes the financial statement trio (Trial Balance + P&L already exist) |
-| **General Ledger Report** | 2.4 | Small | 1-2 days | Low effort, essential for any accountant. Uses existing data |
-| **Accounts Receivable** | 2.2 | Large | 2-3 weeks | Core revenue tracking. Norfolk Southern invoicing is the lifeblood of the business |
-| **Invoice Generation** | 4.2 | Medium | 1-2 weeks | Tightly coupled with AR. No AR without invoices |
-| **Invoice PDF/Email** | 4.3 | Medium | 1 week | Professional invoices are required for railroad contracts |
-| **Payment Recording** | 4.4 | Medium | 1 week | Complete the AR cycle: invoice -> payment -> reconcile |
-| **Customer Management** | 4.1 | Small | 2-3 days | Foundation for AR/invoicing |
-| **Accounts Payable** | 2.1 | Large | 2-3 weeks | Track vendor obligations, plan cash outflows |
-| **Bank Reconciliation** | 2.3 | Large | 2-3 weeks | Fundamental accounting control, monthly requirement |
-| **Recurring Journal Entries** | 2.9 | Small | 2-3 days | Eliminates repetitive monthly entries (rent, insurance) |
-| **Multi-Period Closing** | 2.10 | Small | 2-3 days | Prevents accidental modification of prior periods |
-| **Year-End Closing** | 6.5 | Small | 1-2 days | Required annually, builds on period closing |
+**Phase 1 milestone**: B&B can manage all daily bookkeeping, invoicing, bill payment, and bank reconciliation in IronSight.
 
-**Phase 1 milestone**: B&B can manage all daily bookkeeping, invoicing, bill payment, and bank reconciliation in IronSight. QuickBooks is only needed for payroll.
+### Phase 2 — Payroll Independence ✅ COMPLETE (shipped 2026-04-08)
 
-### Phase 2 — Payroll Independence (Target: 4-6 months after Phase 1)
+| Feature | Section | Status | Migration |
+|---------|---------|--------|-----------|
+| **Tax Calculation Engine** | 3.1 | ✅ Live | 020_payroll_tax.sql |
+| **Benefits Deduction Management** | 3.6 | ✅ Live | 020_payroll_tax.sql |
+| **Workers Comp Tracking** | 3.5 | ✅ Live | 020_payroll_tax.sql |
+| **1099 Vendor Tracking** | 6.2 | ✅ Live | (vendor-1099 API) |
+| **Budget vs. Actual** | 2.7 | ✅ Live | 021_budgets.sql |
+| **Quarterly Tax Reports** | 6.1 | ✅ Live | (tax-reports API — 941/940/KY) |
+| **Direct Deposit / ACH** | 3.2 | 🔲 Needs integration | NACHA file gen or API partner |
+| **Payroll Tax Filing** | 3.4 | 🔲 Needs integration | IRS EFTPS/e-file |
+| **W-2 / 1099 Generation** | 3.3 | 🔲 Needs integration | EFW2/FIRE format |
 
-These features let B&B stop using any external payroll service. This is the hardest phase because tax compliance has legal consequences.
+**Phase 2 milestone**: Tax calculation engine live with 2026 federal brackets, FICA, FUTA, KY state. Full payroll run lifecycle (preview → draft → approve → post with JE). Employee W-4 profiles, benefits enrollment, workers comp tracking all functional. Remaining items need external service integrations (NACHA, IRS e-file).
 
-| Feature | Section | Complexity | Est. Effort | Priority Rationale |
-|---------|---------|------------|-------------|-------------------|
-| **Tax Calculation Engine** | 3.1 | Large | 3-4 weeks | Foundation for all payroll processing |
-| **Benefits Deduction Management** | 3.6 | Medium | 1-2 weeks | Must deduct benefits before computing net pay |
-| **Direct Deposit / ACH** | 3.2 | Large | 2-3 weeks | Employees need to get paid electronically |
-| **Workers Comp Tracking** | 3.5 | Small | 3-5 days | Premium tracking and audit prep |
-| **Quarterly Tax Reports** | 6.1 | Medium | 1-2 weeks | Required filings (941, state) |
-| **Payroll Tax Filing** | 3.4 | Large | 2-3 weeks | Automate required filings |
-| **W-2 / 1099 Generation** | 3.3 | Large | 2-3 weeks | Year-end compliance requirement |
-| **1099 Vendor Tracking** | 6.2 | Small | 3-5 days | Year-round tracking for year-end filing |
+### Phase 3 — Advanced Features ✅ COMPLETE (shipped 2026-04-08)
 
-**Phase 2 milestone**: B&B processes payroll entirely through IronSight — tax calculation, deductions, direct deposit, and all required filings. No external payroll service needed.
+| Feature | Section | Status | Migration |
+|---------|---------|--------|-----------|
+| **Fixed Asset / Depreciation** | 2.8 | ✅ Live | 022_fixed_assets.sql |
+| **Estimates / Quotes** | 4.6 | ✅ Live | 023_estimates.sql |
+| **Credit Card Import** | 5.2 | ✅ Live | 024_expense_rules_cc.sql |
+| **Expense Categorization Rules** | 5.3 | ✅ Live | 024_expense_rules_cc.sql |
+| **Late Payment Reminders** | 4.5 | ✅ Live | 025_mileage_rates.sql |
+| **Mileage Rate Enhancement** | 5.4 | ✅ Live | 025_mileage_rates.sql |
+| **Sales Tax** | 6.3 | ✅ Live | 026_sales_tax.sql |
+| **Audit Trail Report** | 6.4 | ✅ Live | (audit-trail API) |
+| **Receipt OCR** | 5.1 | ✅ Live | (receipt-ocr API — Claude Vision) |
+| **Bank Feed (Plaid)** | 7.1 | 🔲 Needs API keys | Plaid production approval required |
+| **Payment Processing (Stripe)** | 7.2 | 🔲 Needs Stripe account | Stripe Connect setup required |
+| **Tax Filing (E-File)** | 7.4 | 🔲 Needs IRS access | EFTPS/EFW2/FIRE integration |
 
-**Risk note**: Consider keeping a payroll service as a backup during the first year. Payroll tax errors are expensive (IRS Trust Fund Recovery Penalty holds officers personally liable). An alternative is to integrate with a payroll tax engine API (e.g., Symmetry Tax Engine) rather than building the full tax calculation from scratch.
+### Phase 4 — External Integrations (Remaining)
 
-### Phase 3 — Advanced Features (Ongoing)
+These items require external service accounts, API keys, or regulatory approval:
 
-These features add convenience, automation, and advanced financial management. Build as time and need dictate.
-
-| Feature | Section | Complexity | Est. Effort | Priority Rationale |
-|---------|---------|------------|-------------|-------------------|
-| **Bank Feed (Plaid)** | 7.1 | Large | 2-3 weeks | Eliminates manual transaction import |
-| **Credit Card Import** | 5.2 | Medium | 1-2 weeks | Automate expense tracking from card statements |
-| **Expense Categorization Rules** | 5.3 | Small | 2-3 days | Speeds up categorization of imported transactions |
-| **Fixed Asset / Depreciation** | 2.8 | Medium | 1-2 weeks | Automate monthly depreciation for 36 trucks |
-| **Budget vs. Actual** | 2.7 | Medium | 1-2 weeks | Cost control for fleet operations |
-| **Cash Flow Statement** | 2.6 | Medium | 1 week | Complete financial reporting package |
-| **Estimates / Quotes** | 4.6 | Small | 3-5 days | Streamline job bidding process |
-| **Late Payment Reminders** | 4.5 | Small | 2-3 days | Automated AR collections |
-| **Payment Processing (Stripe)** | 7.2 | Medium | 1-2 weeks | Accept electronic payments |
-| **Tax Filing (E-File)** | 7.4 | Large | 3-4 weeks | Automate IRS/state submissions |
-| **Sales Tax** | 6.3 | Small-Med | 1-2 weeks | If applicable to B&B services |
-| **Audit Trail Report** | 6.4 | Small | 2-3 days | Enhance existing audit system for auditors |
-| **Mileage Rate Enhancement** | 5.4 | Small | 1-2 days | IRS rate table + annual summary |
-| **Receipt OCR** | 5.1 | Medium | 1-2 weeks | AI-powered receipt data extraction |
+| Feature | Dependency | Notes |
+|---------|-----------|-------|
+| **Plaid Bank Feed** | Plaid API keys + production approval | Replaces CSV bank import |
+| **Stripe Payments** | Stripe account + Connect setup | Pay-now links on invoices |
+| **ACH / Direct Deposit** | NACHA file format + bank portal | Or integrate with Check/Gusto API |
+| **IRS E-File (941/940)** | EFTPS enrollment | Tax deposit automation |
+| **W-2 E-File** | SSA BSO access + EFW2 format | Year-end compliance |
+| **1099 E-File** | IRS FIRE system access | Year-end compliance |
 
 ---
 
 ## Key Advantages Over QuickBooks
 
-Once fully built, IronSight OS has structural advantages that QuickBooks can never match:
+IronSight OS has structural advantages that QuickBooks can never match:
 
 1. **Timesheet-to-payroll-to-journal-entry pipeline** — Approved timesheets auto-generate per diem, expense, and payroll journal entries. Zero manual re-entry.
 
 2. **Fleet integration** — Truck maintenance costs, IFTA fuel data, and equipment depreciation are directly linked to the asset that generated them. QuickBooks has no concept of a "truck."
 
-3. **Field-first design** — Receipt capture, mileage logging, and expense tracking happen on the phone at the job site, not after the fact in an office.
+3. **Field-first design** — Receipt capture (with AI OCR), mileage logging, and expense tracking happen on the phone at the job site, not after the fact in an office.
 
 4. **Single source of truth** — One system for timesheets, payroll, invoicing, inventory, fleet diagnostics, and accounting. No data silos, no sync issues, no duplicate entry.
 
@@ -661,24 +667,29 @@ Once fully built, IronSight OS has structural advantages that QuickBooks can nev
 
 6. **No per-user licensing** — QuickBooks charges per user per month. IronSight costs whatever Supabase and Vercel cost to run (likely far less for 30+ users).
 
-7. **Full audit trail** — Every action, every change, every approval is logged. QuickBooks audit trail is limited and hard to export.
+7. **Full audit trail** — Every action, every change, every approval is logged with filterable audit trail report and CSV export.
+
+8. **AI-powered receipt scanning** — Claude Vision extracts vendor, date, amounts, and line items from receipt photos automatically.
+
+9. **Integrated tax compliance** — Form 941/940 worksheets auto-populated from payroll data, filing calendar with deadline tracking, 1099 threshold monitoring.
 
 ---
 
-## Database Migration Estimates
+## Database Migrations (Applied to Production)
 
-Phase 1 will require approximately 3 new Supabase migrations:
-
-- **012_ar_ap.sql** — customers, vendors, invoices, invoice_line_items, invoice_payments, bills, bill_line_items, bill_payments tables
-- **013_bank_reconciliation.sql** — bank_accounts, bank_transactions, reconciliation_sessions tables
-- **014_accounting_periods.sql** — accounting_periods, recurring_journal_entries tables
-
-Phase 2 will require approximately 2 more:
-
-- **015_payroll_tax.sql** — employee_tax_profiles, tax_tables, payroll_runs, payroll_run_lines, payroll_deductions tables
-- **016_benefits.sql** — benefit_plans, employee_benefits, workers_comp_classes tables
-
-Phase 3 migrations as needed per feature.
+| Migration | Tables | Phase |
+|-----------|--------|-------|
+| 009_accounting.sql | chart_of_accounts, journal_entries, journal_entry_lines | Foundation |
+| 010_ar_ap.sql | customers, vendors, invoices, invoice_line_items, invoice_payments, bills, bill_line_items, bill_payments | Phase 1 |
+| 011_bank_reconciliation.sql | bank_accounts, bank_transactions, reconciliation_sessions | Phase 1 |
+| 014_accounting_periods.sql | accounting_periods, recurring_journal_entries | Phase 1 |
+| 020_payroll_tax.sql | employee_tax_profiles, tax_rate_tables, payroll_runs, payroll_run_lines, benefit_plans, employee_benefits, workers_comp_classes, employee_workers_comp | Phase 2 |
+| 021_budgets.sql | budgets | Phase 2 |
+| 022_fixed_assets.sql | fixed_assets, depreciation_entries | Phase 3 |
+| 023_estimates.sql | estimates, estimate_line_items | Phase 3 |
+| 024_expense_rules_cc.sql | expense_categorization_rules, credit_card_accounts, credit_card_transactions | Phase 3 |
+| 025_mileage_rates.sql | mileage_rates, payment_reminders | Phase 3 |
+| 026_sales_tax.sql | sales_tax_rates, sales_tax_exemptions, sales_tax_collected | Phase 3 |
 
 ---
 
@@ -686,9 +697,9 @@ Phase 3 migrations as needed per feature.
 
 1. **Does B&B currently use QuickBooks Desktop or QuickBooks Online?** Migration path differs significantly. QBO data can be exported via API; Desktop requires IIF/CSV export.
 
-2. **Who does B&B's tax filing today?** If an external CPA handles quarterly and annual filings, Phase 2 can focus on data preparation (reports and forms) rather than direct e-filing, reducing complexity substantially.
+2. **Who does B&B's tax filing today?** If an external CPA handles quarterly and annual filings, the 941/940 worksheets already provide the data — direct e-filing may not be needed immediately.
 
-3. **Does B&B use QB's payroll service or a separate payroll provider?** If already using ADP/Gusto/Paychex, those can coexist with IronSight OS indefinitely while Phase 2 payroll features are built.
+3. **Does B&B use QB's payroll service or a separate payroll provider?** The payroll tax engine is live with full calculation, but ACH/direct deposit still needs a bank integration or payment partner.
 
 4. **Are there multi-state payroll considerations?** If crews work across state lines (common in railroad), state tax withholding becomes significantly more complex — reciprocity agreements, nexus rules, etc.
 

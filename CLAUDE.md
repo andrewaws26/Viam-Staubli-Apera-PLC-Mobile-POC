@@ -468,31 +468,90 @@ Auto-calculated from timesheet nights_out and layovers when timesheets are appro
 
 ## Accounting Module
 
-Double-entry bookkeeping foundation for the IronSight Company OS. Replaces QuickBooks with an integrated financial system connected to timesheets, per diem, and expenses.
+Full QuickBooks replacement for the IronSight Company OS. Double-entry bookkeeping with AR/AP, invoicing, payroll, fixed assets, and compliance reporting — all integrated with timesheets, per diem, fleet, and expenses.
 
-**Database tables:** `chart_of_accounts`, `journal_entries`, `journal_entry_lines` — see `dashboard/supabase/migrations/009_accounting.sql`
+**Database migrations (dashboard/supabase/migrations/):**
+- `009_accounting.sql` — chart_of_accounts, journal_entries, journal_entry_lines
+- `010_ar_ap.sql` — customers, vendors, invoices, invoice_line_items, invoice_payments, bills, bill_line_items, bill_payments
+- `011_bank_reconciliation.sql` — bank_accounts, bank_transactions, reconciliation_sessions
+- `014_accounting_periods.sql` — accounting_periods, recurring_journal_entries
+- `020_payroll_tax.sql` — employee_tax_profiles, tax_rate_tables (2026 federal/KY/FICA/FUTA), payroll_runs, payroll_run_lines, benefit_plans, employee_benefits, workers_comp_classes
+- `021_budgets.sql` — budgets (fiscal_year, account_id, period, budgeted_amount)
+- `022_fixed_assets.sql` — fixed_assets, depreciation_entries, GL accounts 1300/1310/6000/6010
+- `023_estimates.sql` — estimates, estimate_line_items, estimate_number_seq
+- `024_expense_rules_cc.sql` — expense_categorization_rules, credit_card_accounts, credit_card_transactions
+- `025_mileage_rates.sql` — mileage_rates (IRS 2025-2026), payment_reminders
+- `026_sales_tax.sql` — sales_tax_rates, sales_tax_exemptions, sales_tax_collected
 
 **Shared types:** `packages/shared/src/accounting.ts` — Account, JournalEntry, JournalEntryLine, TrialBalance types + constants
 
 **API routes (`dashboard/app/api/accounting/`):**
-- `accounts/` — GET list (filter by type, active_only) / POST create
-- `accounts/[id]/` — GET single / PATCH update / DELETE soft-deactivate
-- `entries/` — GET list (filter by status, source, date range) / POST create with balanced lines
-- `entries/[id]/` — GET single with lines / PATCH (post draft, void posted, edit draft) / DELETE draft
-- `trial-balance/` — GET computed trial balance as of date
+- `accounts/` — Chart of accounts CRUD
+- `entries/`, `entries/[id]/` — Journal entry lifecycle (create, post, void, delete)
+- `trial-balance/` — Trial balance as-of-date
+- `invoices/` — AR invoicing with line items, payments, auto-JE on send
+- `bills/` — AP bills with line items, payments, auto-JE on entry
+- `customers/` — Customer/vendor management
+- `bank/` — Bank accounts, CSV import, transaction matching, reconciliation
+- `recurring/` — Recurring JE templates with auto-generation
+- `periods/` — Accounting period close/lock/reopen, year-end close
+- `general-ledger/` — GL report with running balances per account
+- `aging/` — AR/AP aging in 30/60/90/120+ day buckets
+- `cash-flow/` — Indirect-method cash flow statement
+- `budget/` — Budget CRUD + budget vs actual variance analysis
+- `payroll-run/` — Full payroll processing: preview → draft → approve → post (JE + YTD)
+- `employee-tax/` — Employee W-4 profiles, benefits enrollment, workers comp
+- `vendor-1099/` — 1099 vendor tracking with $600 threshold detection
+- `fixed-assets/` — Asset register, depreciation batch (straight-line/declining/sum-of-years), disposal with gain/loss JE
+- `estimates/` — Estimates/quotes with convert-to-invoice
+- `expense-rules/` — Auto-categorization rules, CC import with dedup, batch post
+- `audit-trail/` — Filterable accounting audit log with category grouping
+- `payment-reminders/` — Tiered overdue invoice reminders (7/30/60/90+ days)
+- `mileage-rates/` — IRS mileage rate management
+- `sales-tax/` — Tax rates, customer exemptions, filing period tracking
+- `receipt-ocr/` — Claude Vision receipt scanning (vendor, amount, line items)
+- `tax-reports/` — Form 941/940 worksheets, KY withholding, filing calendar
 
-**Dashboard pages:** `/accounting` (COA browser + journal entries list), `/accounting/new` (create entry), `/accounting/[id]` (entry detail with post/void)
+**Dashboard pages (`dashboard/app/accounting/`):**
+- `/accounting` — COA browser + journal entries list
+- `/accounting/new`, `/accounting/[id]` — Create/view journal entries
+- `/accounting/invoices` — AR invoicing with PDF generation
+- `/accounting/bills` — AP bill management
+- `/accounting/customers` — Customer & vendor directory
+- `/accounting/bank` — Bank reconciliation with CSV import
+- `/accounting/recurring` — Recurring JE templates
+- `/accounting/periods` — Accounting period management + year-end close
+- `/accounting/payroll-run` — Payroll processing with tax calculation
+- `/accounting/employee-tax` — Employee W-4, benefits, workers comp setup
+- `/accounting/vendor-1099` — 1099 vendor tracking
+- `/accounting/budget` — Budget entry + variance analysis
+- `/accounting/fixed-assets` — Fixed asset register + depreciation
+- `/accounting/estimates` — Estimates/quotes + convert to invoice
+- `/accounting/expense-rules` — CC rules, import, transaction review
+- `/accounting/audit-trail` — Audit log viewer with filters + CSV export
+- `/accounting/payment-reminders` — Overdue invoice reminders + mileage calculator
+- `/accounting/sales-tax` — Tax rates, exemptions, filing summary
+- `/accounting/receipt-ocr` — Receipt scanner (Claude Vision OCR)
+- `/accounting/tax-reports` — 941/940 worksheets + filing calendar
+- `/accounting/reports` — P&L, Balance Sheet, GL, Aging, Cash Flow
 
-**Chart of Accounts:** 32 seeded accounts across 5 types: Assets (1000-1999), Liabilities (2000-2999), Equity (3000-3999), Revenue (4000-4999), Expenses (5000-9999). System accounts cannot be deleted.
+**Chart of Accounts:** 40+ accounts across 5 types: Assets (1000-1999), Liabilities (2000-2999), Equity (3000-3999), Revenue (4000-4999), Expenses (5000-9999). Includes 1300 Fixed Assets, 1310 Accumulated Depreciation, 2100 Credit Card Payable, 5410 Meals, 5420 Travel, etc.
 
 **Journal Entry workflow:** draft → posted → voided. Posting updates account balances. Voiding reverses balances and records reason.
 
 **Auto-generated entries:**
-- Timesheet approved with per diem → DR 5100 Per Diem Expense / CR 2110 Per Diem Payable (auto-posted)
-- Timesheet approved with expenses → DR expense accounts / CR 2120 Expense Reimbursements Payable (auto-posted)
-- Timesheet withdrawn/rejected → auto-generated entries voided and balances reversed
+- Timesheet approved with per diem → DR 5100 Per Diem Expense / CR 2110 Per Diem Payable
+- Timesheet approved with expenses → DR expense accounts / CR 2120 Expense Reimbursements Payable
+- Invoice sent → DR 1100 AR / CR 4010 Revenue
+- Bill entered → DR Expense / CR 2000 AP
+- Payroll posted → DR 5000 Payroll Expense + DR 5010 Employer Tax / CR tax liability accounts / CR 1000 Cash
+- Depreciation run → DR 6000 Depreciation Expense / CR 1310 Accumulated Depreciation
+- Asset disposal → DR Cash + DR 1310 Accum Depr / CR 1300 Fixed Assets ± 6010 Gain/Loss
+- CC transactions posted → DR expense accounts / CR 2100 Credit Card Payable
 
-**Roles:** Manager/developer can create accounts, post/void entries. All roles can view COA.
+**Payroll tax engine:** W-4 2020+ percentage method with 2026 federal progressive brackets (3 filing statuses), KY flat 4%, SS 6.2% (wage base $176,100), Medicare 1.45% (+0.9% additional over $200k), FUTA 0.6% (first $7,000), KY SUTA 2.7%.
+
+**Roles:** Manager/developer can access all financial operations. All roles can view COA.
 
 ## Platform Foundation
 
@@ -508,7 +567,7 @@ See `dashboard/supabase/migration_007_timesheet_sections_platform.sql`
 
 Full data architecture documentation: `docs/data-architecture.md`
 
-Covers all 37+ tables, data flows, security model, cost strategy, scalability plan, and future module roadmap.
+Covers all 60+ tables, data flows, security model, cost strategy, scalability plan, and future module roadmap.
 
 ## OBD-II Passenger Vehicle Support (FUTURE — SEPARATE DEVICE)
 
