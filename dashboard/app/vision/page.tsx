@@ -389,17 +389,22 @@ export default function VisionPage() {
             <RoadmapCard status="built" title="PTO / Time Off Management" />
             <RoadmapCard status="built" title="Employee Profiles & Training" />
             <RoadmapCard status="built" title="Per Diem Auto-Calculation" />
+            <RoadmapCard status="built" title="Expense Management with Receipt Capture" />
             <RoadmapCard
-              status="in-progress"
-              title="Expense Management with Receipt Capture"
-            />
-            <RoadmapCard
-              status="planned"
+              status="built"
               title="Financial Module (QuickBooks Replacement)"
               details={[
-                "Chart of accounts, invoicing, AP/AR",
-                "Automated data import from QuickBooks",
-                "Connected to timesheets, expenses, per diem",
+                "Chart of accounts (32 seeded), double-entry journal entries",
+                "Auto-journal entries from timesheet approval (per diem + expenses)",
+                "Trial balance, P&L reports, account balance tracking",
+              ]}
+            />
+            <RoadmapCard
+              status="built"
+              title="Payroll Export"
+              details={[
+                "Direct feed from approved timesheets",
+                "Hours, per diem, mileage, expenses — CSV & JSON export",
               ]}
             />
             <RoadmapCard
@@ -408,14 +413,6 @@ export default function VisionPage() {
               details={[
                 "Contracts, SOPs, safety manuals",
                 "Version control, signatures",
-              ]}
-            />
-            <RoadmapCard
-              status="planned"
-              title="Payroll Integration"
-              details={[
-                "Direct feed from timesheets",
-                "Hours, per diem, mileage, flight/holiday/vacation pay",
               ]}
             />
             <RoadmapCard
