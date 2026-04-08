@@ -15,6 +15,7 @@ import HistoryPanel from "./HistoryPanel";
 import TruckPanel from "./TruckPanel";
 import { CellSection } from "./Cell";
 import ConnectionDot from "./ConnectionDot";
+import DevDiagnostics from "./DevDiagnostics";
 import { UserButton, useUser } from "@clerk/nextjs";
 import { useAlarm, FlashOverlay } from "./DashboardAudio";
 import { useSensorPolling } from "../hooks/useSensorPolling";
@@ -36,6 +37,11 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
   const { user } = useUser();
   const userRole = (user?.publicMetadata as Record<string, unknown>)?.role as string || "operator";
   const isAdmin = userRole === "developer" || userRole === "manager";
+  const isDeveloper = userRole === "developer";
+  const [devMode, setDevMode] = useState(false);
+
+  // Track truck readings for dev diagnostics
+  const [truckReadings, setTruckReadings] = useState<Record<string, unknown> | null>(null);
 
   const [trucks, setTrucks] = useState<TruckListItem[]>([]);
 
@@ -170,6 +176,18 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
                 <span className="hidden sm:inline">Admin</span>
               </a>
             )}
+            {isDeveloper && (
+              <button
+                onClick={() => setDevMode((prev) => !prev)}
+                className={`text-[10px] sm:text-xs min-h-[44px] px-3 py-2 rounded-lg font-bold uppercase tracking-wider transition-colors ${
+                  devMode
+                    ? "bg-amber-700 text-white"
+                    : "border border-gray-700 text-gray-500 hover:text-amber-400 hover:border-amber-700"
+                }`}
+              >
+                {devMode ? "DEV ON" : "DEV"}
+              </button>
+            )}
             <ConnectionDot
               status={connectionStatus}
               dataAge={connectionDataAge}
@@ -257,12 +275,22 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
           />
 
           {/* Truck Diagnostics */}
-          <TruckPanel simMode={simMode} truckId={truckId} />
+          <TruckPanel simMode={simMode} truckId={truckId} onReadingsChange={devMode ? setTruckReadings : undefined} />
 
           {/* Robot Cell Monitoring — Staubli + Apera + Watchdog */}
           <div id="cell-section">
             <CellSection simMode={simMode} />
           </div>
+
+          {/* Dev Diagnostics — developer role only */}
+          {devMode && isDeveloper && (
+            <DevDiagnostics
+              components={components}
+              truckReadings={truckReadings}
+              connectionStatus={connectionStatus}
+              connectionError={connectionError}
+            />
+          )}
 
           {/* Fault History */}
           <FaultHistory events={faultHistory} />

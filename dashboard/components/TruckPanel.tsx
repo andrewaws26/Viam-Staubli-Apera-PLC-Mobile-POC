@@ -50,7 +50,7 @@ const TRUCK_POLL_MS = 3000;
 
 type VehicleMode = "truck" | "car";
 
-export default function TruckPanel({ simMode = false, truckId }: { simMode?: boolean; truckId?: string }) {
+export default function TruckPanel({ simMode = false, truckId, onReadingsChange }: { simMode?: boolean; truckId?: string; onReadingsChange?: (r: Record<string, unknown> | null) => void }) {
   const [readings, setReadings] = useState<TruckReadings | null>(null);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -304,6 +304,11 @@ export default function TruckPanel({ simMode = false, truckId }: { simMode?: boo
     const id = setInterval(fetchReadings, TRUCK_POLL_MS);
     return () => clearInterval(id);
   }, [fetchReadings]);
+
+  // Forward readings to parent for dev diagnostics
+  useEffect(() => {
+    onReadingsChange?.(readings as Record<string, unknown> | null);
+  }, [readings, onReadingsChange]);
 
 
   // Accumulate trend data and score driver behavior when readings change
