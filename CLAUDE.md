@@ -194,6 +194,28 @@ with FieldTimer("network", "plc_discovery") as t:
     t.set(plc_ip=result)
 ```
 
+## Self-Healing System
+
+The Pi runs autonomous self-healing every 2 minutes via cron (`scripts/self-heal.py`). Two tiers:
+
+**Tier 1 — Offline Playbook (no internet needed):**
+- viam-server down → restart service
+- CAN bus down → restart can0 service, verify listen-only mode
+- PLC unreachable → trigger plc-autodiscover.py
+- Modules not constructing → restart viam-server
+- Disk >95% → prune old capture files
+
+**Tier 2 — Claude-assisted (needs internet, rate-limited):**
+- If Tier 1 fixes fail 3 times → call Claude CLI
+- Claude creates `autofix/` branch, commits fix, pushes (never to main)
+- Max 3 Claude calls per hour, 20 min cooldown between calls
+
+**Status:** Written to `/tmp/ironsight-heal-status.json`, visible in the dashboard Dev Diagnostics panel.
+
+**Logs:** `/var/log/ironsight-self-heal.log` + structured events in `/var/log/ironsight-field.jsonl`
+
+**Manual run:** `python3 scripts/self-heal.py --force`
+
 ## Network Auto-Discovery
 
 When plugged into a new truck's switch, the Pi auto-negotiates:

@@ -165,7 +165,8 @@ sysctl -p /etc/sysctl.d/99-ironsight.conf 2>/dev/null || true
 echo "[9/10] Setting up cron jobs..."
 WATCHDOG_LINE="*/5 * * * * $SCRIPTS_DIR/watchdog.sh"
 SYNC_LINE="*/10 * * * * $SCRIPTS_DIR/fleet/fleet-sync.sh"
-(crontab -u "$USER" -l 2>/dev/null | grep -v "watchdog.sh" | grep -v "fleet-sync.sh"; echo "$WATCHDOG_LINE"; echo "$SYNC_LINE") | crontab -u "$USER" -
+HEAL_LINE="*/2 * * * * $SCRIPTS_DIR/self-heal.py >> /var/log/ironsight-self-heal.log 2>&1"
+(crontab -u "$USER" -l 2>/dev/null | grep -v "watchdog.sh" | grep -v "fleet-sync.sh" | grep -v "self-heal.py"; echo "$WATCHDOG_LINE"; echo "$SYNC_LINE"; echo "$HEAL_LINE") | crontab -u "$USER" -
 
 # ── 10. WiFi configs + data dirs ──
 echo "[10/10] Installing WiFi templates and creating directories..."

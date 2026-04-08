@@ -8,8 +8,21 @@
  * Only visible to users with the "developer" role.
  */
 
+import { useState, useEffect } from "react";
 import { validateReadings, type RangeFlag } from "../lib/sensor-ranges";
 import type { ComponentState, SensorReadings } from "../lib/types";
+
+interface HealCheck {
+  check: string;
+  status: "ok" | "fixed" | "failed" | "skipped" | "attempted";
+  detail: string;
+}
+
+interface HealStatus {
+  timestamp: string;
+  checks: HealCheck[];
+  healthy: boolean;
+}
 
 interface Props {
   components: ComponentState[];
@@ -19,6 +32,27 @@ interface Props {
 }
 
 export default function DevDiagnostics({ components, truckReadings, connectionStatus, connectionError }: Props) {
+  // Poll heal status from Pi (via the pi-health data which includes system fields)
+  const [healStatus, setHealStatus] = useState<HealStatus | null>(null);
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const res = await fetch("/api/pi-health?host=tps");
+        if (res.ok) {
+          const data = await res.json();
+          // The heal status is available at /tmp/ironsight-heal-status.json on the Pi
+          // It gets included in the sensor readings if the plc-sensor module reads it
+          if (data._heal_status) {
+            setHealStatus(data._heal_status as HealStatus);
+          }
+        }
+      } catch { /* ignore */ }
+    };
+    poll();
+    const id = setInterval(poll, 10000);
+    return () => clearInterval(id);
+  }, []);
+
   // Validate PLC readings
   const plcComp = components.find((c) => c.id === "plc");
   const plcFlags = plcComp?.readings ? validateReadings(plcComp.readings as unknown as Record<string, unknown>) : [];
@@ -150,6 +184,30 @@ export default function DevDiagnostics({ components, truckReadings, connectionSt
             {typeof plcComp.readings.total_link_flaps === "number" && (plcComp.readings.total_link_flaps as number) > 0 && (
               <KV label="Ethernet Link Flaps" value={String(plcComp.readings.total_link_flaps)} color="text-yellow-400" />
             )}
+          </Section>
+        )}
+
+        {/* ── Self-Heal Status ── */}
+        {healStatus && (
+          <Section title={`Self-Heal (${healStatus.timestamp?.split("T")[1]?.slice(0,5) ?? "?"})`}>
+            {healStatus.checks.map((c, i) => (
+              <div key={i} className="flex items-center justify-between gap-2 text-[10px]">
+                <span className="text-gray-500">{c.check}</span>
+                <span className={`font-mono ${
+                  c.status === "ok" ? "text-green-400" :
+                  c.status === "fixed" ? "text-cyan-400" :
+                  c.status === "failed" ? "text-red-400" :
+                  "text-gray-500"
+                }`}>
+                  {c.status === "ok" ? "OK" : c.status === "fixed" ? "FIXED" : c.status.toUpperCase()}
+                </span>
+              </div>
+            ))}
+            {healStatus.checks.filter(c => c.status !== "ok").map((c, i) => (
+              <div key={`d-${i}`} className="text-[10px] text-gray-600 pl-2 border-l border-gray-800">
+                {c.check}: {c.detail}
+              </div>
+            ))}
           </Section>
         )}
 
