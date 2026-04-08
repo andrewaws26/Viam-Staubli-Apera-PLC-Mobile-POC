@@ -286,8 +286,7 @@ export async function PATCH(request: NextRequest) {
           status: "voided",
           voided_at: new Date().toISOString(),
           voided_by: userId,
-          voided_by_name: userInfo.name,
-          void_reason: "Bill voided",
+          voided_reason: "Bill voided",
         }).eq("id", bill.journal_entry_id);
       }
 

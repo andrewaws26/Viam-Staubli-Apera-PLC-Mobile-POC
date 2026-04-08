@@ -60,6 +60,9 @@ export default function AppNav({ pageTitle }: Props) {
             <NavLink href="/chat" label="Chat" />
             <NavLink href="/timesheets" label="Time" />
             {isAdmin && <NavLink href="/accounting" label="Finance" />}
+            {isAdmin && <NavLink href="/accounting/invoices" label="Invoices" />}
+            {isAdmin && <NavLink href="/accounting/bills" label="Bills" />}
+            {isAdmin && <NavLink href="/accounting/customers" label="Clients" />}
           </div>
 
           {/* User menu */}
@@ -98,6 +101,9 @@ export default function AppNav({ pageTitle }: Props) {
                     <MenuLink href="/pto" label="Time Off" />
                     <MenuLink href="/training" label="Training" />
                     {isAdmin && <MenuLink href="/accounting" label="Accounting" />}
+                    {isAdmin && <MenuLink href="/accounting/invoices" label="Invoices (AR)" />}
+                    {isAdmin && <MenuLink href="/accounting/bills" label="Bills (AP)" />}
+                    {isAdmin && <MenuLink href="/accounting/customers" label="Customers & Vendors" />}
                     {isAdmin && <MenuLink href="/inventory" label="Inventory" />}
                     {isAdmin && <MenuLink href="/payroll" label="Payroll" />}
                   </div>
