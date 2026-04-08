@@ -8,7 +8,7 @@
  */
 
 import { useUser } from "@clerk/nextjs";
-import AppNav from "./AppNav";
+import TopNav from "./nav/TopNav";
 
 interface ModuleCard {
   href: string;
@@ -300,7 +300,7 @@ export default function HomeScreen() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <AppNav />
+      <TopNav />
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
         {/* Hero */}
