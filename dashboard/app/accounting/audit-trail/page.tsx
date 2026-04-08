@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import AppNav from "@/components/AppNav";
 
 interface AuditEntry {
   id: string;
@@ -346,7 +345,6 @@ export default function AuditTrailPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <AppNav pageTitle="Audit Trail" />
 
       <main className="px-4 sm:px-6 py-6 max-w-7xl mx-auto">
         {/* Summary Card */}

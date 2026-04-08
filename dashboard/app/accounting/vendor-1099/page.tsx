@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import AppNav from "@/components/AppNav";
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -67,7 +66,6 @@ export default function Vendor1099Page() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <AppNav pageTitle="1099 Vendor Tracking" />
 
       <main className="px-4 sm:px-6 py-6 max-w-7xl mx-auto">
         {/* Alert Banner */}

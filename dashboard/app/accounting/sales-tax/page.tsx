@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import AppNav from "@/components/AppNav";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -250,7 +249,6 @@ export default function SalesTaxPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100">
-      <AppNav pageTitle="Sales Tax" />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6">
         {/* Banners */}

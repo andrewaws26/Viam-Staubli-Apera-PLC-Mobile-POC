@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import AppNav from "@/components/AppNav";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -481,7 +480,6 @@ export default function ExpenseRulesPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <AppNav pageTitle="Expense Rules" />
 
       <main className="px-4 sm:px-6 py-6 max-w-7xl mx-auto">
         {/* Banners */}

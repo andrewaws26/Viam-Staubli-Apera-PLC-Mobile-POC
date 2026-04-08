@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import AppNav from "@/components/AppNav";
 
 interface Customer {
   id: string;
@@ -138,7 +137,6 @@ export default function CustomersVendorsPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <AppNav pageTitle="Customers & Vendors" />
 
       <main className="px-4 sm:px-6 py-6 max-w-6xl mx-auto">
         {/* Tabs */}

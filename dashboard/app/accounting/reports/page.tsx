@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import AppNav from "@/components/AppNav";
 import type { AccountType, TrialBalanceSummary, TrialBalanceRow } from "@ironsight/shared";
 import {
   ACCOUNT_TYPE_LABELS,
@@ -777,7 +776,6 @@ export default function FinancialReportsPage() {
         }
       `}</style>
 
-      <AppNav pageTitle="Financial Reports" />
 
       <main className="px-4 sm:px-6 py-6 max-w-6xl mx-auto">
         {/* Tab toggle — always visible */}

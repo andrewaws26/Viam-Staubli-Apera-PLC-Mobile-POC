@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import AppNav from "@/components/AppNav";
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -238,7 +237,6 @@ export default function BudgetPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <AppNav pageTitle="Budget vs. Actual" />
 
       <main className="px-4 sm:px-6 py-6 max-w-7xl mx-auto">
         {/* Error Banner */}

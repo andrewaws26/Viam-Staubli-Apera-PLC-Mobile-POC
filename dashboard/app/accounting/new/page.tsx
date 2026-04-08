@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import AppNav from "@/components/AppNav";
 import type { Account, CreateJournalEntryPayload } from "@ironsight/shared";
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -185,7 +184,6 @@ export default function NewJournalEntryPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <AppNav pageTitle="New Journal Entry" />
 
       <main className="px-4 sm:px-6 py-6 max-w-5xl mx-auto">
         {error && (

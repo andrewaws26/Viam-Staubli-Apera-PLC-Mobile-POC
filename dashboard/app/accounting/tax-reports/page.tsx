@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import AppNav from "@/components/AppNav";
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -279,7 +278,6 @@ export default function TaxReportsPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100">
-      <AppNav pageTitle="Tax Reports" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         {/* ── Summary Cards ── */}

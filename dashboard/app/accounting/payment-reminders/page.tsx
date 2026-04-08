@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import AppNav from "@/components/AppNav";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -292,7 +291,6 @@ export default function PaymentRemindersPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <AppNav pageTitle="Payment Reminders" />
 
       <main className="px-4 sm:px-6 py-6 max-w-6xl mx-auto">
         {/* Summary cards */}

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import AppNav from "@/components/AppNav";
 
 interface BankAccount {
   id: string;
@@ -212,7 +211,6 @@ export default function BankReconciliationPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <AppNav pageTitle="Bank Reconciliation" />
 
       <main className="px-4 sm:px-6 py-6 max-w-7xl mx-auto">
         {/* Account Selector */}

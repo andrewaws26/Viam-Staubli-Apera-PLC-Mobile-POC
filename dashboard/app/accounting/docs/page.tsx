@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import AppNav from "@/components/AppNav";
 
 /* ────────────────────────────────────────────────────────────────────────────
  * IronSight Accounting Documentation
@@ -49,7 +48,6 @@ export default function AccountingDocsPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100">
-      <AppNav pageTitle="User Guide" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         {/* Header */}

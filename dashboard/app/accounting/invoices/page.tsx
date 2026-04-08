@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import AppNav from "@/components/AppNav";
 import { generateInvoicePDF } from "@/lib/invoice-pdf";
 
 interface Customer { id: string; company_name: string; payment_terms: string }
@@ -154,7 +153,6 @@ export default function InvoicesPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <AppNav pageTitle="Invoices (AR)" />
 
       <main className="px-4 sm:px-6 py-6 max-w-6xl mx-auto">
         {/* Summary cards */}

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import AppNav from "@/components/AppNav";
 
 interface Vendor {
   id: string;
@@ -212,7 +211,6 @@ export default function BillsPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <AppNav pageTitle="Bills (AP)" />
 
       <main className="px-4 sm:px-6 py-6 max-w-7xl mx-auto">
         {/* Summary Cards */}
