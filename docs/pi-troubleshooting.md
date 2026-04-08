@@ -154,12 +154,47 @@ sudo python3 scripts/plc-autodiscover.py --force
 3. Check listen-only: `ip -d link show can0 | grep listen-only`
 4. Restart: `sudo systemctl restart can0`
 5. Check boot config: `grep mcp2515 /boot/firmware/config.txt`
+6. Check for SPI conflicts: `dmesg | grep -E 'mcp251|spi|chipselect'`
+7. Check FUSE mount health: `mount | grep fuse | wc -l` (should be < 10)
 
 ### viam-server won't start
 ```bash
 sudo journalctl -u viam-server -n 100 --no-pager
 # Common: bad /etc/viam.json, module crash, port conflict
 ```
+
+### viam-server crash-looping with SIGBUS
+The viam-server AppImage needs FUSE to mount. If it crash-loops, stale FUSE mounts
+accumulate and hit the system limit, causing a SIGBUS death spiral.
+
+```bash
+# Check how many FUSE mounts exist (should be 1-3, not hundreds)
+mount | grep fuse | wc -l
+
+# If hundreds: stop server, clean up, restart
+sudo systemctl stop viam-server
+mount | grep 'fuse.viam-server' | awk '{print $3}' | sudo xargs -I{} fusermount -u {}
+sudo rm -rf /tmp/.mount_viam-s*
+sudo systemctl start viam-server
+
+# Prevent recurrence: raise FUSE mount_max in /etc/fuse.conf
+grep mount_max /etc/fuse.conf
+# Should show: mount_max = 1000 (bootstrap.sh sets this)
+```
+
+### CAN HAT probe fails (MCP251x error -110)
+If `dmesg | grep mcp251` shows "didn't enter in conf mode after reset":
+
+1. **SPI conflict**: Another overlay (e.g., `mhs35ips` TFT display) may be claiming `spi0.0`.
+   Check: `grep -E 'mhs35|tft|lcd' /boot/firmware/config.txt`
+   Fix: Comment out the conflicting overlay (the Pi 5 runs headless for field use).
+
+2. **HAT not seated**: The MCP2515 chip isn't physically present or the HAT isn't making contact.
+   Check: reseat the HAT on the GPIO header and reboot.
+
+3. **Wrong crystal frequency**: The Waveshare CAN HAT (B) uses a 12MHz crystal.
+   Check: `grep mcp2515 /boot/firmware/config.txt` should show `oscillator=12000000`.
+   (Some HATs use 8MHz or 16MHz — match the crystal on the board.)
 
 ### Capture data not flowing
 ```bash

@@ -112,6 +112,21 @@ if ! grep -q "^dtoverlay=mcp2515-can0" "$BOOT_CONFIG" 2>/dev/null; then
     echo "dtoverlay=mcp2515-can0,oscillator=12000000,interrupt=25,spimaxfrequency=2000000" >> "$BOOT_CONFIG"
     echo "  + MCP2515 CAN overlay added (12MHz crystal, GPIO25)"
 fi
+# Disable TFT display overlays that conflict with CAN HAT on spi0.0
+# The Pi runs headless — dashboard is web-based, no local display needed.
+if grep -q "^dtoverlay=mhs35" "$BOOT_CONFIG" 2>/dev/null; then
+    sed -i 's/^dtoverlay=mhs35/#dtoverlay=mhs35/' "$BOOT_CONFIG"
+    echo "  ! Disabled mhs35 TFT overlay (conflicts with CAN HAT on spi0.0)"
+fi
+
+# ── 5b. FUSE mount limit (prevents AppImage crash-loop death spiral) ──
+if grep -q "#mount_max = 1000" /etc/fuse.conf 2>/dev/null; then
+    sed -i 's/#mount_max = 1000/mount_max = 1000/' /etc/fuse.conf
+    echo "  + FUSE mount_max raised to 1000"
+elif ! grep -q "^mount_max" /etc/fuse.conf 2>/dev/null; then
+    echo "mount_max = 1000" >> /etc/fuse.conf
+    echo "  + FUSE mount_max set to 1000"
+fi
 
 # ── 5b. Passwordless sudo for self-healing ──
 echo "  Configuring passwordless sudo for $USER..."
