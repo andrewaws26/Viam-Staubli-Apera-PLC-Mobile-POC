@@ -9,6 +9,7 @@ import {
   type CreateTimesheetPayload,
   type UpdateTimesheetPayload,
 } from "@ironsight/shared";
+import TimesheetSections from "./TimesheetSections";
 
 interface TeamMember {
   id: string;
@@ -559,6 +560,16 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
           </div>
         </div>
       </section>
+
+      {/* Sub-Sections (only for existing timesheets) */}
+      {existingTimesheet && (
+        <section className="mb-8">
+          <TimesheetSections
+            timesheetId={existingTimesheet.id}
+            canEdit={canEdit}
+          />
+        </section>
+      )}
 
       {/* Notes */}
       <section className="mb-8">
