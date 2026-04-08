@@ -265,6 +265,7 @@ export async function PATCH(
     if (update.status === "approved") {
       const nightsOut = Number(body.nights_out ?? existing.nights_out) || 0;
       const layoversCount = Number(body.layovers ?? existing.layovers) || 0;
+      let perDiemTotal = 0;
 
       if (nightsOut > 0 || layoversCount > 0) {
         // Get the active per diem rate
@@ -279,6 +280,7 @@ export async function PATCH(
         if (rate) {
           const nightsAmount = nightsOut * Number(rate.daily_rate);
           const layoverAmount = layoversCount * Number(rate.layover_rate);
+          perDiemTotal = nightsAmount + layoverAmount;
 
           // Upsert — one per diem entry per timesheet (UNIQUE constraint)
           await sb.from("per_diem_entries").upsert(
@@ -291,7 +293,7 @@ export async function PATCH(
               layover_count: layoversCount,
               nights_amount: nightsAmount,
               layover_amount: layoverAmount,
-              total_amount: nightsAmount + layoverAmount,
+              total_amount: perDiemTotal,
               week_ending: existing.week_ending,
               entry_date: existing.week_ending,
             },
@@ -299,11 +301,157 @@ export async function PATCH(
           );
         }
       }
+
+      // ── Auto-generate journal entry for per diem ────────────────────
+      // DR 5100 Per Diem Expense / CR 2110 Per Diem Payable
+      if (perDiemTotal > 0) {
+        try {
+          const { data: expenseAcct } = await sb
+            .from("chart_of_accounts")
+            .select("id")
+            .eq("account_number", "5100")
+            .single();
+          const { data: payableAcct } = await sb
+            .from("chart_of_accounts")
+            .select("id")
+            .eq("account_number", "2110")
+            .single();
+
+          if (expenseAcct && payableAcct) {
+            // Remove any existing journal entry for this timesheet's per diem
+            const { data: oldJe } = await sb
+              .from("journal_entries")
+              .select("id")
+              .eq("source", "per_diem")
+              .eq("source_id", id)
+              .neq("status", "voided")
+              .maybeSingle();
+
+            if (oldJe) {
+              await sb.from("journal_entry_lines").delete().eq("journal_entry_id", oldJe.id);
+              await sb.from("journal_entries").delete().eq("id", oldJe.id);
+            }
+
+            // Create and auto-post the journal entry
+            const { data: je } = await sb
+              .from("journal_entries")
+              .insert({
+                entry_date: existing.week_ending,
+                description: `Per diem — ${existing.user_name} (${existing.week_ending})`,
+                reference: `TS-${id.slice(0, 8)}`,
+                source: "per_diem",
+                source_id: id,
+                status: "posted",
+                total_amount: perDiemTotal,
+                created_by: userId,
+                created_by_name: userInfo.name,
+                posted_at: new Date().toISOString(),
+              })
+              .select("id")
+              .single();
+
+            if (je) {
+              await sb.from("journal_entry_lines").insert([
+                {
+                  journal_entry_id: je.id,
+                  account_id: expenseAcct.id,
+                  debit: perDiemTotal,
+                  credit: 0,
+                  description: `Per diem: ${nightsOut} nights, ${layoversCount} layovers`,
+                  line_order: 0,
+                },
+                {
+                  journal_entry_id: je.id,
+                  account_id: payableAcct.id,
+                  debit: 0,
+                  credit: perDiemTotal,
+                  description: `Per diem payable — ${existing.user_name}`,
+                  line_order: 1,
+                },
+              ]);
+
+              // Update account balances (expense = debit normal, liability = credit normal)
+              const { data: expBal } = await sb
+                .from("chart_of_accounts")
+                .select("current_balance")
+                .eq("id", expenseAcct.id)
+                .single();
+              const { data: payBal } = await sb
+                .from("chart_of_accounts")
+                .select("current_balance")
+                .eq("id", payableAcct.id)
+                .single();
+
+              if (expBal) {
+                await sb
+                  .from("chart_of_accounts")
+                  .update({ current_balance: Number(expBal.current_balance) + perDiemTotal })
+                  .eq("id", expenseAcct.id);
+              }
+              if (payBal) {
+                await sb
+                  .from("chart_of_accounts")
+                  .update({ current_balance: Number(payBal.current_balance) + perDiemTotal })
+                  .eq("id", payableAcct.id);
+              }
+            }
+          }
+        } catch (jeErr) {
+          // Journal entry generation is best-effort; don't block timesheet approval
+          console.error("[JOURNAL-ENTRY]", "Failed to auto-generate per diem JE", jeErr);
+        }
+      }
     }
 
-    // If un-approved (back to draft), remove the per diem entry
+    // If un-approved (back to draft), remove per diem entry and void journal entries
     if (update.status === "draft" || update.status === "rejected") {
       await sb.from("per_diem_entries").delete().eq("timesheet_id", id);
+
+      // Void any auto-generated journal entries for this timesheet
+      try {
+        const { data: autoJournals } = await sb
+          .from("journal_entries")
+          .select("id, status, total_amount, journal_entry_lines(id, account_id, debit, credit)")
+          .or(`source_id.eq.${id}`)
+          .eq("status", "posted");
+
+        if (autoJournals) {
+          for (const je of autoJournals as Record<string, unknown>[]) {
+            // Reverse balance changes
+            const lines = (je.journal_entry_lines as { id: string; account_id: string; debit: number; credit: number }[]) ?? [];
+            for (const line of lines) {
+              const { data: acct } = await sb
+                .from("chart_of_accounts")
+                .select("current_balance, normal_balance")
+                .eq("id", line.account_id)
+                .single();
+
+              if (acct) {
+                const reversal = acct.normal_balance === "debit"
+                  ? -(Number(line.debit) - Number(line.credit))
+                  : -(Number(line.credit) - Number(line.debit));
+                await sb
+                  .from("chart_of_accounts")
+                  .update({ current_balance: Number(acct.current_balance) + reversal })
+                  .eq("id", line.account_id);
+              }
+            }
+
+            // Mark as voided
+            await sb
+              .from("journal_entries")
+              .update({
+                status: "voided",
+                voided_at: new Date().toISOString(),
+                voided_by: userId,
+                voided_reason: `Timesheet ${update.status === "draft" ? "withdrawn" : "rejected"}`,
+              })
+              .eq("id", je.id as string);
+          }
+        }
+      } catch (jeErr) {
+        console.error("[JOURNAL-ENTRY]", "Failed to void auto JEs on un-approval", jeErr);
+      }
     }
 
     // Audit log
