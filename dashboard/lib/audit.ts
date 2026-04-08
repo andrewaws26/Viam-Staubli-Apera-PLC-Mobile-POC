@@ -71,7 +71,13 @@ export type AuditAction =
   | "fixed_asset_created"
   | "fixed_asset_updated"
   | "fixed_asset_disposed"
-  | "depreciation_run";
+  | "depreciation_run"
+  | "expense_rule_created"
+  | "expense_rule_updated"
+  | "expense_rule_deleted"
+  | "cc_transactions_imported"
+  | "cc_transactions_categorized"
+  | "cc_transactions_posted";
 
 interface AuditEntry {
   action: AuditAction;
