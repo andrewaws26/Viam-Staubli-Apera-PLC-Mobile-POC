@@ -158,6 +158,56 @@ After editing any module: `sudo systemctl restart viam-server`
 
 ## SSH access
 - Tailscale IP: 100.112.68.52 (works from any network)
+- Claude Code is available on the Pi — SSH in and run `claude` in the repo dir
+- Full troubleshooting guide: `docs/pi-troubleshooting.md`
+
+## Field Test Logging
+
+Structured JSON-lines logging captures system state for post-test analysis:
+
+**Log file**: `/var/log/ironsight-field.jsonl`
+
+**Enable per-minute health snapshots** (during field testing):
+```bash
+(crontab -l; echo "* * * * * ~/Viam-Staubli-Apera-PLC-Mobile-POC/scripts/health-snapshot.sh") | crontab -
+```
+
+**Disable after testing**:
+```bash
+crontab -l | grep -v health-snapshot | crontab -
+```
+
+**Analyze results**:
+```bash
+python3 scripts/analyze-field-test.py                    # Full report
+python3 scripts/analyze-field-test.py --since "2026-04-08T10:00"  # Since timestamp
+```
+
+**Categories logged**: system health (CPU/mem/disk/throttle), service status, CAN bus (frames/listen-only), PLC connection (latency/availability), network (eth0/WiFi/internet), discovery events (timing/method), module activity (errors/readings).
+
+**Python API** (`scripts/lib/field_logger.py`):
+```python
+from lib.field_logger import field_log, FieldTimer
+field_log("plc", "modbus_read", success=True, duration_ms=12.5, registers=10)
+with FieldTimer("network", "plc_discovery") as t:
+    result = discover()
+    t.set(plc_ip=result)
+```
+
+## Network Auto-Discovery
+
+When plugged into a new truck's switch, the Pi auto-negotiates:
+
+1. **eth0 link-up** → NetworkManager dispatcher fires
+2. Restores last-known PLC subnet IP from `~/.ironsight/plc-network.conf`
+3. Triggers `plc-autodiscover.py` in background
+4. **Discovery scans**: configured IP → Click defaults → ARP → 8 subnet sweep
+5. When found: updates `viam-server.json`, sets eth0 IP, saves state, restarts viam-server
+6. **Watchdog** (every 5 min) re-triggers discovery if PLC becomes unreachable
+
+**Saved state**: `~/.ironsight/plc-network.conf` — written on every successful discovery, read on boot/link-up for instant subnet restoration.
+
+**Manual re-discovery**: `sudo python3 scripts/plc-autodiscover.py --force`
 
 ## Rules
 - **Never use DD1 for distance** — use DS10 countdown (see above)
