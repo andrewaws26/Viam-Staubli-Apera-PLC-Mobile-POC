@@ -633,7 +633,41 @@ function GeneralLedgerReport({ data }: { data: GLData }) {
 
 // ── Main Page ────────────────────────────────────────────────────────
 
-type ReportTab = "trial-balance" | "profit-loss" | "balance-sheet" | "general-ledger";
+// ── Aging Report types ──────────────────────────────────────────────
+
+interface AgingRow {
+  entity_id: string;
+  entity_name: string;
+  current: number;
+  days_30: number;
+  days_60: number;
+  days_90: number;
+  days_120_plus: number;
+  total: number;
+}
+
+interface AgingData {
+  type: string;
+  as_of: string;
+  rows: AgingRow[];
+  totals: { current: number; days_30: number; days_60: number; days_90: number; days_120_plus: number; total: number };
+}
+
+// ── Cash Flow types ─────────────────────────────────────────────────
+
+interface CashFlowItem { name: string; amount: number }
+interface CashFlowSection { label: string; items?: CashFlowItem[]; adjustments?: CashFlowItem[]; total: number; net_income?: number; total_adjustments?: number }
+interface CashFlowData {
+  start_date: string;
+  end_date: string;
+  net_income: number;
+  operating: CashFlowSection;
+  investing: CashFlowSection;
+  financing: CashFlowSection;
+  net_cash_change: number;
+}
+
+type ReportTab = "trial-balance" | "profit-loss" | "balance-sheet" | "general-ledger" | "aging" | "cash-flow";
 
 export default function FinancialReportsPage() {
   const [asOf, setAsOf] = useState(todayISO());
@@ -642,6 +676,14 @@ export default function FinancialReportsPage() {
   const [glData, setGlData] = useState<GLData | null>(null);
   const [accounts, setAccounts] = useState<AccountOption[]>([]);
   const [glAccountId, setGlAccountId] = useState("");
+  const [agingData, setAgingData] = useState<AgingData | null>(null);
+  const [agingType, setAgingType] = useState<"ar" | "ap">("ar");
+  const [cashFlowData, setCashFlowData] = useState<CashFlowData | null>(null);
+  const [cfStartDate, setCfStartDate] = useState(() => {
+    const d = new Date();
+    d.setMonth(0, 1);
+    return d.toISOString().split("T")[0];
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState<ReportTab>("trial-balance");
@@ -669,9 +711,25 @@ export default function FinancialReportsPage() {
     setData(null);
     setBsData(null);
     setGlData(null);
+    setAgingData(null);
+    setCashFlowData(null);
 
     try {
-      if (activeTab === "balance-sheet") {
+      if (activeTab === "aging") {
+        const res = await fetch(`/api/accounting/aging?type=${agingType}&as_of=${encodeURIComponent(asOf)}`);
+        if (!res.ok) {
+          const b = await res.json().catch(() => ({}));
+          throw new Error(b.error || `HTTP ${res.status}`);
+        }
+        setAgingData(await res.json());
+      } else if (activeTab === "cash-flow") {
+        const res = await fetch(`/api/accounting/cash-flow?start_date=${encodeURIComponent(cfStartDate)}&end_date=${encodeURIComponent(asOf)}`);
+        if (!res.ok) {
+          const b = await res.json().catch(() => ({}));
+          throw new Error(b.error || `HTTP ${res.status}`);
+        }
+        setCashFlowData(await res.json());
+      } else if (activeTab === "balance-sheet") {
         const res = await fetch(`/api/accounting/balance-sheet?as_of=${encodeURIComponent(asOf)}`);
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
@@ -703,7 +761,7 @@ export default function FinancialReportsPage() {
     }
   }
 
-  const hasData = data || bsData || glData;
+  const hasData = data || bsData || glData || agingData || cashFlowData;
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
@@ -724,7 +782,7 @@ export default function FinancialReportsPage() {
       <main className="px-4 sm:px-6 py-6 max-w-6xl mx-auto">
         {/* Tab toggle — always visible */}
         <div className="flex flex-wrap items-center gap-1 mb-6 bg-gray-900 rounded-xl p-1 w-fit no-print">
-          {(["trial-balance", "profit-loss", "balance-sheet", "general-ledger"] as ReportTab[]).map((tab) => (
+          {(["trial-balance", "profit-loss", "balance-sheet", "general-ledger", "aging", "cash-flow"] as ReportTab[]).map((tab) => (
             <button
               key={tab}
               onClick={() => {
@@ -740,7 +798,9 @@ export default function FinancialReportsPage() {
               {tab === "trial-balance" ? "Trial Balance" :
                tab === "profit-loss" ? "P&L" :
                tab === "balance-sheet" ? "Balance Sheet" :
-               "General Ledger"}
+               tab === "general-ledger" ? "General Ledger" :
+               tab === "aging" ? "Aging" :
+               "Cash Flow"}
             </button>
           ))}
         </div>
@@ -758,6 +818,27 @@ export default function FinancialReportsPage() {
               className="px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white focus:outline-none focus:border-gray-600 [color-scheme:dark]"
             />
           </div>
+
+          {/* Aging type selector */}
+          {activeTab === "aging" && (
+            <div>
+              <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Type</label>
+              <select value={agingType} onChange={(e) => setAgingType(e.target.value as "ar" | "ap")}
+                className="px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white">
+                <option value="ar">Accounts Receivable</option>
+                <option value="ap">Accounts Payable</option>
+              </select>
+            </div>
+          )}
+
+          {/* Cash flow start date */}
+          {activeTab === "cash-flow" && (
+            <div>
+              <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Start Date</label>
+              <input type="date" value={cfStartDate} onChange={(e) => setCfStartDate(e.target.value)}
+                className="px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white [color-scheme:dark]" />
+            </div>
+          )}
 
           {/* Account filter for GL */}
           {activeTab === "general-ledger" && (
@@ -828,9 +909,133 @@ export default function FinancialReportsPage() {
             {activeTab === "profit-loss" && data && <ProfitLossReport data={data} />}
             {activeTab === "balance-sheet" && bsData && <BalanceSheetReport data={bsData} />}
             {activeTab === "general-ledger" && glData && <GeneralLedgerReport data={glData} />}
+            {activeTab === "aging" && agingData && <AgingReport data={agingData} />}
+            {activeTab === "cash-flow" && cashFlowData && <CashFlowReport data={cashFlowData} />}
           </>
         )}
       </main>
+    </div>
+  );
+}
+
+// ── Aging Report Component ──────────────────────────────────────────
+
+function AgingReport({ data }: { data: AgingData }) {
+  const buckets: (keyof Omit<AgingRow, "entity_id" | "entity_name" | "total">)[] = ["current", "days_30", "days_60", "days_90", "days_120_plus"];
+  const labels: Record<string, string> = {
+    current: "Current",
+    days_30: "1-30",
+    days_60: "31-60",
+    days_90: "61-90",
+    days_120_plus: "90+",
+  };
+
+  return (
+    <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
+      <div className="px-4 py-3 border-b border-gray-800">
+        <h2 className="text-sm font-bold uppercase tracking-wider text-gray-300">
+          {data.type === "ar" ? "AR" : "AP"} Aging Report — as of {data.as_of}
+        </h2>
+      </div>
+      <table className="w-full text-sm min-w-[700px]">
+        <thead>
+          <tr className="text-[10px] uppercase tracking-wider text-gray-600 border-b border-gray-800">
+            <th className="text-left px-4 py-3 font-medium">{data.type === "ar" ? "Customer" : "Vendor"}</th>
+            {buckets.map((b) => (
+              <th key={b} className="text-right px-4 py-3 font-medium">{labels[b]}</th>
+            ))}
+            <th className="text-right px-4 py-3 font-medium">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.rows.map((row) => (
+            <tr key={row.entity_id} className="border-t border-gray-800/50 hover:bg-gray-800/20">
+              <td className="px-4 py-2 text-gray-200 font-medium">{row.entity_name}</td>
+              {buckets.map((b) => (
+                <td key={b} className="px-4 py-2 text-right font-mono text-gray-400">
+                  {row[b] !== 0 ? fmtCurrency(row[b]) : "—"}
+                </td>
+              ))}
+              <td className="px-4 py-2 text-right font-mono text-white font-bold">{fmtCurrency(row.total)}</td>
+            </tr>
+          ))}
+          {data.rows.length === 0 && (
+            <tr>
+              <td colSpan={7} className="px-4 py-8 text-center text-gray-600">
+                No outstanding {data.type === "ar" ? "receivables" : "payables"}.
+              </td>
+            </tr>
+          )}
+        </tbody>
+        {data.rows.length > 0 && (
+          <tfoot>
+            <tr className="border-t-2 border-gray-700 font-bold">
+              <td className="px-4 py-3 text-gray-300 uppercase text-xs">Total</td>
+              {buckets.map((b) => (
+                <td key={b} className="px-4 py-3 text-right font-mono text-gray-200">
+                  {data.totals[b] !== 0 ? fmtCurrency(data.totals[b]) : "—"}
+                </td>
+              ))}
+              <td className="px-4 py-3 text-right font-mono text-white">{fmtCurrency(data.totals.total)}</td>
+            </tr>
+          </tfoot>
+        )}
+      </table>
+    </div>
+  );
+}
+
+// ── Cash Flow Report Component ──────────────────────────────────────
+
+function CashFlowReport({ data }: { data: CashFlowData }) {
+  function SectionBlock({ section }: { section: CashFlowSection }) {
+    const items = section.adjustments || section.items || [];
+    return (
+      <div className="mb-4">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">{section.label}</h3>
+        {section.net_income !== undefined && (
+          <div className="flex justify-between px-4 py-1">
+            <span className="text-gray-400">Net Income</span>
+            <span className="font-mono text-gray-200">{fmtCurrency(section.net_income)}</span>
+          </div>
+        )}
+        {items.map((item, i) => (
+          <div key={i} className="flex justify-between px-4 py-1">
+            <span className="text-gray-500 pl-4">{item.name}</span>
+            <span className={`font-mono ${item.amount >= 0 ? "text-gray-300" : "text-red-400"}`}>
+              {fmtCurrency(item.amount)}
+            </span>
+          </div>
+        ))}
+        <div className="flex justify-between px-4 py-2 border-t border-gray-800 mt-1 font-bold">
+          <span className="text-gray-300">Net Cash from {section.label.replace("Cash from ", "")}</span>
+          <span className={`font-mono ${section.total >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+            {fmtCurrency(section.total)}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden">
+      <div className="px-4 py-3 border-b border-gray-800">
+        <h2 className="text-sm font-bold uppercase tracking-wider text-gray-300">
+          Cash Flow Statement — {data.start_date} to {data.end_date}
+        </h2>
+      </div>
+      <div className="p-4 space-y-2">
+        <SectionBlock section={data.operating} />
+        <SectionBlock section={data.investing} />
+        <SectionBlock section={data.financing} />
+
+        <div className="flex justify-between px-4 py-3 border-t-2 border-gray-700 font-bold text-base">
+          <span className="text-white">Net Change in Cash</span>
+          <span className={`font-mono ${data.net_cash_change >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+            {fmtCurrency(data.net_cash_change)}
+          </span>
+        </div>
+      </div>
     </div>
   );
 }
