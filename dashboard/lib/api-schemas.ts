@@ -171,6 +171,15 @@ export const ReportUpdateBody = z.object({
 });
 export type ReportUpdateBodyType = z.infer<typeof ReportUpdateBody>;
 
+// ── Help Assistant Endpoint ──────────────────────────────────────
+
+export const HelpBody = z.object({
+  messages: z.array(ChatMessage).min(1),
+  userRole: z.enum(["operator", "mechanic", "manager", "developer"]).optional().default("operator"),
+  currentPage: z.string().optional().default(""),
+});
+export type HelpBodyType = z.infer<typeof HelpBody>;
+
 // ── Parse Helper ──────────────────────────────────────────────────
 
 /**
