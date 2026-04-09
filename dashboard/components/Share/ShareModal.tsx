@@ -89,7 +89,7 @@ export function ShareModal({ open, onClose, entityType, entityId, entityPayload,
   const typeLabel = entityType.replace("_", " ");
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4" onClick={handleClose}>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 px-4" onClick={handleClose}>
       <div className="bg-gray-900 border border-gray-800 rounded-xl w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="p-6">
           <div className="flex items-center justify-between mb-4">
