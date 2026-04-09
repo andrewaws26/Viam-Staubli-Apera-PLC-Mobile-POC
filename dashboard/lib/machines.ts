@@ -179,7 +179,8 @@ export async function getTruckById(id: string): Promise<TruckConfig | null> {
 
 export async function getDefaultTruck(): Promise<TruckConfig> {
   const configs = await getTruckConfigs();
-  return configs[0];
+  // Prefer the first truck with a valid Part ID (skip Demo/placeholder trucks)
+  return configs.find((t) => !!t.tpsPartId) || configs[0];
 }
 
 export async function listTrucks(): Promise<{

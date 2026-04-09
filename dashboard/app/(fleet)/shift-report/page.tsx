@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 
 import { ShiftReport } from "./types";
@@ -22,6 +23,16 @@ const ShiftRouteMap = dynamic(() => import("../../../components/ShiftRouteMap"),
 // ---------------------------------------------------------------------------
 
 export default function ShiftReportPage() {
+  return (
+    <Suspense fallback={<LoadingSkeleton rangeLabel="Loading..." />}>
+      <ShiftReportInner />
+    </Suspense>
+  );
+}
+
+function ShiftReportInner() {
+  const searchParams = useSearchParams();
+  const truckId = searchParams.get("truck_id") || "01";
   const [date, setDate] = useState(todayStr);
   const [startH, setStartH] = useState(6);
   const [startM, setStartM] = useState(0);
@@ -44,6 +55,7 @@ export default function ShiftReportPage() {
         startMin: String(startM),
         endHour: String(endH),
         endMin: String(endM),
+        truck_id: truckId,
       });
       const res = await fetch(`/api/shift-report?${params}`);
       if (!res.ok) {
@@ -57,7 +69,7 @@ export default function ShiftReportPage() {
     } finally {
       setLoading(false);
     }
-  }, [date, startH, startM, endH, endM]);
+  }, [date, startH, startM, endH, endM, truckId]);
 
   // Don't auto-fetch on mount — wait for user to click "Generate"
   // useEffect removed: was causing immediate report generation before user sets parameters

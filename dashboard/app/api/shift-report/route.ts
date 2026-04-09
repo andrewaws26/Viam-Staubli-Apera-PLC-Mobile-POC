@@ -104,12 +104,14 @@ export async function GET(request: NextRequest) {
     // Fetch TPS + truck data in parallel (same machine, same Part ID)
     const partId = truck.tpsPartId;
     const truckPartId = truck.truckPartId || partId;
+    console.log("[SHIFT-REPORT]", `truck=${truck.id} partId=${partId} truckPartId=${truckPartId} range=${start.toISOString()}..${end.toISOString()}`);
     const [tpsRows, truckRows] = await Promise.all([
       dc.exportTabularData(partId, "plc-monitor", RESOURCE_SUBTYPE, METHOD_NAME, start, end)
-        .catch(() => [] as TabularDataPoint[]),
+        .catch((err) => { console.error("[SHIFT-REPORT] TPS query failed:", err); return [] as TabularDataPoint[]; }),
       dc.exportTabularData(truckPartId, "truck-engine", RESOURCE_SUBTYPE, METHOD_NAME, start, end)
-        .catch(() => [] as TabularDataPoint[]),
+        .catch((err) => { console.error("[SHIFT-REPORT] Truck query failed:", err); return [] as TabularDataPoint[]; }),
     ]);
+    console.log("[SHIFT-REPORT]", `tpsRows=${tpsRows.length} truckRows=${truckRows.length}`);
 
     const tpsPoints = parseRows(tpsRows);
     const truckPoints = parseRows(truckRows);
