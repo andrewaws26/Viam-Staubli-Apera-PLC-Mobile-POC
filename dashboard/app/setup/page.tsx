@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 // ── Constants ─────────────────────────────────────────────────────
 
-const STEPS = ["Welcome", "Company", "System Check", "Launch"];
+const STEPS = ["Welcome", "Company", "Import Data", "System Check", "Launch"];
 
 const US_STATES: [string, string][] = [
   ["AL", "Alabama"], ["AK", "Alaska"], ["AZ", "Arizona"], ["AR", "Arkansas"],
@@ -69,6 +69,13 @@ interface SystemCheck {
   href: string;
 }
 
+interface ImportResult {
+  type: string;
+  imported: number;
+  skipped: number;
+  errors: number;
+}
+
 // ── Shared Styles ─────────────────────────────────────────────────
 
 const inputCls =
@@ -79,6 +86,37 @@ const btnPrimary =
   "px-6 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-violet-500 hover:from-violet-500 hover:to-violet-400 text-white font-semibold text-sm transition-all shadow-lg shadow-violet-500/20 disabled:opacity-50 disabled:cursor-not-allowed";
 const btnSecondary =
   "px-6 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium text-sm border border-gray-700 transition-colors";
+
+// ── CSV Parser ────────────────────────────────────────────────────
+
+function parseCSV(text: string): Record<string, string>[] {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  if (lines.length < 2) return [];
+  const headers = lines[0]
+    .split(",")
+    .map((h) => h.trim().replace(/^"|"$/g, ""));
+  return lines
+    .slice(1)
+    .map((line) => {
+      const values: string[] = [];
+      let current = "";
+      let inQuote = false;
+      for (const char of line) {
+        if (char === '"') inQuote = !inQuote;
+        else if (char === "," && !inQuote) {
+          values.push(current.trim());
+          current = "";
+        } else current += char;
+      }
+      values.push(current.trim());
+      const row: Record<string, string> = {};
+      headers.forEach((h, i) => {
+        row[h] = (values[i] || "").replace(/^"|"$/g, "");
+      });
+      return row;
+    })
+    .filter((row) => Object.values(row).some((v) => v));
+}
 
 // ── StepBar ───────────────────────────────────────────────────────
 
@@ -189,6 +227,15 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
           <li className="flex items-start gap-3">
             <span className="mt-0.5 w-5 h-5 rounded-full bg-violet-500/20 flex items-center justify-center text-violet-400 text-[10px] font-bold shrink-0">
               3
+            </span>
+            <span>
+              Import data — bring in your chart of accounts, customers, and
+              vendors from CSV
+            </span>
+          </li>
+          <li className="flex items-start gap-3">
+            <span className="mt-0.5 w-5 h-5 rounded-full bg-violet-500/20 flex items-center justify-center text-violet-400 text-[10px] font-bold shrink-0">
+              4
             </span>
             <span>
               System readiness check — verify all modules are configured
@@ -433,7 +480,201 @@ function CompanyStep({
   );
 }
 
-// ── Step 3: System Readiness ──────────────────────────────────────
+// ── Step 3: Import Data ───────────────────────────────────────────
+
+const IMPORT_TYPES = [
+  {
+    key: "chart_of_accounts",
+    label: "Chart of Accounts",
+    desc: "GL accounts for bookkeeping",
+    columns: "Name, Type, Description, Balance",
+    example: "Office Supplies, Expense, General supplies, 0",
+  },
+  {
+    key: "customers",
+    label: "Customers",
+    desc: "Accounts receivable contacts",
+    columns: "Name, Email, Phone, Address, Payment Terms",
+    example: "Norfolk Southern, billing@nscorp.com, 555-0100, 123 Rail Ave, Net 30",
+  },
+  {
+    key: "vendors",
+    label: "Vendors",
+    desc: "Accounts payable contacts",
+    columns: "Name, Email, Phone, Address, Tax ID",
+    example: "Cummins Parts, parts@cummins.com, 555-0200, 456 Engine Blvd, 12-3456789",
+  },
+];
+
+function ImportStep({
+  onBack,
+  onNext,
+}: {
+  onBack: () => void;
+  onNext: () => void;
+}) {
+  const [results, setResults] = useState<ImportResult[]>([]);
+  const [uploading, setUploading] = useState<string | null>(null);
+  const [importError, setImportError] = useState("");
+
+  function downloadTemplate(key: string, columns: string) {
+    const blob = new Blob([columns + "\n"], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${key}_template.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleUpload(type: string, file: File) {
+    setUploading(type);
+    setImportError("");
+    try {
+      const text = await file.text();
+      const rows = parseCSV(text);
+      if (rows.length === 0) {
+        setImportError("No data rows found in CSV");
+        setUploading(null);
+        return;
+      }
+      const res = await fetch("/api/accounting/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ import_type: type, file_name: file.name, rows }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Import failed");
+      setResults((prev) => [
+        ...prev.filter((r) => r.type !== type),
+        {
+          type,
+          imported: data.imported_count,
+          skipped: data.skipped_count,
+          errors: data.error_count,
+        },
+      ]);
+    } catch (err: unknown) {
+      setImportError(err instanceof Error ? err.message : "Import failed");
+    } finally {
+      setUploading(null);
+    }
+  }
+
+  return (
+    <div className="max-w-xl mx-auto py-6">
+      <h2 className="text-xl font-bold text-white mb-1">Import Your Data</h2>
+      <p className="text-sm text-gray-500 mb-6">
+        Migrating from QuickBooks or another system? Upload CSV files for each
+        category below. You can skip this and import later from Finance &rarr; QB
+        Data Import.
+      </p>
+
+      <div className="space-y-3">
+        {IMPORT_TYPES.map(({ key, label, desc, columns, example }) => {
+          const result = results.find((r) => r.type === key);
+          return (
+            <div
+              key={key}
+              className={`rounded-xl border p-4 transition-colors ${
+                result
+                  ? "border-emerald-800/30 bg-emerald-900/10"
+                  : "border-gray-800 bg-gray-900/40"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-200">{label}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{desc}</p>
+                </div>
+                {result ? (
+                  <div className="text-right shrink-0">
+                    <p className="text-xs text-emerald-400 font-medium">
+                      {result.imported} imported
+                    </p>
+                    {result.skipped > 0 && (
+                      <p className="text-[10px] text-gray-500">
+                        {result.skipped} skipped
+                      </p>
+                    )}
+                    {result.errors > 0 && (
+                      <p className="text-[10px] text-red-400">
+                        {result.errors} errors
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <label
+                    className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                      uploading === key
+                        ? "bg-gray-700 text-gray-400 cursor-wait"
+                        : "bg-violet-600/20 text-violet-400 hover:bg-violet-600/30"
+                    }`}
+                  >
+                    {uploading === key ? "Importing..." : "Upload CSV"}
+                    <input
+                      type="file"
+                      accept=".csv"
+                      className="hidden"
+                      disabled={uploading !== null}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) handleUpload(key, f);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+              {/* Template download + example */}
+              {!result && (
+                <div className="mt-2 flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => downloadTemplate(key, columns)}
+                    className="text-[10px] text-violet-400/70 hover:text-violet-400 underline underline-offset-2"
+                  >
+                    Download template
+                  </button>
+                  <span className="text-[10px] text-gray-700 font-mono truncate">
+                    e.g. {example}
+                  </span>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {importError && (
+        <div className="mt-4 bg-red-900/30 border border-red-800/50 rounded-lg px-4 py-2.5 text-sm text-red-300">
+          {importError}
+        </div>
+      )}
+
+      {/* Tip */}
+      <div className="mt-6 rounded-lg border border-gray-800/50 bg-gray-900/30 px-4 py-3">
+        <p className="text-xs text-gray-500">
+          <span className="font-medium text-gray-400">Tip:</span> Export from
+          QuickBooks via Reports &rarr; Account List (CSV). Column names are
+          matched flexibly — &quot;Account Name&quot;, &quot;Name&quot;, or
+          &quot;Company&quot; all work.
+        </p>
+      </div>
+
+      <div className="flex justify-between pt-8">
+        <button onClick={onBack} className={btnSecondary}>
+          Back
+        </button>
+        <button onClick={onNext} className={btnPrimary}>
+          {results.length > 0 ? "Continue" : "Skip — Use Defaults"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Step 4: System Readiness ──────────────────────────────────────
 
 function ChecklistStep({
   checks,
@@ -586,7 +827,7 @@ function ChecklistStep({
   );
 }
 
-// ── Step 4: Complete ──────────────────────────────────────────────
+// ── Step 5: Complete ──────────────────────────────────────────────
 
 function CompleteStep({
   companyName,
@@ -707,9 +948,9 @@ export default function SetupPage() {
       .catch(() => setLoading(false));
   }, []);
 
-  // Load system checks when reaching step 2
+  // Load system checks when reaching step 3
   useEffect(() => {
-    if (step === 2) {
+    if (step === 3) {
       setChecksLoading(true);
       fetch("/api/setup/status")
         .then((r) => r.json())
@@ -780,14 +1021,17 @@ export default function SetupPage() {
           />
         )}
         {step === 2 && (
+          <ImportStep onBack={() => setStep(1)} onNext={() => setStep(3)} />
+        )}
+        {step === 3 && (
           <ChecklistStep
             checks={checks}
             loading={checksLoading}
-            onBack={() => setStep(1)}
-            onNext={() => setStep(3)}
+            onBack={() => setStep(2)}
+            onNext={() => setStep(4)}
           />
         )}
-        {step === 3 && (
+        {step === 4 && (
           <CompleteStep
             companyName={company.company_name}
             saving={saving}
