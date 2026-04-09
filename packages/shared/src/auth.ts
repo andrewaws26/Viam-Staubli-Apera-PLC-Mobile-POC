@@ -35,6 +35,7 @@ export const ROUTE_PERMISSIONS: Record<string, UserRole[]> = {
   "/api/dtc-history": ["developer", "manager", "mechanic", "operator"],
   "/api/maintenance": ["developer", "manager", "mechanic", "operator"],
   "/api/work-orders": ["developer", "manager", "mechanic", "operator"],
+  "/api/snapshots": ["developer", "manager", "mechanic", "operator"],
 
   // Push notifications
   "/api/user/push-token": ["developer", "manager", "mechanic", "operator"],
@@ -83,6 +84,7 @@ export const ROUTE_PERMISSIONS: Record<string, UserRole[]> = {
   "/pto/admin": ["developer", "manager"],
   "/training": ["developer", "manager", "mechanic", "operator"],
   "/training/admin": ["developer", "manager"],
+  "/snapshots": ["developer", "manager", "mechanic", "operator"],
   "/dev": ["developer"],
   "/vision": ["developer"],
   "/admin": ["developer", "manager"],
