@@ -318,18 +318,11 @@ function fmtDate(iso: string): string {
 
 function SnapshotViewer({ data, meta }: { data: Record<string, unknown>; meta: SharedData }) {
   const readingData = (data.reading_data as Record<string, unknown>) || data;
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [showFilter, setShowFilter] = useState(false);
+  const [hiddenFields, setHiddenFields] = useState<Set<string>>(new Set());
 
   const capturedSystems: string[] =
     (readingData._captured_systems as string[]) || (readingData._systems as string[]) || ["truck_engine"];
-
-  const toggleSection = (key: string) => {
-    setCollapsed(prev => {
-      const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
-      return next;
-    });
-  };
 
   const systemGroups = capturedSystems
     .map(sys => {
@@ -409,6 +402,83 @@ function SnapshotViewer({ data, meta }: { data: Record<string, unknown>; meta: S
         )}
       </div>
 
+      {/* Filter toggle */}
+      <div className="flex justify-end mb-4 no-print">
+        <button onClick={() => setShowFilter(f => !f)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${showFilter ? "bg-violet-600 hover:bg-violet-500" : "bg-gray-800 hover:bg-gray-700"}`}>
+          {hiddenFields.size > 0 ? `Filter (${hiddenFields.size} hidden)` : "Filter Metrics"}
+        </button>
+      </div>
+
+      {/* Metric filter panel */}
+      {showFilter && (
+        <div className="bg-gray-900/80 border border-gray-800 rounded-xl p-5 mb-6 no-print">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-bold text-white">Filter Metrics</h3>
+            <div className="flex gap-3">
+              <button onClick={() => setHiddenFields(new Set())} className="text-xs text-blue-400 hover:text-blue-300">Show All</button>
+              <button onClick={() => {
+                const allKeys = new Set<string>();
+                systemGroups.forEach(g => g.sections.forEach(s => s.fields.forEach(f => {
+                  if (readingData[f.key] !== undefined && readingData[f.key] !== null) allKeys.add(f.key);
+                })));
+                setHiddenFields(allKeys);
+              }} className="text-xs text-gray-500 hover:text-gray-300">Hide All</button>
+            </div>
+          </div>
+          {systemGroups.map(group => (
+            <div key={group.system} className="mb-4 last:mb-0">
+              <h4 className={`text-xs font-semibold uppercase tracking-wider mb-2 ${SYSTEM_HEADER_CLASSES[group.system] || "text-gray-400"}`}>
+                {group.icon} {group.label}
+              </h4>
+              {group.sections.map(section => {
+                const sectionFields = section.fields.filter(f => readingData[f.key] !== undefined && readingData[f.key] !== null);
+                if (sectionFields.length === 0) return null;
+                const allHidden = sectionFields.every(f => hiddenFields.has(f.key));
+                return (
+                  <div key={section.title} className="mb-2">
+                    <label className="flex items-center gap-2 mb-1 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={!allHidden}
+                        onChange={() => {
+                          setHiddenFields(prev => {
+                            const next = new Set(prev);
+                            if (allHidden) sectionFields.forEach(f => next.delete(f.key));
+                            else sectionFields.forEach(f => next.add(f.key));
+                            return next;
+                          });
+                        }}
+                        className="rounded border-gray-600 text-violet-500"
+                      />
+                      <span className="text-xs font-semibold text-gray-400">{section.icon} {section.title}</span>
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-0.5 ml-5">
+                      {sectionFields.map(f => (
+                        <label key={f.key} className="flex items-center gap-1.5 text-[11px] text-gray-400 cursor-pointer py-0.5 hover:text-gray-200">
+                          <input
+                            type="checkbox"
+                            checked={!hiddenFields.has(f.key)}
+                            onChange={() => {
+                              setHiddenFields(prev => {
+                                const next = new Set(prev);
+                                next.has(f.key) ? next.delete(f.key) : next.add(f.key);
+                                return next;
+                              });
+                            }}
+                            className="rounded border-gray-700 text-violet-500 w-3 h-3"
+                          />
+                          {f.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Data grid — grouped by system */}
       {systemGroups.map(group => (
         <div key={group.system} className="mb-6">
@@ -421,38 +491,25 @@ function SnapshotViewer({ data, meta }: { data: Record<string, unknown>; meta: S
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {group.sections.map((section) => {
-              const available = section.fields.filter(f => readingData[f.key] !== undefined && readingData[f.key] !== null);
+              const available = section.fields.filter(f =>
+                readingData[f.key] !== undefined && readingData[f.key] !== null && !hiddenFields.has(f.key)
+              );
               if (available.length === 0) return null;
-              const isCollapsed = collapsed.has(section.title);
               return (
-                <div key={section.title} className="bg-gray-900/50 rounded-xl border border-gray-800/50 overflow-hidden">
-                  <button
-                    onClick={() => toggleSection(section.title)}
-                    className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-800/30 transition-colors"
-                  >
-                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                      {section.icon} {section.title}
-                      <span className="ml-1.5 text-gray-600 font-normal">({available.length})</span>
-                    </h3>
-                    <svg
-                      className={`w-3.5 h-3.5 text-gray-600 transition-transform ${isCollapsed ? "-rotate-90" : ""}`}
-                      viewBox="0 0 20 20" fill="currentColor"
-                    >
-                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-                  {!isCollapsed && (
-                    <div className="px-4 pb-3 grid grid-cols-2 gap-x-4 gap-y-1.5">
-                      {available.map(f => (
-                        <div key={f.key} className="flex justify-between items-baseline">
-                          <span className="text-xs text-gray-500 truncate mr-2">{f.label}</span>
-                          <span className="text-xs font-mono font-bold text-gray-100">
-                            {formatValue(f.key, readingData[f.key])}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                <div key={section.title} className="bg-gray-900/50 rounded-xl p-4 border border-gray-800/50">
+                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">
+                    {section.icon} {section.title}
+                  </h3>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                    {available.map(f => (
+                      <div key={f.key} className="flex justify-between items-baseline">
+                        <span className="text-xs text-gray-500 truncate mr-2">{f.label}</span>
+                        <span className="text-xs font-mono font-bold text-gray-100">
+                          {formatValue(f.key, readingData[f.key])}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               );
             })}
