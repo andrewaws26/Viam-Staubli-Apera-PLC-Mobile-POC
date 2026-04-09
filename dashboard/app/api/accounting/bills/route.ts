@@ -73,13 +73,14 @@ export async function POST(request: NextRequest) {
   let body: Record<string, unknown>;
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
-  const { vendor_id, bill_number, bill_date, due_date, notes, tax_amount, lines } = body as {
+  const { vendor_id, bill_number, bill_date, due_date, notes, tax_amount, job_id, lines } = body as {
     vendor_id?: string;
     bill_number?: string;
     bill_date?: string;
     due_date?: string;
     notes?: string;
     tax_amount?: number;
+    job_id?: string;
     lines?: { description: string; quantity: number; unit_price: number; account_id: string }[];
   };
 
@@ -137,6 +138,7 @@ export async function POST(request: NextRequest) {
     // Create bill
     const { data: bill, error: billErr } = await sb.from("bills").insert({
       vendor_id,
+      job_id: job_id || null,
       bill_number: bill_number || null,
       bill_date,
       due_date,

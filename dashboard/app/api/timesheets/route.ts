@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
   // Destructure all timesheet-level fields including new migration_007 columns:
   // norfolk_southern_job_code, ifta_odometer_start, ifta_odometer_end
   const {
-    week_ending, railroad_working_on, norfolk_southern_job_code,
+    week_ending, railroad_working_on, norfolk_southern_job_code, job_id,
     chase_vehicles, semi_trucks, work_location, nights_out, layovers,
     coworkers, ifta_odometer_start, ifta_odometer_end, notes, daily_logs,
   } = body as Record<string, unknown>;
@@ -177,6 +177,7 @@ export async function POST(request: NextRequest) {
         railroad_working_on: railroad_working_on || null,
         // New migration_007 field: NS job code for Norfolk Southern work
         norfolk_southern_job_code: norfolk_southern_job_code || null,
+        job_id: job_id || null,
         chase_vehicles: chase_vehicles || [],
         semi_trucks: semi_trucks || [],
         work_location: work_location || null,

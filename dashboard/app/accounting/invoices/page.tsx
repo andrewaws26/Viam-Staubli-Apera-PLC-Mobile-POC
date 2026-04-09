@@ -56,6 +56,8 @@ export default function InvoicesPage() {
   const [dueDate, setDueDate] = useState(addDays(new Date().toISOString().split("T")[0], 30));
   const [lines, setLines] = useState<LineItem[]>([{ description: "", quantity: 1, unit_price: 0 }]);
   const [notes, setNotes] = useState("");
+  const [jobId, setJobId] = useState("");
+  const [jobs, setJobs] = useState<{ id: string; name: string; job_number: string }[]>([]);
   const [saving, setSaving] = useState(false);
 
   // Payment form
@@ -67,12 +69,17 @@ export default function InvoicesPage() {
   async function loadData() {
     setLoading(true);
     try {
-      const [invRes, custRes] = await Promise.all([
+      const [invRes, custRes, jobsRes] = await Promise.all([
         fetch("/api/accounting/invoices"),
         fetch("/api/accounting/customers?active_only=true"),
+        fetch("/api/jobs"),
       ]);
       if (invRes.ok) setInvoices(await invRes.json());
       if (custRes.ok) setCustomers(await custRes.json());
+      if (jobsRes.ok) {
+        const jd = await jobsRes.json();
+        setJobs(Array.isArray(jd) ? jd.filter((j: { status: string }) => j.status !== "closed") : []);
+      }
     } catch { /* ignore */ }
     setLoading(false);
   }
@@ -95,7 +102,7 @@ export default function InvoicesPage() {
       const res = await fetch("/api/accounting/invoices", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ customer_id: customerId, invoice_date: invoiceDate, due_date: dueDate, notes, lines }),
+        body: JSON.stringify({ customer_id: customerId, invoice_date: invoiceDate, due_date: dueDate, job_id: jobId || null, notes, lines }),
       });
       if (res.ok) {
         setShowCreate(false);
@@ -190,7 +197,7 @@ export default function InvoicesPage() {
           <div className="mb-6 p-6 rounded-xl bg-gray-900/50 border border-gray-800 space-y-4">
             <h3 className="text-sm font-bold uppercase tracking-wider text-gray-300">New Invoice</h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
                 <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Customer *</label>
                 <select value={customerId} onChange={(e) => {
@@ -215,6 +222,14 @@ export default function InvoicesPage() {
                 <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Due Date</label>
                 <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white [color-scheme:dark]" />
+              </div>
+              <div>
+                <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Job</label>
+                <select value={jobId} onChange={(e) => setJobId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white">
+                  <option value="">No job</option>
+                  {jobs.map((j) => <option key={j.id} value={j.id}>{j.job_number} — {j.name}</option>)}
+                </select>
               </div>
             </div>
 

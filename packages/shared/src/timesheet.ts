@@ -175,6 +175,9 @@ export interface Timesheet {
   layovers: number;
   coworkers: { id: string; name: string }[];
 
+  // Job costing link
+  job_id: string | null;
+
   // IFTA odometer (per-week)
   ifta_odometer_start: number | null;
   ifta_odometer_end: number | null;

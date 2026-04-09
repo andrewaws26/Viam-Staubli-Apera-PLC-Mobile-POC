@@ -64,6 +64,8 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
   const [layovers, setLayovers] = useState(existingTimesheet?.layovers || 0);
   const [coworkers, setCoworkers] = useState<{ id: string; name: string }[]>(existingTimesheet?.coworkers || []);
   const [nsJobCode, setNsJobCode] = useState(existingTimesheet?.norfolk_southern_job_code || "");
+  const [jobId, setJobId] = useState(existingTimesheet?.job_id || "");
+  const [jobOptions, setJobOptions] = useState<{ id: string; name: string; job_number: string }[]>([]);
   const [iftaOdometerStart, setIftaOdometerStart] = useState<number | null>(existingTimesheet?.ifta_odometer_start ?? null);
   const [iftaOdometerEnd, setIftaOdometerEnd] = useState<number | null>(existingTimesheet?.ifta_odometer_end ?? null);
   const [notes, setNotes] = useState(existingTimesheet?.notes || "");
@@ -102,6 +104,10 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
       .then((r) => r.json())
       .then((d) => setTeamMembers(Array.isArray(d) ? d.filter((m: TeamMember) => m.id !== currentUserId) : []))
       .catch(() => toast("Failed to load team members"));
+    fetch("/api/jobs")
+      .then((r) => r.json())
+      .then((d) => setJobOptions(Array.isArray(d) ? d.filter((j: { status: string }) => j.status === "active" || j.status === "bidding").map((j: { id: string; name: string; job_number: string }) => ({ id: j.id, name: j.name, job_number: j.job_number })) : []))
+      .catch(() => {});
   }, [currentUserId]);
 
   // Initialize daily logs when week ending changes
@@ -200,6 +206,7 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
         week_ending: weekEnding,
         railroad_working_on: railroad || null,
         norfolk_southern_job_code: nsJobCode || null,
+        job_id: jobId || null,
         chase_vehicles: chaseVehicles,
         semi_trucks: semiTrucks,
         work_location: workLocation || null,
@@ -426,6 +433,24 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
               placeholder="e.g. NS-2026-0412"
               className="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-700 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 disabled:opacity-50"
             />
+          </div>
+        )}
+
+        {/* Job Assignment */}
+        {jobOptions.length > 0 && (
+          <div className="mb-6">
+            <label className="block text-sm font-semibold text-gray-400 mb-2">Job (Optional)</label>
+            <select
+              value={jobId}
+              onChange={(e) => setJobId(e.target.value)}
+              disabled={!canEdit}
+              className="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-purple-500 disabled:opacity-50"
+            >
+              <option value="">No job assigned</option>
+              {jobOptions.map((j) => (
+                <option key={j.id} value={j.id}>{j.job_number} — {j.name}</option>
+              ))}
+            </select>
           </div>
         )}
 

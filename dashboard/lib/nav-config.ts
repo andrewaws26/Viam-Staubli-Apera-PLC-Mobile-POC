@@ -125,7 +125,10 @@ export const NAV_SECTIONS: NavSection[] = [
     sidebar: [
       {
         title: "Dashboard",
-        items: [{ href: "/accounting", label: "Finance Home" }],
+        items: [
+          { href: "/executive", label: "Executive Overview" },
+          { href: "/accounting", label: "Finance Home" },
+        ],
       },
       {
         title: "Job Costing",
@@ -250,7 +253,7 @@ export function resolveSection(pathname: string): NavSection | null {
   if (pathname.startsWith("/manager")) {
     return NAV_SECTIONS.find((s) => s.id === "manager") ?? null;
   }
-  if (pathname.startsWith("/accounting") || pathname.startsWith("/jobs")) {
+  if (pathname.startsWith("/accounting") || pathname.startsWith("/jobs") || pathname.startsWith("/executive")) {
     return NAV_SECTIONS.find((s) => s.id === "finance") ?? null;
   }
   if (pathname.startsWith("/reports")) {

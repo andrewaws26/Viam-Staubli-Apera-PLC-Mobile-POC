@@ -67,6 +67,8 @@ export default function BillsPage() {
   const [formBillDate, setFormBillDate] = useState(new Date().toISOString().split("T")[0]);
   const [formDueDate, setFormDueDate] = useState("");
   const [formNotes, setFormNotes] = useState("");
+  const [formJob, setFormJob] = useState("");
+  const [jobs, setJobs] = useState<{ id: string; name: string; job_number: string }[]>([]);
   const [formLines, setFormLines] = useState<LineItem[]>([
     { description: "", quantity: 1, unit_price: 0, account_id: "" },
   ]);
@@ -83,14 +85,19 @@ export default function BillsPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [billsRes, vendorsRes, accountsRes] = await Promise.all([
+      const [billsRes, vendorsRes, accountsRes, jobsRes] = await Promise.all([
         fetch("/api/accounting/bills"),
         fetch("/api/accounting/vendors?active_only=true"),
         fetch("/api/accounting/accounts?type=expense&active_only=true"),
+        fetch("/api/jobs"),
       ]);
       if (billsRes.ok) setBills(await billsRes.json());
       if (vendorsRes.ok) setVendors(await vendorsRes.json());
       if (accountsRes.ok) setExpenseAccounts(await accountsRes.json());
+      if (jobsRes.ok) {
+        const jd = await jobsRes.json();
+        setJobs(Array.isArray(jd) ? jd.filter((j: { status: string }) => j.status !== "closed") : []);
+      }
     } catch { /* ignore */ }
     setLoading(false);
   }, []);
@@ -103,6 +110,7 @@ export default function BillsPage() {
     setFormBillDate(new Date().toISOString().split("T")[0]);
     setFormDueDate("");
     setFormNotes("");
+    setFormJob("");
     setFormLines([{ description: "", quantity: 1, unit_price: 0, account_id: "" }]);
     setShowCreate(false);
   }
@@ -139,6 +147,7 @@ export default function BillsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           vendor_id: formVendor,
+          job_id: formJob || null,
           bill_number: formBillNumber.trim() || null,
           bill_date: formBillDate,
           due_date: formDueDate,
@@ -246,7 +255,7 @@ export default function BillsPage() {
           <div className="mb-6 p-6 rounded-xl bg-gray-900/50 border border-gray-800 space-y-4">
             <h3 className="text-sm font-bold uppercase tracking-wider text-gray-300">New Bill</h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               <div>
                 <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Vendor *</label>
                 <select value={formVendor} onChange={(e) => setFormVendor(e.target.value)}
@@ -269,6 +278,14 @@ export default function BillsPage() {
                 <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Due Date *</label>
                 <input type="date" value={formDueDate} onChange={(e) => setFormDueDate(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
+              </div>
+              <div>
+                <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Job</label>
+                <select value={formJob} onChange={(e) => setFormJob(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white">
+                  <option value="">No job</option>
+                  {jobs.map((j) => <option key={j.id} value={j.id}>{j.job_number} — {j.name}</option>)}
+                </select>
               </div>
             </div>
 

@@ -93,13 +93,14 @@ export async function POST(request: NextRequest) {
   let body: Record<string, unknown>;
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
-  const { customer_id, invoice_date, due_date, notes, terms, tax_rate, lines } = body as {
+  const { customer_id, invoice_date, due_date, notes, terms, tax_rate, job_id, lines } = body as {
     customer_id?: string;
     invoice_date?: string;
     due_date?: string;
     notes?: string;
     terms?: string;
     tax_rate?: number;
+    job_id?: string;
     lines?: { description: string; quantity: number; unit_price: number; account_id?: string; timesheet_id?: string }[];
   };
 
@@ -121,6 +122,7 @@ export async function POST(request: NextRequest) {
         customer_id,
         invoice_date,
         due_date,
+        job_id: job_id || null,
         notes: notes || null,
         terms: terms || null,
         tax_rate: taxRateVal,
