@@ -597,9 +597,11 @@ export default function AccountingPage() {
         </div>
 
         {tab === "coa" ? <ChartOfAccountsTab /> : <JournalEntriesTab />}
-
-        <ComplianceDisclaimer variant="general" className="mt-8" dismissible={false} />
       </main>
+
+      <div className="sticky bottom-0 px-4 sm:px-6 pb-4 pt-2 max-w-6xl mx-auto">
+        <ComplianceDisclaimer variant="general" dismissible={false} />
+      </div>
     </div>
   );
 }
