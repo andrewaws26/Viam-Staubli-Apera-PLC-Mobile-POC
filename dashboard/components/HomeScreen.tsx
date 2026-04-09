@@ -7,6 +7,7 @@
  * Each card links to its module. Role-based visibility.
  */
 
+import { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
 import TopNav from "./nav/TopNav";
 
@@ -311,6 +312,22 @@ function ModuleSection({
 
 export default function HomeScreen() {
   const { user, isLoaded } = useUser();
+  const [setupNeeded, setSetupNeeded] = useState(false);
+
+  const role =
+    ((user?.publicMetadata as Record<string, unknown>)?.role as string) || "operator";
+  const isAdmin = role === "developer" || role === "manager";
+
+  // Check setup status for admins
+  useEffect(() => {
+    if (!isLoaded || !isAdmin) return;
+    fetch("/api/setup")
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data.setup_completed) setSetupNeeded(true);
+      })
+      .catch(() => {});
+  }, [isLoaded, isAdmin]);
 
   if (!isLoaded) {
     return (
@@ -320,8 +337,6 @@ export default function HomeScreen() {
     );
   }
 
-  const role =
-    ((user?.publicMetadata as Record<string, unknown>)?.role as string) || "operator";
   const firstName = user?.firstName || "there";
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -340,6 +355,31 @@ export default function HomeScreen() {
             IronSight Company OS — B&B Metals
           </p>
         </div>
+
+        {/* Setup banner */}
+        {setupNeeded && (
+          <a
+            href="/setup"
+            className="group mb-8 flex items-center gap-4 rounded-2xl border border-amber-800/40 hover:border-amber-600/60 bg-gradient-to-r from-amber-900/20 to-orange-900/10 hover:from-amber-900/30 hover:to-orange-900/20 p-4 sm:p-5 transition-all duration-200"
+          >
+            <div className="shrink-0 w-10 h-10 rounded-xl bg-amber-600/20 flex items-center justify-center text-amber-400 group-hover:bg-amber-600/30 transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-bold text-gray-100 group-hover:text-white transition-colors">
+                Complete Your Setup
+              </h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Run the setup wizard to configure company profile and verify system readiness
+              </p>
+            </div>
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-600 group-hover:text-amber-400 transition-colors shrink-0" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+            </svg>
+          </a>
+        )}
 
         {/* Tour banner */}
         <a

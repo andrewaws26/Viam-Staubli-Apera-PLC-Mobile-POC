@@ -47,6 +47,12 @@ export const NAV_SECTIONS: NavSection[] = [
           { href: "/training/admin", label: "Compliance" },
         ],
       },
+      {
+        title: "System",
+        items: [
+          { href: "/setup", label: "Setup Wizard" },
+        ],
+      },
     ],
   },
   {
