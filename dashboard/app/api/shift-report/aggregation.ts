@@ -202,7 +202,7 @@ function aggregateTruck(truckPoints: RawPoint[]): TruckMetrics {
       prevGpsLat = lat; prevGpsLon = lon;
     }
 
-    // Trip detection
+    // Trip detection (raw — merged below to eliminate brief RPM dips)
     if (running && !prevRunning) tripStart = pt.timeCaptured;
     else if (!running && prevRunning && tripStart) {
       m.trips.push({ startTime: tripStart.toISOString(), endTime: ts,
@@ -249,6 +249,26 @@ function aggregateTruck(truckPoints: RawPoint[]): TruckMetrics {
     const last = truckPoints[truckPoints.length - 1];
     m.trips.push({ startTime: tripStart.toISOString(), endTime: last.timeCaptured.toISOString(),
       durationMin: Math.round((last.timeCaptured.getTime() - tripStart.getTime()) / 60000) });
+  }
+
+  // Merge trips separated by gaps shorter than 60 seconds (RPM flicker noise)
+  if (m.trips.length > 1) {
+    const MIN_GAP_SEC = 60;
+    const merged: Trip[] = [m.trips[0]];
+    for (let i = 1; i < m.trips.length; i++) {
+      const prev = merged[merged.length - 1];
+      const gapMs = new Date(m.trips[i].startTime).getTime() - new Date(prev.endTime).getTime();
+      if (gapMs < MIN_GAP_SEC * 1000) {
+        // Merge: extend the previous trip to cover this one
+        prev.endTime = m.trips[i].endTime;
+        prev.durationMin = Math.round(
+          (new Date(prev.endTime).getTime() - new Date(prev.startTime).getTime()) / 60000,
+        );
+      } else {
+        merged.push(m.trips[i]);
+      }
+    }
+    m.trips = merged;
   }
 
   m.dbg_engineRunningSeconds = engineRunningSec;
