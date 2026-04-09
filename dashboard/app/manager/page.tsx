@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import TopNav from "@/components/nav/TopNav";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -279,6 +280,7 @@ export default function ManagerCommandCenter() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
+      <TopNav />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-8">
         {/* ---------------------------------------------------------- */}
         {/*  HEADER                                                     */}
