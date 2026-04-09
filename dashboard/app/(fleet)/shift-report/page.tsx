@@ -4,6 +4,7 @@ import { useState, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 
+import { ShareModal } from "@/components/Share/ShareModal";
 import { ShiftReport } from "./types";
 import { fmtTime, fmtDateLong, fmtDateTime, fmtHM, todayStr } from "./utils/timezone";
 import { PRESETS, matchPreset, parseTimeInput, toTimeInput } from "./utils/time-presets";
@@ -41,6 +42,7 @@ function ShiftReportInner() {
   const [report, setReport] = useState<ShiftReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showShare, setShowShare] = useState(false);
 
   const activePreset = matchPreset(startH, startM, endH, endM);
   const rangeLabel = `${fmtDateLong(date + "T12:00:00Z")} — ${fmtHM(startH, startM)} to ${fmtHM(endH, endM)} Eastern`;
@@ -98,6 +100,15 @@ function ShiftReportInner() {
   return (
     <>
       <style>{PRINT_STYLES}</style>
+      {report && (
+        <ShareModal
+          open={showShare}
+          onClose={() => setShowShare(false)}
+          entityType="shift_report"
+          entityPayload={report as unknown as Record<string, unknown>}
+          title={`Shift Report — Truck ${truckId} — ${date}`}
+        />
+      )}
 
       <div className="min-h-screen bg-gray-950 text-white flex flex-col">
         <div className="no-print">
@@ -140,6 +151,14 @@ function ShiftReportInner() {
             >
               {loading ? "Loading..." : "Generate"}
             </button>
+            {report && (
+              <button
+                onClick={() => setShowShare(true)}
+                className="min-h-[44px] px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-sm font-semibold transition-colors"
+              >
+                Share
+              </button>
+            )}
             <button
               onClick={() => window.print()}
               className="min-h-[44px] px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm font-semibold transition-colors"
