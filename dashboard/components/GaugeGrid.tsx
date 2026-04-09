@@ -80,6 +80,10 @@ function formatValue(key: string, value: unknown): string {
       return value === 1 ? "ON" : value === 0 ? "OFF" : `${value}`;
     }
     if (key.startsWith("prop_start_counter")) return `${value.toFixed(0)}`;
+    if (key.endsWith("_count") || key.startsWith("dtc_") && key.endsWith("_count")) return `${value.toFixed(0)}`;
+    if (key === "cpu_temp_c") return `${value.toFixed(1)}\u00B0C`;
+    if (key === "_frame_count") return `${value.toFixed(0)}`;
+    if (key === "vehicle_pitch_deg") return `${value.toFixed(1)}\u00B0`;
     if (key === "commanded_equiv_ratio") return `${value.toFixed(3)}`;
     if (key === "evap_pressure_pa") return `${value.toFixed(0)} Pa`;
     if (key === "o2_voltage_b1s1_v") return `${value.toFixed(2)}V`;

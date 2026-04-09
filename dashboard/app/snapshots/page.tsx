@@ -96,7 +96,7 @@ const SECTIONS: { title: string; icon: string; fields: Field[] }[] = [
     { key: "idle_fuel_pct", label: "Idle Fuel %" },
   ]},
   { title: "Lifetime / Identity", icon: "\uD83D\uDCC8", fields: [
-    { key: "vin", label: "VIN" }, { key: "vehicle_vin", label: "VIN" },
+    { key: "vin", label: "VIN" },
     { key: "engine_hours", label: "Engine Hours" }, { key: "total_fuel_used_gal", label: "Total Fuel" },
     { key: "idle_fuel_used_gal", label: "Idle Fuel" }, { key: "idle_engine_hours", label: "Idle Hours" },
     { key: "vehicle_distance_mi", label: "Odometer" },
@@ -136,7 +136,11 @@ function fmtDate(iso: string): string {
 // ── Snapshot Detail View ─────────────────────────────────────────────
 
 function SnapshotDetail({ snapshot, onBack }: { snapshot: SnapshotFull; onBack: () => void }) {
-  const data = snapshot.reading_data;
+  const data = { ...snapshot.reading_data };
+  // Normalize VIN: prefer vehicle_vin over vin if vin is missing/UNKNOWN
+  if ((!data.vin || data.vin === "UNKNOWN") && data.vehicle_vin && data.vehicle_vin !== "UNKNOWN") {
+    data.vin = data.vehicle_vin;
+  }
   const fieldCount = Object.keys(data).filter(k => !k.startsWith("_") || k === "_bus_connected" || k === "_frame_count").length;
 
   return (
