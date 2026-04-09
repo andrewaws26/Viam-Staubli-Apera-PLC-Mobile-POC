@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { ChatMessage, ChatReaction, SensorSnapshot, dbRowToMessage } from "@/lib/chat";
+import { useChatRealtime } from "@/hooks/useChatRealtime";
 import MessageBubble from "./MessageBubble";
 import ChatInput from "./ChatInput";
 
@@ -61,29 +62,28 @@ export default function ThreadView({ threadId, currentUserId, snapshot, pinnedMe
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
-  // Poll for new messages every 3 seconds
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      if (!lastMessageIdRef.current) return;
-      try {
-        const params = new URLSearchParams({
-          after: lastMessageIdRef.current,
-          limit: "50",
-        });
-        const res = await fetch(`/api/chat/threads/${threadId}/messages?${params}`);
-        if (!res.ok) return;
-        const newMsgs: ChatMessage[] = await res.json();
-        if (newMsgs.length > 0) {
-          setMessages((prev) => [...prev, ...newMsgs]);
-          lastMessageIdRef.current = newMsgs[newMsgs.length - 1].id;
-        }
-      } catch {
-        // Silent poll failure
+  // Fetch new messages since last known message
+  const pollNewMessages = useCallback(async () => {
+    if (!lastMessageIdRef.current) return;
+    try {
+      const params = new URLSearchParams({
+        after: lastMessageIdRef.current,
+        limit: "50",
+      });
+      const res = await fetch(`/api/chat/threads/${threadId}/messages?${params}`);
+      if (!res.ok) return;
+      const newMsgs: ChatMessage[] = await res.json();
+      if (newMsgs.length > 0) {
+        setMessages((prev) => [...prev, ...newMsgs]);
+        lastMessageIdRef.current = newMsgs[newMsgs.length - 1].id;
       }
-    }, 3000);
-
-    return () => clearInterval(interval);
+    } catch {
+      // Silent failure
+    }
   }, [threadId]);
+
+  // Supabase Realtime (or polling fallback) for new messages
+  useChatRealtime(threadId, pollNewMessages, pollNewMessages, 3000);
 
   // Mark as read
   useEffect(() => {

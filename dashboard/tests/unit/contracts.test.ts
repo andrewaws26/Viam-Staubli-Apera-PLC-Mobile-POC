@@ -169,12 +169,13 @@ describe("Contract: Data flows between services are consistent", () => {
   it("all routes using Supabase import from lib/supabase", () => {
     // Ensure nobody creates their own Supabase client
     const routeFiles = getAllRouteFiles();
+    const allowedClients = ["lib/supabase.ts", "lib/supabase-browser.ts"];
     for (const file of routeFiles) {
       const source = fs.readFileSync(file, "utf-8");
       if (source.includes("createClient") && source.includes("@supabase")) {
         const relative = path.relative(DASHBOARD_ROOT, file);
-        // Only lib/supabase.ts should import createClient directly
-        expect(relative).toBe("lib/supabase.ts");
+        // Only our dedicated Supabase client files should import createClient
+        expect(allowedClients).toContain(relative);
       }
     }
   });

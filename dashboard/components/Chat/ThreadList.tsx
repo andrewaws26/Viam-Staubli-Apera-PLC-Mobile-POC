@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { ChatThreadWithPreview, ChatEntityType } from "@/lib/chat";
+import { useThreadListRealtime } from "@/hooks/useChatRealtime";
 
 interface ThreadListProps {
   onSelectThread: (threadId: string) => void;
@@ -44,9 +45,10 @@ export default function ThreadList({ onSelectThread, selectedThreadId, onNewDM }
 
   useEffect(() => {
     fetchThreads();
-    const interval = setInterval(fetchThreads, 5000);
-    return () => clearInterval(interval);
   }, [fetchThreads]);
+
+  // Supabase Realtime (or polling fallback) for thread list updates
+  useThreadListRealtime(fetchThreads, fetchThreads, 5000);
 
   const filtered = threads.filter((t) => {
     if (filter !== "all" && t.entityType !== filter) return false;
