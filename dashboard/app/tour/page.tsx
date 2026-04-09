@@ -27,6 +27,14 @@ const STOPS: TourStop[] = [
     value:
       "This is a complete operating system for B&B. Fleet monitoring, timesheets, work orders, " +
       "team chat, training compliance, accounting — all in one place. Everything below is live and functional.",
+    tryIt: {
+      label: "Create Your Account First",
+      href: "/sign-up",
+    },
+    highlight:
+      "Before you start: click the button above to create your account. Use your real name and email. " +
+      "It takes 30 seconds. Once you're signed in, come back to this tour — " +
+      "you can always get here from the home screen. The \"Try It\" buttons on each stop will open the real feature in a new tab.",
   },
   {
     title: "Your Command Center",
