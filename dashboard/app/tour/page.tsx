@@ -28,13 +28,16 @@ const STOPS: TourStop[] = [
       "This is a complete operating system for B&B. Fleet monitoring, timesheets, work orders, " +
       "team chat, training compliance, accounting — all in one place. Everything below is live and functional.",
     tryIt: {
-      label: "Create Your Account First",
+      label: "Step 1: Create Your Account",
       href: "/sign-up",
     },
     highlight:
-      "Before you start: click the button above to create your account. Use your real name and email. " +
-      "It takes 30 seconds. Once you're signed in, come back to this tour — " +
-      "you can always get here from the home screen. The \"Try It\" buttons on each stop will open the real feature in a new tab.",
+      "Here's what to do:\n" +
+      "1. Click the purple button above — it opens the sign-up page in a new tab.\n" +
+      "2. Use your real name and email. Takes 30 seconds.\n" +
+      "3. Come back to THIS tab when you're done.\n" +
+      "4. Click \"Next\" below to start the tour.\n\n" +
+      "Your place is saved automatically — you can close this and come back anytime.",
   },
   {
     title: "Your Command Center",
@@ -253,9 +256,23 @@ const STOPS: TourStop[] = [
 // Tour Page Component
 // ---------------------------------------------------------------------------
 export default function TourPage() {
-  const [currentStop, setCurrentStop] = useState(0);
+  const [currentStop, setCurrentStop] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("ironsight-tour-stop");
+      return saved ? Math.min(parseInt(saved, 10), STOPS.length - 1) : 0;
+    }
+    return 0;
+  });
   const router = useRouter();
   const stop = STOPS[currentStop];
+
+  // Persist progress so Corey doesn't lose his place
+  const goTo = (index: number) => {
+    setCurrentStop(index);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("ironsight-tour-stop", String(index));
+    }
+  };
   const isFirst = currentStop === 0;
   const isLast = currentStop === STOPS.length - 1;
   const progress = ((currentStop + 1) / STOPS.length) * 100;
@@ -343,7 +360,7 @@ export default function TourPage() {
               </div>
               <div>
                 <p className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-1">What to look for</p>
-                <p className="text-sm text-amber-200/70 leading-relaxed">{stop.highlight}</p>
+                <div className="text-sm text-amber-200/70 leading-relaxed whitespace-pre-line">{stop.highlight}</div>
               </div>
             </div>
           </div>
@@ -365,10 +382,17 @@ export default function TourPage() {
           </a>
         )}
 
+        {/* Tip */}
+        {!isFirst && (
+          <p className="text-xs text-gray-600 mb-6">
+            Your progress is saved. You can close this tab and come back anytime — you&apos;ll pick up right where you left off.
+          </p>
+        )}
+
         {/* Navigation */}
         <div className="flex items-center justify-between pt-8 border-t border-gray-800/50">
           <button
-            onClick={() => setCurrentStop((s) => Math.max(0, s - 1))}
+            onClick={() => goTo(Math.max(0, currentStop - 1))}
             disabled={isFirst}
             className={`px-5 py-2.5 rounded-lg text-sm font-bold transition-colors ${
               isFirst
@@ -384,7 +408,7 @@ export default function TourPage() {
             {STOPS.map((_, i) => (
               <button
                 key={i}
-                onClick={() => setCurrentStop(i)}
+                onClick={() => goTo(i)}
                 className={`w-2 h-2 rounded-full transition-all ${
                   i === currentStop
                     ? "bg-violet-500 w-6"
@@ -399,9 +423,10 @@ export default function TourPage() {
           <button
             onClick={() => {
               if (isLast) {
+                localStorage.removeItem("ironsight-tour-stop");
                 router.push("/");
               } else {
-                setCurrentStop((s) => s + 1);
+                goTo(currentStop + 1);
               }
             }}
             className="px-5 py-2.5 rounded-lg text-sm font-bold bg-violet-600 hover:bg-violet-500 text-white transition-colors"
