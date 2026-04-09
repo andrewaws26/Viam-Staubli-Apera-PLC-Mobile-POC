@@ -1,1 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#9ca3af"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+  </defs>
+  <circle cx="60" cy="60" r="60" fill="url(#g)"/>
+  <g transform="translate(30,30)" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14.7 6.3a8 8 0 0 0-1.5 8.8l-9.6 9.6a2.8 2.8 0 1 0 4 4l9.6-9.6a8 8 0 0 0 8.8-1.5c2.8-2.8 3.2-7 1.2-10.2L22 12.6l-4.8 0 0-4.8-4.2-4.2c-3.2-2-7.4-1.6-10.2 1.2z"/>
+    <path d="M45.3 53.7a8 8 0 0 0 1.5-8.8l9.6-9.6a2.8 2.8 0 1 0-4-4l-9.6 9.6a8 8 0 0 0-8.8 1.5c-2.8 2.8-3.2 7-1.2 10.2L38 47.4l4.8 0 0 4.8 4.2 4.2c3.2 2 7.4 1.6 10.2-1.2z"/>
+    <path d="M8 52l12-12"/>
+    <path d="M52 8L40 20"/>
+  </g>
+</svg>

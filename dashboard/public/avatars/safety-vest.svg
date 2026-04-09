@@ -1,1 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#9ca3af"><path d="M12 2L6 5v4c0 1.1.9 2 2 2h.5L7 19.5c0 .83.67 1.5 1.5 1.5h7c.83 0 1.5-.67 1.5-1.5L15.5 11H16c1.1 0 2-.9 2-2V5l-6-3zm-1 4.5V4l-3 1.5V8l3-1.5zm2 0L16 8V5.5L13 4v2.5zM9.5 13h1v5h-1v-5zm4 0h1v5h-1v-5z"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#ea580c"/>
+    </linearGradient>
+  </defs>
+  <circle cx="60" cy="60" r="60" fill="url(#g)"/>
+  <g transform="translate(30,26)" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M16 0L4 8v40a4 4 0 0 0 4 4h8"/>
+    <path d="M44 0l12 8v40a4 4 0 0 1-4 4h-8"/>
+    <path d="M16 0v52"/>
+    <path d="M44 0v52"/>
+    <path d="M16 52h28"/>
+    <path d="M4 22h12"/>
+    <path d="M44 22h12"/>
+    <path d="M4 36h12"/>
+    <path d="M44 36h12"/>
+    <circle cx="30" cy="6" r="6"/>
+  </g>
+</svg>
