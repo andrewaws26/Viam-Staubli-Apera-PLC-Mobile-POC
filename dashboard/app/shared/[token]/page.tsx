@@ -40,15 +40,70 @@ const SECTIONS: { title: string; icon: string; fields: Field[] }[] = [
     { key: "def_level_pct", label: "DEF Level" }, { key: "def_temp_f", label: "DEF Temp" },
     { key: "dpf_soot_load_pct", label: "DPF Soot Load" }, { key: "dpf_regen_status", label: "DPF Regen" },
     { key: "dpf_diff_pressure_psi", label: "DPF Diff Pressure" },
+    { key: "protect_lamp_engine", label: "Protect (Engine)" }, { key: "protect_lamp_acm", label: "Protect (ACM)" },
+  ]},
+  { title: "Brakes & Safety", icon: "\uD83D\uDED1", fields: [
+    { key: "brake_pedal_pos_pct", label: "Brake Pedal" }, { key: "abs_active", label: "ABS Active" },
+    { key: "brake_air_pressure_psi", label: "Brake Air" },
+  ]},
+  { title: "PTO / Hydraulics", icon: "\uD83D\uDD27", fields: [
+    { key: "retarder_torque_pct", label: "Retarder Torque" }, { key: "pto_engaged", label: "PTO Status" },
+    { key: "pto_rpm", label: "PTO Speed" }, { key: "hydraulic_oil_temp_f", label: "Hydraulic Temp" },
+    { key: "hydraulic_oil_pressure_psi", label: "Hydraulic Pressure" },
+  ]},
+  { title: "Idle / Trip / Service", icon: "\u23F1\uFE0F", fields: [
+    { key: "idle_fuel_used_gal", label: "Idle Fuel Used" }, { key: "idle_engine_hours", label: "Idle Hours" },
+    { key: "trip_fuel_gal", label: "Trip Fuel" }, { key: "service_distance_mi", label: "Next Service" },
+  ]},
+  { title: "Air / Wheel Speed", icon: "\uD83D\uDEDE\uFE0F", fields: [
+    { key: "air_supply_pressure_psi", label: "Air Supply" },
+    { key: "air_pressure_circuit1_psi", label: "Circuit 1" }, { key: "air_pressure_circuit2_psi", label: "Circuit 2" },
+    { key: "front_axle_speed_mph", label: "Front Axle Speed" },
+  ]},
+  { title: "Navigation / GPS", icon: "\uD83D\uDCCD", fields: [
+    { key: "gps_latitude", label: "Latitude" }, { key: "gps_longitude", label: "Longitude" },
+    { key: "compass_bearing_deg", label: "Heading" }, { key: "altitude_ft", label: "Altitude" },
+    { key: "nav_speed_mph", label: "GPS Speed" }, { key: "vehicle_pitch_deg", label: "Pitch" },
+  ]},
+  { title: "Extended Engine", icon: "\uD83D\uDD0C", fields: [
+    { key: "exhaust_gas_pressure_psi", label: "Exhaust Pressure" },
+    { key: "vehicle_distance_mi", label: "Odometer" }, { key: "vehicle_distance_hr_mi", label: "Odometer (HR)" },
+    { key: "cruise_control_active", label: "Cruise" }, { key: "trans_output_rpm", label: "Trans Output RPM" },
+  ]},
+  { title: "Fuel Cost", icon: "\u26FD", fields: [
+    { key: "fuel_cost_per_hour", label: "Burn Rate" }, { key: "fuel_cost_per_mile", label: "Cost/Mile" },
   ]},
   { title: "System Health", icon: "\uD83D\uDEA8", fields: [
     { key: "dpf_health", label: "DPF Filter" }, { key: "battery_health", label: "Battery" },
     { key: "def_low", label: "DEF Fluid Low" }, { key: "idle_pct", label: "Lifetime Idle %" },
+    { key: "idle_fuel_pct", label: "Idle Fuel %" },
+  ]},
+  { title: "Lifetime / Identity", icon: "\uD83D\uDCC8", fields: [
+    { key: "vin", label: "VIN" },
+    { key: "engine_hours", label: "Engine Hours" }, { key: "total_fuel_used_gal", label: "Total Fuel" },
+    { key: "idle_fuel_used_gal", label: "Idle Fuel" }, { key: "idle_engine_hours", label: "Idle Hours" },
+    { key: "vehicle_distance_mi", label: "Odometer" },
+    { key: "prop_start_counter_a", label: "Start Count A" }, { key: "prop_start_counter_b", label: "Start Count B" },
+  ]},
+  { title: "Warning Lamps", icon: "\uD83D\uDEA6", fields: [
+    { key: "mil_engine", label: "MIL Engine" }, { key: "amber_lamp_engine", label: "Amber Engine" },
+    { key: "red_stop_lamp_engine", label: "Red Stop Engine" },
+    { key: "mil_acm", label: "MIL ACM" }, { key: "amber_lamp_acm", label: "Amber ACM" },
+    { key: "mil_trans", label: "MIL Trans" }, { key: "amber_lamp_trans", label: "Amber Trans" },
+    { key: "mil_abs", label: "MIL ABS" }, { key: "amber_lamp_abs", label: "Amber ABS" },
   ]},
   { title: "DTC Summary", icon: "\u26A0\uFE0F", fields: [
     { key: "active_dtc_count", label: "Active DTCs" },
     { key: "dtc_engine_count", label: "Engine DTCs" }, { key: "dtc_trans_count", label: "Trans DTCs" },
     { key: "dtc_abs_count", label: "ABS DTCs" }, { key: "dtc_acm_count", label: "ACM DTCs" },
+    { key: "prev_dtc_count", label: "Previous DTCs" },
+  ]},
+  { title: "Pi System", icon: "\uD83E\uDD16", fields: [
+    { key: "cpu_temp_c", label: "CPU Temp" }, { key: "cpu_usage_pct", label: "CPU Usage" },
+    { key: "memory_used_pct", label: "Memory Used" }, { key: "disk_used_pct", label: "Disk Used" },
+    { key: "wifi_ssid", label: "WiFi SSID" }, { key: "wifi_signal_pct", label: "WiFi Signal" },
+    { key: "tailscale_online", label: "Tailscale" }, { key: "internet", label: "Internet" },
+    { key: "_bus_connected", label: "CAN Bus" }, { key: "_frame_count", label: "CAN Frames" },
   ]},
 ];
 
@@ -59,14 +114,22 @@ function formatValue(key: string, value: unknown): string {
   if (typeof value === "number") {
     if (key.includes("_pct") || key.includes("_pos")) return `${value.toFixed(1)}%`;
     if (key.endsWith("_f")) return `${value.toFixed(0)}\u00B0F`;
+    if (key.endsWith("_c")) return `${value.toFixed(1)}\u00B0C`;
     if (key.endsWith("_v")) return `${value.toFixed(1)}V`;
     if (key.endsWith("_psi")) return `${value.toFixed(1)} PSI`;
     if (key.endsWith("_mph")) return `${value.toFixed(1)} mph`;
     if (key.endsWith("_gph")) return `${value.toFixed(2)} gph`;
     if (key.endsWith("_mpg")) return `${value.toFixed(1)} mpg`;
-    if (key.endsWith("_mi")) return `${value.toFixed(0)} mi`;
+    if (key.endsWith("_mi")) return `${value.toFixed(1)} mi`;
     if (key.endsWith("_gal")) return `${value.toFixed(1)} gal`;
-    if (key === "engine_rpm") return `${Math.round(value)}`;
+    if (key.endsWith("_hrs") || key === "idle_engine_hours" || key === "engine_hours") return `${value.toFixed(1)} hrs`;
+    if (key.endsWith("_deg")) return `${value.toFixed(0)}\u00B0`;
+    if (key.endsWith("_ft")) return `${value.toFixed(0)} ft`;
+    if (key === "engine_rpm" || key === "pto_rpm" || key === "trans_output_rpm") return `${Math.round(value)}`;
+    if (key === "fuel_cost_per_hour") return `$${value.toFixed(2)}/hr`;
+    if (key === "fuel_cost_per_mile") return `$${value.toFixed(3)}/mi`;
+    if (key === "gps_latitude" || key === "gps_longitude") return value.toFixed(6);
+    if (key === "_frame_count") return String(Math.round(value));
     return value % 1 === 0 ? String(value) : value.toFixed(2);
   }
   return String(value);
@@ -139,6 +202,30 @@ function SnapshotViewer({ data, meta }: { data: Record<string, unknown>; meta: S
           );
         })}
       </div>
+
+      {/* Active DTC Details */}
+      {Object.keys(readingData).some(k => k.startsWith("dtc_0_")) && (
+        <div className="mt-4 bg-gray-900/50 rounded-xl p-4 border border-gray-800/50">
+          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">
+            {"\u26A0\uFE0F"} Active DTC Details
+          </h3>
+          <div className="space-y-1">
+            {Array.from({ length: 20 }).map((_, i) => {
+              const spn = readingData[`dtc_${i}_spn`];
+              const fmi = readingData[`dtc_${i}_fmi`];
+              if (spn === undefined) return null;
+              return (
+                <div key={i} className="flex items-center gap-3 text-sm">
+                  <span className="font-mono text-red-400">SPN {String(spn)} / FMI {String(fmi)}</span>
+                  {readingData[`dtc_${i}_occurrence`] !== undefined && (
+                    <span className="text-gray-500 text-xs">({String(readingData[`dtc_${i}_occurrence`])} occurrences)</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
