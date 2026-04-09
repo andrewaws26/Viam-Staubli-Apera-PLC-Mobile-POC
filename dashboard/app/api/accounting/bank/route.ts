@@ -377,9 +377,8 @@ export async function PATCH(request: NextRequest) {
           .lte("transaction_date", session.statement_date);
 
         logAuditDirect(userId, userInfo.name, userInfo.role, {
-          action: "journal_entry_posted" as const, // reuse closest audit action
+          action: "bank_reconciliation_completed",
           details: {
-            type: "bank_reconciliation_completed",
             reconciliation_id: reconId,
             bank_account_id: session.bank_account_id,
             statement_balance: session.statement_balance,

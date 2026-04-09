@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, Fragment } from "react";
+import ComplianceDisclaimer from "@/components/ComplianceDisclaimer";
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -261,6 +262,8 @@ export default function PayrollRunPage() {
     <div className="min-h-screen bg-gray-950 text-white">
 
       <main className="px-4 sm:px-6 py-6 max-w-7xl mx-auto">
+        <ComplianceDisclaimer variant="payroll" className="mb-4" />
+
         {/* Error Banner */}
         {error && (
           <div className="mb-4 px-4 py-3 rounded-xl bg-red-900/30 border border-red-800 text-sm text-red-300">

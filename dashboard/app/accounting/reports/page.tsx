@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { useUser } from "@clerk/nextjs";
 import type { AccountType, TrialBalanceSummary, TrialBalanceRow } from "@ironsight/shared";
+import ComplianceDisclaimer from "@/components/ComplianceDisclaimer";
 import {
   ACCOUNT_TYPE_LABELS,
   ACCOUNT_TYPE_COLORS,
@@ -804,6 +805,8 @@ export default function FinancialReportsPage() {
 
 
       <main className="px-4 sm:px-6 py-6 max-w-6xl mx-auto">
+        <ComplianceDisclaimer variant="financial" className="mb-4 no-print" />
+
         {/* Tab toggle — always visible */}
         <div className="flex flex-wrap items-center gap-1 mb-6 bg-gray-900 rounded-xl p-1 w-fit no-print">
           {(["trial-balance", "profit-loss", "balance-sheet", "general-ledger", "aging", "cash-flow"] as ReportTab[]).map((tab) => (

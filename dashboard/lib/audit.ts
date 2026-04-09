@@ -85,7 +85,10 @@ export type AuditAction =
   | "report_run"
   | "help_query"
   | "snapshot_captured"
-  | "snapshot_deleted";
+  | "snapshot_deleted"
+  | "import_completed"
+  | "import_rolled_back"
+  | "bank_reconciliation_completed";
 
 interface AuditEntry {
   action: AuditAction;

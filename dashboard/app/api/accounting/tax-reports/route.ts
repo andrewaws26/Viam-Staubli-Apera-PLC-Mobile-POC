@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { getSupabase } from "@/lib/supabase";
+import { getTaxValue, type TaxRateRow } from "@/lib/payroll-tax";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -40,16 +41,43 @@ function quarterMonths(quarter: number): number[] {
 }
 
 // ---------------------------------------------------------------------------
-// 2026 Tax Constants
+// Tax rate loader — reads from DB instead of hardcoded constants
 // ---------------------------------------------------------------------------
 
-const SS_WAGE_BASE = 168600; // 2026 Social Security wage base
-const SS_COMBINED_RATE = 0.124; // 6.2% employee + 6.2% employer
-const MEDICARE_COMBINED_RATE = 0.029; // 1.45% employee + 1.45% employer
-const ADDITIONAL_MEDICARE_THRESHOLD = 200000;
-const ADDITIONAL_MEDICARE_RATE = 0.009; // 0.9% employee-only
-const FUTA_WAGE_BASE = 7000;
-const FUTA_RATE_AFTER_CREDIT = 0.006; // 0.6% after state credit
+interface TaxConstants {
+  SS_WAGE_BASE: number;
+  SS_COMBINED_RATE: number;
+  MEDICARE_COMBINED_RATE: number;
+  ADDITIONAL_MEDICARE_THRESHOLD: number;
+  ADDITIONAL_MEDICARE_RATE: number;
+  FUTA_WAGE_BASE: number;
+  FUTA_RATE_AFTER_CREDIT: number;
+}
+
+async function loadTaxConstants(taxYear: number): Promise<TaxConstants> {
+  const sb = getSupabase();
+  const { data: taxRatesRaw } = await sb
+    .from("tax_rate_tables")
+    .select("*")
+    .eq("tax_year", taxYear);
+
+  const rates = (taxRatesRaw ?? []) as unknown as TaxRateRow[];
+
+  const ssRate = getTaxValue(rates, "ss_rate");
+  const medicareRate = getTaxValue(rates, "medicare_rate");
+  const futaRate = getTaxValue(rates, "futa_rate");
+  const futaCredit = getTaxValue(rates, "futa_credit");
+
+  return {
+    SS_WAGE_BASE: getTaxValue(rates, "ss_wage_base", "flat_amount") || 176100,
+    SS_COMBINED_RATE: ssRate ? ssRate * 2 : 0.124,
+    MEDICARE_COMBINED_RATE: medicareRate ? medicareRate * 2 : 0.029,
+    ADDITIONAL_MEDICARE_THRESHOLD: getTaxValue(rates, "medicare_additional_threshold", "flat_amount") || 200000,
+    ADDITIONAL_MEDICARE_RATE: getTaxValue(rates, "medicare_additional_rate") || 0.009,
+    FUTA_WAGE_BASE: getTaxValue(rates, "futa_wage_base", "flat_amount") || 7000,
+    FUTA_RATE_AFTER_CREDIT: (futaRate && futaCredit) ? (futaRate - futaCredit) : 0.006,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Report: Form 941 (Quarterly)
@@ -59,6 +87,7 @@ async function build941(year: number, quarter: number) {
   const sb = getSupabase();
   const { start, end } = quarterDates(year, quarter);
   const months = quarterMonths(quarter);
+  const tc = await loadTaxConstants(year);
 
   // Fetch all posted payroll runs in the quarter
   const { data: runs, error: runsErr } = await sb
@@ -189,15 +218,15 @@ async function build941(year: number, quarter: number) {
   for (const empId of uniqueEmployees) {
     const priorGross = priorGrossByEmployee[empId] || 0;
     const qGross = employeeQuarterGross[empId] || 0;
-    const remainingBase = Math.max(0, SS_WAGE_BASE - priorGross);
+    const remainingBase = Math.max(0, tc.SS_WAGE_BASE - priorGross);
     taxableSS += Math.min(qGross, remainingBase);
   }
   const line5a = r2(taxableSS);
-  const line5a_ii = r2(taxableSS * SS_COMBINED_RATE);
+  const line5a_ii = r2(taxableSS * tc.SS_COMBINED_RATE);
 
   // Line 5c: taxable Medicare wages (no cap)
   const line5c = line2; // all wages are Medicare taxable
-  const line5c_ii = r2(line5c * MEDICARE_COMBINED_RATE);
+  const line5c_ii = r2(line5c * tc.MEDICARE_COMBINED_RATE);
 
   // Line 5d: Additional Medicare Tax (wages over $200k)
   let additionalMedicare = 0;
@@ -207,13 +236,13 @@ async function build941(year: number, quarter: number) {
     const qGross = employeeQuarterGross[empId] || 0;
 
     // Only wages above threshold in this quarter
-    if (ytdGross > ADDITIONAL_MEDICARE_THRESHOLD) {
-      const priorAbove = Math.max(0, priorGross - ADDITIONAL_MEDICARE_THRESHOLD);
-      const ytdAbove = Math.max(0, ytdGross - ADDITIONAL_MEDICARE_THRESHOLD);
+    if (ytdGross > tc.ADDITIONAL_MEDICARE_THRESHOLD) {
+      const priorAbove = Math.max(0, priorGross - tc.ADDITIONAL_MEDICARE_THRESHOLD);
+      const ytdAbove = Math.max(0, ytdGross - tc.ADDITIONAL_MEDICARE_THRESHOLD);
       additionalMedicare += ytdAbove - priorAbove;
     }
   }
-  const line5d = r2(additionalMedicare * ADDITIONAL_MEDICARE_RATE);
+  const line5d = r2(additionalMedicare * tc.ADDITIONAL_MEDICARE_RATE);
 
   // Line 5e: total SS + Medicare + additional Medicare
   const line5e = r2(line5a_ii + line5c_ii + line5d);
@@ -303,11 +332,11 @@ async function build941(year: number, quarter: number) {
     },
     monthly_breakdown,
     rates: {
-      ss_wage_base: SS_WAGE_BASE,
-      ss_combined_rate: SS_COMBINED_RATE,
-      medicare_combined_rate: MEDICARE_COMBINED_RATE,
-      additional_medicare_threshold: ADDITIONAL_MEDICARE_THRESHOLD,
-      additional_medicare_rate: ADDITIONAL_MEDICARE_RATE,
+      ss_wage_base: tc.SS_WAGE_BASE,
+      ss_combined_rate: tc.SS_COMBINED_RATE,
+      medicare_combined_rate: tc.MEDICARE_COMBINED_RATE,
+      additional_medicare_threshold: tc.ADDITIONAL_MEDICARE_THRESHOLD,
+      additional_medicare_rate: tc.ADDITIONAL_MEDICARE_RATE,
     },
   };
 }
@@ -422,6 +451,7 @@ async function build940(year: number) {
   const sb = getSupabase();
   const start = `${year}-01-01`;
   const end = `${year}-12-31`;
+  const tc = await loadTaxConstants(year);
 
   const { data: runs, error: runsErr } = await sb
     .from("payroll_runs")
@@ -473,7 +503,7 @@ async function build940(year: number) {
   for (const empId of Object.keys(employeeData)) {
     employeeData[empId].futa_taxable = Math.min(
       employeeData[empId].total_wages,
-      FUTA_WAGE_BASE
+      tc.FUTA_WAGE_BASE
     );
     employeeData[empId].total_wages = r2(employeeData[empId].total_wages);
     employeeData[empId].futa_taxable = r2(employeeData[empId].futa_taxable);
@@ -487,7 +517,7 @@ async function build940(year: number) {
 
   const totalPayments = r2(employees.reduce((s, e) => s + e.total_wages, 0));
   const totalTaxableWages = r2(employees.reduce((s, e) => s + e.futa_taxable, 0));
-  const computedFutaTax = r2(totalTaxableWages * FUTA_RATE_AFTER_CREDIT);
+  const computedFutaTax = r2(totalTaxableWages * tc.FUTA_RATE_AFTER_CREDIT);
   const actualFutaDeposits = r2(employees.reduce((s, e) => s + e.futa_tax, 0));
 
   // Quarterly FUTA liability breakdown
@@ -515,8 +545,8 @@ async function build940(year: number) {
       line_5_taxable_futa_wages: totalTaxableWages,
       line_8_futa_tax: computedFutaTax,
       line_13_futa_deposits: actualFutaDeposits,
-      futa_wage_base: FUTA_WAGE_BASE,
-      futa_rate: FUTA_RATE_AFTER_CREDIT,
+      futa_wage_base: tc.FUTA_WAGE_BASE,
+      futa_rate: tc.FUTA_RATE_AFTER_CREDIT,
     },
     employees,
     quarterly_liability: [

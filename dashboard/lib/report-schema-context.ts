@@ -337,6 +337,23 @@ Use COALESCE for nullable numeric fields. Format dates with to_char(col, 'YYYY-M
 - employee_workers_comp: Workers compensation class assignments per employee. (Migration 020)
   Columns: id (UUID PK), user_id (TEXT), class_id (UUID FK workers_comp_classes.id), effective_date (DATE), created_at
 
+- shared_links: Public shareable links for reports/snapshots. (Migration 035)
+  Columns: id (UUID PK), token (TEXT UNIQUE), entity_type (TEXT: snapshot/shift_report/saved_report), entity_id (TEXT), entity_payload (JSONB), title (TEXT), created_by (TEXT), created_by_name (TEXT), recipient_email (TEXT), recipient_name (TEXT), message (TEXT), expires_at (TIMESTAMPTZ), viewed_at (TIMESTAMPTZ), view_count (INT), created_at
+
+- import_batches: QuickBooks / CSV data import tracking. (Migration 036)
+  Columns: id (UUID PK), import_type (TEXT: chart_of_accounts/customers/vendors/invoices/bills/journal_entries/bank_transactions/employees), file_name (TEXT), row_count (INT), imported_count (INT), skipped_count (INT), error_count (INT), errors (JSONB), status (TEXT: pending/processing/completed/failed/rolled_back), created_by (TEXT), created_by_name (TEXT), rolled_back_at (TIMESTAMPTZ), rolled_back_by (TEXT), created_at, completed_at
+
+- state_tax_configs: Multi-state payroll tax configuration. (Migration 037)
+  Columns: id (UUID PK), state_code (CHAR(2)), state_name (TEXT), tax_year (INT), tax_type (TEXT: flat/progressive/none), flat_rate (NUMERIC), has_local_tax (BOOLEAN), sui_wage_base (NUMERIC), sui_new_employer_rate (NUMERIC), notes (TEXT), created_at
+  CONSTRAINT: UNIQUE(state_code, tax_year)
+
+- state_tax_brackets: Progressive state income tax brackets. (Migration 037)
+  Columns: id (UUID PK), state_code (CHAR(2)), tax_year (INT), filing_status (TEXT), bracket_min (NUMERIC), bracket_max (NUMERIC), rate (NUMERIC), created_at
+
+- state_reciprocity: State tax reciprocity agreements. (Migration 037)
+  Columns: id (UUID PK), home_state (CHAR(2)), work_state (CHAR(2)), tax_year (INT), notes (TEXT), created_at
+  CONSTRAINT: UNIQUE(home_state, work_state, tax_year)
+
 ## Key Relationships
 - timesheets.user_id = employee_profiles.user_id (TEXT, Clerk user ID)
 - invoices.customer_id = customers.id (UUID)

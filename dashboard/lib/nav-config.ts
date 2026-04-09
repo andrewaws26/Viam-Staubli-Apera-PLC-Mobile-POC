@@ -179,7 +179,10 @@ export const NAV_SECTIONS: NavSection[] = [
       },
       {
         title: "",
-        items: [{ href: "/accounting/audit-trail", label: "Audit Trail" }],
+        items: [
+          { href: "/accounting/import", label: "QB Data Import" },
+          { href: "/accounting/audit-trail", label: "Audit Trail" },
+        ],
       },
     ],
   },

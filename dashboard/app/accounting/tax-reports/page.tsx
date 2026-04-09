@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import ComplianceDisclaimer from "@/components/ComplianceDisclaimer";
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -280,6 +281,8 @@ export default function TaxReportsPage() {
     <div className="min-h-screen bg-gray-950 text-gray-100">
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+        <ComplianceDisclaimer variant="tax" />
+
         {/* ── Summary Cards ── */}
         {dataSummary && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

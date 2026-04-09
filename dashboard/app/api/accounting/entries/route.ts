@@ -230,6 +230,21 @@ export async function POST(request: NextRequest) {
   try {
     const sb = getSupabase();
 
+    // Check period is not locked/closed
+    const { data: period } = await sb
+      .from("accounting_periods")
+      .select("status, label")
+      .lte("start_date", entry_date as string)
+      .gte("end_date", entry_date as string)
+      .maybeSingle();
+
+    if (period?.status === "locked" || period?.status === "closed") {
+      return NextResponse.json(
+        { error: `Cannot create entry in a ${period.status} accounting period (${period.label})` },
+        { status: 400 },
+      );
+    }
+
     // Create the journal entry header
     const { data: entry, error: entryErr } = await sb
       .from("journal_entries")

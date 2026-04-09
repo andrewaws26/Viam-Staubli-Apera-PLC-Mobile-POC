@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import ComplianceDisclaimer from "@/components/ComplianceDisclaimer";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -251,6 +252,8 @@ export default function SalesTaxPage() {
     <div className="min-h-screen bg-gray-950 text-gray-100">
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+        <ComplianceDisclaimer variant="tax" />
+
         {/* Banners */}
         {successMsg && (
           <div className="rounded-lg bg-emerald-900/60 border border-emerald-700/50 px-4 py-3 text-sm text-emerald-200">

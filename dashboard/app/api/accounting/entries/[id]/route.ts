@@ -148,6 +148,21 @@ export async function PATCH(
         );
       }
 
+      // Check period is not locked/closed
+      const { data: period } = await sb
+        .from("accounting_periods")
+        .select("status, label")
+        .lte("start_date", entry.entry_date)
+        .gte("end_date", entry.entry_date)
+        .maybeSingle();
+
+      if (period?.status === "locked" || period?.status === "closed") {
+        return NextResponse.json(
+          { error: `Cannot post to a ${period.status} accounting period (${period.label})` },
+          { status: 400 },
+        );
+      }
+
       // Fetch lines with account info for balance updates
       const { data: lines, error: linesErr } = await sb
         .from("journal_entry_lines")
