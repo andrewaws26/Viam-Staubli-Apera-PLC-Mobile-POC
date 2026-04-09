@@ -65,6 +65,19 @@ export default function TopNav() {
 
         {/* Center: Section links (desktop) */}
         <div className="hidden md:flex items-center gap-1">
+          <a
+            href="/"
+            className={`relative px-3 py-2 rounded-md text-sm font-semibold transition-colors ${
+              pathname === "/"
+                ? "text-white bg-violet-500/10"
+                : "text-gray-500 hover:text-gray-200 hover:bg-gray-800/50"
+            }`}
+          >
+            Home
+            {pathname === "/" && (
+              <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-violet-500 rounded-full" />
+            )}
+          </a>
           {NAV_SECTIONS.filter((s) => canAccessSection(role, s)).map((s) => {
             const isActive = activeSection?.id === s.id;
             return (
