@@ -139,7 +139,7 @@ If any field cannot be determined, use null.`,
       );
     }
 
-    // Parse the JSON from Claude's response
+    // Parse the JSON from Claude's response and validate structure
     let extracted;
     try {
       // Strip any accidental markdown fencing Claude might add
@@ -148,7 +148,7 @@ If any field cannot be determined, use null.`,
         raw = raw.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
       }
       extracted = JSON.parse(raw);
-    } catch (parseErr) {
+    } catch {
       console.error("[RECEIPT-OCR] Failed to parse Claude response as JSON:", textBlock.text);
       return NextResponse.json(
         {
@@ -157,6 +157,33 @@ If any field cannot be determined, use null.`,
         },
         { status: 502 },
       );
+    }
+
+    // Validate extracted data has expected shape
+    if (typeof extracted !== "object" || extracted === null || Array.isArray(extracted)) {
+      console.error("[RECEIPT-OCR] Parsed JSON is not an object:", typeof extracted);
+      return NextResponse.json(
+        { error: "OCR returned unexpected data format", raw_text: textBlock.text },
+        { status: 502 },
+      );
+    }
+
+    // Coerce numeric fields (Claude sometimes returns strings)
+    if (typeof extracted.total_amount === "string") {
+      extracted.total_amount = parseFloat(extracted.total_amount) || null;
+    }
+    if (typeof extracted.tax_amount === "string") {
+      extracted.tax_amount = parseFloat(extracted.tax_amount) || null;
+    }
+    if (typeof extracted.subtotal === "string") {
+      extracted.subtotal = parseFloat(extracted.subtotal) || null;
+    }
+    if (Array.isArray(extracted.line_items)) {
+      for (const item of extracted.line_items) {
+        if (typeof item.amount === "string") {
+          item.amount = parseFloat(item.amount) || null;
+        }
+      }
     }
 
     console.log("[RECEIPT-OCR]", "Scan complete:", {

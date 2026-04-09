@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useToast } from "@/components/Toast";
 
 interface TruckAssignment {
   id: string;
@@ -25,6 +26,7 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 export default function TruckAssignments() {
+  const { toast } = useToast();
   const [assignments, setAssignments] = useState<TruckAssignment[]>([]);
   const [trucks, setTrucks] = useState<TruckListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,7 +62,7 @@ export default function TruckAssignments() {
         setTrucks(list);
         if (list.length > 0 && !formTruckId) setFormTruckId(list[0].id);
       })
-      .catch(() => {});
+      .catch(() => toast("Failed to load trucks"));
   }, [fetchAssignments]);
 
   async function handleAssign(e: React.FormEvent) {

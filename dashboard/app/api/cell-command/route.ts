@@ -11,6 +11,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { createRobotClient, SensorClient } from "@viamrobotics/sdk";
 import type { RobotClient } from "@viamrobotics/sdk";
 import { getDefaultTruck } from "@/lib/machines";
@@ -54,6 +55,9 @@ async function getCellClient(): Promise<RobotClient> {
 }
 
 export async function POST(request: NextRequest) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const startTime = Date.now();
 
   try {

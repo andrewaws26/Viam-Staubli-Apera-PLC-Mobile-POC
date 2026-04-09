@@ -19,6 +19,7 @@ import DevDiagnostics from "./DevDiagnostics";
 import { UserButton, useUser } from "@clerk/nextjs";
 import { useAlarm, FlashOverlay } from "./DashboardAudio";
 import { useSensorPolling } from "../hooks/useSensorPolling";
+import { useToast } from "@/components/Toast";
 
 interface TruckListItem {
   id: string;
@@ -32,6 +33,7 @@ interface TruckListItem {
 // ---------------------------------------------------------------------------
 export default function Dashboard({ truckId }: { truckId?: string }) {
   const playAlarm = useAlarm();
+  const { toast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useUser();
@@ -49,7 +51,7 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
     fetch("/api/fleet/trucks")
       .then((r) => r.json())
       .then((data) => setTrucks(Array.isArray(data) ? data : []))
-      .catch(() => {});
+      .catch(() => toast("Failed to load fleet data"));
   }, []);
 
   const currentTruck = trucks.find((t) => t.id === truckId) ?? trucks[0];

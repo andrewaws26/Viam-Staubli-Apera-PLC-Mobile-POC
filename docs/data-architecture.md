@@ -85,9 +85,11 @@ assignments, and fault code history in Supabase.
 | `maintenance_events` | Service history per truck (oil, tires, etc.) | `truck_id`, `event_type`, `mileage`, `engine_hours`, `next_due_mileage`, `next_due_date` |
 | `dtc_history` | Fault code lifecycle: first seen, last seen, cleared | `truck_id`, `spn`, `fmi`, `source_address`, `occurrence_count`, `active`, `cleared_at` |
 | `company_vehicles` | Reference table for chase vehicles and semi trucks | `vehicle_number`, `vehicle_type` (chase/semi/other), `is_active` |
+| `truck_snapshots` | Point-in-time sensor captures stored in Supabase | `truck_id`, `truck_name`, `captured_at`, `reading_data` (JSONB), `source` (manual/historical), `captured_by` |
 
 *Note: Live sensor readings (TPS, J1939 CAN, robot cell) are stored in Viam Cloud, not Supabase.
-The dashboard queries Viam's Data API for historical telemetry via `exportTabularData`.*
+The dashboard queries Viam's Data API for historical telemetry via `exportTabularData`.
+The `truck_snapshots` table stores user-triggered point-in-time captures for audit trails and work order context.*
 
 ---
 

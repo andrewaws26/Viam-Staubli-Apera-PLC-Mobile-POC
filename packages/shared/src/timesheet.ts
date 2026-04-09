@@ -306,14 +306,13 @@ export const US_STATE_CODES = [
 export const RAILROAD_OPTIONS = [
   'CSX',
   'Norfolk Southern',
-  'BNSF',
   'Union Pacific',
-  'Canadian National',
-  'Canadian Pacific',
+  'BNSF',
+  'Conrail',
   'Kansas City Southern',
-  'Amtrak',
-  'Short Line',
-  'Other',
+  'Railworks',
+  'Frontier',
+  'Yard Cleaner',
 ] as const;
 
 /** Day labels for a Mon-Sun work week */

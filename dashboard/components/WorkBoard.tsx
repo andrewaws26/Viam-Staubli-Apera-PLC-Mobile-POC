@@ -10,6 +10,7 @@ import {
 } from "@hello-pangea/dnd";
 import type { WorkOrder, WorkOrderStatus } from "@ironsight/shared/work-order";
 import WorkOrderChatTab from "@/components/Chat/WorkOrderChatTab";
+import { useToast } from "@/components/Toast";
 
 type Status = WorkOrderStatus;
 const STATUSES: Status[] = ["open", "in_progress", "blocked", "done"];
@@ -47,6 +48,7 @@ interface FleetTruck {
 export default function WorkBoard() {
   const { user } = useUser();
   const { getToken } = useAuth();
+  const { toast } = useToast();
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -96,7 +98,7 @@ export default function WorkBoard() {
     fetch("/api/fleet/trucks")
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => setFleetTrucks(data))
-      .catch(() => {});
+      .catch(() => toast("Failed to load fleet trucks"));
     const interval = setInterval(fetchOrders, 15000);
     return () => clearInterval(interval);
   }, [fetchOrders, fetchTeamMembers]);

@@ -206,6 +206,6 @@ describe("Schema Sync: Migration count tracking", () => {
     // This test ensures you're aware of all migrations.
     // When you add a new migration, update this number AND update schema-context.ts.
     const currentCount = migrations.length;
-    expect(currentCount).toBeGreaterThanOrEqual(31); // Update this when adding migrations
+    expect(currentCount).toBeGreaterThanOrEqual(33); // Update this when adding migrations
   });
 });

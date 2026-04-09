@@ -114,8 +114,9 @@ Use COALESCE for nullable numeric fields. Format dates with to_char(col, 'YYYY-M
 - timesheet_vacation_pay: Vacation hours. (Migration 007)
   Columns: id (UUID PK), timesheet_id (UUID FK), start_date (DATE), end_date (DATE), hours_per_day (NUMERIC), total_hours (NUMERIC), created_at
 
-- company_vehicles: Company vehicle reference data. (Migration 005)
+- company_vehicles: Company vehicle reference data. (Migration 005, seeded by 033)
   Columns: id (UUID PK), vehicle_number (TEXT UNIQUE), vehicle_type (TEXT: chase/semi/other), is_active (BOOLEAN), created_at
+  NOTE: Seeded with real B&B Metals fleet — 40 chase vehicles (#4, #6, #12 ... #55 a, Rental Car) and 41 semi trucks (T-16 through T-59). Vehicle numbers are the actual fleet identifiers used in timesheets. Chase vehicles use '#' prefix (e.g. '#4'), semis use 'T-' prefix (e.g. 'T-16').
 
 - employee_profiles: Employee HR data extending Clerk auth. (Migration 006)
   Columns: id (UUID PK), user_id (TEXT UNIQUE), user_name (TEXT), user_email (TEXT), phone (TEXT), emergency_contact_name (TEXT), emergency_contact_phone (TEXT), hire_date (DATE), job_title (TEXT), department (TEXT), profile_picture_url (TEXT), created_at, updated_at
@@ -490,5 +491,32 @@ WHERE pr.status = 'posted'
   AND pr.pay_period_start >= '2026-01-01' AND pr.pay_period_end < '2026-04-01'
 GROUP BY prl.employee_name
 ORDER BY total_gross DESC
+LIMIT 500
+
+User: "Show all truck snapshots for truck 01 in the last week"
+SQL:
+SELECT ts.label, ts.notes, ts.source,
+       to_char(ts.captured_at, 'YYYY-MM-DD HH24:MI') as captured_at,
+       ts.created_by_name as captured_by,
+       ts.engine_rpm, ts.vehicle_speed_mph, ts.coolant_temp_f,
+       ts.battery_voltage_v, ts.engine_hours, ts.active_dtc_count
+FROM truck_snapshots ts
+WHERE ts.truck_id = '01'
+  AND ts.captured_at > now() - interval '7 days'
+ORDER BY ts.captured_at DESC
+LIMIT 500
+
+User: "Which chase vehicles were used most in timesheets last month?"
+SQL:
+SELECT cv.vehicle_number, cv.vehicle_type,
+       COUNT(DISTINCT t.id) as timesheet_count,
+       COUNT(DISTINCT t.user_id) as unique_users
+FROM company_vehicles cv
+JOIN timesheets t ON t.chase_vehicles::jsonb @> to_jsonb(cv.vehicle_number)
+WHERE cv.vehicle_type = 'chase'
+  AND t.week_ending >= (date_trunc('month', CURRENT_DATE) - interval '1 month')::date
+  AND t.week_ending < date_trunc('month', CURRENT_DATE)::date
+GROUP BY cv.vehicle_number, cv.vehicle_type
+ORDER BY timesheet_count DESC
 LIMIT 500
 `;

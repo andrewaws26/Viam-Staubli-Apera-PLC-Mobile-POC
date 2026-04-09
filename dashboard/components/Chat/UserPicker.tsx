@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useToast } from "@/components/Toast";
 
 interface OrgUser {
   id: string;
@@ -23,6 +24,7 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 export default function UserPicker({ onSelect, onClose, currentUserId }: UserPickerProps) {
+  const { toast } = useToast();
   const [users, setUsers] = useState<OrgUser[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -31,7 +33,7 @@ export default function UserPicker({ onSelect, onClose, currentUserId }: UserPic
     fetch("/api/chat/users")
       .then((res) => res.json())
       .then((data) => setUsers(data))
-      .catch(() => {})
+      .catch(() => toast("Failed to load users"))
       .finally(() => setLoading(false));
   }, []);
 

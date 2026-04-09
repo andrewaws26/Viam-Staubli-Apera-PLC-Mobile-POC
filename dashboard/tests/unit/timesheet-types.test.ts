@@ -66,25 +66,20 @@ describe("TimesheetStatus values", () => {
 // ── RAILROAD_OPTIONS ────────────────────────────────────────────────
 
 describe("RAILROAD_OPTIONS", () => {
-  it("includes all expected Class I railroads", () => {
-    // The major Class I railroads B&B Metals contracts with
+  it("includes all railroads B&B Metals contracts with", () => {
     expect(RAILROAD_OPTIONS).toContain("CSX");
     expect(RAILROAD_OPTIONS).toContain("Norfolk Southern");
     expect(RAILROAD_OPTIONS).toContain("BNSF");
     expect(RAILROAD_OPTIONS).toContain("Union Pacific");
-    expect(RAILROAD_OPTIONS).toContain("Canadian National");
-    expect(RAILROAD_OPTIONS).toContain("Canadian Pacific");
+    expect(RAILROAD_OPTIONS).toContain("Conrail");
     expect(RAILROAD_OPTIONS).toContain("Kansas City Southern");
-    expect(RAILROAD_OPTIONS).toContain("Amtrak");
+    expect(RAILROAD_OPTIONS).toContain("Railworks");
+    expect(RAILROAD_OPTIONS).toContain("Frontier");
+    expect(RAILROAD_OPTIONS).toContain("Yard Cleaner");
   });
 
-  it("includes Short Line and Other as catch-all options", () => {
-    expect(RAILROAD_OPTIONS).toContain("Short Line");
-    expect(RAILROAD_OPTIONS).toContain("Other");
-  });
-
-  it("has exactly 10 railroad options", () => {
-    expect(RAILROAD_OPTIONS).toHaveLength(10);
+  it("has exactly 9 railroad options", () => {
+    expect(RAILROAD_OPTIONS).toHaveLength(9);
   });
 
   it("is a readonly tuple (cannot be mutated)", () => {

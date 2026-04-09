@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import {
   RAILROAD_OPTIONS,
   WEEKDAY_LABELS,
+  LUNCH_OPTIONS,
   type Timesheet,
   type CreateTimesheetPayload,
   type UpdateTimesheetPayload,
 } from "@ironsight/shared";
 import TimesheetSections from "./TimesheetSections";
+import { useToast } from "@/components/Toast";
 
 interface TeamMember {
   id: string;
@@ -61,6 +63,9 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
   const [nightsOut, setNightsOut] = useState(existingTimesheet?.nights_out || 0);
   const [layovers, setLayovers] = useState(existingTimesheet?.layovers || 0);
   const [coworkers, setCoworkers] = useState<{ id: string; name: string }[]>(existingTimesheet?.coworkers || []);
+  const [nsJobCode, setNsJobCode] = useState(existingTimesheet?.norfolk_southern_job_code || "");
+  const [iftaOdometerStart, setIftaOdometerStart] = useState<number | null>(existingTimesheet?.ifta_odometer_start ?? null);
+  const [iftaOdometerEnd, setIftaOdometerEnd] = useState<number | null>(existingTimesheet?.ifta_odometer_end ?? null);
   const [notes, setNotes] = useState(existingTimesheet?.notes || "");
   const [dailyLogs, setDailyLogs] = useState<{
     log_date: string;
@@ -69,6 +74,11 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
     hours_worked: number;
     travel_hours: number;
     description: string;
+    lunch_minutes: number;
+    semi_truck_travel: boolean;
+    traveling_from: string;
+    destination: string;
+    travel_miles: number | null;
   }[]>([]);
 
   // Reference data
@@ -80,17 +90,18 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const { toast } = useToast();
 
   // Load reference data
   useEffect(() => {
     fetch("/api/timesheets/vehicles")
       .then((r) => r.json())
       .then((d) => setVehicleOptions({ chase: d.chase || [], semi: d.semi || [] }))
-      .catch(() => {});
+      .catch(() => toast("Failed to load vehicles"));
     fetch("/api/team-members")
       .then((r) => r.json())
       .then((d) => setTeamMembers(Array.isArray(d) ? d.filter((m: TeamMember) => m.id !== currentUserId) : []))
-      .catch(() => {});
+      .catch(() => toast("Failed to load team members"));
   }, [currentUserId]);
 
   // Initialize daily logs when week ending changes
@@ -110,6 +121,11 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
             hours_worked: existing?.hours_worked || 0,
             travel_hours: existing?.travel_hours || 0,
             description: existing?.description || "",
+            lunch_minutes: existing?.lunch_minutes ?? 0,
+            semi_truck_travel: existing?.semi_truck_travel ?? false,
+            traveling_from: existing?.traveling_from || "",
+            destination: existing?.destination || "",
+            travel_miles: existing?.travel_miles ?? null,
           };
         }),
       );
@@ -122,6 +138,11 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
           hours_worked: 0,
           travel_hours: 0,
           description: "",
+          lunch_minutes: 0,
+          semi_truck_travel: false,
+          traveling_from: "",
+          destination: "",
+          travel_miles: null,
         })),
       );
     }
@@ -131,17 +152,19 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
     initDailyLogs(weekEnding);
   }, [weekEnding, initDailyLogs]);
 
-  function updateDailyLog(idx: number, field: string, value: string | number) {
+  function updateDailyLog(idx: number, field: string, value: string | number | boolean | null) {
     setDailyLogs((prev) => {
       const next = [...prev];
       next[idx] = { ...next[idx], [field]: value };
 
-      // Auto-calculate hours from start/end times
-      if ((field === "start_time" || field === "end_time") && next[idx].start_time && next[idx].end_time) {
+      // Auto-calculate hours from start/end times minus lunch
+      if ((field === "start_time" || field === "end_time" || field === "lunch_minutes") && next[idx].start_time && next[idx].end_time) {
         const [sh, sm] = next[idx].start_time.split(":").map(Number);
         const [eh, em] = next[idx].end_time.split(":").map(Number);
         let hours = eh + em / 60 - (sh + sm / 60);
         if (hours < 0) hours += 24;
+        hours -= (next[idx].lunch_minutes || 0) / 60;
+        if (hours < 0) hours = 0;
         next[idx].hours_worked = Math.round(hours * 100) / 100;
       }
       return next;
@@ -176,12 +199,15 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
       const payload = {
         week_ending: weekEnding,
         railroad_working_on: railroad || null,
+        norfolk_southern_job_code: nsJobCode || null,
         chase_vehicles: chaseVehicles,
         semi_trucks: semiTrucks,
         work_location: workLocation || null,
         nights_out: nightsOut,
         layovers,
         coworkers,
+        ifta_odometer_start: iftaOdometerStart,
+        ifta_odometer_end: iftaOdometerEnd,
         notes: notes || null,
         daily_logs: dailyLogs.filter((l) => l.hours_worked > 0 || l.description || l.start_time),
         ...(andSubmit ? { status: "submitted" } : {}),
@@ -388,6 +414,21 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
           </select>
         </div>
 
+        {/* Norfolk Southern Job Code (conditional) */}
+        {railroad === "Norfolk Southern" && (
+          <div className="mb-6">
+            <label className="block text-sm font-semibold text-gray-400 mb-2">Norfolk Southern Job Code</label>
+            <input
+              type="text"
+              value={nsJobCode}
+              onChange={(e) => setNsJobCode(e.target.value)}
+              disabled={!canEdit}
+              placeholder="e.g. NS-2026-0412"
+              className="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-700 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 disabled:opacity-50"
+            />
+          </div>
+        )}
+
         {/* Semi Trucks */}
         <div className="mb-6">
           <label className="block text-sm font-semibold text-gray-400 mb-2">Semi Truck #</label>
@@ -447,6 +488,34 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
               onChange={(e) => setLayovers(parseInt(e.target.value) || 0)}
               disabled={!canEdit}
               className="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-purple-500 disabled:opacity-50"
+            />
+          </div>
+        </div>
+
+        {/* IFTA Odometer */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-semibold text-gray-400 mb-2">IFTA Odometer Start</label>
+            <input
+              type="number"
+              min={0}
+              value={iftaOdometerStart ?? ""}
+              onChange={(e) => setIftaOdometerStart(e.target.value ? parseInt(e.target.value) : null)}
+              disabled={!canEdit}
+              placeholder="Week start mileage"
+              className="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-700 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 disabled:opacity-50"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-400 mb-2">IFTA Odometer End</label>
+            <input
+              type="number"
+              min={0}
+              value={iftaOdometerEnd ?? ""}
+              onChange={(e) => setIftaOdometerEnd(e.target.value ? parseInt(e.target.value) : null)}
+              disabled={!canEdit}
+              placeholder="Week end mileage"
+              className="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-700 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 disabled:opacity-50"
             />
           </div>
         </div>
@@ -526,15 +595,76 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
                     />
                   </div>
                 </div>
-                <div className="mt-2">
-                  <input
-                    type="text"
-                    value={log.description}
-                    onChange={(e) => updateDailyLog(idx, "description", e.target.value)}
-                    disabled={!canEdit}
-                    placeholder="Work description..."
-                    className="w-full px-2 py-1.5 rounded bg-gray-900 border border-gray-700 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-purple-500 disabled:opacity-50"
-                  />
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-2">
+                  <div className="sm:col-span-2">
+                    <label className="block text-[10px] text-gray-500 mb-1 uppercase">Description</label>
+                    <input
+                      type="text"
+                      value={log.description}
+                      onChange={(e) => updateDailyLog(idx, "description", e.target.value)}
+                      disabled={!canEdit}
+                      placeholder="Work description..."
+                      className="w-full px-2 py-1.5 rounded bg-gray-900 border border-gray-700 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-purple-500 disabled:opacity-50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-gray-500 mb-1 uppercase">Lunch</label>
+                    <select
+                      value={log.lunch_minutes}
+                      onChange={(e) => updateDailyLog(idx, "lunch_minutes", Number(e.target.value))}
+                      disabled={!canEdit}
+                      className="w-full px-2 py-1.5 rounded bg-gray-900 border border-gray-700 text-white text-sm focus:outline-none focus:border-purple-500 disabled:opacity-50"
+                    >
+                      {LUNCH_OPTIONS.map((m) => <option key={m} value={m}>{m} min</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-gray-500 mb-1 uppercase">From</label>
+                    <input
+                      type="text"
+                      value={log.traveling_from}
+                      onChange={(e) => updateDailyLog(idx, "traveling_from", e.target.value)}
+                      disabled={!canEdit}
+                      placeholder="Origin"
+                      className="w-full px-2 py-1.5 rounded bg-gray-900 border border-gray-700 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-purple-500 disabled:opacity-50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-gray-500 mb-1 uppercase">To</label>
+                    <input
+                      type="text"
+                      value={log.destination}
+                      onChange={(e) => updateDailyLog(idx, "destination", e.target.value)}
+                      disabled={!canEdit}
+                      placeholder="Destination"
+                      className="w-full px-2 py-1.5 rounded bg-gray-900 border border-gray-700 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-purple-500 disabled:opacity-50"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-2">
+                  <div>
+                    <label className="block text-[10px] text-gray-500 mb-1 uppercase">Travel Miles</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={log.travel_miles ?? ""}
+                      onChange={(e) => updateDailyLog(idx, "travel_miles", e.target.value ? parseFloat(e.target.value) : 0)}
+                      disabled={!canEdit}
+                      className="w-full px-2 py-1.5 rounded bg-gray-900 border border-gray-700 text-white text-sm focus:outline-none focus:border-purple-500 disabled:opacity-50"
+                    />
+                  </div>
+                  <div className="flex items-end pb-1">
+                    <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={log.semi_truck_travel}
+                        onChange={(e) => updateDailyLog(idx, "semi_truck_travel", e.target.checked)}
+                        disabled={!canEdit}
+                        className="rounded"
+                      />
+                      Semi Truck Travel
+                    </label>
+                  </div>
                 </div>
               </div>
             );
@@ -676,6 +806,16 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
             className="px-6 py-3 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold transition-colors"
           >
             Edit & Resubmit
+          </button>
+        )}
+
+        {/* Print / Export PDF */}
+        {existingTimesheet && (
+          <button
+            onClick={() => window.open(`/api/timesheets/${existingTimesheet.id}/pdf`, '_blank')}
+            className="px-6 py-3 rounded-lg border border-gray-600 hover:border-gray-400 text-gray-300 hover:text-white font-semibold transition-colors"
+          >
+            Print / Export PDF
           </button>
         )}
 

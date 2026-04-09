@@ -11,6 +11,7 @@ import dynamic from "next/dynamic";
 import { useUser } from "@clerk/nextjs";
 import { useState, useEffect } from "react";
 import type { PTOBalance } from "@ironsight/shared";
+import { useToast } from "@/components/Toast";
 
 const PTOList = dynamic(() => import("../../../components/PTOList"), {
   ssr: false,
@@ -32,13 +33,15 @@ export default function PTOPage() {
     ((user?.publicMetadata as Record<string, unknown>)?.role as string) ||
     "operator";
 
+  const { toast } = useToast();
+
   // Fetch PTO balance for the header cards
   useEffect(() => {
     fetch("/api/pto/balance")
       .then((r) => r.json())
       .then((data: PTOBalance) => setBalance(data))
-      .catch(() => {});
-  }, []);
+      .catch(() => toast("Failed to load PTO balance"));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isLoaded) {
     return (

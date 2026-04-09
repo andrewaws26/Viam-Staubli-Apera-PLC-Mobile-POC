@@ -6,6 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 
 const PI_HOST = process.env.PI_SSH_HOST || "100.113.196.68";
 const PI_USER = process.env.PI_SSH_USER || "andrew";
@@ -49,6 +50,9 @@ function num(val: unknown): number {
 }
 
 export async function GET(request: NextRequest) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const params = request.nextUrl.searchParams;
   const minutes = Math.min(Math.max(parseInt(params.get("minutes") || "60") || 60, 1), 600);
 

@@ -20,6 +20,7 @@ import {
   type PTOBalance,
   type CreatePTORequestPayload,
 } from "@ironsight/shared";
+import { useToast } from "@/components/Toast";
 
 interface Props {
   currentUserId: string;
@@ -51,6 +52,7 @@ const REQUEST_TYPES: PTORequestType[] = ["vacation", "sick", "personal", "bereav
 
 export default function PTORequestForm({ currentUserId }: Props) {
   const router = useRouter();
+  const { toast } = useToast();
 
   // ── Form state ──────────────────────────────────────────────────────
   const [requestType, setRequestType] = useState<PTORequestType>("vacation");
@@ -73,7 +75,7 @@ export default function PTORequestForm({ currentUserId }: Props) {
     fetch("/api/pto/balance")
       .then((r) => r.json())
       .then((data: PTOBalance) => setBalance(data))
-      .catch(() => {})
+      .catch(() => toast("Failed to load PTO balance"))
       .finally(() => setLoadingBalance(false));
   }, []);
 

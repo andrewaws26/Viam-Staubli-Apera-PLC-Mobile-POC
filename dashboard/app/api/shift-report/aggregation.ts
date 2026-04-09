@@ -8,6 +8,7 @@
 import type {
   RawPoint, TabularDataPoint, ShiftAlert, Trip, DtcEvent,
   TimeSeriesPoint, RoutePoint, Stop, RouteData, DebugData, ShiftReport,
+  DataQualityWarning,
 } from "./types";
 import { unwrapPayload, normalizeTimestamp } from "@/lib/viam-data";
 
@@ -377,6 +378,35 @@ export function buildShiftReport(
   const route = buildRoute(truck);
   const dtcEvents: DtcEvent[] = [...truck.dtcMap.entries()].map(([code, firstSeen]) => ({ code, firstSeen }));
 
+  // Data quality warnings
+  const dataQuality: DataQualityWarning[] = [];
+  if (truckPoints.length === 0) {
+    dataQuality.push({ section: "Truck", message: "No truck engine data for this period", severity: "warning" });
+  } else if (truckPoints.length < 60) {
+    dataQuality.push({ section: "Truck", message: `Only ${truckPoints.length} data points — report may be incomplete`, severity: "warning" });
+  }
+  if (tpsPoints.length === 0) {
+    dataQuality.push({ section: "TPS", message: "No TPS/production data for this period", severity: "info" });
+  }
+  if (truckPoints.length > 0 && !truck.peakCoolant) {
+    dataQuality.push({ section: "Coolant", message: "No coolant temperature readings recorded", severity: "warning" });
+  }
+  if (truckPoints.length > 0 && !truck.minBattery) {
+    dataQuality.push({ section: "Battery", message: "No battery voltage readings recorded", severity: "warning" });
+  }
+  if (truckPoints.length > 0 && truck.gpsPoints.length < 10) {
+    dataQuality.push({ section: "GPS", message: "Insufficient GPS data for route mapping", severity: "info" });
+  }
+  if (truckPoints.length > 1) {
+    const avgGap = truck.dbg_totalGapSec / (truckPoints.length - 1);
+    if (avgGap > 10) {
+      dataQuality.push({ section: "Sampling", message: `Average gap between readings is ${Math.round(avgGap)}s (expected ~1s) — possible connectivity issues`, severity: "warning" });
+    }
+    if (truck.dbg_gapsOver60s > 5) {
+      dataQuality.push({ section: "Sampling", message: `${truck.dbg_gapsOver60s} gaps over 60s detected — data may have discontinuities`, severity: "warning" });
+    }
+  }
+
   const result: ShiftReport = {
     date: dateStr, periodStart: periodStart.toISOString(), periodEnd: periodEnd.toISOString(),
     truckId: "Truck 1", timezone: tz,
@@ -387,6 +417,7 @@ export function buildShiftReport(
     dtcEvents, trips: truck.trips, alerts, route, timeSeries,
     dataPointCount: { tps: tpsPoints.length, truck: truckPoints.length },
     hasTpsData: tpsPoints.length > 0, hasTruckData: truckPoints.length > 0,
+    dataQuality,
   };
 
   if (includeDebug) {

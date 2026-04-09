@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { getSupabase } from "@/lib/supabase";
 import { logAuditDirect } from "@/lib/audit";
+import { checkIdempotency, saveIdempotency } from "@/lib/idempotency";
 
 async function getUserInfo(userId: string) {
   try {
@@ -77,6 +78,13 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Idempotency guard — prevent duplicate invoices
+  const idemKey = request.headers.get("x-idempotency-key");
+  if (idemKey) {
+    const cached = checkIdempotency(idemKey);
+    if (cached) return NextResponse.json(cached.body, { status: cached.status });
+  }
 
   const userInfo = await getUserInfo(userId);
   if (userInfo.role !== "developer" && userInfo.role !== "manager")

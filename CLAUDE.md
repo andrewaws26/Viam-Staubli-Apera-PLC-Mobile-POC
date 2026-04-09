@@ -50,8 +50,11 @@ Data syncs to Viam Cloud at 1 Hz. A Next.js dashboard on Vercel shows live statu
 python3 -m pytest modules/plc-sensor/tests/ -v     # 149 tests
 python3 -m pytest modules/j1939-sensor/tests/ -v    # 148 tests
 
-# Dashboard unit tests (vitest)
-cd dashboard && npx vitest run                      # includes chat + cell watchdog tests
+# Dashboard unit tests (vitest) — 1178 tests across 27 files
+cd dashboard && npx vitest run
+
+# Quick verify (build + tests in one command)
+cd dashboard && npm run verify
 
 # Dashboard build check
 cd dashboard && npx next build
@@ -59,6 +62,13 @@ cd dashboard && npx next build
 # Playwright E2E (needs browser install first)
 cd dashboard && npx playwright install && npx playwright test
 ```
+
+**Dashboard test coverage** (3 layers):
+- **Layer 1** — Pure function unit tests: aggregation logic, payroll tax math, data parsing, infrastructure (rate limiter, circuit breaker, idempotency, retry, SQL validator)
+- **Layer 2** — API route handler tests: auth enforcement scan (every API route checked for auth), route-level validation patterns, financial route role checks
+- **Layer 3** — External API contract tests: Viam data shapes, Supabase table schemas, Anthropic API usage, Clerk auth metadata
+
+**Auth middleware**: Default-deny on all `/api` routes. Only `/api/webhooks(.*)` is public. All other API routes require Clerk session auth. Financial routes additionally require manager/developer role.
 
 ## Monorepo & Shared Package
 

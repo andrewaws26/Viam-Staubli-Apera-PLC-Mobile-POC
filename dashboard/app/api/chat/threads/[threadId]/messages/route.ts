@@ -12,6 +12,7 @@ import {
 } from "@/lib/chat";
 import { sendChatPushNotifications } from "@/lib/chat-push";
 import { generateThreadAiResponse, AiThreadContext } from "@/lib/ai";
+import { aiMentionLimiter } from "@/lib/rate-limit";
 
 async function getUserInfo(userId: string): Promise<{ name: string; role: string }> {
   try {
@@ -230,8 +231,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
       messagePreview: body.body.trim(),
     });
 
-    // If @ai mentioned, generate AI response
+    // If @ai mentioned, generate AI response (rate limited)
     if (body.mentionAi) {
+      const rateCheck = aiMentionLimiter.check(userId);
+      if (!rateCheck.allowed) {
+        console.warn("[TEAM-CHAT-LOG]", `AI rate limited: user=${userId} retryAfter=${rateCheck.retryAfterMs}ms`);
+        // Still return the user's message successfully, just skip AI
+        return NextResponse.json(dbRowToMessage(message), { status: 201 });
+      }
       try {
         // Fetch recent messages for context
         const { data: recentMsgs } = await sb

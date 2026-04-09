@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import type { Timesheet, TimesheetStatus } from "@ironsight/shared";
+import { useToast } from "@/components/Toast";
 
 const STATUS_BADGE: Record<TimesheetStatus, { bg: string; text: string; label: string }> = {
   draft: { bg: "bg-gray-700", text: "text-gray-300", label: "Draft" },
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export default function TimesheetList({ currentUserRole }: Props) {
+  const { toast } = useToast();
   const [timesheets, setTimesheets] = useState<Timesheet[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
@@ -27,7 +29,7 @@ export default function TimesheetList({ currentUserRole }: Props) {
     fetch(`/api/timesheets?${params}`)
       .then((r) => r.json())
       .then((data) => setTimesheets(Array.isArray(data) ? data : []))
-      .catch(() => setTimesheets([]))
+      .catch(() => { toast("Failed to load timesheets"); setTimesheets([]); })
       .finally(() => setLoading(false));
   }, [filter]);
 

@@ -2,15 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { getSupabase } from "@/lib/supabase";
 import { logAuditDirect } from "@/lib/audit";
+import {
+  r2,
+  periodsPerYear,
+  getTaxValue,
+  calcFederalWithholding,
+  calcSocialSecurity,
+  calcMedicare,
+  calcFuta,
+  calcSuta,
+  type TaxRateRow,
+  type TaxProfileRow,
+} from "@/lib/payroll-tax";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/** Round to 2 decimal places — avoids floating-point dust. */
-function r2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
 
 async function getUserInfo(userId: string) {
   try {
@@ -35,39 +42,6 @@ function isManager(role: string): boolean {
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-interface TaxRateRow {
-  tax_type: string;
-  filing_status: string | null;
-  bracket_min: number;
-  bracket_max: number | null;
-  rate: number;
-  flat_amount: number;
-}
-
-interface TaxProfileRow {
-  user_id: string;
-  filing_status: string;
-  dependents_credit: number;
-  other_income: number;
-  deductions: number;
-  extra_withholding: number;
-  state_withholding: number;
-  state_extra_wh: number;
-  pay_frequency: string;
-  hourly_rate: number | null;
-  salary_annual: number | null;
-  pay_type: string;
-  ytd_gross_pay: number;
-  ytd_federal_wh: number;
-  ytd_state_wh: number;
-  ytd_ss_employee: number;
-  ytd_medicare_employee: number;
-  ytd_ss_employer: number;
-  ytd_medicare_employer: number;
-  ytd_futa: number;
-  ytd_suta: number;
-}
 
 interface PayrollLine {
   user_id: string;
@@ -100,164 +74,6 @@ interface PayrollLine {
   total_employer_tax: number;
   timesheet_id: string | null;
   notes: string | null;
-}
-
-// ---------------------------------------------------------------------------
-// Tax calculation helpers
-// ---------------------------------------------------------------------------
-
-function periodsPerYear(freq: string): number {
-  switch (freq) {
-    case "weekly":
-      return 52;
-    case "biweekly":
-      return 26;
-    case "semimonthly":
-      return 24;
-    case "monthly":
-      return 12;
-    default:
-      return 52;
-  }
-}
-
-/** Look up a single flat rate/amount from the tax tables. */
-function getTaxValue(
-  rates: TaxRateRow[],
-  taxType: string,
-  field: "rate" | "flat_amount" = "rate",
-): number {
-  const row = rates.find((r) => r.tax_type === taxType);
-  return row ? Number(row[field]) : 0;
-}
-
-/**
- * Federal income tax withholding using the 2020+ W-4 percentage method.
- * Annualize -> apply brackets -> de-annualize.
- */
-function calcFederalWithholding(
-  grossPay: number,
-  profile: TaxProfileRow,
-  brackets: TaxRateRow[],
-  stdDeductions: TaxRateRow[],
-): number {
-  const periods = periodsPerYear(profile.pay_frequency);
-  const annualized = grossPay * periods;
-
-  // Standard deduction for filing status
-  const stdDed =
-    stdDeductions.find((r) => r.filing_status === profile.filing_status)
-      ?.flat_amount ?? 0;
-
-  // Taxable income (annualized)
-  let taxableIncome =
-    annualized -
-    Number(stdDed) -
-    Number(profile.deductions) +
-    Number(profile.other_income);
-
-  if (taxableIncome <= 0) {
-    // Even if taxable income is zero, apply extra withholding
-    return r2(Math.max(0, Number(profile.extra_withholding)));
-  }
-
-  // Find applicable brackets for filing status
-  const filingBrackets = brackets
-    .filter((b) => b.filing_status === profile.filing_status)
-    .sort((a, b) => Number(a.bracket_min) - Number(b.bracket_min));
-
-  // Apply progressive brackets
-  let annualTax = 0;
-  for (const bracket of filingBrackets) {
-    const min = Number(bracket.bracket_min);
-    const max = bracket.bracket_max != null ? Number(bracket.bracket_max) : Infinity;
-    if (taxableIncome > min) {
-      if (taxableIncome <= max) {
-        annualTax = Number(bracket.flat_amount) + (taxableIncome - min) * Number(bracket.rate);
-        break;
-      }
-      // Continue to next bracket
-    }
-  }
-
-  // De-annualize
-  let periodTax = annualTax / periods;
-
-  // Subtract dependents credit prorated per period
-  periodTax -= Number(profile.dependents_credit) / periods;
-
-  // Add extra withholding (step 4c)
-  periodTax += Number(profile.extra_withholding);
-
-  return r2(Math.max(0, periodTax));
-}
-
-/**
- * Social Security calculation with wage base cap.
- */
-function calcSocialSecurity(
-  grossPay: number,
-  ytdGross: number,
-  ssRate: number,
-  ssWageBase: number,
-): number {
-  const remaining = Math.max(0, ssWageBase - ytdGross);
-  const taxable = Math.min(grossPay, remaining);
-  return r2(taxable * ssRate);
-}
-
-/**
- * Medicare calculation with additional Medicare tax above threshold.
- */
-function calcMedicare(
-  grossPay: number,
-  ytdGross: number,
-  medicareRate: number,
-  additionalRate: number,
-  threshold: number,
-): number {
-  let tax = r2(grossPay * medicareRate);
-
-  // Additional Medicare Tax on earnings above threshold (employee only)
-  const totalGross = ytdGross + grossPay;
-  if (totalGross > threshold) {
-    const excessThisPeriod =
-      ytdGross >= threshold
-        ? grossPay
-        : totalGross - threshold;
-    tax = r2(tax + excessThisPeriod * additionalRate);
-  }
-
-  return tax;
-}
-
-/**
- * FUTA calculation with wage base cap and state credit.
- */
-function calcFuta(
-  grossPay: number,
-  ytdGross: number,
-  futaRate: number,
-  futaCredit: number,
-  futaWageBase: number,
-): number {
-  const remaining = Math.max(0, futaWageBase - ytdGross);
-  const taxable = Math.min(grossPay, remaining);
-  return r2(taxable * (futaRate - futaCredit));
-}
-
-/**
- * SUTA calculation with wage base cap.
- */
-function calcSuta(
-  grossPay: number,
-  ytdGross: number,
-  sutaRate: number,
-  sutaWageBase: number,
-): number {
-  const remaining = Math.max(0, sutaWageBase - ytdGross);
-  const taxable = Math.min(grossPay, remaining);
-  return r2(taxable * sutaRate);
 }
 
 // ---------------------------------------------------------------------------
@@ -688,6 +504,14 @@ export async function POST(request: NextRequest) {
   const { userId } = await auth();
   if (!userId)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Idempotency guard — prevent duplicate payroll runs from double-clicks
+  const idemKey = request.headers.get("x-idempotency-key");
+  if (idemKey) {
+    const { checkIdempotency } = await import("@/lib/idempotency");
+    const cached = checkIdempotency(idemKey);
+    if (cached) return NextResponse.json(cached.body, { status: cached.status });
+  }
 
   const userInfo = await getUserInfo(userId);
   if (!isManager(userInfo.role))

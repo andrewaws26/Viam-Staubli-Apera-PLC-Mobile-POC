@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import type { Timesheet, TimesheetStatus } from "@ironsight/shared";
+import { useToast } from "@/components/Toast";
 
 const STATUS_BADGE: Record<TimesheetStatus, { bg: string; text: string; label: string }> = {
   draft: { bg: "bg-gray-700", text: "text-gray-300", label: "Draft" },
@@ -22,6 +23,7 @@ interface AdminData {
 }
 
 export default function TimesheetAdmin() {
+  const { toast } = useToast();
   const [data, setData] = useState<AdminData | null>(null);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("submitted");
@@ -36,7 +38,7 @@ export default function TimesheetAdmin() {
     fetch(`/api/timesheets/admin?${params}`)
       .then((r) => r.json())
       .then((d) => setData(d))
-      .catch(() => setData(null))
+      .catch(() => { toast("Failed to load timesheet admin data"); setData(null); })
       .finally(() => setLoading(false));
   }
 

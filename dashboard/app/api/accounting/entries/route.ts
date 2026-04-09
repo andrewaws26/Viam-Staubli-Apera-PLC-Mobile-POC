@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { getSupabase } from "@/lib/supabase";
 import { logAuditDirect } from "@/lib/audit";
+import { checkIdempotency, saveIdempotency } from "@/lib/idempotency";
 import type { JournalEntrySource } from "@ironsight/shared/accounting";
 
 /**
@@ -138,6 +139,13 @@ export async function POST(request: NextRequest) {
   const { userId } = await auth();
   if (!userId)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Idempotency guard — prevent duplicate journal entries
+  const idemKey = request.headers.get("x-idempotency-key");
+  if (idemKey) {
+    const cached = checkIdempotency(idemKey);
+    if (cached) return NextResponse.json(cached.body, { status: cached.status });
+  }
 
   const userInfo = await getUserInfo(userId);
   const isManager = userInfo.role === "developer" || userInfo.role === "manager";

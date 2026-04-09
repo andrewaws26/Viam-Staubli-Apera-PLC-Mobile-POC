@@ -9,6 +9,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { getLatestReading, resetDataClient } from "@/lib/viam-data";
 import { getTruckConfigs, type TruckConfig } from "@/lib/machines";
 import { getSupabase } from "@/lib/supabase";
@@ -183,6 +184,9 @@ async function fetchTruckStatus(truck: TruckConfig): Promise<TruckStatus> {
 // ---------------------------------------------------------------------------
 
 export async function GET() {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   // Check cache
   if (_cache && Date.now() - _cache.timestamp < CACHE_TTL_MS) {
     return NextResponse.json({

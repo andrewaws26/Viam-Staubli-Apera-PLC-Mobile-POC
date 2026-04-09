@@ -14,6 +14,7 @@
 import { useState, useEffect } from "react";
 import type { PTORequest, PTOStatus, PTORequestType } from "@ironsight/shared";
 import { PTO_TYPE_LABELS, PTO_STATUS_LABELS } from "@ironsight/shared";
+import { useToast } from "@/components/Toast";
 
 // ── Status badge color mapping ───────────────────────────────────────
 const STATUS_BADGE: Record<PTOStatus, { bg: string; text: string }> = {
@@ -37,6 +38,7 @@ interface Props {
 }
 
 export default function PTOList({ currentUserRole }: Props) {
+  const { toast } = useToast();
   const [requests, setRequests] = useState<PTORequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
@@ -52,7 +54,7 @@ export default function PTOList({ currentUserRole }: Props) {
     fetch(`/api/pto?${params}`)
       .then((r) => r.json())
       .then((data) => setRequests(Array.isArray(data) ? data : []))
-      .catch(() => setRequests([]))
+      .catch(() => { toast("Failed to load PTO requests"); setRequests([]); })
       .finally(() => setLoading(false));
   }
 

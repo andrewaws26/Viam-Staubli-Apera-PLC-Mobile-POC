@@ -95,6 +95,11 @@ describe("Shift Report: Data pipeline integrity", () => {
   it("trip detection should use rpm > 0 as running indicator", () => {
     expect(aggregationFile).toContain("rpm > 0");
   });
+
+  it("should generate data quality warnings", () => {
+    expect(aggregationFile).toContain("dataQuality");
+    expect(aggregationFile).toContain("DataQualityWarning");
+  });
 });
 
 // ── Snapshot Feature Tests ───────────────────────────────────────────

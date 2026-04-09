@@ -92,6 +92,12 @@ export interface DebugData {
 // Top-level shift report shape
 // ---------------------------------------------------------------------------
 
+export interface DataQualityWarning {
+  section: string;
+  message: string;
+  severity: "info" | "warning";
+}
+
 export interface ShiftReport {
   date: string;
   periodStart: string;
@@ -115,5 +121,6 @@ export interface ShiftReport {
   dataPointCount: { tps: number; truck: number };
   hasTpsData: boolean;
   hasTruckData: boolean;
+  dataQuality: DataQualityWarning[];
   _debug?: DebugData;
 }

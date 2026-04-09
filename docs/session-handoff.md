@@ -9,10 +9,10 @@
 | Metric | Value |
 |--------|-------|
 | Python tests | **297 passing** (148 j1939 + 149 plc) |
-| Dashboard unit tests | **430 passing** (vitest) |
+| Dashboard unit tests | **1178 passing** (vitest, 27 test files) |
 | Dashboard build | **Clean** (all routes compile) |
 | Playwright E2E | 18 tests configured |
-| Supabase migrations | **11 applied** (001–011) |
+| Supabase migrations | **32 applied** (001–032) |
 | Production | Vercel auto-deploy from `main` |
 
 ## IronSight Company OS — What's Built
@@ -24,14 +24,22 @@
 - Role-based visibility: operators see basic modules, managers see finance, developers see admin/dev tools
 - Time-of-day greeting from Clerk user data
 
-### Accounting Module
-- **Double-entry bookkeeping** — Chart of Accounts (32 seeded accounts), Journal Entries with balanced debit/credit lines
-- **Trial Balance & P&L** reports at `/accounting/reports`
-- **Auto-journal entries** from timesheets: per diem (DR 5100 / CR 2110), expenses (category→account mapping)
-- **Workflow**: draft → posted → voided (with balance reversal)
-- **Pages**: `/accounting`, `/accounting/new`, `/accounting/[id]`, `/accounting/reports`
-- **API**: `/api/accounting/accounts`, `/api/accounting/entries`, `/api/accounting/trial-balance`
-- **Migration**: 009_accounting.sql (applied)
+### Accounting Module (Full QuickBooks Replacement)
+- **Double-entry bookkeeping** — Chart of Accounts (40+ accounts), Journal Entries with balanced debit/credit lines
+- **AR/AP** — Invoicing with line items and payments, bill management, aging reports (30/60/90/120+ buckets)
+- **Payroll** — Full payroll processing with 2026 federal/KY/FICA/FUTA/SUTA tax engine, W-4 profiles, benefits
+- **Bank reconciliation** — CSV import, transaction matching, reconciliation sessions
+- **Fixed assets** — Asset register with depreciation (straight-line/declining/sum-of-years), disposal with gain/loss JE
+- **Estimates** — Quotes with convert-to-invoice workflow
+- **Expense management** — Auto-categorization rules, credit card import with dedup, receipt OCR via Claude Vision
+- **Compliance** — Form 941/940 worksheets, KY withholding, filing calendar, 1099 vendor tracking, sales tax
+- **Recurring entries** — Templates with auto-generation, accounting period close/lock/reopen, year-end close
+- **Budget** — Budget entry and variance analysis
+- **Reports** — Trial Balance, P&L, Balance Sheet, General Ledger, Aging, Cash Flow, Budget vs Actual
+- **Auto-journal entries** from timesheets (per diem, expenses), invoices, bills, payroll, depreciation, asset disposal, CC transactions
+- **20+ pages**, **25+ API routes**, **14 migrations** (009–026 + supporting)
+- **Idempotency keys** on all financial write endpoints to prevent duplicate entries
+- **AI Report Generator** — Natural language to SQL via Claude, with prompt caching, retry logic, and sandboxed exec_readonly_query
 
 ### Inventory & Parts Tracking
 - **Parts catalog** with categories, costs, reorder points (22 seeded heavy-duty truck parts)
@@ -63,9 +71,29 @@
 - **Balance cards** showing remaining hours
 - **DB table**: `pto_balances` with `_total`/`_used` columns (migration 011 fix applied)
 
+### Truck Snapshots
+- **Point-in-time sensor captures** stored in Supabase (`truck_snapshots` table)
+- Historical capture with custom timestamp for backfill
+- Reading data stored as JSONB for flexible sensor payloads
+- Audit-logged via `logAudit("snapshot_captured")`
+- **API**: `/api/snapshots` (GET list, POST capture), `/api/snapshots/[id]` (GET individual)
+- **Migration**: 031_truck_snapshots.sql
+
+### Platform Hardening (2026-04-08)
+- **Auth middleware default-deny** — flipped from `/api(.*)` public to only `/api/webhooks(.*)` public
+- **Supabase retry wrapper** — `withRetry()` with exponential backoff + jitter, skips 4xx
+- **Circuit breaker** — 3-state Viam API breaker (closed/open/half_open), 5-failure threshold, 30s reset
+- **Rate limiting** — In-memory sliding window per-key limiter; `aiMentionLimiter` (5/min) on @ai chat mentions
+- **Idempotency keys** — `x-idempotency-key` header with 5-min TTL for financial endpoints (entries, invoices, payroll)
+- **SQL validation** — Token-aware parser strips string literals/comments before keyword check, complexity limit (max 10 SELECTs)
+- **Data quality warnings** — `DataQualityWarning[]` on shift reports for sparse data, GPS gaps, sampling issues
+- **Receipt OCR hardening** — JSON structure validation + numeric coercion for parsed amounts
+- **Structured logging** — `createLogger("PREFIX")` utility for consistent log formatting
+- **Compound indexes** — 14 indexes for common query patterns (migration 032)
+
 ### Team Chat
 - Entity-anchored threads (truck, work order, DTC, direct message)
-- @ai mentions trigger Claude diagnostic response
+- @ai mentions trigger Claude diagnostic response (rate-limited to 5/min per user)
 - Sensor snapshot auto-attachment
 - Domain-specific reactions
 - 21 unit tests
@@ -95,18 +123,35 @@
 ## Architecture
 
 ### Database (Supabase)
-37+ tables across 11 migrations:
+60+ tables across 32 migrations:
 - 001: Base schema (trucks, readings)
 - 002: Audit, maintenance, DTCs
 - 003: Work orders
 - 004: Team chat (threads, messages, reactions, reads)
 - 005: Timesheets + daily logs
-- 006: Profiles, PTO, training
+- 006: Profiles, PTO, training, per diem
 - 007: Timesheet sections + platform (documents, activity, tags)
 - 008: Mobile features
 - 009: Accounting (COA, journal entries)
 - 010: Inventory (parts, usage)
 - 011: PTO balance column fix
+- 012–015: Seed data (base, training, payroll, PTO)
+- 016: Accounting periods + recurring entries
+- 017–018: AR/AP (invoices, bills, customers, vendors) + seed data
+- 019: Bank reconciliation
+- 020: Payroll tax (employee tax profiles, tax rate tables, payroll runs, benefits, workers comp)
+- 021: Budgets
+- 022: Fixed assets + depreciation
+- 023: Estimates
+- 024: Expense rules + credit card accounts
+- 025: Mileage rates + payment reminders
+- 026: Sales tax
+- 027: nextval RPC
+- 028: Saved reports
+- 029: Fix readonly query
+- 030: Report query log
+- 031: Truck snapshots
+- 032: Compound indexes (14 indexes for common query patterns)
 
 ### Shared Package (`packages/shared/src/`)
 Single source of truth for types: sensor-types, auth, work-order, spn-lookup, pcode-lookup, gauge-thresholds, chat, timesheet, profile, pto, training, per-diem, accounting, inventory, format.
@@ -130,9 +175,14 @@ Single source of truth for types: sensor-types, auth, work-order, spn-lookup, pc
 | `/pto` | Time Off | Balances + requests |
 | `/training` | Training | Compliance tracking |
 | `/profile` | Employee Profile | HR fields + photo |
-| `/accounting` | Accounting | COA + journal entries |
-| `/accounting/reports` | Financial Reports | Trial Balance + P&L |
-| `/payroll` | Payroll | Export approved timesheets |
+| `/accounting` | Accounting | Full QB replacement (20+ pages) |
+| `/accounting/reports` | Financial Reports | P&L, Balance Sheet, GL, Aging, Cash Flow |
+| `/accounting/invoices` | Invoicing | AR with line items + payments |
+| `/accounting/bills` | Bills | AP management |
+| `/accounting/payroll-run` | Payroll | Full tax engine processing |
+| `/accounting/receipt-ocr` | Receipt Scanner | Claude Vision OCR |
+| `/accounting/tax-reports` | Tax Reports | 941/940, KY withholding, filing calendar |
+| `/payroll` | Payroll Export | Export approved timesheets |
 | `/inventory` | Inventory | Parts catalog + alerts |
 | `/vision` | Vision | Product roadmap |
 | `/admin` | Admin | System settings |
@@ -167,7 +217,7 @@ git log --oneline -5
 
 # 2. Verify everything works
 cd dashboard && npx next build
-cd dashboard && npx vitest run          # 430 tests
+cd dashboard && npx vitest run          # 1178 tests
 cd .. && python3 -m pytest modules/plc-sensor/tests/ -v    # 149 tests
 python3 -m pytest modules/j1939-sensor/tests/ -v           # 148 tests
 

@@ -14,6 +14,7 @@
 
 import { useState, useEffect } from "react";
 import type { PerDiemSummary as PerDiemSummaryType, PerDiemEntry } from "@ironsight/shared";
+import { useToast } from "@/components/Toast";
 
 interface TeamMember {
   id: string;
@@ -40,6 +41,7 @@ function getMonthEnd(): string {
 }
 
 export default function PerDiemSummary({ currentUserId, currentUserRole }: Props) {
+  const { toast } = useToast();
   const isManager = currentUserRole === "developer" || currentUserRole === "manager";
 
   // ── Filter state ────────────────────────────────────────────────────
@@ -59,7 +61,7 @@ export default function PerDiemSummary({ currentUserId, currentUserRole }: Props
     fetch("/api/team-members")
       .then((r) => r.json())
       .then((data) => setTeamMembers(Array.isArray(data) ? data : []))
-      .catch(() => {});
+      .catch(() => toast("Failed to load team members"));
   }, [isManager]);
 
   // ── Load per diem data ──────────────────────────────────────────────
