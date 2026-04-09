@@ -17,6 +17,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   DEPARTMENT_OPTIONS,
   JOB_TITLE_OPTIONS,
+  PRESET_AVATARS,
   type EmployeeProfile,
   type UpdateProfilePayload,
 } from "@ironsight/shared";
@@ -250,7 +251,7 @@ export default function ProfileForm({ currentUserId, currentUserRole, targetUser
         </div>
 
         {/* Name and email */}
-        <div className="text-center sm:text-left">
+        <div className="text-center sm:text-left flex-1">
           <h2 className="text-xl font-bold text-gray-100">{profile?.user_name || "Unknown User"}</h2>
           <p className="text-sm text-gray-500">{profile?.user_email || ""}</p>
 
@@ -276,6 +277,43 @@ export default function ProfileForm({ currentUserId, currentUserRole, targetUser
           )}
         </div>
       </section>
+
+      {/* Preset Avatar Selection */}
+      {canEdit && (
+        <section className="mb-8 p-6 rounded-xl bg-gray-900/50 border border-gray-800">
+          <h3 className="text-lg font-bold text-gray-100 mb-4 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-violet-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clipRule="evenodd" />
+            </svg>
+            Choose an Avatar
+          </h3>
+          <div className="grid grid-cols-4 sm:grid-cols-8 gap-3">
+            {PRESET_AVATARS.map((avatar) => (
+              <button
+                key={avatar.path}
+                type="button"
+                onClick={() => setPictureUrl(avatar.path)}
+                className={`relative w-14 h-14 rounded-full border-2 p-2 transition-all hover:scale-110 ${
+                  pictureUrl === avatar.path
+                    ? "border-violet-500 bg-violet-500/20 ring-2 ring-violet-500/40"
+                    : "border-gray-700 bg-gray-800 hover:border-gray-500"
+                }`}
+                title={avatar.label}
+              >
+                <img src={avatar.path} alt={avatar.label} className="w-full h-full" />
+                {pictureUrl === avatar.path && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-violet-500 rounded-full flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-2.5 h-2.5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-gray-600 mt-3">Or upload a custom photo using the camera icon above.</p>
+        </section>
+      )}
 
       {/* Contact Information */}
       <section className="mb-8 p-6 rounded-xl bg-gray-900/50 border border-gray-800">

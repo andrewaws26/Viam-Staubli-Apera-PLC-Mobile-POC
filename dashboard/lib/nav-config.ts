@@ -101,6 +101,7 @@ export const NAV_SECTIONS: NavSection[] = [
       {
         title: "Admin",
         items: [
+          { href: "/team", label: "Team Roster", adminOnly: true },
           { href: "/timesheets/admin", label: "Timesheet Review", adminOnly: true },
           { href: "/pto/admin", label: "PTO Approvals", adminOnly: true },
           { href: "/training/admin", label: "Training Admin", adminOnly: true },

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
+import { useUser } from "@clerk/nextjs";
 import type { AccountType, TrialBalanceSummary, TrialBalanceRow } from "@ironsight/shared";
 import {
   ACCOUNT_TYPE_LABELS,
@@ -669,6 +670,11 @@ interface CashFlowData {
 type ReportTab = "trial-balance" | "profit-loss" | "balance-sheet" | "general-ledger" | "aging" | "cash-flow";
 
 export default function FinancialReportsPage() {
+  const { user, isLoaded } = useUser();
+  const role =
+    ((user?.publicMetadata as Record<string, unknown>)?.role as string) ||
+    "operator";
+
   const [asOf, setAsOf] = useState(todayISO());
   const [data, setData] = useState<TrialBalanceSummary | null>(null);
   const [bsData, setBsData] = useState<BalanceSheetData | null>(null);
@@ -761,6 +767,26 @@ export default function FinancialReportsPage() {
   }
 
   const hasData = data || bsData || glData || agingData || cashFlowData;
+
+  if (!isLoaded) {
+    return (
+      <div className="flex items-center justify-center py-32">
+        <div className="w-10 h-10 rounded-full border-2 border-gray-600 border-t-gray-300 animate-spin" />
+      </div>
+    );
+  }
+
+  if (role !== "developer" && role !== "manager") {
+    return (
+      <div className="flex items-center justify-center py-32">
+        <div className="text-center">
+          <h1 className="text-xl font-bold text-gray-300">Access Denied</h1>
+          <p className="text-sm text-gray-600 mt-2">Financial reports are restricted to managers and developers.</p>
+          <a href="/accounting" className="inline-block mt-4 text-sm text-purple-400 hover:text-purple-300 underline">Back to Accounting</a>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">

@@ -43,6 +43,18 @@ export const DEPARTMENT_OPTIONS = [
   'Logistics',
 ] as const;
 
+/** Preset avatar options for employee profiles. */
+export const PRESET_AVATARS = [
+  { label: 'Train', path: '/avatars/train.svg' },
+  { label: 'Robot', path: '/avatars/robot.svg' },
+  { label: 'Wrench', path: '/avatars/wrench.svg' },
+  { label: 'Hard Hat', path: '/avatars/hard-hat.svg' },
+  { label: 'Truck', path: '/avatars/truck.svg' },
+  { label: 'Gear', path: '/avatars/gear.svg' },
+  { label: 'Railroad', path: '/avatars/railroad.svg' },
+  { label: 'Safety Vest', path: '/avatars/safety-vest.svg' },
+] as const;
+
 /** Common job titles for railroad/industrial field operations. */
 export const JOB_TITLE_OPTIONS = [
   'Field Technician',

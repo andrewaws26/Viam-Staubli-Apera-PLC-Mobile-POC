@@ -58,7 +58,7 @@ function downloadCSV(results: Record<string, unknown>[], filename: string) {
 /* ── Main Page ─────────────────────────────────────────────────── */
 
 export default function ReportsPage() {
-  const { user } = useUser();
+  const { user, isLoaded } = useUser();
   const role =
     ((user?.publicMetadata as Record<string, unknown>)?.role as string) ||
     "operator";
@@ -201,6 +201,19 @@ export default function ReportsPage() {
   }
 
   const columns = result?.results?.length ? Object.keys(result.results[0]) : [];
+
+  // ── Loading guard: wait for Clerk ────────────────────────────
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen bg-gray-950">
+        <TopNav />
+        <Breadcrumb />
+        <div className="flex items-center justify-center py-32">
+          <div className="w-10 h-10 rounded-full border-2 border-gray-600 border-t-gray-300 animate-spin" />
+        </div>
+      </div>
+    );
+  }
 
   // ── Guard: only manager/developer ─────────────────────────────
   if (role !== "developer" && role !== "manager") {

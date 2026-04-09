@@ -2,7 +2,7 @@
 
 import { useUser, SignOutButton } from "@clerk/nextjs";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   NAV_SECTIONS,
   resolveSection,
@@ -10,15 +10,31 @@ import {
 } from "@/lib/nav-config";
 
 export default function TopNav() {
-  const { user } = useUser();
+  const { user, isLoaded } = useUser();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [cachedName, setCachedName] = useState("");
+  const [profilePic, setProfilePic] = useState<string | null>(null);
 
   const role =
     ((user?.publicMetadata as Record<string, unknown>)?.role as string) ||
     "operator";
   const isAdmin = role === "developer" || role === "manager";
-  const firstName = user?.firstName || "User";
+
+  useEffect(() => {
+    if (isLoaded && user?.firstName) setCachedName(user.firstName);
+  }, [isLoaded, user?.firstName]);
+
+  const firstName = cachedName || (isLoaded ? (user?.firstName || "User") : "");
+
+  useEffect(() => {
+    fetch("/api/profiles")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data?.profile_picture_url) setProfilePic(data.profile_picture_url);
+      })
+      .catch(() => {});
+  }, []);
 
   const activeSection = resolveSection(pathname);
 
@@ -77,8 +93,12 @@ export default function TopNav() {
               onClick={() => setMenuOpen(!menuOpen)}
               className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-800/60 transition-colors"
             >
-              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white">
-                {firstName[0]}
+              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white overflow-hidden">
+                {profilePic ? (
+                  <img src={profilePic} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  firstName[0]
+                )}
               </div>
               <span className="text-xs font-semibold text-gray-400 hidden sm:block">
                 {firstName}

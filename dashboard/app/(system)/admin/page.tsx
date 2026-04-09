@@ -4,6 +4,7 @@ import { useUser } from "@clerk/nextjs";
 import FleetManager from "@/components/FleetManager";
 import TruckAssignments from "@/components/TruckAssignments";
 import AuditLogViewer from "@/components/AuditLogViewer";
+import TeamRoster from "@/components/TeamRoster";
 
 export default function AdminPage() {
   const { user, isLoaded } = useUser();
@@ -12,7 +13,7 @@ export default function AdminPage() {
 
   if (!isLoaded) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+      <div className="flex items-center justify-center py-32">
         <div className="w-10 h-10 rounded-full border-2 border-gray-600 border-t-gray-300 animate-spin" />
       </div>
     );
@@ -20,7 +21,7 @@ export default function AdminPage() {
 
   if (!allowed) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+      <div className="flex items-center justify-center py-32">
         <div className="text-center">
           <h1 className="text-xl font-bold text-gray-300">Access Denied</h1>
           <p className="text-sm text-gray-600 mt-2">This page is restricted to developers and managers.</p>
@@ -33,6 +34,7 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-gray-950 text-white">
       <main className="px-4 sm:px-6 py-6 max-w-6xl mx-auto space-y-8">
+        <TeamRoster />
         <FleetManager />
         <TruckAssignments />
         <AuditLogViewer />
