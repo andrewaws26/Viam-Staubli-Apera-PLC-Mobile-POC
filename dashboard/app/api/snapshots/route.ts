@@ -102,6 +102,7 @@ export async function POST(request: NextRequest) {
     label?: string;
     notes?: string;
     systems?: string[];
+    visible_fields?: string[];
   };
   try {
     body = await request.json();
@@ -179,6 +180,10 @@ export async function POST(request: NextRequest) {
     }
 
     merged._captured_systems = capturedSystems;
+
+    if (body.visible_fields && body.visible_fields.length > 0) {
+      merged._visible_fields = body.visible_fields;
+    }
 
     // Use truck engine data for indexed columns (if available)
     const truckData = results.find(r => r.system === "truck_engine")?.data;
