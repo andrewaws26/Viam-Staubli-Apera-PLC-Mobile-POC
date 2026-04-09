@@ -18,9 +18,9 @@ interface ShareEmailParams {
  */
 export async function sendShareEmail(params: ShareEmailParams): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
-  console.log("[SHARE-EMAIL] RESEND_API_KEY present:", !!apiKey, "length:", apiKey?.length ?? 0);
+  console.log("[SHARE-EMAIL] key present:", !!apiKey, "len:", apiKey?.length ?? 0);
   if (!apiKey) {
-    console.log("[SHARE-EMAIL] Skipped — RESEND_API_KEY not configured");
+    console.log("[SHARE-EMAIL] Skipped — RESEND_API_KEY not configured. Env keys:", Object.keys(process.env).filter(k => k.includes("RESEND")).join(",") || "none");
     return false;
   }
 

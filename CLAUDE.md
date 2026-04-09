@@ -590,6 +590,36 @@ Full QuickBooks replacement for the IronSight Company OS. Double-entry bookkeepi
 
 **Roles:** Manager/developer can access all financial operations. All roles can view COA.
 
+## Job Costing Module
+
+Tracks bids, costs, revenue, and profitability per job. Costs auto-aggregate from multiple sources: manual cost entries, approved timesheet labor (hours x hourly rate), per diem from timesheets, linked invoices (revenue), and linked bills (vendor costs). This is the key differentiator vs QuickBooks — live sensor-to-ledger cost tracking.
+
+**Database tables (migration 040):**
+- `jobs` — job_number (auto-seq J-1001+), customer_id FK, name, status (bidding/active/completed/closed), job_type, location, bid_amount, contract_amount, start/end dates, estimated_hours
+- `job_cost_entries` — job_id FK, cost_type (labor/per_diem/mileage/fuel/equipment/material/subcontractor/expense/other), quantity, rate, amount, date, source_type (manual/timesheet/bill/per_diem/expense)
+- FK columns added: `timesheets.job_id`, `invoices.job_id`, `bills.job_id`, `estimates.job_id`, `work_orders.job_id`
+- `get_next_job_number()` — SQL function returns 'J-' + next sequence value
+
+**Seed data (migration 041):** 6 demo jobs (NS Track Repair, Bridge Welding, Guard Rail Fab, CSX Grinding bid, Emergency Generator, Derailment Recovery), 5 customers (NS, KY DOT, CSX, LG&E, Bluegrass Metals), 5 vendors, cost entries, invoices, and bills linked to jobs.
+
+**API routes (`dashboard/app/api/jobs/`):**
+- `jobs/` — GET (list with profitability: aggregates manual costs + labor from approved timesheets + per diem + invoice revenue), POST (create with auto job number)
+- `jobs/[id]/` — GET (full detail: cost breakdown by type, labor by employee, linked timesheets/invoices/bills/estimates, summary with profit/margin), PATCH (update fields), DELETE
+- `jobs/[id]/costs/` — GET (list cost entries), POST (add manual cost entry)
+
+**Cost aggregation logic (computed at read time):**
+- Manual costs: SUM(job_cost_entries.amount)
+- Labor: For each approved timesheet linked to job → SUM(timesheet_daily_logs.hours_worked) × employee_tax_profiles.hourly_rate
+- Per diem: SUM(per_diem_entries.total_amount) for timesheets linked to job
+- Revenue: SUM(invoices.total) where status ≠ 'voided'
+- Profit = Revenue − Total Costs; Margin = Profit / Revenue × 100
+
+**Dashboard pages:**
+- `/jobs` — Job list with summary cards (active count, revenue, costs, avg margin), status filter tabs, profitability table, inline new-job form
+- `/jobs/[id]` — Job detail with financial summary cards, bid-vs-actual comparison bars, cost breakdown by category with percentage bars, labor detail table (auto-calculated from timesheets), tabbed linked items (cost entries, timesheets, invoices, bills), inline add-cost form
+
+**Nav:** Finance sidebar → "Job Costing" group → "All Jobs". `/jobs` paths resolve to the finance section.
+
 ## Platform Foundation
 
 Cross-domain tables for the IronSight Company OS:
