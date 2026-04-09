@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import ComplianceDisclaimer from "@/components/ComplianceDisclaimer";
+
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -69,8 +69,6 @@ export default function Vendor1099Page() {
     <div className="min-h-screen bg-gray-950 text-white">
 
       <main className="px-4 sm:px-6 py-6 max-w-7xl mx-auto">
-        <ComplianceDisclaimer variant="tax" className="mb-4" />
-
         {/* Alert Banner */}
         {!loading && missingTinCount > 0 && (
           <div className="mb-6 px-4 py-3 rounded-xl bg-red-900/30 border border-red-800/60 flex items-start gap-3">

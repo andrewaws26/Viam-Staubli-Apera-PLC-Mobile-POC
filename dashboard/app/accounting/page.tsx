@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import ComplianceDisclaimer from "@/components/ComplianceDisclaimer";
+
 import type {
   Account,
   AccountType,
@@ -599,9 +599,6 @@ export default function AccountingPage() {
         {tab === "coa" ? <ChartOfAccountsTab /> : <JournalEntriesTab />}
       </main>
 
-      <div className="sticky bottom-0 px-4 sm:px-6 pb-4 pt-2 max-w-6xl mx-auto">
-        <ComplianceDisclaimer variant="general" dismissible={false} />
-      </div>
     </div>
   );
 }
