@@ -213,6 +213,42 @@ Weekly field operations time tracking with 12 sub-sections.
 - Rate managed via API (default company-wide rates)
 - Creates journal entry: DR 5100 Per Diem Expense / CR 2110 Per Diem Payable
 
+## AI Report Generator (/reports)
+Ask any question about your company data in plain English — the AI generates a SQL query, runs it, and returns results. Requires Manager or Developer role.
+
+### How It Works
+- Type a natural language question (e.g., "What is the most common error code for the trucks")
+- The AI (Claude) generates a SQL query against the IronSight database
+- The query is validated for safety (read-only, no mutations, sandboxed execution)
+- Results display in a sortable table with row count and execution time
+- If the first query fails, the AI automatically retries with the error context
+
+### Features
+- 10 pre-built example questions as quick-start chips
+- Sortable result columns (click headers)
+- CSV download for any result set
+- SQL toggle to see the generated query
+- Save reports for reuse (name, description, category, share with team)
+- Saved reports library with search, category filters, and re-run
+- All queries logged for analysis (prompt, SQL, success/failure, errors)
+
+### What You Can Ask
+- Fleet: "Show trucks with DTCs in the last 30 days", "What is the most common error code"
+- HR: "Which employees have pending timesheets", "Compare overtime hours by employee"
+- Finance: "Show overdue invoices over $5,000", "Total invoiced vs paid by customer"
+- Payroll: "Show payroll totals by employee for Q1 2026"
+- Training: "Show certifications expiring in the next 60 days"
+- Operations: "Show active work orders with assigned person"
+- Per diem: "Average per diem cost per railroad for March"
+- Any combination across all 65+ database tables
+
+### Tips
+- Be specific: "overtime hours for March 2026" works better than "show me overtime"
+- The AI knows exact column names and table relationships
+- Results are limited to 500 rows by default
+- Saved reports can be re-run anytime with fresh data
+- Share reports with your team using the share toggle
+
 ## Finance & Accounting (/accounting)
 Complete QuickBooks replacement. Requires Manager or Developer role.
 
@@ -298,6 +334,9 @@ Complete QuickBooks replacement. Requires Manager or Developer role.
 - /profile — My profile
 - /timesheets/docs — People & HR documentation
 
+### Reports Section (Manager+)
+- /reports — AI Report Generator (natural language to SQL)
+
 ### Finance Section (Manager+)
 - /accounting — Chart of Accounts + Journal Entries
 - /accounting/invoices — Invoicing (AR)
@@ -348,6 +387,7 @@ Complete QuickBooks replacement. Requires Manager or Developer role.
 | Profile (own) | Yes | Yes | Yes | Yes |
 | Finance/Accounting | No | No | Yes | Yes |
 | Fleet admin | No | No | Yes | Yes |
+| AI Report Generator | No | No | Yes | Yes |
 | AI Reports | No | No | Yes | Yes |
 | Dev tools | No | No | No | Yes |
 `;

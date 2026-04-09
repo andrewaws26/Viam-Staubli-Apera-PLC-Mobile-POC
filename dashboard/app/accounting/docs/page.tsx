@@ -30,6 +30,7 @@ const sections = [
   { id: "tax-reports", label: "Tax Reports (941)" },
   { id: "vendor-1099", label: "1099 Tracking" },
   { id: "audit-trail", label: "Audit Trail" },
+  { id: "ai-reports", label: "AI Report Generator" },
   { id: "glossary", label: "Glossary" },
 ] as const;
 
@@ -770,6 +771,64 @@ export default function AccountingDocsPage() {
             "Violet — Sent/approved actions (workflow transitions)",
           ]}
         />
+      </DocSection>
+
+      {/* ── AI REPORT GENERATOR ──────────────────────────────── */}
+      <DocSection id="ai-reports" title="AI Report Generator">
+        <P>
+          The AI Report Generator at <strong>/reports</strong> lets you query any company data
+          using plain English. Ask a question, and the AI generates a SQL query, runs it against
+          the database, and returns results — no SQL knowledge needed.
+        </P>
+        <H3>How it works</H3>
+        <NumberedList
+          items={[
+            "Go to /reports",
+            "Type a question in plain English (or click an example chip)",
+            "Click \"Generate Report\" — the AI creates and runs a SQL query",
+            "Results display in a sortable table with row count and execution time",
+            "If the query fails, the AI automatically retries with the error context",
+            "Optionally save the report for reuse by your team",
+          ]}
+        />
+        <H3>What you can ask</H3>
+        <BulletList
+          items={[
+            "Fleet: \"Show trucks with DTCs in the last 30 days\"",
+            "HR: \"Which employees have pending timesheets?\"",
+            "Finance: \"Show overdue invoices over $5,000\"",
+            "Payroll: \"Show payroll totals by employee for Q1 2026\"",
+            "Training: \"Show certifications expiring in the next 60 days\"",
+            "Operations: \"Show active work orders with assigned person\"",
+            "Any combination across all 65+ database tables",
+          ]}
+        />
+        <H3>Saved reports</H3>
+        <BulletList
+          items={[
+            "Save any generated report with a name, description, and category",
+            "Categories: fleet, finance, hr, compliance, operations, custom",
+            "Share reports with your team using the share toggle",
+            "Re-run saved reports anytime to get fresh data",
+            "Search and filter your report library",
+          ]}
+        />
+        <H3>Features</H3>
+        <BulletList
+          items={[
+            "Sortable result columns — click any header to sort",
+            "CSV download — export any result set",
+            "SQL toggle — see the generated query",
+            "Auto-retry — if a query fails, the AI corrects itself",
+            "Query logging — all attempts logged for analysis",
+            "Results limited to 500 rows by default",
+          ]}
+        />
+        <InfoBox title="Tips for better results">
+          Be specific with your questions. &quot;Show overtime hours by employee for March 2026&quot;
+          works better than &quot;show me overtime.&quot; The AI knows all table relationships and
+          column names, so the more precise your question, the better the result.
+        </InfoBox>
       </DocSection>
 
       {/* ── GLOSSARY ───────────────────────────────────────── */}

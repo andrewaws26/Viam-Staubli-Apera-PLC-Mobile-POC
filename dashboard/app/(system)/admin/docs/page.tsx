@@ -116,7 +116,7 @@ export default function AdminDocsPage() {
           rows={[
             ["All roles", "/work, /timesheets, /profile, /pto, /training"],
             ["Mechanic+", "/fleet"],
-            ["Manager+", "/admin, /timesheets/admin, /pto/admin, /training/admin, /accounting/*"],
+            ["Manager+", "/admin, /timesheets/admin, /pto/admin, /training/admin, /accounting/*, /reports"],
             ["Developer only", "/dev, /vision"],
           ]}
         />
