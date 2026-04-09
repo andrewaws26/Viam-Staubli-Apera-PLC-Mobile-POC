@@ -1,0 +1,100 @@
+name: Dev Pi 5 Automation
+
+on:
+  # Manual trigger from GitHub UI or API
+  workflow_dispatch:
+    inputs:
+      task:
+        description: 'Task to run'
+        required: true
+        type: choice
+        options:
+          - fleet-health
+          - run-tests
+          - sync-modules
+          - claude-session
+      prompt:
+        description: 'Claude prompt (only for claude-session task)'
+        required: false
+        type: string
+
+  # Scheduled runs
+  schedule:
+    # Fleet health check — every 6 hours
+    - cron: '0 */6 * * *'
+
+jobs:
+  fleet-health:
+    if: github.event_name == 'schedule' || github.event.inputs.task == 'fleet-health'
+    runs-on: [self-hosted, dev-pi]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run fleet health check
+        run: |
+          echo "=== IronSight Fleet Health Check ==="
+          echo "Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo ""
+          # Check viam-server
+          if systemctl is-active --quiet viam-server; then
+            echo "✓ viam-server: running"
+          else
+            echo "✗ viam-server: DOWN"
+          fi
+          # Check CAN bus
+          if ip link show can0 2>/dev/null | grep -q "UP"; then
+            echo "✓ can0: UP"
+          else
+            echo "✗ can0: DOWN or not present"
+          fi
+          # System stats
+          echo ""
+          echo "CPU temp: $(vcgencmd measure_temp 2>/dev/null || echo 'N/A')"
+          echo "Memory: $(free -h | awk '/^Mem:/ {print $3 "/" $2}')"
+          echo "Disk: $(df -h / | awk 'NR==2 {print $3 "/" $2 " (" $5 " used)"}')"
+          echo "Uptime: $(uptime -p)"
+
+  run-tests:
+    if: github.event.inputs.task == 'run-tests'
+    runs-on: [self-hosted, dev-pi]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Python module tests
+        run: |
+          echo "=== Running Pi Module Tests ==="
+          python3 -m pytest modules/plc-sensor/tests/ -v --tb=short 2>&1 || true
+          python3 -m pytest modules/j1939-sensor/tests/ -v --tb=short 2>&1 || true
+
+  sync-modules:
+    if: github.event.inputs.task == 'sync-modules'
+    runs-on: [self-hosted, dev-pi]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sync and restart modules
+        run: |
+          echo "=== Syncing Viam Modules ==="
+          cd ~/Viam-Staubli-Apera-PLC-Mobile-POC
+          git pull origin main
+          echo "Restarting viam-server..."
+          sudo systemctl restart viam-server
+          sleep 5
+          systemctl is-active viam-server && echo "✓ viam-server restarted" || echo "✗ restart failed"
+
+  claude-session:
+    if: github.event.inputs.task == 'claude-session'
+    runs-on: [self-hosted, dev-pi]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Claude Code session
+        run: |
+          PROMPT="${{ github.event.inputs.prompt }}"
+          if [ -z "$PROMPT" ]; then
+            echo "No prompt provided, skipping"
+            exit 0
+          fi
+          echo "=== Claude Code Session ==="
+          echo "Prompt: $PROMPT"
+          echo ""
+          claude -p "$PROMPT" --output-format text 2>&1 || echo "Claude session ended"
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
