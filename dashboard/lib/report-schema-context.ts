@@ -327,6 +327,15 @@ Use COALESCE for nullable numeric fields. Format dates with to_char(col, 'YYYY-M
 - report_query_log: Query execution log for analysis. (Migration 030)
   Columns: id (UUID PK), user_id (TEXT), user_name (TEXT), prompt (TEXT), generated_sql (TEXT), success (BOOLEAN), error_message (TEXT), row_count (INT), execution_time_ms (INT), retry_count (INT DEFAULT 0), created_at
 
+- truck_snapshots: Digital twin snapshots — full sensor state at a point in time. (Migration 031)
+  Columns: id (UUID PK), truck_id (TEXT), truck_name (TEXT), captured_at (TIMESTAMPTZ), created_at, created_by (TEXT), created_by_name (TEXT), label (TEXT), notes (TEXT), source (TEXT: live/historical), reading_data (JSONB — full sensor payload), engine_rpm (NUMERIC), vehicle_speed_mph (NUMERIC), coolant_temp_f (NUMERIC), battery_voltage_v (NUMERIC), engine_hours (NUMERIC), vehicle_distance_mi (NUMERIC), vin (TEXT), active_dtc_count (INT)
+
+- push_tokens: Mobile push notification tokens. (Migration 008)
+  Columns: id (UUID PK), user_id (TEXT), expo_token (TEXT), device_name (TEXT), platform (TEXT), created_at, updated_at
+
+- employee_workers_comp: Workers compensation class assignments per employee. (Migration 020)
+  Columns: id (UUID PK), user_id (TEXT), class_id (UUID FK workers_comp_classes.id), effective_date (DATE), created_at
+
 ## Key Relationships
 - timesheets.user_id = employee_profiles.user_id (TEXT, Clerk user ID)
 - invoices.customer_id = customers.id (UUID)
