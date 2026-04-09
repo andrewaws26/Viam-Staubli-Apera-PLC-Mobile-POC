@@ -23,7 +23,7 @@ export async function sendShareEmail(params: ShareEmailParams): Promise<boolean>
     return false;
   }
 
-  const fromAddress = process.env.SHARE_FROM_EMAIL || "IronSight <noreply@ironsight.app>";
+  const fromAddress = process.env.SHARE_FROM_EMAIL || "IronSight <onboarding@resend.dev>";
   const greeting = params.recipientName ? `Hi ${params.recipientName},` : "Hi,";
   const typeLabel = params.entityType.replace("_", " ");
 
