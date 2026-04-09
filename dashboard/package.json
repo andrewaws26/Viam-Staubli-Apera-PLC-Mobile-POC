@@ -11,6 +11,12 @@
     "test:unit:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
+    "test:visual": "playwright test tests/e2e/visual-regression.spec.ts",
+    "test:visual:update": "playwright test tests/e2e/visual-regression.spec.ts --update-snapshots",
+    "test:visual:ai": "bash scripts/run-visual-qa.sh",
+    "test:visual:ai-only": "bash scripts/run-visual-qa.sh --ai-only",
+    "test:api-health": "playwright test tests/e2e/api-health.spec.ts",
+    "test:workflows": "playwright test tests/e2e/workflows.spec.ts",
     "verify": "vitest run && next build",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix"

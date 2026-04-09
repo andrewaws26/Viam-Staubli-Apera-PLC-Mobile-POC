@@ -50,7 +50,7 @@ Data syncs to Viam Cloud at 1 Hz. A Next.js dashboard on Vercel shows live statu
 python3 -m pytest modules/plc-sensor/tests/ -v     # 149 tests
 python3 -m pytest modules/j1939-sensor/tests/ -v    # 148 tests
 
-# Dashboard unit tests (vitest) — 1178 tests across 27 files
+# Dashboard unit tests (vitest) — 1395+ tests across 30 files
 cd dashboard && npx vitest run
 
 # Quick verify (build + tests in one command)
@@ -59,14 +59,33 @@ cd dashboard && npm run verify
 # Dashboard build check
 cd dashboard && npx next build
 
-# Playwright E2E (needs browser install first)
+# Playwright E2E (needs browser install first, needs .env.test credentials)
 cd dashboard && npx playwright install && npx playwright test
+
+# E2E subsets
+cd dashboard && npm run test:api-health      # 95+ API endpoint health checks
+cd dashboard && npm run test:workflows       # 16 interactive workflow tests
+cd dashboard && npm run test:visual          # Visual regression (pixel-diff baselines)
+cd dashboard && npm run test:visual:update   # Update visual baselines
+
+# Visual QA with AI review (Claude Vision scores design quality)
+cd dashboard && npm run test:visual:ai       # Full: regression + AI review
+cd dashboard && npm run test:visual:ai-only  # AI review only (existing captures)
 ```
 
-**Dashboard test coverage** (3 layers):
+**Dashboard test coverage** (4 layers):
 - **Layer 1** — Pure function unit tests: aggregation logic, payroll tax math, data parsing, infrastructure (rate limiter, circuit breaker, idempotency, retry, SQL validator)
 - **Layer 2** — API route handler tests: auth enforcement scan (every API route checked for auth), route-level validation patterns, financial route role checks
 - **Layer 3** — External API contract tests: Viam data shapes, Supabase table schemas, Anthropic API usage, Clerk auth metadata
+- **Layer 4** — Accounting safety & compliance: 183 tests covering double-entry integrity, JE validation, invoice lifecycle, payment precision, voiding symmetry, period lock enforcement, state machines, authorization matrix, bank reconciliation math, year-end close, depreciation accuracy, and full invoice-to-cash scenarios
+
+**E2E test infrastructure:**
+- **Auth setup** (`tests/e2e/auth.setup.ts`): Clerk sign-in token API bypasses device verification for CI
+- **Visual regression** (`tests/e2e/visual-regression.spec.ts`): 48 page screenshots with `toHaveScreenshot()` baselines + mobile (iPhone 14)
+- **API health** (`tests/e2e/api-health.spec.ts`): Every API endpoint validated (200/401/403 for GET, 400/401/403 for POST)
+- **Workflows** (`tests/e2e/workflows.spec.ts`): 16 interactive tests — work orders, timesheets, invoices, JEs, PTO, chat, sensor polling
+- **Visual QA AI** (`tests/visual-qa/`): Claude Vision evaluates design quality across 6 criteria (layout, readability, consistency, intuitiveness, data presentation, completeness)
+- **QA bot account**: `qa-bot@ironsight.dev` (developer role) — credentials in `.env.test`
 
 **Auth middleware**: Default-deny on all `/api` routes. Only `/api/webhooks(.*)` is public. All other API routes require Clerk session auth. Financial routes additionally require manager/developer role.
 

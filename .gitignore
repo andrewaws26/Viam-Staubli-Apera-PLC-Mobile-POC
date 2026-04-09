@@ -24,3 +24,9 @@ dashboard/playwright-report/
 dashboard/test-results/
 dashboard/supabase/.temp/
 .next/
+
+# QA artifacts (generated, not source)
+test-results/
+supabase/.temp/
+dashboard/tests/qa-screenshots/
+dashboard/tests/qa-report.md

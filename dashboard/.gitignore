@@ -5,3 +5,6 @@ node_modules/
 .env.vercel-*
 *.tsbuildinfo
 .vercel
+tests/.auth/
+tests/visual-qa/captures/
+test-results/
