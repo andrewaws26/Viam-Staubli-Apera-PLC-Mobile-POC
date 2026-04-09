@@ -73,6 +73,29 @@ const STOPS: TourStop[] = [
       "This demo uses simulated data — on a real truck, it's live sensor readings.",
   },
   {
+    title: "AI Mechanic — Built Into Every Screen",
+    message:
+      "There's an AI diagnostic system wired into the platform. It reads the live sensor data from a truck " +
+      "and helps your mechanics figure out what's wrong — like having a master tech on call 24/7. " +
+      "It doesn't guess. It looks at the actual readings: coolant temp, boost pressure, DPF soot load, " +
+      "transmission temps, trouble codes — and tells you what could be causing the problem.",
+    value:
+      "Your mechanic is staring at a Check Engine light and three DTCs. Instead of Googling fault codes, " +
+      "he opens the truck dashboard, clicks the AI chat, and asks \"what's going on with this truck?\" " +
+      "The AI sees the live data, reads the codes, and walks him through the most likely causes. " +
+      "It asks follow-up questions — \"has the DPF been regenerated recently?\" \"when was the fuel filter changed?\" " +
+      "It's a diagnostic partner, not a magic answer machine.",
+    tryIt: {
+      label: "Open Demo Truck (scroll to AI Chat)",
+      href: "/?truck_id=00",
+    },
+    highlight:
+      "On the truck dashboard, look for the AI Chat panel at the bottom. Type a question about the truck — " +
+      "the AI sees every sensor reading in real time. There's also a \"Full Diagnosis\" button that generates " +
+      "a complete analysis in one shot. The AI also powers shift reports, work order suggestions, " +
+      "receipt scanning in accounting, and the @ai command in team chat.",
+  },
+  {
     title: "Fleet Overview",
     message:
       "Every truck in the fleet, one screen. Which ones are running, which are idle, " +
