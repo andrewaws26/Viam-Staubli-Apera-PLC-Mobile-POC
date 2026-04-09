@@ -94,6 +94,9 @@ export default function WorkflowsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [triggering, setTriggering] = useState<string | null>(null);
   const [showSetup, setShowSetup] = useState(false);
+  const [isLocal, setIsLocal] = useState(false);
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const [liveOutput, setLiveOutput] = useState<Record<string, unknown> | null>(null);
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -103,7 +106,40 @@ export default function WorkflowsPage() {
   const [formEngine, setFormEngine] = useState<string>("vercel-cron");
   const [formCron, setFormCron] = useState("");
   const [formActive, setFormActive] = useState(false);
+  const [formCommand, setFormCommand] = useState("");
+  const [formPrompt, setFormPrompt] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Detect local execution engine
+  useEffect(() => {
+    const local = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+    setIsLocal(local);
+    if (local) {
+      fetch("/api/dev-portal/workflows/execute")
+        .then((r) => r.ok ? r.json() : null)
+        .then((d) => { if (d?.available) setIsLocal(true); })
+        .catch(() => {});
+    }
+  }, []);
+
+  // Poll active run for live output
+  useEffect(() => {
+    if (!activeRunId) return;
+    const poll = setInterval(async () => {
+      const res = await fetch(`/api/dev-portal/workflows/execute?runId=${activeRunId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setLiveOutput(data.output);
+      if (data.status !== "running") {
+        setActiveRunId(null);
+        setTriggering(null);
+        fetchWorkflows();
+        clearInterval(poll);
+      }
+    }, 2000);
+    return () => clearInterval(poll);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeRunId]);
 
   const fetchWorkflows = useCallback(async () => {
     setLoading(true);
@@ -119,6 +155,7 @@ export default function WorkflowsPage() {
   const openCreate = () => {
     setEditWorkflow(null);
     setFormName(""); setFormDesc(""); setFormEngine("vercel-cron"); setFormCron(""); setFormActive(false);
+    setFormCommand(""); setFormPrompt("");
     setModalOpen(true);
   };
 
@@ -126,28 +163,33 @@ export default function WorkflowsPage() {
     setEditWorkflow(w);
     setFormName(w.name); setFormDesc(w.description || ""); setFormEngine(w.engine);
     setFormCron(w.cronExpression || ""); setFormActive(w.isActive);
+    setFormCommand((w.config?.command as string) || "");
+    setFormPrompt((w.config?.prompt as string) || "");
     setModalOpen(true);
   };
 
   const handleSave = async () => {
     setSaving(true);
+    const config: Record<string, unknown> = {};
+    if (formCommand.trim()) config.command = formCommand.trim();
+    if (formPrompt.trim()) config.prompt = formPrompt.trim();
+
+    const payload = {
+      name: formName, description: formDesc || null, engine: formEngine,
+      cronExpression: formCron || null, isActive: formActive, config,
+    };
+
     if (editWorkflow) {
       await fetch(`/api/dev-portal/workflows/${editWorkflow.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: formName, description: formDesc || null, engine: formEngine,
-          cronExpression: formCron || null, isActive: formActive,
-        }),
+        body: JSON.stringify(payload),
       });
     } else {
       await fetch("/api/dev-portal/workflows", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: formName, description: formDesc || null, engine: formEngine,
-          cronExpression: formCron || null, isActive: formActive,
-        }),
+        body: JSON.stringify(payload),
       });
     }
     setSaving(false);
@@ -166,13 +208,32 @@ export default function WorkflowsPage() {
 
   const handleTrigger = async (id: string) => {
     setTriggering(id);
-    await fetch(`/api/dev-portal/workflows/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "trigger" }),
-    });
-    setTriggering(null);
-    fetchWorkflows();
+    setLiveOutput(null);
+
+    if (isLocal) {
+      // Use local execution engine — actually runs the command
+      const res = await fetch("/api/dev-portal/workflows/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workflowId: id }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setActiveRunId(data.run.id); // start polling
+      } else {
+        setTriggering(null);
+        fetchWorkflows();
+      }
+    } else {
+      // Online mode — just log the trigger
+      await fetch(`/api/dev-portal/workflows/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "trigger" }),
+      });
+      setTriggering(null);
+      fetchWorkflows();
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -192,8 +253,19 @@ export default function WorkflowsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Workflow Builder</h1>
-          <p className="text-sm text-gray-500 mt-1">Scheduled automation across three execution engines</p>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Workflow Builder</h1>
+            {isLocal && (
+              <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-green-500/20 text-green-400 border border-green-600/30">
+                LOCAL ENGINE
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-gray-500 mt-1">
+            {isLocal
+              ? "Local execution active — workflows run on this machine"
+              : "Scheduled automation across three execution engines"}
+          </p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => setShowSetup(!showSetup)}
@@ -448,6 +520,28 @@ ssh andrew@100.112.68.52`}</pre>
                 </div>
               </div>
 
+              {/* Execution config */}
+              {(selected.config?.command || selected.config?.prompt) ? (
+                <div className="space-y-2">
+                  {selected.config.command ? (
+                    <div>
+                      <span className="text-[10px] text-gray-600 uppercase block">Command</span>
+                      <code className="text-xs text-cyan-400 bg-gray-950 rounded px-2 py-1 block mt-0.5 font-mono">
+                        {String(selected.config.command)}
+                      </code>
+                    </div>
+                  ) : null}
+                  {selected.config.prompt ? (
+                    <div>
+                      <span className="text-[10px] text-gray-600 uppercase block">Claude Prompt</span>
+                      <p className="text-xs text-gray-400 bg-gray-950 rounded px-2 py-1 mt-0.5 whitespace-pre-wrap">
+                        {String(selected.config.prompt)}
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
               {/* Recent Runs */}
               <div>
                 <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">Recent Runs</h3>
@@ -473,13 +567,68 @@ ssh andrew@100.112.68.52`}</pre>
                 )}
               </div>
 
+              {/* Live execution output */}
+              {activeRunId && triggering === selected.id && (
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-blue-400 mb-2 flex items-center gap-2">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-400" />
+                    </span>
+                    Executing...
+                  </h3>
+                  {liveOutput ? (
+                    <pre className="text-[11px] text-green-400 bg-gray-950 border border-blue-800/30 rounded-lg p-3 max-h-64 overflow-y-auto whitespace-pre-wrap font-mono">
+                      {(liveOutput as { stdout?: string }).stdout || "Waiting for output..."}
+                    </pre>
+                  ) : (
+                    <div className="text-xs text-gray-500 bg-gray-950 border border-blue-800/30 rounded-lg p-3 animate-pulse">
+                      Running command on {selected.engine}...
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Run output preview */}
-              {selected.recentRuns.length > 0 && selected.recentRuns[0].output && (
+              {selected.recentRuns.length > 0 && selected.recentRuns[0].output && !(activeRunId && triggering === selected.id) && (
                 <div>
                   <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">Latest Output</h3>
-                  <pre className="text-[11px] text-gray-400 bg-gray-950 border border-gray-800 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap font-mono">
-                    {JSON.stringify(selected.recentRuns[0].output, null, 2)}
-                  </pre>
+                  {(() => {
+                    const out = selected.recentRuns[0].output as { stdout?: string; stderr?: string; exitCode?: number; durationMs?: number };
+                    if (out.stdout !== undefined) {
+                      // Structured output from local engine
+                      return (
+                        <div className="space-y-2">
+                          <div className="flex gap-2 text-[10px]">
+                            <span className={`px-1.5 py-0.5 rounded ${out.exitCode === 0 ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"}`}>
+                              exit {out.exitCode}
+                            </span>
+                            {out.durationMs && (
+                              <span className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">
+                                {out.durationMs < 1000 ? `${out.durationMs}ms` : `${(out.durationMs / 1000).toFixed(1)}s`}
+                              </span>
+                            )}
+                          </div>
+                          {out.stdout && (
+                            <pre className="text-[11px] text-green-400/90 bg-gray-950 border border-gray-800 rounded-lg p-3 max-h-80 overflow-y-auto whitespace-pre-wrap font-mono">
+                              {out.stdout}
+                            </pre>
+                          )}
+                          {out.stderr && (
+                            <pre className="text-[11px] text-red-400/80 bg-gray-950 border border-red-900/30 rounded-lg p-3 max-h-40 overflow-y-auto whitespace-pre-wrap font-mono">
+                              {out.stderr}
+                            </pre>
+                          )}
+                        </div>
+                      );
+                    }
+                    // Fallback: raw JSON
+                    return (
+                      <pre className="text-[11px] text-gray-400 bg-gray-950 border border-gray-800 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap font-mono">
+                        {JSON.stringify(selected.recentRuns[0].output, null, 2)}
+                      </pre>
+                    );
+                  })()}
                 </div>
               )}
             </div>
@@ -572,6 +721,38 @@ ssh andrew@100.112.68.52`}</pre>
                   Schedule: <span className="text-gray-300">{describeCron(formCron)}</span>
                 </p>
               )}
+            </div>
+
+            {/* Execution Config */}
+            <div className="space-y-3 border-t border-gray-800 pt-3">
+              <label className="text-xs text-gray-500 block">Execution Config</label>
+
+              {(formEngine === "dev-pi" || formEngine === "vercel-cron") && (
+                <div>
+                  <label className="text-[10px] text-gray-600 block mb-1">
+                    {formEngine === "dev-pi" ? "SSH Command (runs on Pi 5)" : "Shell Command (runs locally)"}
+                  </label>
+                  <input value={formCommand} onChange={(e) => setFormCommand(e.target.value)}
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-gray-700 bg-gray-800/50 text-gray-200 font-mono"
+                    placeholder={formEngine === "dev-pi" ? "/usr/local/bin/fleet-health.sh" : "cd dashboard && npx vitest run"} />
+                </div>
+              )}
+
+              {formEngine === "github-actions" && (
+                <div>
+                  <label className="text-[10px] text-gray-600 block mb-1">Workflow File</label>
+                  <input value={formCommand} onChange={(e) => setFormCommand(e.target.value)}
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-gray-700 bg-gray-800/50 text-gray-200 font-mono"
+                    placeholder="dev-pi.yml" />
+                </div>
+              )}
+
+              <div>
+                <label className="text-[10px] text-gray-600 block mb-1">Claude Prompt (optional — runs Claude CLI)</label>
+                <textarea value={formPrompt} onChange={(e) => setFormPrompt(e.target.value)} rows={3}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-gray-700 bg-gray-800/50 text-gray-200 font-mono"
+                  placeholder="Analyze the last 24h of fleet data and generate a summary report..." />
+              </div>
             </div>
 
             <div className="flex items-center gap-3">
