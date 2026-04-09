@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { clerkClient } from "@clerk/nextjs/server";
 
-const DEFAULT_ROLE = "operator";
+const DEFAULT_ROLE = "manager";
 
 export async function POST(request: NextRequest) {
   let payload: Record<string, unknown>;
