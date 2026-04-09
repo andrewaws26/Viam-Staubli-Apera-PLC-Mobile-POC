@@ -325,6 +325,29 @@ export default function HomeScreen() {
           </p>
         </div>
 
+        {/* Tour banner */}
+        <a
+          href="/tour"
+          className="group mb-10 sm:mb-14 flex items-center gap-4 rounded-2xl border border-violet-800/40 hover:border-violet-600/60 bg-gradient-to-r from-violet-900/20 to-purple-900/10 hover:from-violet-900/30 hover:to-purple-900/20 p-4 sm:p-5 transition-all duration-200"
+        >
+          <div className="shrink-0 w-10 h-10 rounded-xl bg-violet-600/20 flex items-center justify-center text-violet-400 group-hover:bg-violet-600/30 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-bold text-gray-100 group-hover:text-white transition-colors">
+              Take the IronSight Tour
+            </h3>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Interactive walkthrough of every feature — 10 minutes, self-guided
+            </p>
+          </div>
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-600 group-hover:text-violet-400 transition-colors shrink-0" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+          </svg>
+        </a>
+
         {/* Module grid */}
         <div className="space-y-8">
           <ModuleSection title="Fleet & Monitoring" modules={FLEET_MODULES} role={role} />
