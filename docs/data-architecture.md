@@ -154,6 +154,55 @@ linked to the parent `timesheets` record via `timesheet_id` FK with `ON DELETE C
 
 ---
 
+### Accounting (Full QuickBooks Replacement)
+
+Core double-entry bookkeeping with AR/AP, payroll, fixed assets, and compliance. Migrations 009–038.
+
+| Table | Purpose | Key Columns |
+|---|---|---|
+| `chart_of_accounts` | General ledger accounts (30+) | `account_number` (UNIQUE), `name`, `account_type`, `normal_balance`, `current_balance` |
+| `journal_entries` | Transaction headers with status workflow | `entry_date`, `description`, `source`, `status` (draft/posted/voided), `total_amount`, `created_by` |
+| `journal_entry_lines` | Debit/credit line items (must balance) | `journal_entry_id` (FK), `account_id` (FK), `debit`, `credit`, `line_order` |
+| `customers` | AR customer directory | `company_name`, `contact_name`, `email`, `payment_terms`, `credit_limit` |
+| `vendors` | AP vendor directory | `company_name`, `contact_name`, `email`, `payment_terms`, `is_1099` |
+| `invoices` | AR invoices with payment tracking | `customer_id` (FK), `invoice_date`, `due_date`, `status`, `total`, `amount_paid`, `balance_due` |
+| `invoice_line_items` | Invoice line items | `invoice_id` (FK), `description`, `quantity`, `unit_price`, `amount`, `account_id` (FK) |
+| `invoice_payments` | Payments received against invoices | `invoice_id` (FK), `payment_date`, `amount`, `payment_method`, `journal_entry_id` (FK) |
+| `bills` | AP bills from vendors | `vendor_id` (FK), `bill_number`, `due_date`, `status`, `total`, `amount_paid`, `balance_due` |
+| `bill_line_items` | Bill line items | `bill_id` (FK), `description`, `quantity`, `unit_price`, `amount`, `account_id` (FK) |
+| `bill_payments` | Payments made against bills | `bill_id` (FK), `payment_date`, `amount`, `payment_method`, `journal_entry_id` (FK) |
+| `bank_accounts` | Bank account registry | `name`, `institution`, `account_last4`, `account_type`, `gl_account_id` (FK), `current_balance` |
+| `bank_transactions` | Bank statement lines | `bank_account_id` (FK), `transaction_date`, `amount`, `type`, `cleared`, `matched_je_id` (FK) |
+| `reconciliation_sessions` | Bank reconciliation sessions | `bank_account_id` (FK), `statement_date`, `statement_balance`, `status` (in_progress/completed) |
+| `accounting_periods` | Monthly periods with close/lock | `start_date`, `end_date`, `status` (open/locked/closed), `label` |
+| `recurring_journal_entries` | Auto-generation templates | `description`, `frequency` (monthly/quarterly/annually), `next_date`, `is_active` |
+| `employee_tax_profiles` | W-4 data + YTD accumulators | `user_id`, `filing_status`, `state`, `work_state`, `pay_type`, `hourly_rate`, `ytd_*` fields |
+| `tax_rate_tables` | Federal/state/FICA/FUTA rates | `tax_type`, `tax_year`, `bracket_min`, `bracket_max`, `rate` |
+| `payroll_runs` | Payroll batch processing | `pay_period_start/end`, `pay_date`, `status`, `total_gross`, `total_net`, `journal_entry_id` (FK) |
+| `payroll_run_lines` | Per-employee payroll breakdown | `payroll_run_id` (FK), `user_id`, `gross_pay`, `federal_wh`, `state_wh`, `ss_*`, `medicare_*`, `net_pay` |
+| `benefit_plans` | Health, dental, vision, 401k, life | `name`, `type`, `employee_amount`, `employer_amount` |
+| `employee_benefits` | Benefit enrollments per employee | `user_id`, `benefit_plan_id` (FK), `enrollment_date`, `employee_amount`, `employer_amount` |
+| `workers_comp_classes` | NCCI classification codes | `ncci_code`, `description`, `rate_per_100` |
+| `budgets` | Budget amounts per account per period | `fiscal_year`, `account_id` (FK), `period`, `budgeted_amount` |
+| `fixed_assets` | Capital asset register | `name`, `category`, `purchase_cost`, `salvage_value`, `useful_life_months`, `depreciation_method`, `book_value` |
+| `depreciation_entries` | Per-period depreciation records | `fixed_asset_id` (FK), `period_date`, `depreciation_amount`, `accumulated_total`, `book_value_after` |
+| `estimates` | Quotes/proposals to customers | `customer_id` (FK), `estimate_number`, `status` (draft/sent/accepted/rejected/expired/converted), `total` |
+| `estimate_line_items` | Estimate line items | `estimate_id` (FK), `description`, `quantity`, `unit_price`, `amount` |
+| `expense_categorization_rules` | Auto-categorize CC transactions | `match_field`, `match_value`, `category`, `gl_account_id` (FK), `priority` |
+| `credit_card_accounts` | CC account registry | `name`, `last_four`, `gl_account_id` (FK) |
+| `credit_card_transactions` | CC transaction import + review | `credit_card_account_id` (FK), `transaction_date`, `description`, `amount`, `status` (pending/categorized/posted) |
+| `mileage_rates` | IRS mileage rates by year | `effective_date`, `rate_per_mile`, `rate_type` (standard/medical/charitable) |
+| `sales_tax_rates` | Tax rates by jurisdiction | `jurisdiction`, `rate`, `applies_to`, `effective_date` |
+| `sales_tax_exemptions` | Customer tax exemptions | `customer_id` (FK), `exemption_type`, `certificate_number` |
+| `import_batches` | QB CSV import batch tracking | `import_type`, `file_name`, `row_count`, `imported_count`, `status`, `errors` (JSONB) |
+| `state_tax_configs` | Multi-state tax configuration (9 states) | `state_code`, `tax_year`, `tax_type` (flat/progressive/none), `flat_rate`, `sui_wage_base` |
+| `state_tax_brackets` | Progressive state tax brackets | `state_tax_config_id` (FK), `filing_status`, `bracket_min`, `bracket_max`, `rate` |
+| `state_reciprocity` | Interstate tax reciprocity agreements | `home_state`, `work_state`, `tax_year` |
+
+**DB safety triggers (migration 036):** JE balance enforcement on posting, period lock on posting to closed periods, reconciliation lock on completed sessions, audit log immutability (no UPDATE/DELETE).
+
+---
+
 ### Communication
 
 | Table | Purpose | Key Columns |
@@ -955,7 +1004,7 @@ multiple domains within one application.
 |---|---|---|
 | **Operations** | Fleet Monitor, Work Board, Timesheets | All (fleet restricted for operators) |
 | **HR** | Team Directory, Training, PTO | All (admin views for manager+) |
-| **Finance** | Expenses, Per Diem, (future: Invoicing, Bookkeeping) | All (admin views for manager+) |
+| **Finance / Accounting** | Full QB replacement: COA, JE, AR/AP, payroll, bank recon, fixed assets, estimates, CC, tax | Manager+ (COA visible to all) |
 | **Admin** | Audit Log, Settings, Dev Tools | Manager+ (Dev for developer only) |
 
 **Sidebar behavior:**
@@ -1053,7 +1102,7 @@ camera access, file storage, and notification handling.
 | Timesheets | 12 | Deployed |
 | HR | 3 | Deployed |
 | Time Off | 2 | Deployed |
-| Finance | 3 | Deployed |
+| Finance / Accounting | 40+ | Deployed |
 | Communication | 5 | Deployed |
 | Platform Infrastructure | 4 | Deployed |
 | **Total (current)** | **37** | |
@@ -1062,7 +1111,5 @@ camera access, file storage, and notification handling.
 | Documentation Management | ~3 | Planned |
 | Legal / Compliance | ~4 | Planned |
 | Inventory / Parts | ~4 | Planned |
-| Payroll Integration | ~3 | Planned |
-| Reporting / Analytics | ~3 | Planned |
-| **Total (planned)** | **~23** | |
+| **Total** | **100+** | |
 | **Total (full OS)** | **~60** | |

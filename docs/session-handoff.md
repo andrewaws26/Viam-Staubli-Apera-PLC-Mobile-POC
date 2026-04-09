@@ -1,18 +1,18 @@
 # Session Handoff: IronSight Company OS
 
-**Date**: 2026-04-08
+**Date**: 2026-04-09
 **Branch**: `main` (production), `develop` (staging)
-**Status**: Company OS modules live. Homepage launched. 3 critical bugs fixed. All tests passing.
+**Status**: Company OS modules live. Accounting audit & hardening complete. Multi-state payroll deployed. Comprehensive demo seed data loaded.
 
 ## Current State Summary
 
 | Metric | Value |
 |--------|-------|
 | Python tests | **297 passing** (148 j1939 + 149 plc) |
-| Dashboard unit tests | **1178 passing** (vitest, 27 test files) |
+| Dashboard unit tests | **1223 tests** (vitest, 28 test files) |
 | Dashboard build | **Clean** (all routes compile) |
 | Playwright E2E | 18 tests configured |
-| Supabase migrations | **32 applied** (001–032) |
+| Supabase migrations | **38 applied** (001–038) |
 | Production | Vercel auto-deploy from `main` |
 
 ## IronSight Company OS — What's Built
@@ -32,12 +32,12 @@
 - **Fixed assets** — Asset register with depreciation (straight-line/declining/sum-of-years), disposal with gain/loss JE
 - **Estimates** — Quotes with convert-to-invoice workflow
 - **Expense management** — Auto-categorization rules, credit card import with dedup, receipt OCR via Claude Vision
-- **Compliance** — Form 941/940 worksheets, KY withholding, filing calendar, 1099 vendor tracking, sales tax
+- **Compliance** — Form 941/940 worksheets, multi-state withholding (9 states), filing calendar, 1099 vendor tracking, sales tax, CSV exports
 - **Recurring entries** — Templates with auto-generation, accounting period close/lock/reopen, year-end close
 - **Budget** — Budget entry and variance analysis
 - **Reports** — Trial Balance, P&L, Balance Sheet, General Ledger, Aging, Cash Flow, Budget vs Actual
 - **Auto-journal entries** from timesheets (per diem, expenses), invoices, bills, payroll, depreciation, asset disposal, CC transactions
-- **20+ pages**, **25+ API routes**, **14 migrations** (009–026 + supporting)
+- **20+ pages**, **25+ API routes**, **17 migrations** (009–038)
 - **Idempotency keys** on all financial write endpoints to prevent duplicate entries
 - **AI Report Generator** — Natural language to SQL via Claude, with prompt caching, retry logic, and sandboxed exec_readonly_query
 
@@ -78,6 +78,15 @@
 - Audit-logged via `logAudit("snapshot_captured")`
 - **API**: `/api/snapshots` (GET list, POST capture), `/api/snapshots/[id]` (GET individual)
 - **Migration**: 031_truck_snapshots.sql
+
+### Accounting Audit & Hardening (2026-04-09)
+- **DB safety triggers** (migration 036) — JE balance enforcement on posting (min 2 lines, debits=credits, nonzero), period lock (cannot post to closed/locked periods), reconciliation lock (cannot modify completed reconciliations), audit log immutability (no UPDATE/DELETE)
+- **Multi-state payroll** (migration 037) — 9 state tax configs (KY, IN, OH, TN, IL, WV, VA, MI, WI), progressive brackets for 4 states, 28 reciprocity agreements, `work_state` on employee_tax_profiles
+- **SS wage base bug fix** — `tax-reports/route.ts` had hardcoded 2025 SS wage base ($168,600). Replaced all 6 hardcoded tax constants with `loadTaxConstants()` that reads from DB
+- **Compliance disclaimers** — Reusable `ComplianceDisclaimer` component (payroll/tax/financial/general variants) added to 7 accounting pages
+- **QB data import** — CSV import API + wizard UI for chart_of_accounts, customers, vendors with dedup, batch tracking, rollback
+- **Tax CSV exports** — Export endpoint for 941, 940, state withholding, W-2 summary, 1099-NEC reports
+- **Comprehensive demo seed** (migration 038) — Bank account + 30 transactions, 6 employee tax profiles, completed payroll run, 4 fixed assets with Q1 depreciation, 3 estimates, CC account + 15 transactions, 3 recurring JE templates, IRS mileage rates, GL accounts 2210–2240
 
 ### Platform Hardening (2026-04-08)
 - **Auth middleware default-deny** — flipped from `/api(.*)` public to only `/api/webhooks(.*)` public
@@ -123,7 +132,7 @@
 ## Architecture
 
 ### Database (Supabase)
-60+ tables across 32 migrations:
+100+ tables across 38 migrations:
 - 001: Base schema (trucks, readings)
 - 002: Audit, maintenance, DTCs
 - 003: Work orders
@@ -152,6 +161,10 @@
 - 030: Report query log
 - 031: Truck snapshots
 - 032: Compound indexes (14 indexes for common query patterns)
+- 033–035: Report sharing, demo seed refresh, shared links
+- 036: Accounting safety triggers (balance, period lock, recon lock, audit immutability)
+- 037: Multi-state payroll tax (9 states, brackets, reciprocity)
+- 038: Comprehensive demo accounting seed data
 
 ### Shared Package (`packages/shared/src/`)
 Single source of truth for types: sensor-types, auth, work-order, spn-lookup, pcode-lookup, gauge-thresholds, chat, timesheet, profile, pto, training, per-diem, accounting, inventory, format.

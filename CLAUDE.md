@@ -492,6 +492,9 @@ Full QuickBooks replacement for the IronSight Company OS. Double-entry bookkeepi
 - `024_expense_rules_cc.sql` — expense_categorization_rules, credit_card_accounts, credit_card_transactions
 - `025_mileage_rates.sql` — mileage_rates (IRS 2025-2026), payment_reminders
 - `026_sales_tax.sql` — sales_tax_rates, sales_tax_exemptions, sales_tax_collected
+- `036_accounting_safety.sql` — DB-level triggers: JE balance enforcement, period lock, reconciliation lock, audit log immutability, import_batches table
+- `037_multi_state_tax.sql` — state_tax_configs (9 states), state_tax_brackets (progressive brackets), state_reciprocity (28 agreements), work_state on employee_tax_profiles
+- `038_demo_accounting_seed.sql` — Comprehensive demo data: bank account + 30 transactions, 6 employee tax profiles, payroll run, 4 fixed assets, estimates, CC transactions, recurring JE templates, mileage rates, GL accounts 2210–2240
 
 **Shared types:** `packages/shared/src/accounting.ts` — Account, JournalEntry, JournalEntryLine, TrialBalance types + constants
 
@@ -520,7 +523,9 @@ Full QuickBooks replacement for the IronSight Company OS. Double-entry bookkeepi
 - `mileage-rates/` — IRS mileage rate management
 - `sales-tax/` — Tax rates, customer exemptions, filing period tracking
 - `receipt-ocr/` — Claude Vision receipt scanning (vendor, amount, line items)
-- `tax-reports/` — Form 941/940 worksheets, KY withholding, filing calendar
+- `tax-reports/` — Form 941/940 worksheets, multi-state withholding, filing calendar
+- `tax-reports/export/` — CSV export for 941, 940, state withholding, W-2 summary, 1099-NEC
+- `import/` — QuickBooks CSV import with batch tracking, preview, and rollback
 
 **Dashboard pages (`dashboard/app/accounting/`):**
 - `/accounting` — COA browser + journal entries list
@@ -542,10 +547,11 @@ Full QuickBooks replacement for the IronSight Company OS. Double-entry bookkeepi
 - `/accounting/payment-reminders` — Overdue invoice reminders + mileage calculator
 - `/accounting/sales-tax` — Tax rates, exemptions, filing summary
 - `/accounting/receipt-ocr` — Receipt scanner (Claude Vision OCR)
-- `/accounting/tax-reports` — 941/940 worksheets + filing calendar
+- `/accounting/tax-reports` — 941/940 worksheets + filing calendar + CSV exports
+- `/accounting/import` — QB data import wizard (CSV upload, preview, batch history, rollback)
 - `/accounting/reports` — P&L, Balance Sheet, GL, Aging, Cash Flow
 
-**Chart of Accounts:** 40+ accounts across 5 types: Assets (1000-1999), Liabilities (2000-2999), Equity (3000-3999), Revenue (4000-4999), Expenses (5000-9999). Includes 1300 Fixed Assets, 1310 Accumulated Depreciation, 2100 Credit Card Payable, 5410 Meals, 5420 Travel, etc.
+**Chart of Accounts:** 30+ accounts across 5 types: Assets (1000-1999), Liabilities (2000-2999), Equity (3000-3999), Revenue (4000-4999), Expenses (5000-9999). Key accounts include 2210–2240 payroll tax liabilities (Federal/State/FICA/FUTA), 1300 Fixed Assets, 1310 Accumulated Depreciation, 2300 Credit Cards Payable, 5410 Meals, 5420 Travel.
 
 **Journal Entry workflow:** draft → posted → voided. Posting updates account balances. Voiding reverses balances and records reason.
 
@@ -559,7 +565,9 @@ Full QuickBooks replacement for the IronSight Company OS. Double-entry bookkeepi
 - Asset disposal → DR Cash + DR 1310 Accum Depr / CR 1300 Fixed Assets ± 6010 Gain/Loss
 - CC transactions posted → DR expense accounts / CR 2100 Credit Card Payable
 
-**Payroll tax engine:** W-4 2020+ percentage method with 2026 federal progressive brackets (3 filing statuses), KY flat 4%, SS 6.2% (wage base $176,100), Medicare 1.45% (+0.9% additional over $200k), FUTA 0.6% (first $7,000), KY SUTA 2.7%.
+**Payroll tax engine:** W-4 2020+ percentage method with 2026 federal progressive brackets (3 filing statuses), SS 6.2% (wage base $176,100), Medicare 1.45% (+0.9% additional over $200k), FUTA 0.6% (first $7,000). Multi-state support: 9 states (KY, IN, OH, TN, IL, WV, VA, MI, WI), flat and progressive rate types, 28 reciprocity agreements. Tax rates loaded from DB (not hardcoded). Employee work_state tracked per pay period for traveling crews.
+
+**DB safety constraints (migration 036):** PostgreSQL triggers enforce JE balance on posting (debits=credits, min 2 lines), period lock (cannot post to closed/locked periods), reconciliation lock (cannot modify completed reconciliations), audit log immutability (no UPDATE/DELETE on audit_log). These are safety nets below the application layer.
 
 **Roles:** Manager/developer can access all financial operations. All roles can view COA.
 

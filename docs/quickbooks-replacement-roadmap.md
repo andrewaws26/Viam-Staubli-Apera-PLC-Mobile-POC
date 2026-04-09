@@ -617,7 +617,7 @@ The current payroll export provides raw data from approved timesheets. To fully 
 | **Payroll Tax Filing** | 3.4 | 🔲 Needs integration | IRS EFTPS/e-file |
 | **W-2 / 1099 Generation** | 3.3 | 🔲 Needs integration | EFW2/FIRE format |
 
-**Phase 2 milestone**: Tax calculation engine live with 2026 federal brackets, FICA, FUTA, KY state. Full payroll run lifecycle (preview → draft → approve → post with JE). Employee W-4 profiles, benefits enrollment, workers comp tracking all functional. Remaining items need external service integrations (NACHA, IRS e-file).
+**Phase 2 milestone**: Tax calculation engine live with 2026 federal brackets, FICA, FUTA, multi-state support (9 states: KY, IN, OH, TN, IL, WV, VA, MI, WI), progressive brackets, and 28 reciprocity agreements. Full payroll run lifecycle (preview → draft → approve → post with JE). Employee W-4 profiles with work_state tracking for traveling crews, benefits enrollment, workers comp all functional. Tax rates loaded from DB (not hardcoded). Remaining items need external service integrations (NACHA, IRS e-file).
 
 ### Phase 3 — Advanced Features ✅ COMPLETE (shipped 2026-04-08)
 
@@ -690,6 +690,9 @@ IronSight OS has structural advantages that QuickBooks can never match:
 | 024_expense_rules_cc.sql | expense_categorization_rules, credit_card_accounts, credit_card_transactions | Phase 3 |
 | 025_mileage_rates.sql | mileage_rates, payment_reminders | Phase 3 |
 | 026_sales_tax.sql | sales_tax_rates, sales_tax_exemptions, sales_tax_collected | Phase 3 |
+| 036_accounting_safety.sql | DB triggers: JE balance enforcement, period lock, reconciliation lock, audit immutability, import_batches | Hardening |
+| 037_multi_state_tax.sql | state_tax_configs (9 states), state_tax_brackets, state_reciprocity (28 agreements) | Hardening |
+| 038_demo_accounting_seed.sql | Comprehensive demo data: bank account + 30 txns, 6 employee profiles, payroll run, fixed assets, estimates, CC txns, mileage rates, GL accounts 2210–2240 | Demo Data |
 
 ---
 
@@ -701,7 +704,7 @@ IronSight OS has structural advantages that QuickBooks can never match:
 
 3. **Does B&B use QB's payroll service or a separate payroll provider?** The payroll tax engine is live with full calculation, but ACH/direct deposit still needs a bank integration or payment partner.
 
-4. **Are there multi-state payroll considerations?** If crews work across state lines (common in railroad), state tax withholding becomes significantly more complex — reciprocity agreements, nexus rules, etc.
+4. **~~Are there multi-state payroll considerations?~~** ✅ **RESOLVED (2026-04-09)**: Yes — B&B crews work in KY, IN, OH, TN, IL, WV, VA, MI, WI. Migration 037 adds multi-state tax infrastructure: 9 state configs (flat + progressive), progressive brackets for OH/WV/VA/WI, and 28 reciprocity agreements. Employee `work_state` tracked per pay period. Tax engine uses DB-driven rates, not hardcoded values.
 
 5. **What bank does B&B use?** This affects Plaid compatibility, ACH file format requirements, and whether a direct bank API is available.
 
