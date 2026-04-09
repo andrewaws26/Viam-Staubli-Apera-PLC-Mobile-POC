@@ -187,14 +187,9 @@ export const NAV_SECTIONS: NavSection[] = [
           { href: "/accounting/new", label: "Journal Entries" },
           { href: "/accounting/periods", label: "Accounting Periods" },
           { href: "/accounting/fixed-assets", label: "Fixed Assets" },
-          { href: "/accounting/docs", label: "User Guide" },
-        ],
-      },
-      {
-        title: "",
-        items: [
-          { href: "/accounting/import", label: "QB Data Import" },
           { href: "/accounting/audit-trail", label: "Audit Trail" },
+          { href: "/accounting/import", label: "QB Data Import" },
+          { href: "/accounting/docs", label: "User Guide" },
         ],
       },
     ],

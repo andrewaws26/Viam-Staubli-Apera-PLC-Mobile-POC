@@ -255,7 +255,7 @@ export default function JobDetailPage() {
   const bidRef = job.contract_amount || job.bid_amount || 0;
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white p-4 sm:p-6">
+    <div className="text-white p-4 sm:p-6">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div>

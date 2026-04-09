@@ -66,14 +66,14 @@ export default function ExecutiveDashboard() {
 
   useEffect(() => { load(); const t = setInterval(load, 60000); return () => clearInterval(t); }, [load]);
 
-  if (loading) return <div className="min-h-screen bg-gray-950 p-8 text-center text-gray-500">Loading executive dashboard...</div>;
-  if (error) return <div className="min-h-screen bg-gray-950 p-8 text-center text-red-500">{error}</div>;
+  if (loading) return <div className="p-8 text-center text-gray-500">Loading executive dashboard...</div>;
+  if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
   if (!data) return null;
 
   const netPosition = data.cash.total + data.ar.total - data.ap.total;
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white p-4 sm:p-6">
+    <div className="text-white p-4 sm:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
