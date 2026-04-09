@@ -394,6 +394,15 @@ Use COALESCE for nullable numeric fields. Format dates with to_char(col, 'YYYY-M
 - workflow_runs: Workflow execution history. (Migration 040)
   Columns: id (UUID PK), workflow_id (UUID FK dev_workflows.id), status (TEXT: running/completed/failed/cancelled), trigger (TEXT: scheduled/manual), input (JSONB), output (JSONB), started_at (TIMESTAMPTZ), ended_at (TIMESTAMPTZ)
 
+## Job Costing
+
+- jobs: Job tracking with bids, costs, and profitability. (Migration 040)
+  Columns: id (UUID PK), job_number (TEXT UNIQUE — auto 'J-1001'+), customer_id (UUID FK customers.id), name (TEXT), description (TEXT), status (TEXT: bidding/active/completed/closed), job_type (TEXT), location (TEXT), bid_amount (NUMERIC 12,2), contract_amount (NUMERIC 12,2), start_date (DATE), end_date (DATE), estimated_hours (NUMERIC 8,2), notes (TEXT), created_by (TEXT), created_at, updated_at
+
+- job_cost_entries: Individual cost line items against a job. (Migration 040)
+  Columns: id (UUID PK), job_id (UUID FK jobs.id CASCADE), cost_type (TEXT: labor/per_diem/mileage/fuel/equipment/material/subcontractor/expense/other), description (TEXT), quantity (NUMERIC 10,3), rate (NUMERIC 10,2), amount (NUMERIC 12,2), date (DATE), source_type (TEXT: manual/timesheet/bill/per_diem/expense), source_id (UUID), created_by (TEXT), created_at
+  NOTE: timesheets, invoices, bills, estimates, work_orders all have optional job_id FK linking them to a job.
+
 ## Key Relationships
 - timesheets.user_id = employee_profiles.user_id (TEXT, Clerk user ID)
 - invoices.customer_id = customers.id (UUID)
@@ -402,6 +411,8 @@ Use COALESCE for nullable numeric fields. Format dates with to_char(col, 'YYYY-M
 - journal_entry_lines.journal_entry_id = journal_entries.id (UUID)
 - payroll_run_lines.user_id = employee_profiles.user_id (TEXT)
 - work_orders.truck_id = fleet_trucks.id (both TEXT — no cast needed)
+- jobs.customer_id = customers.id (UUID)
+- job_cost_entries.job_id = jobs.id (UUID)
 - dtc_history.truck_id = fleet_trucks.id (both TEXT — no cast needed)
 - truck_assignments.truck_id = fleet_trucks.id (both TEXT)
 - Per diem entries link to timesheets via timesheet_id
