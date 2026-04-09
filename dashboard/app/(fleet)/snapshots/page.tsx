@@ -322,10 +322,17 @@ function SnapshotDetail({ snapshot, onBack }: { snapshot: SnapshotFull; onBack: 
   }
 
   const visibleFields = data._visible_fields as string[] | undefined;
-  const fieldCount = Object.keys(data).filter(k => !k.startsWith("_") || k === "_bus_connected" || k === "_frame_count").length;
 
   const capturedSystems: string[] =
     (data._captured_systems as string[]) || (data._systems as string[]) || ["truck_engine"];
+
+  const fieldCount = SECTIONS
+    .filter(s => capturedSystems.includes(s.system))
+    .flatMap(s => s.fields)
+    .filter(f =>
+      data[f.key] !== undefined && data[f.key] !== null &&
+      (!visibleFields || visibleFields.includes(f.key))
+    ).length;
 
   // Group sections by system, only include systems with data
   const systemGroups = capturedSystems
