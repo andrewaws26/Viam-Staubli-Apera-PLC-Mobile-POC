@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
+import dynamic from "next/dynamic";
+
+const SnapshotMap = dynamic(() => import("@/components/SnapshotMap"), { ssr: false });
 
 // ── Types (self-contained for public page — no auth imports) ────────
 
@@ -400,6 +403,25 @@ function SnapshotViewer({ data, meta }: { data: Record<string, unknown>; meta: S
           </div>
         )}
       </div>
+
+      {/* Location map — show if GPS data present */}
+      {typeof readingData.gps_latitude === "number" && typeof readingData.gps_longitude === "number" &&
+       readingData.gps_latitude !== 0 && readingData.gps_longitude !== 0 && (
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-lg">&#x1F4CD;</span>
+            <h2 className="text-sm font-bold uppercase tracking-wider text-blue-400">Location at Capture</h2>
+            <div className="flex-1 h-px bg-gray-800" />
+          </div>
+          <SnapshotMap
+            latitude={readingData.gps_latitude as number}
+            longitude={readingData.gps_longitude as number}
+            heading={readingData.compass_bearing_deg as number | null}
+            speed={readingData.nav_speed_mph as number | null}
+            altitude={readingData.altitude_ft as number | null}
+          />
+        </div>
+      )}
 
       {/* Data grid — grouped by system */}
       {systemGroups.map(group => (
