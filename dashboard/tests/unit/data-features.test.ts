@@ -105,7 +105,7 @@ describe("Shift Report: Data pipeline integrity", () => {
 // ── Snapshot Feature Tests ───────────────────────────────────────────
 
 describe("Snapshots: Field coverage", () => {
-  const snapshotPage = readFile("app/snapshots/page.tsx");
+  const snapshotPage = readFile("app/(fleet)/snapshots/page.tsx");
 
   // All 14 standard GaugeGrid categories must be in the snapshot viewer
   const requiredCategories = [
@@ -274,7 +274,7 @@ describe("Migration Files: Structure", () => {
 
 describe("Cross-Feature: Consistent field naming", () => {
   const schemaContext = readFile("lib/report-schema-context.ts");
-  const snapshotPage = readFile("app/snapshots/page.tsx");
+  const snapshotPage = readFile("app/(fleet)/snapshots/page.tsx");
   const gaugeGrid = readFile("components/GaugeGrid.tsx");
 
   it("all features should agree that DTC uses spn/fmi (not code)", () => {

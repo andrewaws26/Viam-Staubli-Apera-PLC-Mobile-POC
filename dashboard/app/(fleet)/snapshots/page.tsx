@@ -16,6 +16,7 @@ interface SnapshotSummary {
   label: string | null;
   notes: string | null;
   source: "live" | "historical";
+  systems: string[] | null;
   engine_rpm: number | null;
   vehicle_speed_mph: number | null;
   coolant_temp_f: number | null;
@@ -30,98 +31,271 @@ interface SnapshotFull extends SnapshotSummary {
   reading_data: Record<string, unknown>;
 }
 
-// ── Field definitions (mirrors GaugeGrid categories) ─────────────────
+// ── System definitions ──────────────────────────────────────────────
 
 interface Field { key: string; label: string }
+interface SectionDef { title: string; icon: string; fields: Field[]; system: string }
 
-const SECTIONS: { title: string; icon: string; fields: Field[] }[] = [
-  { title: "Engine", icon: "\u2699\uFE0F", fields: [
+const AVAILABLE_SYSTEMS = [
+  { id: "truck_engine", label: "Truck Engine", icon: "\uD83D\uDE9B", desc: "J1939 CAN bus diagnostics", color: "blue" },
+  { id: "tps_buggy", label: "TPS Buggy", icon: "\uD83D\uDEE4\uFE0F", desc: "PLC production monitoring", color: "amber" },
+  { id: "robot_cell", label: "Robot Cell", icon: "\uD83E\uDD16", desc: "Staubli + Apera vision", color: "violet" },
+];
+
+const SYSTEM_HEADER_CLASSES: Record<string, string> = {
+  truck_engine: "text-blue-400",
+  tps_buggy: "text-amber-400",
+  robot_cell: "text-violet-400",
+};
+
+const SYSTEM_BADGE_CLASSES: Record<string, string> = {
+  truck_engine: "bg-blue-900/40 text-blue-300",
+  tps_buggy: "bg-amber-900/40 text-amber-300",
+  robot_cell: "bg-violet-900/40 text-violet-300",
+};
+
+const SYSTEM_BTN_ACTIVE: Record<string, string> = {
+  truck_engine: "bg-blue-900/30 border-blue-600/50 text-blue-300",
+  tps_buggy: "bg-amber-900/30 border-amber-600/50 text-amber-300",
+  robot_cell: "bg-violet-900/30 border-violet-600/50 text-violet-300",
+};
+
+// ── Section definitions (grouped by system) ─────────────────────────
+
+const SECTIONS: SectionDef[] = [
+  // ── Truck Engine (no prefix — backward compatible) ──────────────
+  { title: "Engine", icon: "\u2699\uFE0F", system: "truck_engine", fields: [
     { key: "engine_rpm", label: "Engine RPM" }, { key: "engine_load_pct", label: "Engine Load" },
     { key: "accel_pedal_pos_pct", label: "Accelerator" }, { key: "driver_demand_torque_pct", label: "Demand Torque" },
     { key: "actual_engine_torque_pct", label: "Actual Torque" },
   ]},
-  { title: "Temperatures", icon: "\uD83C\uDF21\uFE0F", fields: [
+  { title: "Temperatures", icon: "\uD83C\uDF21\uFE0F", system: "truck_engine", fields: [
     { key: "coolant_temp_f", label: "Coolant" }, { key: "oil_temp_f", label: "Oil" },
     { key: "fuel_temp_f", label: "Fuel" }, { key: "intake_manifold_temp_f", label: "Intake" },
     { key: "trans_oil_temp_f", label: "Trans Oil" }, { key: "ambient_temp_f", label: "Ambient" },
   ]},
-  { title: "Pressures", icon: "\uD83D\uDCCA", fields: [
+  { title: "Pressures", icon: "\uD83D\uDCCA", system: "truck_engine", fields: [
     { key: "oil_pressure_psi", label: "Oil Pressure" }, { key: "fuel_pressure_psi", label: "Fuel" },
     { key: "boost_pressure_psi", label: "Boost" }, { key: "barometric_pressure_psi", label: "Baro" },
   ]},
-  { title: "Vehicle", icon: "\uD83D\uDE98", fields: [
+  { title: "Vehicle", icon: "\uD83D\uDE98", system: "truck_engine", fields: [
     { key: "vehicle_speed_mph", label: "Speed" }, { key: "current_gear", label: "Gear" },
     { key: "fuel_rate_gph", label: "Fuel Rate" }, { key: "fuel_economy_mpg", label: "Fuel Economy" },
     { key: "fuel_level_pct", label: "Fuel Level" }, { key: "battery_voltage_v", label: "Battery" },
   ]},
-  { title: "Aftertreatment", icon: "\u2601\uFE0F", fields: [
+  { title: "Aftertreatment", icon: "\u2601\uFE0F", system: "truck_engine", fields: [
     { key: "def_level_pct", label: "DEF Level" }, { key: "def_temp_f", label: "DEF Temp" },
     { key: "dpf_soot_load_pct", label: "DPF Soot Load" }, { key: "dpf_regen_status", label: "DPF Regen" },
     { key: "dpf_diff_pressure_psi", label: "DPF Diff Pressure" },
     { key: "protect_lamp_engine", label: "Protect (Engine)" }, { key: "protect_lamp_acm", label: "Protect (ACM)" },
   ]},
-  { title: "Brakes & Safety", icon: "\uD83D\uDED1", fields: [
+  { title: "Brakes & Safety", icon: "\uD83D\uDED1", system: "truck_engine", fields: [
     { key: "brake_pedal_pos_pct", label: "Brake Pedal" }, { key: "abs_active", label: "ABS Active" },
     { key: "brake_air_pressure_psi", label: "Brake Air" },
   ]},
-  { title: "PTO / Hydraulics", icon: "\uD83D\uDD27", fields: [
+  { title: "PTO / Hydraulics", icon: "\uD83D\uDD27", system: "truck_engine", fields: [
     { key: "retarder_torque_pct", label: "Retarder Torque" }, { key: "pto_engaged", label: "PTO Status" },
     { key: "pto_rpm", label: "PTO Speed" }, { key: "hydraulic_oil_temp_f", label: "Hydraulic Temp" },
     { key: "hydraulic_oil_pressure_psi", label: "Hydraulic Pressure" },
   ]},
-  { title: "Idle / Trip / Service", icon: "\u23F1\uFE0F", fields: [
+  { title: "Idle / Trip / Service", icon: "\u23F1\uFE0F", system: "truck_engine", fields: [
     { key: "idle_fuel_used_gal", label: "Idle Fuel Used" }, { key: "idle_engine_hours", label: "Idle Hours" },
     { key: "trip_fuel_gal", label: "Trip Fuel" }, { key: "service_distance_mi", label: "Next Service" },
   ]},
-  { title: "Air / Wheel Speed", icon: "\uD83D\uDEDE\uFE0F", fields: [
+  { title: "Air / Wheel Speed", icon: "\uD83D\uDEDE\uFE0F", system: "truck_engine", fields: [
     { key: "air_supply_pressure_psi", label: "Air Supply" },
     { key: "air_pressure_circuit1_psi", label: "Circuit 1" }, { key: "air_pressure_circuit2_psi", label: "Circuit 2" },
     { key: "front_axle_speed_mph", label: "Front Axle Speed" },
   ]},
-  { title: "Navigation / GPS", icon: "\uD83D\uDCCD", fields: [
+  { title: "Navigation / GPS", icon: "\uD83D\uDCCD", system: "truck_engine", fields: [
     { key: "gps_latitude", label: "Latitude" }, { key: "gps_longitude", label: "Longitude" },
     { key: "compass_bearing_deg", label: "Heading" }, { key: "altitude_ft", label: "Altitude" },
     { key: "nav_speed_mph", label: "GPS Speed" }, { key: "vehicle_pitch_deg", label: "Pitch" },
   ]},
-  { title: "Extended Engine", icon: "\uD83D\uDD0C", fields: [
+  { title: "Extended Engine", icon: "\uD83D\uDD0C", system: "truck_engine", fields: [
     { key: "exhaust_gas_pressure_psi", label: "Exhaust Pressure" },
     { key: "vehicle_distance_mi", label: "Odometer" }, { key: "vehicle_distance_hr_mi", label: "Odometer (HR)" },
     { key: "cruise_control_active", label: "Cruise" }, { key: "trans_output_rpm", label: "Trans Output RPM" },
   ]},
-  { title: "Fuel Cost", icon: "\u26FD", fields: [
+  { title: "Fuel Cost", icon: "\u26FD", system: "truck_engine", fields: [
     { key: "fuel_cost_per_hour", label: "Burn Rate" }, { key: "fuel_cost_per_mile", label: "Cost/Mile" },
   ]},
-  { title: "System Health", icon: "\uD83D\uDEA8", fields: [
+  { title: "System Health", icon: "\uD83D\uDEA8", system: "truck_engine", fields: [
     { key: "dpf_health", label: "DPF Filter" }, { key: "battery_health", label: "Battery" },
     { key: "def_low", label: "DEF Fluid Low" }, { key: "idle_pct", label: "Lifetime Idle %" },
     { key: "idle_fuel_pct", label: "Idle Fuel %" },
   ]},
-  { title: "Lifetime / Identity", icon: "\uD83D\uDCC8", fields: [
+  { title: "Lifetime / Identity", icon: "\uD83D\uDCC8", system: "truck_engine", fields: [
     { key: "vin", label: "VIN" },
     { key: "engine_hours", label: "Engine Hours" }, { key: "total_fuel_used_gal", label: "Total Fuel" },
     { key: "idle_fuel_used_gal", label: "Idle Fuel" }, { key: "idle_engine_hours", label: "Idle Hours" },
     { key: "vehicle_distance_mi", label: "Odometer" },
     { key: "prop_start_counter_a", label: "Start Count A" }, { key: "prop_start_counter_b", label: "Start Count B" },
   ]},
-  { title: "Warning Lamps", icon: "\uD83D\uDEA6", fields: [
+  { title: "Warning Lamps", icon: "\uD83D\uDEA6", system: "truck_engine", fields: [
     { key: "mil_engine", label: "MIL Engine" }, { key: "amber_lamp_engine", label: "Amber Engine" },
     { key: "red_stop_lamp_engine", label: "Red Stop Engine" },
     { key: "mil_acm", label: "MIL ACM" }, { key: "amber_lamp_acm", label: "Amber ACM" },
     { key: "mil_trans", label: "MIL Trans" }, { key: "amber_lamp_trans", label: "Amber Trans" },
     { key: "mil_abs", label: "MIL ABS" }, { key: "amber_lamp_abs", label: "Amber ABS" },
   ]},
-  { title: "DTC Summary", icon: "\u26A0\uFE0F", fields: [
+  { title: "DTC Summary", icon: "\u26A0\uFE0F", system: "truck_engine", fields: [
     { key: "active_dtc_count", label: "Active DTCs" },
     { key: "dtc_engine_count", label: "Engine DTCs" }, { key: "dtc_trans_count", label: "Trans DTCs" },
     { key: "dtc_abs_count", label: "ABS DTCs" }, { key: "dtc_acm_count", label: "ACM DTCs" },
     { key: "prev_dtc_count", label: "Previous DTCs" },
   ]},
-  { title: "Pi System", icon: "\uD83E\uDD16", fields: [
+  { title: "Pi System", icon: "\uD83E\uDD16", system: "truck_engine", fields: [
     { key: "cpu_temp_c", label: "CPU Temp" }, { key: "cpu_usage_pct", label: "CPU Usage" },
     { key: "memory_used_pct", label: "Memory Used" }, { key: "disk_used_pct", label: "Disk Used" },
     { key: "wifi_ssid", label: "WiFi SSID" }, { key: "wifi_signal_pct", label: "WiFi Signal" },
     { key: "tailscale_online", label: "Tailscale" }, { key: "internet", label: "Internet" },
     { key: "_bus_connected", label: "CAN Bus" }, { key: "_frame_count", label: "CAN Frames" },
+  ]},
+
+  // ── TPS Buggy (plc_ prefix) ────────────────────────────────────
+  { title: "TPS Production", icon: "\uD83C\uDFED", system: "tps_buggy", fields: [
+    { key: "plc_plate_drop_count", label: "Plate Count" },
+    { key: "plc_camera_detections_per_min", label: "Camera Det/min" },
+    { key: "plc_eject_rate_per_min", label: "Eject Rate/min" },
+    { key: "plc_detector_eject_rate_per_min", label: "Detector Eject/min" },
+    { key: "plc_shift_hours", label: "Shift Hours" },
+    { key: "plc_total_reads", label: "Total Reads" },
+  ]},
+  { title: "TPS Encoder & Track", icon: "\uD83D\uDCCF", system: "tps_buggy", fields: [
+    { key: "plc_encoder_count", label: "Encoder Count" },
+    { key: "plc_encoder_distance_ft", label: "Distance (ft)" },
+    { key: "plc_encoder_speed_ftpm", label: "Speed (ft/min)" },
+    { key: "plc_encoder_revolutions", label: "Revolutions" },
+    { key: "plc_encoder_direction", label: "Direction" },
+    { key: "plc_encoder_enabled", label: "Encoder On" },
+  ]},
+  { title: "TPS Operating Mode", icon: "\uD83C\uDF9B\uFE0F", system: "tps_buggy", fields: [
+    { key: "plc_operating_mode", label: "Mode" },
+    { key: "plc_mode_tps1_single", label: "TPS1 Single" },
+    { key: "plc_mode_tps1_double", label: "TPS1 Double" },
+    { key: "plc_mode_tps2_both", label: "TPS2 Both" },
+    { key: "plc_mode_tps2_left", label: "TPS2 Left" },
+    { key: "plc_mode_tps2_right", label: "TPS2 Right" },
+    { key: "plc_mode_tie_team", label: "Tie Team" },
+    { key: "plc_mode_2nd_pass", label: "2nd Pass" },
+  ]},
+  { title: "TPS Drop System", icon: "\u2B07\uFE0F", system: "tps_buggy", fields: [
+    { key: "plc_drop_enable", label: "Drop Enable" },
+    { key: "plc_first_tie_detected", label: "First Tie" },
+    { key: "plc_last_drop_spacing_in", label: "Last Spacing (in)" },
+    { key: "plc_avg_drop_spacing_in", label: "Avg Spacing (in)" },
+    { key: "plc_min_drop_spacing_in", label: "Min Spacing (in)" },
+    { key: "plc_max_drop_spacing_in", label: "Max Spacing (in)" },
+    { key: "plc_drop_count_in_window", label: "Drops in Window" },
+  ]},
+  { title: "TPS Camera", icon: "\uD83D\uDCF7", system: "tps_buggy", fields: [
+    { key: "plc_camera_signal", label: "Camera Signal" },
+    { key: "plc_camera_positive", label: "Detection" },
+    { key: "plc_camera_signal_duration_s", label: "Signal Duration (s)" },
+    { key: "plc_camera_rate_trend", label: "Rate Trend" },
+  ]},
+  { title: "TPS Machine Health", icon: "\uD83D\uDD27", system: "tps_buggy", fields: [
+    { key: "plc_connected", label: "PLC Connected" },
+    { key: "plc_fault", label: "Fault" },
+    { key: "plc_system_state", label: "State" },
+    { key: "plc_tps_power_loop", label: "Power Loop" },
+    { key: "plc_tps_power_duration_s", label: "Power Duration (s)" },
+    { key: "plc_diagnostics_count", label: "Diagnostics" },
+    { key: "plc_diagnostics_critical", label: "Critical" },
+    { key: "plc_diagnostics_warning", label: "Warnings" },
+    { key: "plc_modbus_response_time_ms", label: "Modbus Latency (ms)" },
+    { key: "plc_eth0_status", label: "Ethernet" },
+  ]},
+  { title: "TPS Eject", icon: "\uD83D\uDCA8", system: "tps_buggy", fields: [
+    { key: "plc_eject_tps_1", label: "TPS 1 Eject" },
+    { key: "plc_eject_left_tps_2", label: "TPS 2 Left" },
+    { key: "plc_eject_right_tps_2", label: "TPS 2 Right" },
+    { key: "plc_air_eagle_1_feedback", label: "Air Eagle 1" },
+    { key: "plc_air_eagle_2_feedback", label: "Air Eagle 2" },
+    { key: "plc_air_eagle_3_enable", label: "Air Eagle 3" },
+  ]},
+  { title: "TPS Weather", icon: "\uD83C\uDF24\uFE0F", system: "tps_buggy", fields: [
+    { key: "plc_weather", label: "Conditions" },
+    { key: "plc_weather_temp", label: "Temperature" },
+    { key: "plc_weather_humidity", label: "Humidity" },
+    { key: "plc_weather_wind", label: "Wind" },
+    { key: "plc_location_city", label: "Location" },
+  ]},
+
+  // ── Robot Cell (cell_ prefix) ──────────────────────────────────
+  { title: "Staubli Joints", icon: "\uD83E\uDDBE", system: "robot_cell", fields: [
+    { key: "cell_staubli_j1_pos", label: "J1" }, { key: "cell_staubli_j2_pos", label: "J2" },
+    { key: "cell_staubli_j3_pos", label: "J3" }, { key: "cell_staubli_j4_pos", label: "J4" },
+    { key: "cell_staubli_j5_pos", label: "J5" }, { key: "cell_staubli_j6_pos", label: "J6" },
+  ]},
+  { title: "Staubli TCP Position", icon: "\uD83C\uDFAF", system: "robot_cell", fields: [
+    { key: "cell_staubli_tcp_x", label: "TCP X (mm)" }, { key: "cell_staubli_tcp_y", label: "TCP Y (mm)" },
+    { key: "cell_staubli_tcp_z", label: "TCP Z (mm)" },
+    { key: "cell_staubli_tcp_rx", label: "Rx" }, { key: "cell_staubli_tcp_ry", label: "Ry" },
+    { key: "cell_staubli_tcp_rz", label: "Rz" },
+  ]},
+  { title: "Staubli Temperatures", icon: "\uD83C\uDF21\uFE0F", system: "robot_cell", fields: [
+    { key: "cell_staubli_temp_j1", label: "J1 Temp" }, { key: "cell_staubli_temp_j2", label: "J2 Temp" },
+    { key: "cell_staubli_temp_j3", label: "J3 Temp" }, { key: "cell_staubli_temp_j4", label: "J4 Temp" },
+    { key: "cell_staubli_temp_j5", label: "J5 Temp" }, { key: "cell_staubli_temp_j6", label: "J6 Temp" },
+    { key: "cell_staubli_temp_dsi", label: "DSI Temp" },
+  ]},
+  { title: "Staubli Task", icon: "\uD83D\uDCCB", system: "robot_cell", fields: [
+    { key: "cell_staubli_task_selected", label: "Task" },
+    { key: "cell_staubli_task_status", label: "Status" },
+    { key: "cell_staubli_move_id", label: "Move ID" },
+    { key: "cell_staubli_parts_found", label: "Parts Found" },
+    { key: "cell_staubli_part_picked", label: "Part Picked" },
+    { key: "cell_staubli_part_desired", label: "Part Desired" },
+  ]},
+  { title: "Staubli Safety", icon: "\uD83D\uDEE1\uFE0F", system: "robot_cell", fields: [
+    { key: "cell_staubli_stop1_active", label: "E-Stop 1" },
+    { key: "cell_staubli_stop2_active", label: "E-Stop 2" },
+    { key: "cell_staubli_door_open", label: "Door Open" },
+    { key: "cell_staubli_at_home", label: "At Home" },
+    { key: "cell_staubli_at_stow", label: "At Stow" },
+    { key: "cell_staubli_at_clear", label: "At Clear" },
+    { key: "cell_staubli_trajectory_found", label: "Trajectory" },
+  ]},
+  { title: "Staubli Lifetime", icon: "\uD83D\uDCCA", system: "robot_cell", fields: [
+    { key: "cell_staubli_arm_cycles", label: "Arm Cycles" },
+    { key: "cell_staubli_power_on_hours", label: "Power-On Hours" },
+    { key: "cell_staubli_urps_errors_24h", label: "URPS Errors/24h" },
+    { key: "cell_staubli_ethercat_errors_24h", label: "EtherCAT Err/24h" },
+    { key: "cell_staubli_conveyor_fwd", label: "Conveyor Fwd" },
+    { key: "cell_staubli_feed_conveyor", label: "Feed Conveyor" },
+  ]},
+  { title: "Apera Vision", icon: "\uD83D\uDC41\uFE0F", system: "robot_cell", fields: [
+    { key: "cell_apera_pipeline_name", label: "Pipeline" },
+    { key: "cell_apera_pipeline_state", label: "State" },
+    { key: "cell_apera_last_cycle_ms", label: "Cycle Time (ms)" },
+    { key: "cell_apera_total_detections", label: "Total Detections" },
+    { key: "cell_apera_detection_confidence_avg", label: "Avg Confidence" },
+    { key: "cell_apera_pick_pose_available", label: "Pick Pose" },
+    { key: "cell_apera_trajectory_available", label: "Trajectory" },
+  ]},
+  { title: "Apera Calibration", icon: "\uD83D\uDD2C", system: "robot_cell", fields: [
+    { key: "cell_apera_calibration_status", label: "Cal Status" },
+    { key: "cell_apera_cal_residual_mm", label: "Cal Residual (mm)" },
+    { key: "cell_apera_system_status", label: "System Status" },
+    { key: "cell_apera_app_manager_ok", label: "App Manager" },
+  ]},
+  { title: "Cell Network", icon: "\uD83C\uDF10", system: "robot_cell", fields: [
+    { key: "cell_net_staubli_cs9_reachable", label: "Staubli CS9" },
+    { key: "cell_net_staubli_cs9_latency_ms", label: "CS9 Latency (ms)" },
+    { key: "cell_net_apera_vue_pc_reachable", label: "Apera PC" },
+    { key: "cell_net_apera_vue_pc_latency_ms", label: "Apera Latency (ms)" },
+    { key: "cell_inet_reachable", label: "Internet" },
+    { key: "cell_inet_latency_ms", label: "Internet Latency" },
+  ]},
+  { title: "Cell System", icon: "\uD83D\uDCBB", system: "robot_cell", fields: [
+    { key: "cell_pi_cpu_temp_c", label: "CPU Temp" },
+    { key: "cell_pi_mem_used_pct", label: "Memory" },
+    { key: "cell_pi_disk_used_pct", label: "Disk" },
+    { key: "cell_pi_load_1m", label: "Load 1m" },
+    { key: "cell_cell_uptime_s", label: "Uptime (s)" },
+    { key: "cell_cell_total_reads", label: "Total Reads" },
   ]},
 ];
 
@@ -138,12 +312,39 @@ function fmtDate(iso: string): string {
 
 function SnapshotDetail({ snapshot, onBack }: { snapshot: SnapshotFull; onBack: () => void }) {
   const [showShare, setShowShare] = useState(false);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const data = { ...snapshot.reading_data };
-  // Normalize VIN: prefer vehicle_vin over vin if vin is missing/UNKNOWN
+
   if ((!data.vin || data.vin === "UNKNOWN") && data.vehicle_vin && data.vehicle_vin !== "UNKNOWN") {
     data.vin = data.vehicle_vin;
   }
   const fieldCount = Object.keys(data).filter(k => !k.startsWith("_") || k === "_bus_connected" || k === "_frame_count").length;
+
+  const capturedSystems: string[] =
+    (data._captured_systems as string[]) || (data._systems as string[]) || ["truck_engine"];
+
+  const toggleSection = (key: string) => {
+    setCollapsed(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  };
+
+  // Group sections by system, only include systems with data
+  const systemGroups = capturedSystems
+    .map(sys => {
+      const info = AVAILABLE_SYSTEMS.find(s => s.id === sys);
+      return {
+        system: sys,
+        label: info?.label || sys,
+        icon: info?.icon || "",
+        sections: SECTIONS.filter(s => s.system === sys),
+      };
+    })
+    .filter(g => g.sections.some(s =>
+      s.fields.some(f => data[f.key] !== undefined && data[f.key] !== null)
+    ));
 
   return (
     <div>
@@ -179,6 +380,17 @@ function SnapshotDetail({ snapshot, onBack }: { snapshot: SnapshotFull; onBack: 
             </p>
             {snapshot.label && <p className="text-yellow-300 font-semibold text-sm mt-1">{snapshot.label}</p>}
             {snapshot.notes && <p className="text-gray-400 text-sm mt-1">{snapshot.notes}</p>}
+            {/* System badges */}
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {capturedSystems.map(sys => {
+                const info = AVAILABLE_SYSTEMS.find(a => a.id === sys);
+                return info ? (
+                  <span key={sys} className={`text-xs px-2 py-0.5 rounded-full font-semibold ${SYSTEM_BADGE_CLASSES[sys] || "bg-gray-800 text-gray-400"}`}>
+                    {info.icon} {info.label}
+                  </span>
+                ) : null;
+              })}
+            </div>
           </div>
           <div className="text-right text-xs text-gray-400 space-y-1">
             <p>{fieldCount} data points captured</p>
@@ -188,45 +400,93 @@ function SnapshotDetail({ snapshot, onBack }: { snapshot: SnapshotFull; onBack: 
           </div>
         </div>
 
-        {/* Key metrics banner */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-blue-800/40">
-          <KeyMetric label="Engine RPM" value={snapshot.engine_rpm != null ? `${Math.round(snapshot.engine_rpm)}` : "--"} />
-          <KeyMetric label="Speed" value={snapshot.vehicle_speed_mph != null ? `${Math.round(snapshot.vehicle_speed_mph)} mph` : "--"} />
-          <KeyMetric label="Coolant" value={snapshot.coolant_temp_f != null ? `${Math.round(snapshot.coolant_temp_f)}\u00B0F` : "--"} />
-          <KeyMetric label="Battery" value={snapshot.battery_voltage_v != null ? `${snapshot.battery_voltage_v.toFixed(1)}V` : "--"} />
-        </div>
+        {/* Key metrics — Truck Engine */}
+        {capturedSystems.includes("truck_engine") && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-blue-800/40">
+            <KeyMetric label="Engine RPM" value={snapshot.engine_rpm != null ? `${Math.round(snapshot.engine_rpm)}` : "--"} />
+            <KeyMetric label="Speed" value={snapshot.vehicle_speed_mph != null ? `${Math.round(snapshot.vehicle_speed_mph)} mph` : "--"} />
+            <KeyMetric label="Coolant" value={snapshot.coolant_temp_f != null ? `${Math.round(snapshot.coolant_temp_f)}\u00B0F` : "--"} />
+            <KeyMetric label="Battery" value={snapshot.battery_voltage_v != null ? `${snapshot.battery_voltage_v.toFixed(1)}V` : "--"} />
+          </div>
+        )}
+
+        {/* Key metrics — TPS Buggy */}
+        {capturedSystems.includes("tps_buggy") && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-amber-800/40">
+            <KeyMetric label="Plate Count" value={data.plc_plate_drop_count != null ? String(data.plc_plate_drop_count) : "--"} />
+            <KeyMetric label="Track Speed" value={data.plc_encoder_speed_ftpm != null ? `${Number(data.plc_encoder_speed_ftpm).toFixed(0)} ft/min` : "--"} />
+            <KeyMetric label="Camera Det/min" value={data.plc_camera_detections_per_min != null ? `${Number(data.plc_camera_detections_per_min).toFixed(1)}` : "--"} />
+            <KeyMetric label="Operating Mode" value={data.plc_operating_mode != null ? String(data.plc_operating_mode) : "--"} />
+          </div>
+        )}
+
+        {/* Key metrics — Robot Cell */}
+        {capturedSystems.includes("robot_cell") && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-violet-800/40">
+            <KeyMetric label="Arm Cycles" value={data.cell_staubli_arm_cycles != null ? String(data.cell_staubli_arm_cycles) : "--"} />
+            <KeyMetric label="Task Status" value={data.cell_staubli_task_status != null ? String(data.cell_staubli_task_status) : "--"} />
+            <KeyMetric label="Detections" value={data.cell_apera_total_detections != null ? String(data.cell_apera_total_detections) : "--"} />
+            <KeyMetric label="Confidence" value={data.cell_apera_detection_confidence_avg != null ? `${Number(data.cell_apera_detection_confidence_avg).toFixed(0)}%` : "--"} />
+          </div>
+        )}
       </div>
 
-      {/* Data grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {SECTIONS.map((section) => {
-          const available = section.fields.filter(f => data[f.key] !== undefined && data[f.key] !== null);
-          if (available.length === 0) return null;
-          return (
-            <div key={section.title} className="bg-gray-900/50 rounded-xl p-4 border border-gray-800/50">
-              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">
-                {section.icon} {section.title}
-              </h3>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-                {available.map(f => (
-                  <div key={f.key} className="flex justify-between items-baseline">
-                    <span className="text-xs text-gray-500 truncate mr-2">{f.label}</span>
-                    <span className="text-xs font-mono font-bold text-gray-100">
-                      {formatValue(f.key, data[f.key])}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      {/* Data grid — grouped by system */}
+      {systemGroups.map(group => (
+        <div key={group.system} className="mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-lg">{group.icon}</span>
+            <h2 className={`text-sm font-bold uppercase tracking-wider ${SYSTEM_HEADER_CLASSES[group.system] || "text-gray-400"}`}>
+              {group.label}
+            </h2>
+            <div className="flex-1 h-px bg-gray-800" />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {group.sections.map((section) => {
+              const available = section.fields.filter(f => data[f.key] !== undefined && data[f.key] !== null);
+              if (available.length === 0) return null;
+              const isCollapsed = collapsed.has(section.title);
+              return (
+                <div key={section.title} className="bg-gray-900/50 rounded-xl border border-gray-800/50 overflow-hidden">
+                  <button
+                    onClick={() => toggleSection(section.title)}
+                    className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-800/30 transition-colors"
+                  >
+                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                      {section.icon} {section.title}
+                      <span className="ml-1.5 text-gray-600 font-normal">({available.length})</span>
+                    </h3>
+                    <svg
+                      className={`w-3.5 h-3.5 text-gray-600 transition-transform ${isCollapsed ? "-rotate-90" : ""}`}
+                      viewBox="0 0 20 20" fill="currentColor"
+                    >
+                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                  {!isCollapsed && (
+                    <div className="px-4 pb-3 grid grid-cols-2 gap-x-4 gap-y-1.5">
+                      {available.map(f => (
+                        <div key={f.key} className="flex justify-between items-baseline">
+                          <span className="text-xs text-gray-500 truncate mr-2">{f.label}</span>
+                          <span className="text-xs font-mono font-bold text-gray-100">
+                            {formatValue(f.key, data[f.key])}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
 
       {/* Raw data for DTCs */}
       {Object.keys(data).some(k => k.startsWith("dtc_0_")) && (
         <div className="mt-4 bg-gray-900/50 rounded-xl p-4 border border-gray-800/50">
           <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">
-            \u26A0\uFE0F Active DTC Details
+            {"\u26A0\uFE0F"} Active DTC Details
           </h3>
           <div className="space-y-1">
             {Array.from({ length: 20 }).map((_, i) => {
@@ -275,14 +535,27 @@ function CaptureForm({ onCapture, onCancel }: {
   const [time, setTime] = useState("15:30");
   const [label, setLabel] = useState("");
   const [notes, setNotes] = useState("");
+  const [selectedSystems, setSelectedSystems] = useState<string[]>(["truck_engine"]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const toggleSystem = (sysId: string) => {
+    setSelectedSystems(prev =>
+      prev.includes(sysId)
+        ? prev.filter(s => s !== sysId)
+        : [...prev, sysId]
+    );
+  };
+
   async function handleCapture() {
+    if (selectedSystems.length === 0) {
+      setError("Select at least one system");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
-      const body: Record<string, string> = { truck_id: truckId };
+      const body: Record<string, unknown> = { truck_id: truckId, systems: selectedSystems };
       if (mode === "historical") {
         body.timestamp = new Date(`${date}T${time}:00`).toISOString();
       }
@@ -310,7 +583,7 @@ function CaptureForm({ onCapture, onCancel }: {
   }
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 max-w-lg">
+    <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 max-w-2xl">
       <h2 className="text-lg font-bold text-white mb-4">Capture Snapshot</h2>
 
       <div className="space-y-4">
@@ -318,6 +591,42 @@ function CaptureForm({ onCapture, onCancel }: {
           <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Truck ID</label>
           <input type="text" value={truckId} onChange={e => setTruckId(e.target.value)}
             className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" />
+        </div>
+
+        {/* System selector */}
+        <div>
+          <label className="block text-xs text-gray-500 uppercase tracking-wider mb-2">Systems to Capture</label>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {AVAILABLE_SYSTEMS.map(sys => {
+              const active = selectedSystems.includes(sys.id);
+              return (
+                <button
+                  key={sys.id}
+                  type="button"
+                  onClick={() => toggleSystem(sys.id)}
+                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left transition-all ${
+                    active
+                      ? SYSTEM_BTN_ACTIVE[sys.id]
+                      : "bg-gray-800/50 border-gray-700/50 text-gray-500 hover:text-gray-300 hover:border-gray-600"
+                  }`}
+                >
+                  <span className="text-lg">{sys.icon}</span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold truncate">{sys.label}</p>
+                    <p className="text-[10px] opacity-60 truncate">{sys.desc}</p>
+                  </div>
+                  {active && (
+                    <svg className="w-4 h-4 ml-auto shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          {selectedSystems.length === 0 && (
+            <p className="text-red-400 text-xs mt-1">Select at least one system</p>
+          )}
         </div>
 
         <div>
@@ -366,9 +675,9 @@ function CaptureForm({ onCapture, onCancel }: {
         {error && <p className="text-red-400 text-sm">{error}</p>}
 
         <div className="flex gap-3 pt-2">
-          <button onClick={handleCapture} disabled={saving}
+          <button onClick={handleCapture} disabled={saving || selectedSystems.length === 0}
             className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-lg text-sm font-semibold transition-colors">
-            {saving ? "Capturing..." : "Capture Snapshot"}
+            {saving ? "Capturing..." : `Capture ${selectedSystems.length} System${selectedSystems.length !== 1 ? "s" : ""}`}
           </button>
           <button onClick={onCancel}
             className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm font-semibold transition-colors">
@@ -473,7 +782,7 @@ export default function SnapshotsPage() {
             >
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-semibold text-white">{s.truck_name || `Truck ${s.truck_id}`}</span>
                     {s.label && <span className="px-2 py-0.5 bg-yellow-900/40 text-yellow-300 text-xs font-semibold rounded-full">{s.label}</span>}
                     <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${s.source === "live" ? "bg-green-900/40 text-green-300" : "bg-blue-900/40 text-blue-300"}`}>
@@ -483,6 +792,19 @@ export default function SnapshotsPage() {
                   <p className="text-xs text-gray-500 mt-1">
                     {fmtDate(s.captured_at)} &mdash; by {s.created_by_name}
                   </p>
+                  {/* System badges */}
+                  {s.systems && s.systems.length > 0 && (
+                    <div className="flex gap-1 mt-1.5">
+                      {s.systems.map(sys => {
+                        const info = AVAILABLE_SYSTEMS.find(a => a.id === sys);
+                        return info ? (
+                          <span key={sys} className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${SYSTEM_BADGE_CLASSES[sys] || "bg-gray-800 text-gray-500"}`}>
+                            {info.icon} {info.label}
+                          </span>
+                        ) : null;
+                      })}
+                    </div>
+                  )}
                   {s.notes && <p className="text-xs text-gray-600 mt-1">{s.notes}</p>}
                 </div>
                 <div className="flex items-center gap-4 text-xs text-gray-400">
