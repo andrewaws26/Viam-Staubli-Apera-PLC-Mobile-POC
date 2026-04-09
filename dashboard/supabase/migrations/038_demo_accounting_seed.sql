@@ -227,9 +227,12 @@ ON CONFLICT (user_id, benefit_plan_id) DO NOTHING;
 -- Gross: $7,940.62 | Employer tax: $869.50
 -- Total debits: $8,810.12 = Total credits: $8,810.12
 
+-- NOTE: Insert as 'draft' first so the balance-check trigger (036) doesn't
+-- fire before lines exist.  We UPDATE to 'posted' at the end of the migration.
+
 WITH payroll_je AS (
-  INSERT INTO journal_entries (entry_date, description, reference, source, status, total_amount, created_by, created_by_name, posted_at)
-  SELECT '2026-03-28', 'Payroll — week of 3/17–3/22 (6 employees)', 'PR-2026-W12', 'payroll', 'posted', 7940.62, 'seed-admin', 'Andrew Sieg', '2026-03-28 08:00:00-05'
+  INSERT INTO journal_entries (entry_date, description, reference, source, status, total_amount, created_by, created_by_name)
+  SELECT '2026-03-28', 'Payroll — week of 3/17–3/22 (6 employees)', 'PR-2026-W12', 'payroll', 'draft', 7940.62, 'seed-admin', 'Andrew Sieg'
   WHERE NOT EXISTS (SELECT 1 FROM journal_entries WHERE reference = 'PR-2026-W12' AND source = 'payroll')
   RETURNING id
 ),
@@ -535,7 +538,16 @@ ON CONFLICT DO NOTHING;
 
 
 -- ============================================================================
--- 14. UPDATE COA BALANCES — Reflect all new posted JEs
+-- 14. POST THE PAYROLL JE — Now that lines exist, the trigger will pass
+-- ============================================================================
+
+UPDATE journal_entries
+SET status = 'posted', posted_at = '2026-03-28 08:00:00-05'::timestamptz
+WHERE reference = 'PR-2026-W12' AND source = 'payroll' AND status = 'draft';
+
+
+-- ============================================================================
+-- 15. UPDATE COA BALANCES — Reflect all new posted JEs
 -- ============================================================================
 -- Recalculates balances for all accounts that have posted journal entry lines.
 
