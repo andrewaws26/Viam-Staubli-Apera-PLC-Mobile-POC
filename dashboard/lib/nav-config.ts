@@ -28,6 +28,28 @@ export interface NavSection {
 
 export const NAV_SECTIONS: NavSection[] = [
   {
+    id: "manager",
+    label: "Command Center",
+    href: "/manager",
+    roles: ["developer", "manager"],
+    sidebar: [
+      {
+        title: "Overview",
+        items: [
+          { href: "/manager", label: "Dashboard" },
+        ],
+      },
+      {
+        title: "Quick Actions",
+        items: [
+          { href: "/timesheets/admin", label: "Review Timesheets" },
+          { href: "/pto/admin", label: "PTO Approvals" },
+          { href: "/training/admin", label: "Compliance" },
+        ],
+      },
+    ],
+  },
+  {
     id: "fleet",
     label: "Fleet",
     href: "/fleet",
@@ -173,6 +195,9 @@ export const NAV_SECTIONS: NavSection[] = [
  * Returns the section id or null for pages with no section (home, auth, system).
  */
 export function resolveSection(pathname: string): NavSection | null {
+  if (pathname.startsWith("/manager")) {
+    return NAV_SECTIONS.find((s) => s.id === "manager") ?? null;
+  }
   if (pathname.startsWith("/accounting")) {
     return NAV_SECTIONS.find((s) => s.id === "finance") ?? null;
   }

@@ -29,6 +29,25 @@ const STOPS: TourStop[] = [
       "team chat, training compliance, accounting — all in one place. Everything below is live and functional.",
   },
   {
+    title: "Your Command Center",
+    message:
+      "This is where you'd start every day. One screen that shows everything that needs your attention — " +
+      "pending timesheets, PTO requests, blocked work orders, expiring certifications, fleet status. " +
+      "No clicking through 8 different screens. It's all right here.",
+    value:
+      "Monday morning, you open this instead of checking your email, texts, and a stack of paper. " +
+      "If something needs your approval, you see it. If a truck is down or someone's cert is expired, you know immediately. " +
+      "It auto-refreshes every 60 seconds so it stays current all day.",
+    tryIt: {
+      label: "Open Command Center",
+      href: "/manager",
+    },
+    highlight:
+      "Look at the action cards across the top — each one is a count of items that need your attention. " +
+      "Below that, you'll see the details: who submitted what, which work orders are blocked and why, " +
+      "whose certs are expiring. Everything links to the actual page where you take action.",
+  },
+  {
     title: "Live Truck Dashboard",
     message:
       "This is what it looks like when a truck is running. Every sensor reading from the PLC, " +
