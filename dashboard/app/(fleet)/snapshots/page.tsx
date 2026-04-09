@@ -519,7 +519,6 @@ function CaptureForm({ onCapture, onCancel }: {
   const [selectedSystems, setSelectedSystems] = useState<string[]>([]);
   const [excludedFields, setExcludedFields] = useState<Set<string>>(new Set());
   const [metricSearch, setMetricSearch] = useState("");
-  const [showMetrics, setShowMetrics] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -598,125 +597,132 @@ function CaptureForm({ onCapture, onCancel }: {
             className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" />
         </div>
 
-        {/* System selector */}
+        {/* Systems + inline metric pickers */}
         <div>
           <label className="block text-xs text-gray-500 uppercase tracking-wider mb-2">Systems to Capture</label>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {selectedSystems.length === 0 && (
+            <p className="text-red-400 text-xs mb-2">Select at least one system</p>
+          )}
+
+          {/* Search bar — visible when any system is selected */}
+          {selectedSystems.length > 0 && (
+            <div className="mb-3">
+              <input
+                type="text"
+                value={metricSearch}
+                onChange={e => setMetricSearch(e.target.value)}
+                placeholder="Search metrics across all systems..."
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-600"
+              />
+            </div>
+          )}
+
+          <div className="space-y-3">
             {AVAILABLE_SYSTEMS.map(sys => {
               const active = selectedSystems.includes(sys.id);
+              const sysSections = active ? filteredSections.filter(s => s.system === sys.id) : [];
+              const sysFieldKeys = SECTIONS.filter(s => s.system === sys.id).flatMap(s => s.fields.map(f => f.key));
+              const sysIncluded = sysFieldKeys.filter(k => !excludedFields.has(k)).length;
+
               return (
-                <button
-                  key={sys.id}
-                  type="button"
-                  onClick={() => toggleSystem(sys.id)}
-                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left transition-all ${
-                    active
-                      ? SYSTEM_BTN_ACTIVE[sys.id]
-                      : "bg-gray-800/50 border-gray-700/50 text-gray-500 hover:text-gray-300 hover:border-gray-600"
-                  }`}
-                >
-                  <span className="text-lg">{sys.icon}</span>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold truncate">{sys.label}</p>
-                    <p className="text-[10px] opacity-60 truncate">{sys.desc}</p>
-                  </div>
+                <div key={sys.id} className={`rounded-xl border transition-all ${
+                  active
+                    ? `${SYSTEM_BTN_ACTIVE[sys.id]} border-opacity-100`
+                    : "bg-gray-800/30 border-gray-700/50"
+                }`}>
+                  {/* System toggle header */}
+                  <button
+                    type="button"
+                    onClick={() => toggleSystem(sys.id)}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left"
+                  >
+                    <span className="text-xl">{sys.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-semibold ${active ? "text-white" : "text-gray-500"}`}>{sys.label}</p>
+                      <p className={`text-[10px] ${active ? "opacity-60" : "text-gray-600"}`}>{sys.desc}</p>
+                    </div>
+                    {active && (
+                      <span className="text-xs text-gray-400">{sysIncluded}/{sysFieldKeys.length} metrics</span>
+                    )}
+                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ${
+                      active ? "border-current bg-current/20" : "border-gray-600"
+                    }`}>
+                      {active && (
+                        <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </div>
+                  </button>
+
+                  {/* Expanded metric picker for this system */}
                   {active && (
-                    <svg className="w-4 h-4 ml-auto shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
+                    <div className="px-4 pb-4 pt-1 border-t border-gray-700/30">
+                      <div className="flex gap-3 text-xs mb-2">
+                        <button type="button" onClick={() => {
+                          setExcludedFields(prev => { const next = new Set(prev); sysFieldKeys.forEach(k => next.delete(k)); return next; });
+                        }} className="text-blue-400 hover:text-blue-300">Select All</button>
+                        <button type="button" onClick={() => {
+                          setExcludedFields(prev => { const next = new Set(prev); sysFieldKeys.forEach(k => next.add(k)); return next; });
+                        }} className="text-gray-500 hover:text-gray-300">Select None</button>
+                      </div>
+                      <div className="space-y-2 max-h-[350px] overflow-y-auto">
+                        {sysSections.map(section => {
+                          const sectionKeys = section.fields.map(f => f.key);
+                          const allIncluded = sectionKeys.every(k => !excludedFields.has(k));
+                          const noneIncluded = sectionKeys.every(k => excludedFields.has(k));
+                          return (
+                            <div key={section.title}>
+                              <label className="flex items-center gap-2 cursor-pointer mb-0.5">
+                                <input
+                                  type="checkbox"
+                                  checked={allIncluded}
+                                  ref={el => { if (el) el.indeterminate = !allIncluded && !noneIncluded; }}
+                                  onChange={() => {
+                                    setExcludedFields(prev => {
+                                      const next = new Set(prev);
+                                      if (allIncluded) sectionKeys.forEach(k => next.add(k));
+                                      else sectionKeys.forEach(k => next.delete(k));
+                                      return next;
+                                    });
+                                  }}
+                                  className="rounded border-gray-600 text-blue-500"
+                                />
+                                <span className="text-xs font-semibold text-gray-300">{section.icon} {section.title}</span>
+                              </label>
+                              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-0.5 ml-5">
+                                {section.fields.map(f => (
+                                  <label key={f.key} className="flex items-center gap-1.5 text-[11px] text-gray-400 cursor-pointer py-0.5 hover:text-gray-200">
+                                    <input
+                                      type="checkbox"
+                                      checked={!excludedFields.has(f.key)}
+                                      onChange={() => {
+                                        setExcludedFields(prev => {
+                                          const next = new Set(prev);
+                                          next.has(f.key) ? next.delete(f.key) : next.add(f.key);
+                                          return next;
+                                        });
+                                      }}
+                                      className="rounded border-gray-700 text-blue-500 w-3 h-3"
+                                    />
+                                    {f.label}
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {sysSections.length === 0 && query && (
+                          <p className="text-xs text-gray-600 py-2">No metrics match &quot;{metricSearch}&quot;</p>
+                        )}
+                      </div>
+                    </div>
                   )}
-                </button>
+                </div>
               );
             })}
           </div>
-          {selectedSystems.length === 0 && (
-            <p className="text-red-400 text-xs mt-1">Select at least one system</p>
-          )}
         </div>
-
-        {/* Metric picker — only when systems selected */}
-        {selectedSystems.length > 0 && (
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-xs text-gray-500 uppercase tracking-wider">Metrics to Include</label>
-              <button type="button" onClick={() => setShowMetrics(!showMetrics)}
-                className="text-xs text-blue-400 hover:text-blue-300">
-                {showMetrics ? "Hide" : "Customize"} ({includedCount}/{allFieldKeys.length})
-              </button>
-            </div>
-            {showMetrics && (
-              <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4 space-y-3">
-                <input
-                  type="text"
-                  value={metricSearch}
-                  onChange={e => setMetricSearch(e.target.value)}
-                  placeholder="Search metrics..."
-                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-600"
-                />
-                <div className="flex gap-3 text-xs">
-                  <button type="button" onClick={() => setExcludedFields(new Set())} className="text-blue-400 hover:text-blue-300">Include All</button>
-                  <button type="button" onClick={() => setExcludedFields(new Set(allFieldKeys))} className="text-gray-500 hover:text-gray-300">Exclude All</button>
-                </div>
-                <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                  {filteredSections.map(section => {
-                    const sysInfo = AVAILABLE_SYSTEMS.find(s => s.id === section.system);
-                    const sectionKeys = section.fields.map(f => f.key);
-                    const allIncluded = sectionKeys.every(k => !excludedFields.has(k));
-                    const noneIncluded = sectionKeys.every(k => excludedFields.has(k));
-                    return (
-                      <div key={`${section.system}-${section.title}`}>
-                        <label className="flex items-center gap-2 cursor-pointer mb-1">
-                          <input
-                            type="checkbox"
-                            checked={allIncluded}
-                            ref={el => { if (el) el.indeterminate = !allIncluded && !noneIncluded; }}
-                            onChange={() => {
-                              setExcludedFields(prev => {
-                                const next = new Set(prev);
-                                if (allIncluded) sectionKeys.forEach(k => next.add(k));
-                                else sectionKeys.forEach(k => next.delete(k));
-                                return next;
-                              });
-                            }}
-                            className="rounded border-gray-600 text-blue-500"
-                          />
-                          <span className="text-xs font-semibold text-gray-300">
-                            {section.icon} {section.title}
-                          </span>
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${SYSTEM_BADGE_CLASSES[section.system] || "bg-gray-800 text-gray-500"}`}>
-                            {sysInfo?.icon}
-                          </span>
-                        </label>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-0.5 ml-5">
-                          {section.fields.map(f => (
-                            <label key={f.key} className="flex items-center gap-1.5 text-[11px] text-gray-400 cursor-pointer py-0.5 hover:text-gray-200">
-                              <input
-                                type="checkbox"
-                                checked={!excludedFields.has(f.key)}
-                                onChange={() => {
-                                  setExcludedFields(prev => {
-                                    const next = new Set(prev);
-                                    next.has(f.key) ? next.delete(f.key) : next.add(f.key);
-                                    return next;
-                                  });
-                                }}
-                                className="rounded border-gray-700 text-blue-500 w-3 h-3"
-                              />
-                              {f.label}
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                {filteredSections.length === 0 && query && (
-                  <p className="text-xs text-gray-600 text-center py-3">No metrics match &quot;{metricSearch}&quot;</p>
-                )}
-              </div>
-            )}
-          </div>
-        )}
 
         <div>
           <label className="block text-xs text-gray-500 uppercase tracking-wider mb-2">Source</label>
