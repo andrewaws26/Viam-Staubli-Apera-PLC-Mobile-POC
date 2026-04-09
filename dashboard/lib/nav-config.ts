@@ -128,6 +128,10 @@ export const NAV_SECTIONS: NavSection[] = [
         items: [{ href: "/accounting", label: "Finance Home" }],
       },
       {
+        title: "Job Costing",
+        items: [{ href: "/jobs", label: "All Jobs" }],
+      },
+      {
         title: "Sales",
         items: [
           { href: "/accounting/invoices", label: "Invoices" },
@@ -209,7 +213,7 @@ export function resolveSection(pathname: string): NavSection | null {
   if (pathname.startsWith("/manager")) {
     return NAV_SECTIONS.find((s) => s.id === "manager") ?? null;
   }
-  if (pathname.startsWith("/accounting")) {
+  if (pathname.startsWith("/accounting") || pathname.startsWith("/jobs")) {
     return NAV_SECTIONS.find((s) => s.id === "finance") ?? null;
   }
   if (pathname.startsWith("/reports")) {
