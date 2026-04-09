@@ -354,6 +354,46 @@ Use COALESCE for nullable numeric fields. Format dates with to_char(col, 'YYYY-M
   Columns: id (UUID PK), home_state (CHAR(2)), work_state (CHAR(2)), tax_year (INT), notes (TEXT), created_at
   CONSTRAINT: UNIQUE(home_state, work_state, tax_year)
 
+- company_settings: Singleton company profile and setup wizard state. (Migration 039)
+  Columns: id (UUID PK), company_name (TEXT), address_line1 (TEXT), address_line2 (TEXT), city (TEXT), state (TEXT), zip (TEXT), phone (TEXT), email (TEXT), website (TEXT), ein (TEXT), industry (TEXT), logo_url (TEXT), fiscal_year_start_month (INT 1-12), accounting_method (TEXT: cash/accrual), setup_completed (BOOLEAN), setup_completed_at (TIMESTAMPTZ), setup_completed_by (TEXT), created_at, updated_at
+  CONSTRAINT: singleton unique index — only one row allowed
+
+## Dev Portal
+
+- prompt_templates: Reusable AI prompt templates with variable substitution. (Migration 040)
+  Columns: id (UUID PK), name (TEXT), description (TEXT), category (TEXT: general/diagnostic/report/code/deployment), body (TEXT), variables (JSONB), is_active (BOOLEAN), created_by (TEXT), created_at, updated_at
+
+- prompt_versions: Version history for prompt templates. (Migration 040)
+  Columns: id (UUID PK), template_id (UUID FK prompt_templates.id), version (INT), body (TEXT), variables (JSONB), changelog (TEXT), created_by (TEXT), created_at
+  CONSTRAINT: UNIQUE(template_id, version)
+
+- dev_sessions: AI/Claude Code session tracking. (Migration 040)
+  Columns: id (UUID PK), session_type (TEXT: claude-code/vercel-cron/github-action/manual), status (TEXT: running/completed/failed/cancelled), title (TEXT), description (TEXT), prompt_template_id (UUID FK), input_context (JSONB), output_summary (TEXT), tokens_used (INT), cost_cents (INT), started_at (TIMESTAMPTZ), ended_at (TIMESTAMPTZ), created_by (TEXT)
+
+- system_health_logs: Service health check history. (Migration 040)
+  Columns: id (UUID PK), source (TEXT: vercel/supabase/viam/github/clerk/pi5), status (TEXT: healthy/degraded/down), response_ms (INT), details (JSONB), checked_at (TIMESTAMPTZ)
+
+- architecture_nodes: System architecture graph nodes. (Migration 040)
+  Columns: id (UUID PK), node_type (TEXT: service/database/device/api/ui), name (TEXT), description (TEXT), metadata (JSONB), status (TEXT), created_at, updated_at
+
+- architecture_edges: System architecture graph edges. (Migration 040)
+  Columns: id (UUID PK), source_id (UUID FK architecture_nodes.id), target_id (UUID FK architecture_nodes.id), edge_type (TEXT: data/auth/deploy/network), label (TEXT), metadata (JSONB), created_at
+
+- knowledge_entries: Developer knowledge base articles. (Migration 040)
+  Columns: id (UUID PK), category (TEXT: architecture/debugging/deployment/api/convention), title (TEXT), body (TEXT), tags (TEXT[]), source (TEXT), created_by (TEXT), created_at, updated_at
+
+- dev_test_runs: Test execution history. (Migration 040)
+  Columns: id (UUID PK), suite (TEXT: unit/e2e/api-health/visual/safety), status (TEXT: running/passed/failed/skipped), total_tests (INT), passed (INT), failed (INT), skipped (INT), duration_ms (INT), trigger (TEXT: manual/ci/cron/pre-deploy), commit_sha (TEXT), branch (TEXT), output_url (TEXT), details (JSONB), started_at (TIMESTAMPTZ), ended_at (TIMESTAMPTZ)
+
+- deployment_history: Deployment tracking across all targets. (Migration 040)
+  Columns: id (UUID PK), target (TEXT: vercel/pi5/supabase/github-pages), status (TEXT: deploying/success/failed/rolled-back), commit_sha (TEXT), branch (TEXT), deploy_url (TEXT), trigger (TEXT: git-push/manual/cron/rollback), details (JSONB), started_at (TIMESTAMPTZ), ended_at (TIMESTAMPTZ), created_by (TEXT)
+
+- dev_workflows: Scheduled automation definitions. (Migration 040)
+  Columns: id (UUID PK), name (TEXT), description (TEXT), engine (TEXT: vercel-cron/github-actions/dev-pi), cron_expression (TEXT), is_active (BOOLEAN), config (JSONB), prompt_template_id (UUID FK), created_by (TEXT), created_at, updated_at
+
+- workflow_runs: Workflow execution history. (Migration 040)
+  Columns: id (UUID PK), workflow_id (UUID FK dev_workflows.id), status (TEXT: running/completed/failed/cancelled), trigger (TEXT: scheduled/manual), input (JSONB), output (JSONB), started_at (TIMESTAMPTZ), ended_at (TIMESTAMPTZ)
+
 ## Key Relationships
 - timesheets.user_id = employee_profiles.user_id (TEXT, Clerk user ID)
 - invoices.customer_id = customers.id (UUID)

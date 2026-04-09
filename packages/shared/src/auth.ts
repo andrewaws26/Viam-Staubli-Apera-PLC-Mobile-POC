@@ -86,6 +86,8 @@ export const ROUTE_PERMISSIONS: Record<string, UserRole[]> = {
   "/training/admin": ["developer", "manager"],
   "/snapshots": ["developer", "manager", "mechanic", "operator"],
   "/dev": ["developer"],
+  "/dev-portal": ["developer"],
+  "/api/dev-portal": ["developer"],
   "/vision": ["developer"],
   "/admin": ["developer", "manager"],
 };

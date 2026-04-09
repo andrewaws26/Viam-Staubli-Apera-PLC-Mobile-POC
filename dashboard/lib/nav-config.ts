@@ -199,6 +199,43 @@ export const NAV_SECTIONS: NavSection[] = [
     roles: ["developer", "manager"],
     sidebar: [],
   },
+  {
+    id: "devportal",
+    label: "Dev Portal",
+    href: "/dev-portal",
+    roles: ["developer"],
+    sidebar: [
+      {
+        title: "Overview",
+        items: [
+          { href: "/dev-portal", label: "Control Plane" },
+        ],
+      },
+      {
+        title: "Infrastructure",
+        items: [
+          { href: "/dev-portal/health", label: "System Health" },
+          { href: "/dev-portal/deployments", label: "Deployments" },
+          { href: "/dev-portal/tests", label: "Test Runs" },
+        ],
+      },
+      {
+        title: "Development",
+        items: [
+          { href: "/dev-portal/prompts", label: "Prompt Library" },
+          { href: "/dev-portal/sessions", label: "AI Sessions" },
+          { href: "/dev-portal/workflows", label: "Workflows" },
+        ],
+      },
+      {
+        title: "Knowledge",
+        items: [
+          { href: "/dev-portal/architecture", label: "Architecture Map" },
+          { href: "/dev-portal/knowledge", label: "Knowledge Base" },
+        ],
+      },
+    ],
+  },
 ];
 
 /**
@@ -214,6 +251,9 @@ export function resolveSection(pathname: string): NavSection | null {
   }
   if (pathname.startsWith("/reports")) {
     return NAV_SECTIONS.find((s) => s.id === "reports") ?? null;
+  }
+  if (pathname.startsWith("/dev-portal")) {
+    return NAV_SECTIONS.find((s) => s.id === "devportal") ?? null;
   }
   for (const section of NAV_SECTIONS) {
     for (const group of section.sidebar) {
