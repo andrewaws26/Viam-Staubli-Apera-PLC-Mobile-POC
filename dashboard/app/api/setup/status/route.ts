@@ -43,18 +43,18 @@ export async function GET() {
     }
 
     const checks: SystemCheck[] = [
-      { key: "chart_of_accounts", label: "Chart of Accounts", description: "GL accounts for bookkeeping", count: cnt(0), threshold: 10, href: "/accounting" },
-      { key: "accounting_periods", label: "Accounting Periods", description: "Fiscal year periods defined", count: cnt(1), threshold: 1, href: "/accounting/periods" },
-      { key: "tax_rates", label: "Federal Tax Tables", description: "Payroll withholding rates", count: cnt(2), threshold: 1, href: "/accounting/employee-tax" },
-      { key: "state_tax", label: "State Tax Config", description: "State withholding rules", count: cnt(3), threshold: 1, href: "/accounting/tax-reports" },
-      { key: "employees", label: "Employee Profiles", description: "Team member records", count: cnt(4), threshold: 1, href: "/team" },
-      { key: "vehicles", label: "Fleet Vehicles", description: "Trucks and equipment", count: cnt(5), threshold: 1, href: "/admin/vehicles" },
-      { key: "bank_accounts", label: "Bank Accounts", description: "Connected bank accounts", count: cnt(6), threshold: 1, href: "/accounting/bank" },
-      { key: "training", label: "Training Requirements", description: "Safety & compliance certs", count: cnt(7), threshold: 1, href: "/training/admin" },
-      { key: "benefits", label: "Benefit Plans", description: "Health, dental, 401k plans", count: cnt(8), threshold: 0, href: "/accounting/employee-tax" },
-      { key: "per_diem", label: "Per Diem Rates", description: "Daily & layover rates", count: cnt(9), threshold: 1, href: "/accounting/payment-reminders" },
-      { key: "customers", label: "Customers", description: "AR customer records", count: cnt(10), threshold: 0, href: "/accounting/customers" },
-      { key: "vendors", label: "Vendors", description: "AP vendor records", count: cnt(11), threshold: 0, href: "/accounting/customers" },
+      { key: "chart_of_accounts", label: "Chart of Accounts", description: "Your accounts for tracking income, expenses, assets, and liabilities", count: cnt(0), threshold: 10, href: "/accounting" },
+      { key: "accounting_periods", label: "Accounting Periods", description: "Monthly periods for opening/closing your books", count: cnt(1), threshold: 1, href: "/accounting/periods" },
+      { key: "tax_rates", label: "Federal Tax Tables", description: "2026 withholding rates for payroll (pre-loaded)", count: cnt(2), threshold: 1, href: "/accounting/employee-tax" },
+      { key: "state_tax", label: "State Tax Rates", description: "State-level payroll withholding (KY, IN, OH, and 6 more)", count: cnt(3), threshold: 1, href: "/accounting/tax-reports" },
+      { key: "employees", label: "Employees", description: "Your team — needed for timesheets and payroll", count: cnt(4), threshold: 1, href: "/team" },
+      { key: "vehicles", label: "Fleet Vehicles", description: "Company trucks and equipment", count: cnt(5), threshold: 1, href: "/admin/vehicles" },
+      { key: "bank_accounts", label: "Bank Accounts", description: "For reconciling your bank statements", count: cnt(6), threshold: 1, href: "/accounting/bank" },
+      { key: "training", label: "Training Certs", description: "Safety and compliance certifications to track", count: cnt(7), threshold: 1, href: "/training/admin" },
+      { key: "benefits", label: "Benefit Plans", description: "Health, dental, 401k — for payroll deductions", count: cnt(8), threshold: 0, href: "/accounting/employee-tax" },
+      { key: "per_diem", label: "Per Diem Rates", description: "Daily rates for field crew travel pay", count: cnt(9), threshold: 1, href: "/accounting/payment-reminders" },
+      { key: "customers", label: "Customers", description: "Who you invoice — add as you go", count: cnt(10), threshold: 0, href: "/accounting/customers" },
+      { key: "vendors", label: "Vendors", description: "Who you pay — add as you go", count: cnt(11), threshold: 0, href: "/accounting/customers" },
     ];
 
     const ready = checks.filter((c) => c.count >= c.threshold && c.threshold > 0).length;

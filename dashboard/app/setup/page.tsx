@@ -203,45 +203,62 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
       <h1 className="text-3xl sm:text-4xl font-black text-white mb-3">
         Welcome to IronSight
       </h1>
-      <p className="text-base sm:text-lg text-gray-400 mb-10">
-        Your Company Operating System
+      <p className="text-base sm:text-lg text-gray-400 mb-4">
+        Everything you need to run your company&apos;s finances — in one place.
+      </p>
+      <p className="text-sm text-gray-500 mb-10">
+        Replaces QuickBooks with full double-entry bookkeeping, invoicing,
+        payroll, bank reconciliation, and tax reporting.
       </p>
 
-      <div className="text-left bg-gray-900/60 border border-gray-800 rounded-xl p-5 sm:p-6 mb-10">
+      <div className="text-left bg-gray-900/60 border border-gray-800 rounded-xl p-5 sm:p-6 mb-6">
         <p className="text-sm text-gray-300 mb-4 font-medium">
-          This wizard will configure your system in a few minutes:
+          We&apos;ll walk you through setup in about 5 minutes:
         </p>
         <ul className="space-y-3 text-sm text-gray-400">
           <li className="flex items-start gap-3">
             <span className="mt-0.5 w-5 h-5 rounded-full bg-violet-500/20 flex items-center justify-center text-violet-400 text-[10px] font-bold shrink-0">
               1
             </span>
-            <span>Company profile, address, and tax ID</span>
+            <span>Your company name, address, and EIN</span>
           </li>
           <li className="flex items-start gap-3">
             <span className="mt-0.5 w-5 h-5 rounded-full bg-violet-500/20 flex items-center justify-center text-violet-400 text-[10px] font-bold shrink-0">
               2
             </span>
-            <span>Fiscal year and accounting method</span>
+            <span>
+              Import your data from QuickBooks (or start fresh — we set up a
+              standard chart of accounts for you)
+            </span>
           </li>
           <li className="flex items-start gap-3">
             <span className="mt-0.5 w-5 h-5 rounded-full bg-violet-500/20 flex items-center justify-center text-violet-400 text-[10px] font-bold shrink-0">
               3
             </span>
             <span>
-              Import data — bring in your chart of accounts, customers, and
-              vendors from CSV
-            </span>
-          </li>
-          <li className="flex items-start gap-3">
-            <span className="mt-0.5 w-5 h-5 rounded-full bg-violet-500/20 flex items-center justify-center text-violet-400 text-[10px] font-bold shrink-0">
-              4
-            </span>
-            <span>
-              System readiness check — verify all modules are configured
+              Review what&apos;s ready — see your chart of accounts, tax tables,
+              and team at a glance
             </span>
           </li>
         </ul>
+      </div>
+
+      <div className="text-left bg-gray-900/40 border border-gray-800/50 rounded-xl p-5 sm:p-6 mb-10">
+        <p className="text-xs font-medium text-gray-400 mb-2">
+          What&apos;s included out of the box:
+        </p>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-500">
+          <span>Invoicing &amp; payments</span>
+          <span>Payroll with tax withholding</span>
+          <span>Bill tracking (AP)</span>
+          <span>Bank reconciliation</span>
+          <span>Profit &amp; Loss, Balance Sheet</span>
+          <span>941/940 tax worksheets</span>
+          <span>1099 vendor tracking</span>
+          <span>Fixed asset depreciation</span>
+          <span>Receipt scanning (AI)</span>
+          <span>Multi-state payroll</span>
+        </div>
       </div>
 
       <button onClick={onNext} className={btnPrimary + " px-10 py-3"}>
@@ -455,6 +472,11 @@ function CompanyStep({
                   Cash
                 </label>
               </div>
+              <p className="text-[10px] text-gray-600 mt-1.5">
+                {data.accounting_method === "accrual"
+                  ? "Record income when earned and expenses when incurred (most common for businesses with employees)"
+                  : "Record income when received and expenses when paid (simpler, common for sole proprietors)"}
+              </p>
             </div>
           </div>
         </div>
@@ -564,11 +586,68 @@ function ImportStep({
   return (
     <div className="max-w-xl mx-auto py-6">
       <h2 className="text-xl font-bold text-white mb-1">Import Your Data</h2>
-      <p className="text-sm text-gray-500 mb-6">
-        Migrating from QuickBooks or another system? Upload CSV files for each
-        category below. You can skip this and import later from Finance &rarr; QB
-        Data Import.
+      <p className="text-sm text-gray-500 mb-2">
+        If you&apos;re coming from QuickBooks or another accounting system, you
+        can bring your accounts, customers, and vendors right in.
       </p>
+      <p className="text-sm text-gray-500 mb-6">
+        Don&apos;t have anything to import? No problem — just hit{" "}
+        <strong className="text-gray-400">&quot;Skip&quot;</strong> at the
+        bottom. We&apos;ve already set up a standard chart of accounts with 30+
+        accounts for assets, liabilities, equity, revenue, and expenses.
+      </p>
+
+      {/* QuickBooks export guide */}
+      <details className="mb-6 rounded-xl border border-gray-800 bg-gray-900/40 group">
+        <summary className="px-4 py-3 cursor-pointer text-sm font-medium text-violet-400 hover:text-violet-300 list-none flex items-center justify-between">
+          <span>How to export from QuickBooks</span>
+          <svg
+            className="w-4 h-4 text-gray-600 group-open:rotate-180 transition-transform"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M19 9l-7 7-7-7"
+            />
+          </svg>
+        </summary>
+        <div className="px-4 pb-4 text-xs text-gray-400 space-y-3">
+          <div>
+            <p className="font-medium text-gray-300 mb-1">Chart of Accounts</p>
+            <p>
+              In QuickBooks, go to <strong>Settings</strong> (gear icon) &rarr;{" "}
+              <strong>Chart of Accounts</strong> &rarr; click the small{" "}
+              <strong>dropdown arrow</strong> next to &quot;Run Report&quot;
+              &rarr; <strong>Export to Excel</strong>. Save as CSV.
+            </p>
+          </div>
+          <div>
+            <p className="font-medium text-gray-300 mb-1">Customers</p>
+            <p>
+              Go to <strong>Sales</strong> &rarr; <strong>Customers</strong>{" "}
+              &rarr; click <strong>Export</strong> (top right) &rarr; save as
+              CSV.
+            </p>
+          </div>
+          <div>
+            <p className="font-medium text-gray-300 mb-1">Vendors</p>
+            <p>
+              Go to <strong>Expenses</strong> &rarr; <strong>Vendors</strong>{" "}
+              &rarr; click <strong>Export</strong> (top right) &rarr; save as
+              CSV.
+            </p>
+          </div>
+          <p className="text-gray-500 italic">
+            Column names don&apos;t need to match exactly — we recognize
+            common QuickBooks headings like &quot;Account Name&quot;,
+            &quot;Company&quot;, &quot;Detail Type&quot;, etc.
+          </p>
+        </div>
+      </details>
 
       <div className="space-y-3">
         {IMPORT_TYPES.map(({ key, label, desc, columns, example }) => {
@@ -652,13 +731,13 @@ function ImportStep({
         </div>
       )}
 
-      {/* Tip */}
+      {/* Reassurance */}
       <div className="mt-6 rounded-lg border border-gray-800/50 bg-gray-900/30 px-4 py-3">
         <p className="text-xs text-gray-500">
-          <span className="font-medium text-gray-400">Tip:</span> Export from
-          QuickBooks via Reports &rarr; Account List (CSV). Column names are
-          matched flexibly — &quot;Account Name&quot;, &quot;Name&quot;, or
-          &quot;Company&quot; all work.
+          <span className="font-medium text-gray-400">Safe to try:</span>{" "}
+          Duplicate records are automatically skipped, and every import can be
+          undone later from the Finance &rarr; QB Data Import page. Nothing is
+          permanent until you start posting entries.
         </p>
       </div>
 
@@ -694,10 +773,13 @@ function ChecklistStep({
 
   return (
     <div className="max-w-xl mx-auto py-6">
-      <h2 className="text-xl font-bold text-white mb-1">System Readiness</h2>
+      <h2 className="text-xl font-bold text-white mb-1">
+        Review Your Setup
+      </h2>
       <p className="text-sm text-gray-500 mb-6">
-        Checking that your modules are configured. Items marked optional can be
-        set up later.
+        Here&apos;s everything that&apos;s been set up so far. Green items are
+        ready to use. Amber items can be configured now or anytime later — none
+        of them block you from getting started.
       </p>
 
       {loading ? (
@@ -711,7 +793,7 @@ function ChecklistStep({
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium text-gray-300">
-                {ready} of {required} required modules ready
+                {ready} of {required} items ready
               </span>
               <span
                 className={`text-sm font-bold ${
@@ -876,9 +958,46 @@ function CompleteStep({
       <h2 className="text-2xl font-black text-white mb-2">
         You&apos;re All Set!
       </h2>
-      <p className="text-gray-400 mb-10">
+      <p className="text-gray-400 mb-8">
         {companyName || "Your company"} is configured and ready to use.
       </p>
+
+      {/* First steps guidance */}
+      <div className="text-left bg-gray-900/60 border border-gray-800 rounded-xl p-5 mb-8">
+        <p className="text-sm font-medium text-gray-300 mb-3">
+          Recommended first steps:
+        </p>
+        <ol className="space-y-2 text-sm text-gray-400">
+          <li className="flex items-start gap-2">
+            <span className="text-violet-400 font-bold shrink-0">1.</span>
+            <span>
+              <a href="/accounting" className="text-violet-400 hover:text-violet-300 underline underline-offset-2">Review your Chart of Accounts</a>{" "}
+              — make sure the account categories match how you track things
+            </span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-violet-400 font-bold shrink-0">2.</span>
+            <span>
+              <a href="/accounting/bank" className="text-violet-400 hover:text-violet-300 underline underline-offset-2">Add your bank account</a>{" "}
+              — needed for reconciliation and tracking cash
+            </span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-violet-400 font-bold shrink-0">3.</span>
+            <span>
+              <a href="/accounting/invoices" className="text-violet-400 hover:text-violet-300 underline underline-offset-2">Create your first invoice</a>{" "}
+              — the system auto-creates the journal entry for you
+            </span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-violet-400 font-bold shrink-0">4.</span>
+            <span>
+              <a href="/accounting/employee-tax" className="text-violet-400 hover:text-violet-300 underline underline-offset-2">Set up employee W-4s</a>{" "}
+              — required before running your first payroll
+            </span>
+          </li>
+        </ol>
+      </div>
 
       <div className="grid grid-cols-2 gap-3 mb-10 text-left">
         {links.map((link) => (
