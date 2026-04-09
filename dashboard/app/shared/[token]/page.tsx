@@ -1,0 +1,331 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useParams } from "next/navigation";
+
+// ── Types (self-contained for public page — no auth imports) ────────
+
+interface SharedData {
+  entity_type: string;
+  title: string;
+  shared_by: string;
+  shared_at: string;
+  message: string | null;
+  data: Record<string, unknown> | null;
+}
+
+interface Field { key: string; label: string }
+
+const SECTIONS: { title: string; icon: string; fields: Field[] }[] = [
+  { title: "Engine", icon: "\u2699\uFE0F", fields: [
+    { key: "engine_rpm", label: "Engine RPM" }, { key: "engine_load_pct", label: "Engine Load" },
+    { key: "accel_pedal_pos_pct", label: "Accelerator" }, { key: "driver_demand_torque_pct", label: "Demand Torque" },
+    { key: "actual_engine_torque_pct", label: "Actual Torque" },
+  ]},
+  { title: "Temperatures", icon: "\uD83C\uDF21\uFE0F", fields: [
+    { key: "coolant_temp_f", label: "Coolant" }, { key: "oil_temp_f", label: "Oil" },
+    { key: "fuel_temp_f", label: "Fuel" }, { key: "intake_manifold_temp_f", label: "Intake" },
+    { key: "trans_oil_temp_f", label: "Trans Oil" }, { key: "ambient_temp_f", label: "Ambient" },
+  ]},
+  { title: "Pressures", icon: "\uD83D\uDCCA", fields: [
+    { key: "oil_pressure_psi", label: "Oil Pressure" }, { key: "fuel_pressure_psi", label: "Fuel" },
+    { key: "boost_pressure_psi", label: "Boost" }, { key: "barometric_pressure_psi", label: "Baro" },
+  ]},
+  { title: "Vehicle", icon: "\uD83D\uDE98", fields: [
+    { key: "vehicle_speed_mph", label: "Speed" }, { key: "current_gear", label: "Gear" },
+    { key: "fuel_rate_gph", label: "Fuel Rate" }, { key: "fuel_economy_mpg", label: "Fuel Economy" },
+    { key: "fuel_level_pct", label: "Fuel Level" }, { key: "battery_voltage_v", label: "Battery" },
+  ]},
+  { title: "Aftertreatment", icon: "\u2601\uFE0F", fields: [
+    { key: "def_level_pct", label: "DEF Level" }, { key: "def_temp_f", label: "DEF Temp" },
+    { key: "dpf_soot_load_pct", label: "DPF Soot Load" }, { key: "dpf_regen_status", label: "DPF Regen" },
+    { key: "dpf_diff_pressure_psi", label: "DPF Diff Pressure" },
+  ]},
+  { title: "System Health", icon: "\uD83D\uDEA8", fields: [
+    { key: "dpf_health", label: "DPF Filter" }, { key: "battery_health", label: "Battery" },
+    { key: "def_low", label: "DEF Fluid Low" }, { key: "idle_pct", label: "Lifetime Idle %" },
+  ]},
+  { title: "DTC Summary", icon: "\u26A0\uFE0F", fields: [
+    { key: "active_dtc_count", label: "Active DTCs" },
+    { key: "dtc_engine_count", label: "Engine DTCs" }, { key: "dtc_trans_count", label: "Trans DTCs" },
+    { key: "dtc_abs_count", label: "ABS DTCs" }, { key: "dtc_acm_count", label: "ACM DTCs" },
+  ]},
+];
+
+function formatValue(key: string, value: unknown): string {
+  if (value === null || value === undefined) return "--";
+  if (typeof value === "boolean") return value ? "ON" : "OFF";
+  if (typeof value === "string") return value;
+  if (typeof value === "number") {
+    if (key.includes("_pct") || key.includes("_pos")) return `${value.toFixed(1)}%`;
+    if (key.endsWith("_f")) return `${value.toFixed(0)}\u00B0F`;
+    if (key.endsWith("_v")) return `${value.toFixed(1)}V`;
+    if (key.endsWith("_psi")) return `${value.toFixed(1)} PSI`;
+    if (key.endsWith("_mph")) return `${value.toFixed(1)} mph`;
+    if (key.endsWith("_gph")) return `${value.toFixed(2)} gph`;
+    if (key.endsWith("_mpg")) return `${value.toFixed(1)} mpg`;
+    if (key.endsWith("_mi")) return `${value.toFixed(0)} mi`;
+    if (key.endsWith("_gal")) return `${value.toFixed(1)} gal`;
+    if (key === "engine_rpm") return `${Math.round(value)}`;
+    return value % 1 === 0 ? String(value) : value.toFixed(2);
+  }
+  return String(value);
+}
+
+function fmtDate(iso: string): string {
+  return new Date(iso).toLocaleString("en-US", {
+    timeZone: "America/New_York", month: "short", day: "numeric", year: "numeric",
+    hour: "numeric", minute: "2-digit",
+  });
+}
+
+// ── Snapshot Viewer ─────────────────────────────────────────────────
+
+function SnapshotViewer({ data, meta }: { data: Record<string, unknown>; meta: SharedData }) {
+  const readingData = (data.reading_data as Record<string, unknown>) || data;
+
+  return (
+    <div>
+      {/* Title banner */}
+      <div className="bg-gradient-to-r from-blue-900/40 to-purple-900/40 border border-blue-800/50 rounded-xl p-6 mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-white">
+              {(data.truck_name as string) || `Truck ${data.truck_id || ""}`}
+            </h1>
+            <p className="text-blue-300 text-sm mt-1">
+              Digital Twin Snapshot &mdash; {data.captured_at ? fmtDate(data.captured_at as string) : ""}
+            </p>
+            {typeof data.label === "string" && data.label && <p className="text-yellow-300 font-semibold text-sm mt-1">{data.label}</p>}
+            {typeof data.notes === "string" && data.notes && <p className="text-gray-400 text-sm mt-1">{data.notes}</p>}
+          </div>
+          <div className="text-right text-xs text-gray-400 space-y-1">
+            <p>Source: {data.source === "historical" ? "Historical" : "Live"}</p>
+            <p>Shared by: {meta.shared_by}</p>
+            {typeof data.vin === "string" && data.vin && <p className="font-mono text-gray-300">{data.vin}</p>}
+          </div>
+        </div>
+
+        {/* Key metrics */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-blue-800/40">
+          <KeyMetric label="Engine RPM" value={data.engine_rpm != null ? `${Math.round(data.engine_rpm as number)}` : "--"} />
+          <KeyMetric label="Speed" value={data.vehicle_speed_mph != null ? `${Math.round(data.vehicle_speed_mph as number)} mph` : "--"} />
+          <KeyMetric label="Coolant" value={data.coolant_temp_f != null ? `${Math.round(data.coolant_temp_f as number)}\u00B0F` : "--"} />
+          <KeyMetric label="Battery" value={data.battery_voltage_v != null ? `${(data.battery_voltage_v as number).toFixed(1)}V` : "--"} />
+        </div>
+      </div>
+
+      {/* Data grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {SECTIONS.map((section) => {
+          const available = section.fields.filter(f => readingData[f.key] !== undefined && readingData[f.key] !== null);
+          if (available.length === 0) return null;
+          return (
+            <div key={section.title} className="bg-gray-900/50 rounded-xl p-4 border border-gray-800/50">
+              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">
+                {section.icon} {section.title}
+              </h3>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                {available.map(f => (
+                  <div key={f.key} className="flex justify-between items-baseline">
+                    <span className="text-xs text-gray-500 truncate mr-2">{f.label}</span>
+                    <span className="text-xs font-mono font-bold text-gray-100">
+                      {formatValue(f.key, readingData[f.key])}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Shift Report Viewer ────────────────────────────────────────────
+
+function ShiftReportViewer({ data, meta }: { data: Record<string, unknown>; meta: SharedData }) {
+  const r = data;
+  return (
+    <div>
+      <div className="bg-gradient-to-r from-emerald-900/40 to-blue-900/40 border border-emerald-800/50 rounded-xl p-6 mb-6">
+        <h1 className="text-2xl font-bold text-white">{meta.title}</h1>
+        <p className="text-emerald-300 text-sm mt-1">
+          {r.date as string} &mdash; {r.periodStart as string} to {r.periodEnd as string}
+        </p>
+        <p className="text-gray-400 text-xs mt-1">Shared by {meta.shared_by}</p>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+        <StatCard label="Engine Hours" value={r.engineHours != null ? `${(r.engineHours as number).toFixed(1)}h` : "--"} />
+        <StatCard label="Idle %" value={r.idlePercent != null ? `${(r.idlePercent as number).toFixed(0)}%` : "--"} />
+        <StatCard label="Total Plates" value={r.totalPlates != null ? `${r.totalPlates}` : "--"} />
+        <StatCard label="Plates/Hour" value={r.platesPerHour != null ? `${(r.platesPerHour as number).toFixed(1)}` : "--"} />
+      </div>
+
+      {(r.alerts as Array<{ level: string; message: string }> || []).length > 0 && (
+        <div className="mb-6 space-y-2">
+          <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Alerts</h3>
+          {(r.alerts as Array<{ level: string; message: string }>).map((a, i) => (
+            <div key={i} className={`px-3 py-2 rounded-lg text-sm ${a.level === "critical" ? "bg-red-900/30 text-red-300 border border-red-800/50" : "bg-yellow-900/30 text-yellow-300 border border-yellow-800/50"}`}>
+              {a.message}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {(r.dtcEvents as Array<{ code: string; firstSeen: string }> || []).length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">DTC Events</h3>
+          <div className="space-y-1">
+            {(r.dtcEvents as Array<{ code: string; firstSeen: string }>).map((d, i) => (
+              <div key={i} className="flex justify-between text-sm bg-gray-900/50 rounded-lg px-3 py-2 border border-gray-800/50">
+                <span className="font-mono text-red-400">{d.code}</span>
+                <span className="text-gray-500">{fmtDate(d.firstSeen)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {(r.dataQuality as Array<{ message: string }> || []).length > 0 && (
+        <div className="text-xs text-gray-600 space-y-1">
+          {(r.dataQuality as Array<{ message: string }>).map((w, i) => (
+            <p key={i}>{w.message}</p>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function KeyMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="text-center">
+      <p className="text-[10px] text-gray-500 uppercase tracking-wider">{label}</p>
+      <p className="text-lg font-bold text-white font-mono">{value}</p>
+    </div>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-800/50 text-center">
+      <p className="text-[10px] text-gray-500 uppercase tracking-wider">{label}</p>
+      <p className="text-xl font-bold text-white font-mono mt-1">{value}</p>
+    </div>
+  );
+}
+
+// ── Main Page ──────────────────────────────────────────────────────
+
+export default function SharedViewPage() {
+  const { token } = useParams<{ token: string }>();
+  const [shared, setShared] = useState<SharedData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const res = await fetch(`/api/share/${token}`);
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({ error: res.statusText }));
+          throw new Error(body.error || `HTTP ${res.status}`);
+        }
+        setShared(await res.json());
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load");
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, [token]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <div className="text-gray-500">Loading shared content...</div>
+      </div>
+    );
+  }
+
+  if (error || !shared) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
+        <div className="text-center">
+          <div className="text-4xl mb-4">
+            {error === "This link has expired" ? "\u23F3" : "\uD83D\uDD17"}
+          </div>
+          <h1 className="text-xl font-bold text-white mb-2">
+            {error === "This link has expired" ? "Link Expired" : "Link Not Found"}
+          </h1>
+          <p className="text-gray-500 text-sm">
+            {error === "This link has expired"
+              ? "This shared link has expired. Ask the sender to share it again."
+              : "This link may have been removed or the URL is incorrect."}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-950 text-white">
+      {/* Shared banner */}
+      <div className="bg-blue-950/50 border-b border-blue-900/50 px-4 py-3">
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-blue-400 font-bold text-sm">IronSight</span>
+            <span className="text-gray-600 text-xs">|</span>
+            <span className="text-gray-400 text-xs">
+              Shared by {shared.shared_by} &mdash; {fmtDate(shared.shared_at)}
+            </span>
+          </div>
+          <button
+            onClick={() => window.print()}
+            className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg text-xs font-semibold transition-colors"
+          >
+            Print / PDF
+          </button>
+        </div>
+      </div>
+
+      {/* Personal message */}
+      {shared.message && (
+        <div className="max-w-5xl mx-auto px-4 pt-4">
+          <div className="bg-gray-900/50 border border-gray-800/50 rounded-xl px-4 py-3">
+            <p className="text-sm text-gray-300 italic">&ldquo;{shared.message}&rdquo;</p>
+            <p className="text-xs text-gray-600 mt-1">&mdash; {shared.shared_by}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Content */}
+      <div className="max-w-5xl mx-auto px-4 py-6">
+        {shared.data ? (
+          shared.entity_type === "snapshot" ? (
+            <SnapshotViewer data={shared.data} meta={shared} />
+          ) : shared.entity_type === "shift_report" ? (
+            <ShiftReportViewer data={shared.data} meta={shared} />
+          ) : (
+            <div className="text-gray-500 text-center py-20">
+              Unsupported content type
+            </div>
+          )
+        ) : (
+          <div className="text-gray-500 text-center py-20">
+            No data available
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className="text-center text-xs text-gray-700 py-6 border-t border-gray-900">
+        IronSight Fleet Monitoring &mdash; Shared Report
+      </div>
+    </div>
+  );
+}

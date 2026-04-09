@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { formatValue } from "@/components/GaugeGrid";
+import { ShareModal } from "@/components/Share/ShareModal";
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -136,6 +137,7 @@ function fmtDate(iso: string): string {
 // ── Snapshot Detail View ─────────────────────────────────────────────
 
 function SnapshotDetail({ snapshot, onBack }: { snapshot: SnapshotFull; onBack: () => void }) {
+  const [showShare, setShowShare] = useState(false);
   const data = { ...snapshot.reading_data };
   // Normalize VIN: prefer vehicle_vin over vin if vin is missing/UNKNOWN
   if ((!data.vin || data.vin === "UNKNOWN") && data.vehicle_vin && data.vehicle_vin !== "UNKNOWN") {
@@ -150,10 +152,22 @@ function SnapshotDetail({ snapshot, onBack }: { snapshot: SnapshotFull; onBack: 
         <button onClick={onBack} className="text-sm text-gray-400 hover:text-white transition-colors">
           &larr; Back to list
         </button>
-        <button onClick={() => window.print()} className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm font-semibold transition-colors">
-          Print / PDF
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowShare(true)} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-semibold transition-colors">
+            Share
+          </button>
+          <button onClick={() => window.print()} className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm font-semibold transition-colors">
+            Print / PDF
+          </button>
+        </div>
       </div>
+      <ShareModal
+        open={showShare}
+        onClose={() => setShowShare(false)}
+        entityType="snapshot"
+        entityId={snapshot.id}
+        title={`${snapshot.truck_name || `Truck ${snapshot.truck_id}`} — ${fmtDate(snapshot.captured_at)}`}
+      />
 
       {/* Title banner */}
       <div className="bg-gradient-to-r from-blue-900/40 to-purple-900/40 border border-blue-800/50 rounded-xl p-6 mb-6">
