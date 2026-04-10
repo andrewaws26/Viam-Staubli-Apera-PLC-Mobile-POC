@@ -154,7 +154,7 @@ function TruckScreenInner() {
 
       {/* Quick actions */}
       <View style={styles.actions}>
-        <Button title="Add Note" onPress={() => router.push('/(tabs)/more')} variant="secondary" size="md" />
+        <Button title="Add Note" onPress={() => router.push('/(tabs)/me')} variant="secondary" size="md" />
         <Button title="Start Inspection" onPress={() => router.push('/(tabs)/inspect')} variant="secondary" size="md" />
         <Button title="Ask AI" onPress={() => router.push('/(tabs)/ai')} variant="primary" size="md" />
       </View>
