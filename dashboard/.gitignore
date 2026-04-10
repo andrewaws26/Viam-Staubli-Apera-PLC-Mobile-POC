@@ -8,3 +8,4 @@ node_modules/
 tests/.auth/
 tests/visual-qa/captures/
 test-results/
+.env.sentry-build-plugin

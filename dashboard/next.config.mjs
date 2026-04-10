@@ -27,8 +27,21 @@ const nextConfig = {
 };
 
 export default withSentryConfig(nextConfig, {
-  // Suppress source map upload warnings when SENTRY_AUTH_TOKEN is not set
-  silent: true,
+  org: "andrew-eq",
+  project: "javascript-nextjs",
+
+  // Source map upload auth token
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+
+  // Upload wider set of client source files for better stack traces
+  widenClientFileUpload: true,
+
+  // Proxy route to bypass ad-blockers
+  tunnelRoute: "/monitoring",
+
+  // Suppress output outside CI
+  silent: !process.env.CI,
+
   // Don't widen the scope of the build
   disableLogger: true,
 });

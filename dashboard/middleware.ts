@@ -16,5 +16,10 @@ export default clerkMiddleware(async (auth, request) => {
 });
 
 export const config = {
-  matcher: ["/((?!.*\\..*|_next).*)", "/", "/(api|trpc)(.*)"],
+  // Exclude Sentry monitoring tunnel, Next.js internals, and static files
+  matcher: [
+    "/((?!monitoring|.*\\..*|_next).*)",
+    "/",
+    "/(api|trpc)(.*)",
+  ],
 };
