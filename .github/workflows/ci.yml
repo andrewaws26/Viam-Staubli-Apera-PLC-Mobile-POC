@@ -40,11 +40,11 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install PLC sensor dependencies
-        run: pip install -r modules/plc-sensor/requirements.txt pytest
+        run: pip install -r modules/plc-sensor/requirements.txt pytest pytest-asyncio
       - name: Run PLC sensor tests
         run: python3 -m pytest modules/plc-sensor/tests/ -v
       - name: Install J1939 sensor dependencies
-        run: pip install -r modules/j1939-sensor/requirements.txt pytest
+        run: pip install -r modules/j1939-sensor/requirements.txt pytest pytest-asyncio
       - name: Run J1939 sensor tests
         run: python3 -m pytest modules/j1939-sensor/tests/ -v
 
