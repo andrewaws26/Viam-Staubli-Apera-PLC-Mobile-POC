@@ -287,7 +287,7 @@ Log every action you take with timestamps.
 Diagnose the issues and attempt safe fixes. Be conservative — if unsure, just log the problem and do not act."
 
     # Run Claude headless with timeout (5 min max)
-    timeout 300 /usr/local/bin/claude -p "$PROMPT" --dangerously-skip-permissions --output-format text >> "$FIX_LOG" 2>&1
+    timeout 300 /usr/local/bin/claude -p "$PROMPT" --dangerously-skip-permissions --output-format text --max-turns 15 >> "$FIX_LOG" 2>&1
     RESULT=$?
 
     if [ $RESULT -eq 0 ]; then

@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
     // Fetch account info for all referenced accounts
     const accountIds = [...new Set((lines ?? []).map((l) => l.account_id as string))];
 
-    let accountMap: Record<string, { account_number: number; name: string; account_type: string }> = {};
+    const accountMap: Record<string, { account_number: number; name: string; account_type: string }> = {};
     if (accountIds.length > 0) {
       const { data: accounts, error: acctErr } = await sb
         .from("chart_of_accounts")

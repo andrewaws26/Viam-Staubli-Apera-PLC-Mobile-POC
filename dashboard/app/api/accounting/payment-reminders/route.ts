@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
 
       // Fetch the latest reminder for each invoice
       const invoiceIds = (invoices ?? []).map((i) => i.id);
-      let remindersMap: Record<string, { reminder_type: string; sent_at: string | null; created_at: string }> = {};
+      const remindersMap: Record<string, { reminder_type: string; sent_at: string | null; created_at: string }> = {};
 
       if (invoiceIds.length > 0) {
         const { data: reminders } = await sb
