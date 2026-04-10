@@ -144,7 +144,7 @@ export default function PiHealthCard({ label, icon, host, simMode = false, truck
           <span>{icon}</span>
           <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">{label}</span>
         </div>
-        <p className="text-xs text-gray-600">Connecting...</p>
+        <p className="text-xs text-gray-500">Connecting...</p>
       </div>
     );
   }
@@ -157,7 +157,7 @@ export default function PiHealthCard({ label, icon, host, simMode = false, truck
           <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">{label}</span>
           <div className="w-2 h-2 rounded-full bg-red-500 ml-auto animate-pulse" />
         </div>
-        <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-gray-600">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-gray-500">
           <span>CPU: --</span><span>Temp: --</span>
           <span>RAM: --</span><span>Disk: --</span>
         </div>

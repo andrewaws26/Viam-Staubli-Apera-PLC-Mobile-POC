@@ -118,7 +118,7 @@ export default function TopNav() {
               </span>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                className="w-3.5 h-3.5 text-gray-600"
+                className="w-3.5 h-3.5 text-gray-500"
                 viewBox="0 0 20 20"
                 fill="currentColor"
               >

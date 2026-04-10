@@ -23,7 +23,7 @@ export default function TeamPage() {
       <div className="flex items-center justify-center py-32">
         <div className="text-center">
           <h1 className="text-xl font-bold text-gray-300">Access Denied</h1>
-          <p className="text-sm text-gray-600 mt-2">Team roster is restricted to managers and developers.</p>
+          <p className="text-sm text-gray-500 mt-2">Team roster is restricted to managers and developers.</p>
         </div>
       </div>
     );

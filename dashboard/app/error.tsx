@@ -16,7 +16,7 @@ export default function GlobalError({
           {error.message || "An unexpected error occurred."}
         </p>
         {error.digest && (
-          <p className="text-xs text-gray-600 mb-6 font-mono">ID: {error.digest}</p>
+          <p className="text-xs text-gray-500 mb-6 font-mono">ID: {error.digest}</p>
         )}
         <div className="flex gap-3 justify-center">
           <button

@@ -101,7 +101,7 @@ export default function FleetOverview() {
           <h1 className="text-lg sm:text-2xl font-black tracking-widest uppercase text-gray-100 leading-none">
             Fleet Overview
           </h1>
-          <p className="text-xs sm:text-xs text-gray-600 mt-0.5 tracking-wide">
+          <p className="text-xs sm:text-xs text-gray-500 mt-0.5 tracking-wide">
             IronSight — All Trucks at a Glance
           </p>
         </div>
@@ -171,7 +171,7 @@ export default function FleetOverview() {
               />
             ))}
             {trucks.length === 0 && !error && (
-              <div className="col-span-full text-center py-16 text-gray-600">
+              <div className="col-span-full text-center py-16 text-gray-500">
                 <p className="text-lg font-bold">No trucks configured</p>
                 <p className="text-sm mt-1">Add trucks to config/fleet.json or the FLEET_TRUCKS env var</p>
               </div>
@@ -181,7 +181,7 @@ export default function FleetOverview() {
 
         {/* Refresh indicator */}
         {!loading && trucks.length > 0 && (
-          <div className="flex items-center justify-center gap-2 mt-6 text-xs text-gray-600">
+          <div className="flex items-center justify-center gap-2 mt-6 text-xs text-gray-500">
             <span>Auto-refresh every 10s</span>
             <span>·</span>
             <span>Last: {timeAgo(new Date(lastRefresh).toISOString())}</span>
@@ -252,7 +252,7 @@ function TruckCard({ truck, onClick }: { truck: TruckStatus; onClick: () => void
       {/* Location */}
       {(truck.locationCity || truck.weather) && (
         <div className="flex items-center gap-1.5 mb-3 text-xs text-gray-500">
-          <svg className="w-3.5 h-3.5 shrink-0 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-3.5 h-3.5 shrink-0 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
@@ -265,7 +265,7 @@ function TruckCard({ truck, onClick }: { truck: TruckStatus; onClick: () => void
 
       {/* Assigned personnel */}
       <div className="flex items-start gap-1.5 mb-3 text-xs">
-        <svg className="w-3.5 h-3.5 shrink-0 text-gray-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg className="w-3.5 h-3.5 shrink-0 text-gray-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
         </svg>
         {truck.assignedPersonnel.length > 0 ? (
@@ -285,7 +285,7 @@ function TruckCard({ truck, onClick }: { truck: TruckStatus; onClick: () => void
             ))}
           </div>
         ) : (
-          <span className="text-gray-600 italic">No one assigned</span>
+          <span className="text-gray-500 italic">No one assigned</span>
         )}
       </div>
 
@@ -308,7 +308,7 @@ function TruckCard({ truck, onClick }: { truck: TruckStatus; onClick: () => void
                 )}
               </div>
             ) : (
-              <span className="text-gray-600">Offline</span>
+              <span className="text-gray-500">Offline</span>
             )}
           </div>
         )}
@@ -330,15 +330,15 @@ function TruckCard({ truck, onClick }: { truck: TruckStatus; onClick: () => void
                 )}
               </div>
             ) : (
-              <span className="text-gray-600">Offline</span>
+              <span className="text-gray-500">Offline</span>
             )}
           </div>
         )}
 
         {/* Last seen */}
         <div className="flex items-center justify-between text-xs pt-1 border-t border-gray-800/50">
-          <span className="text-gray-600">Last seen</span>
-          <span className={`${truck.connected ? "text-gray-400" : "text-gray-600"}`}>
+          <span className="text-gray-500">Last seen</span>
+          <span className={`${truck.connected ? "text-gray-400" : "text-gray-500"}`}>
             {truck.lastSeen ? timeAgo(truck.lastSeen) : "Never"}
           </span>
         </div>

@@ -29,7 +29,7 @@ export default function TrendChart({
   if (data.length < 2) {
     return (
       <div className="bg-gray-900/50 rounded-lg p-2">
-        <span className="text-xs text-gray-600">{label}: collecting data...</span>
+        <span className="text-xs text-gray-500">{label}: collecting data...</span>
       </div>
     );
   }
@@ -68,7 +68,7 @@ export default function TrendChart({
   // Delta from first to last
   const delta = current - values[0];
   const deltaStr = delta >= 0 ? `+${delta.toFixed(1)}` : delta.toFixed(1);
-  const deltaColor = Math.abs(delta) < range * 0.05 ? "text-gray-600" : delta > 0 ? "text-red-400" : "text-blue-400";
+  const deltaColor = Math.abs(delta) < range * 0.05 ? "text-gray-500" : delta > 0 ? "text-red-400" : "text-blue-400";
 
   return (
     <div className="bg-gray-900/50 rounded-lg p-2">

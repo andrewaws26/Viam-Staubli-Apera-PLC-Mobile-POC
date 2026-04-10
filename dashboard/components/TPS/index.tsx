@@ -25,7 +25,7 @@ import type { SensorReadings, ShiftState, ShiftStats } from "./TPSFields";
 function KV({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="flex flex-col min-w-0">
-      <span className="text-xs text-gray-600 uppercase tracking-wide truncate">{label}</span>
+      <span className="text-xs text-gray-500 uppercase tracking-wide truncate">{label}</span>
       <span className={`text-xs sm:text-sm text-gray-300 truncate ${mono ? "font-mono" : ""}`}>{value}</span>
     </div>
   );
@@ -34,7 +34,7 @@ function KV({ label, value, mono }: { label: string; value: string; mono?: boole
 function ShiftStat({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
     <div className="flex flex-col items-center p-2 bg-gray-900/50 rounded-xl">
-      <span className="text-xs text-gray-600 uppercase tracking-wide">{label}</span>
+      <span className="text-xs text-gray-500 uppercase tracking-wide">{label}</span>
       <span className={`font-mono font-bold text-sm ${color || "text-gray-200"}`}>{value}</span>
     </div>
   );
@@ -200,7 +200,7 @@ export default function DevTPSPanel() {
       {/* Header */}
       <button
         onClick={() => setExpanded((e) => !e)}
-        className="w-full p-4 sm:p-5 flex items-center justify-between gap-3 text-left hover:bg-gray-900/30 transition-colors"
+        className="w-full p-4 sm:p-5 flex items-center justify-between gap-3 text-left hover:bg-gray-800/50 transition-colors"
       >
         <div className="flex items-center gap-2 min-w-0">
           <span
@@ -217,7 +217,7 @@ export default function DevTPSPanel() {
             </span>
           )}
         </div>
-        <span className="text-gray-600 text-xs shrink-0">
+        <span className="text-gray-500 text-xs shrink-0">
           {expanded ? "\u25B2" : "\u25BC"}
         </span>
       </button>
@@ -232,7 +232,7 @@ export default function DevTPSPanel() {
 
           {/* PLC Connection */}
           <div>
-            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-800/50 pb-1">
               PLC Connection
             </h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2">
@@ -282,7 +282,7 @@ export default function DevTPSPanel() {
           <div>
             <button
               onClick={() => setShowRaw((r) => !r)}
-              className="text-xs font-bold uppercase tracking-widest text-gray-600 hover:text-gray-400 transition-colors"
+              className="text-xs font-bold uppercase tracking-widest text-gray-500 hover:text-gray-400 transition-colors"
             >
               {showRaw ? "\u25BC" : "\u25B6"} Raw JSON
             </button>
@@ -294,7 +294,7 @@ export default function DevTPSPanel() {
                     setCopied(true);
                     setTimeout(() => setCopied(false), 2000);
                   }}
-                  className="absolute top-2 right-2 px-2 py-1 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs rounded transition-colors"
+                  className="absolute top-2 right-2 px-2 py-1 bg-gray-800 hover:bg-gray-800/50 text-gray-400 text-xs rounded transition-colors"
                 >
                   {copied ? "Copied!" : "Copy"}
                 </button>
@@ -307,7 +307,7 @@ export default function DevTPSPanel() {
 
           {/* Encoder Calibration */}
           <details className="border border-gray-800/50 rounded-xl">
-            <summary className="p-3 cursor-pointer select-none text-xs font-bold uppercase tracking-widest text-gray-600 hover:text-gray-400">
+            <summary className="p-3 cursor-pointer select-none text-xs font-bold uppercase tracking-widest text-gray-500 hover:text-gray-400">
               Encoder Calibration
             </summary>
             <div className="px-3 pb-3 space-y-3">
@@ -351,7 +351,7 @@ export default function DevTPSPanel() {
               </div>
               <div className="flex flex-wrap items-end gap-3">
                 <div className="flex flex-col">
-                  <label className="text-xs text-gray-600 uppercase tracking-wide mb-0.5">Actual Distance (ft)</label>
+                  <label className="text-xs text-gray-500 uppercase tracking-wide mb-0.5">Actual Distance (ft)</label>
                   <input
                     type="number"
                     step="0.1"
@@ -395,7 +395,7 @@ export default function DevTPSPanel() {
 
           {/* Shift Simulator */}
           <details className="border border-gray-800/50 rounded-xl">
-            <summary className="p-3 cursor-pointer select-none text-xs font-bold uppercase tracking-widest text-gray-600 hover:text-gray-400">
+            <summary className="p-3 cursor-pointer select-none text-xs font-bold uppercase tracking-widest text-gray-500 hover:text-gray-400">
               Shift Simulator
               {shift.active && <span className="ml-2 text-green-500 normal-case animate-pulse">ACTIVE</span>}
             </summary>
@@ -420,7 +420,7 @@ export default function DevTPSPanel() {
               </div>
               {shiftStats && (
                 <>
-                  <div className="text-xs text-gray-600">
+                  <div className="text-xs text-gray-500">
                     Started: {fmtTimestamp(shiftStats.startTime)} | Samples: {shift.log.length}
                   </div>
                   <div className="grid grid-cols-3 gap-2">
@@ -437,7 +437,7 @@ export default function DevTPSPanel() {
                 </>
               )}
               {!shiftStats && !shift.active && (
-                <p className="text-xs text-gray-600">Track live production metrics during a shift.</p>
+                <p className="text-xs text-gray-500">Track live production metrics during a shift.</p>
               )}
             </div>
           </details>

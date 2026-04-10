@@ -88,7 +88,7 @@ export default function PTOAdmin() {
         <p className="text-red-400 mb-4">{error}</p>
         <button
           onClick={loadData}
-          className="px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-white text-sm font-bold uppercase tracking-wider transition-colors"
+          className="px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-800/50 text-white text-sm font-bold uppercase tracking-wider transition-colors"
         >
           Retry
         </button>
@@ -142,7 +142,7 @@ export default function PTOAdmin() {
               const isProcessing = actionLoading === req.id;
 
               return (
-                <div key={req.id} className="p-4 rounded-lg bg-gray-800/50 border border-gray-700/50">
+                <div key={req.id} className="p-4 rounded-lg bg-gray-800/50 border border-gray-800/60">
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 mb-1">

@@ -38,7 +38,7 @@ export default function ChatInput({ onSend, snapshot, disabled }: ChatInputProps
   };
 
   return (
-    <div className="border-t border-gray-700/50 p-2">
+    <div className="border-t border-gray-800/60 p-2">
       {mentionAi && (
         <div className="text-xs text-cyan-400 mb-1 px-1">
           AI will respond to this message

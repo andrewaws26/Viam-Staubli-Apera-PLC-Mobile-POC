@@ -350,19 +350,19 @@ export default function AuditTrailPage() {
         {/* Summary Card */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           <div className="rounded-xl bg-gray-900/50 border border-gray-800 p-4">
-            <p className="text-xs uppercase tracking-wider text-gray-600 font-medium">Total Records</p>
+            <p className="text-xs uppercase tracking-wider text-gray-500 font-medium">Total Records</p>
             <p className="text-xl font-black mt-1 text-gray-200">{data?.total ?? "-"}</p>
           </div>
           <div className="rounded-xl bg-gray-900/50 border border-gray-800 p-4">
-            <p className="text-xs uppercase tracking-wider text-gray-600 font-medium">Showing</p>
+            <p className="text-xs uppercase tracking-wider text-gray-500 font-medium">Showing</p>
             <p className="text-xl font-black mt-1 text-violet-400">{entries.length}</p>
           </div>
           <div className="rounded-xl bg-gray-900/50 border border-gray-800 p-4">
-            <p className="text-xs uppercase tracking-wider text-gray-600 font-medium">Page</p>
+            <p className="text-xs uppercase tracking-wider text-gray-500 font-medium">Page</p>
             <p className="text-xl font-black mt-1 text-blue-400">{totalPages > 0 ? page + 1 : 0} / {totalPages}</p>
           </div>
           <div className="rounded-xl bg-gray-900/50 border border-gray-800 p-4">
-            <p className="text-xs uppercase tracking-wider text-gray-600 font-medium">Filters Active</p>
+            <p className="text-xs uppercase tracking-wider text-gray-500 font-medium">Filters Active</p>
             <p className="text-xl font-black mt-1 text-amber-400">
               {[startDate, endDate, category, userName, action].filter(Boolean).length}
             </p>
@@ -374,7 +374,7 @@ export default function AuditTrailPage() {
           <h3 className="text-sm font-bold uppercase tracking-wider text-gray-300">Filters</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <div>
-              <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Start Date</label>
+              <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Start Date</label>
               <input
                 type="date"
                 value={startDate}
@@ -383,7 +383,7 @@ export default function AuditTrailPage() {
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">End Date</label>
+              <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">End Date</label>
               <input
                 type="date"
                 value={endDate}
@@ -392,7 +392,7 @@ export default function AuditTrailPage() {
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Category</label>
+              <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Category</label>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
@@ -404,7 +404,7 @@ export default function AuditTrailPage() {
               </select>
             </div>
             <div>
-              <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">User Name</label>
+              <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">User Name</label>
               <input
                 type="text"
                 value={userName}
@@ -414,7 +414,7 @@ export default function AuditTrailPage() {
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Action</label>
+              <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Action</label>
               <select
                 value={action}
                 onChange={(e) => setAction(e.target.value)}
@@ -461,7 +461,7 @@ export default function AuditTrailPage() {
           <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
             <table className="w-full text-sm min-w-[900px]">
               <thead>
-                <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
+                <tr className="text-xs uppercase tracking-wider text-gray-500 border-b border-gray-800">
                   <th className="text-left px-4 py-3 font-medium w-44">Timestamp</th>
                   <th className="text-left px-4 py-3 font-medium w-36">User</th>
                   <th className="text-left px-4 py-3 font-medium w-24">Role</th>
@@ -495,7 +495,7 @@ export default function AuditTrailPage() {
                 ))}
                 {entries.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-4 py-12 text-center text-gray-600">
+                    <td colSpan={5} className="px-4 py-12 text-center text-gray-500">
                       No audit trail entries found. Adjust your filters or check back later.
                     </td>
                   </tr>

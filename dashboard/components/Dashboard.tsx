@@ -101,7 +101,7 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
               <h1 className="text-base sm:text-xl font-black tracking-widest uppercase text-gray-100 leading-none">
                 {currentTruck?.name || "TPS Monitor"}
               </h1>
-              <p className="text-xs text-gray-600 mt-0.5 tracking-wide truncate">
+              <p className="text-xs text-gray-500 mt-0.5 tracking-wide truncate">
                 IronSight — Live Production & Fleet Data
               </p>
             </div>
@@ -166,7 +166,7 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
 
         {/* Truck-off banner — clean messaging when no data flowing */}
         {!simMode && connectionStatus === "truck-off" && (
-          <div className="bg-gray-800/50 border-b border-gray-700/50 px-3 sm:px-5 py-2 text-xs sm:text-xs text-gray-400 flex items-center gap-2">
+          <div className="bg-gray-800/50 border-b border-gray-800/60 px-3 sm:px-5 py-2 text-xs sm:text-xs text-gray-400 flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-gray-600" />
             Truck is off — waiting for data. Readings will appear when the truck powers on.
           </div>

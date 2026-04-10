@@ -186,7 +186,7 @@ export default function WorkBoard() {
           <p className="text-sm text-gray-500 mt-1">
             {workOrders.filter((w) => w.status !== "done").length} active
             {viewMode === "board" && (
-              <span className="text-gray-600 ml-2">· drag cards to change status</span>
+              <span className="text-gray-500 ml-2">· drag cards to change status</span>
             )}
           </p>
         </div>
@@ -288,7 +288,7 @@ export default function WorkBoard() {
                       ))}
                       {provided.placeholder}
                       {grouped[status].length === 0 && !snapshot.isDraggingOver && (
-                        <p className="text-xs text-gray-600 text-center py-8">
+                        <p className="text-xs text-gray-500 text-center py-8">
                           No items
                         </p>
                       )}
@@ -306,7 +306,7 @@ export default function WorkBoard() {
             <div className="text-center py-16">
               <p className="text-3xl mb-3">📋</p>
               <p className="text-gray-400 font-medium">No work assigned</p>
-              <p className="text-sm text-gray-600 mt-1">
+              <p className="text-sm text-gray-500 mt-1">
                 Work orders assigned to you or available to pick up will appear here.
               </p>
             </div>
@@ -515,7 +515,7 @@ function WorkOrderCard({
                 {localSubtasks.map((st) => (
                   <button
                     key={st.id}
-                    className="flex items-center gap-2 w-full text-left hover:bg-gray-700/30 rounded px-1 py-0.5 -mx-1 transition"
+                    className="flex items-center gap-2 w-full text-left hover:bg-gray-800/50 rounded px-1 py-0.5 -mx-1 transition"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleToggleSubtask(st.id);
@@ -535,7 +535,7 @@ function WorkOrderCard({
                     <span
                       className={`text-xs ${
                         st.is_done
-                          ? "text-gray-600 line-through"
+                          ? "text-gray-500 line-through"
                           : "text-gray-300"
                       }`}
                     >
@@ -635,7 +635,7 @@ function WorkOrderCard({
                   >
                     {wo.assigned_to && (
                       <button
-                        className="w-full text-left px-3 py-2 text-xs text-gray-400 hover:bg-gray-700 transition"
+                        className="w-full text-left px-3 py-2 text-xs text-gray-400 hover:bg-gray-800/50 transition"
                         onClick={() => {
                           onAssign(null, null);
                           setShowAssignMenu(false);
@@ -647,7 +647,7 @@ function WorkOrderCard({
                     {teamMembers.map((m) => (
                       <button
                         key={m.id}
-                        className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-700 transition flex items-center gap-2 ${
+                        className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-800/50 transition flex items-center gap-2 ${
                           m.id === wo.assigned_to ? "text-purple-400" : "text-gray-200"
                         }`}
                         onClick={() => {
@@ -659,7 +659,7 @@ function WorkOrderCard({
                           {m.name.charAt(0).toUpperCase()}
                         </span>
                         <span className="truncate">{m.name}</span>
-                        <span className="text-gray-600 text-xs ml-auto shrink-0">{m.role}</span>
+                        <span className="text-gray-500 text-xs ml-auto shrink-0">{m.role}</span>
                       </button>
                     ))}
                     {teamMembers.length === 0 && (
@@ -670,7 +670,7 @@ function WorkOrderCard({
               </div>
             </div>
 
-            <p className="text-xs text-gray-600">
+            <p className="text-xs text-gray-500">
               Created by {wo.created_by_name} · {timeAgo(wo.created_at)}
             </p>
 
@@ -830,7 +830,7 @@ function CreateModal({
                       ? p === "urgent"
                         ? "bg-red-600 text-white"
                         : "bg-purple-600 text-white"
-                      : "bg-gray-900 text-gray-400 hover:bg-gray-700"
+                      : "bg-gray-900 text-gray-400 hover:bg-gray-800/50"
                   }`}
                 >
                   {p.charAt(0).toUpperCase() + p.slice(1)}
@@ -890,7 +890,7 @@ function CreateModal({
             <div className="mt-2 space-y-1.5">
               {subtasks.map((step, i) => (
                 <div key={i} className="flex items-center gap-2">
-                  <span className="text-xs text-gray-600 w-4 text-right shrink-0">
+                  <span className="text-xs text-gray-500 w-4 text-right shrink-0">
                     {i + 1}.
                   </span>
                   <input
@@ -905,7 +905,7 @@ function CreateModal({
                   />
                   <button
                     onClick={() => setSubtasks(subtasks.filter((_, j) => j !== i))}
-                    className="text-gray-600 hover:text-red-400 transition shrink-0"
+                    className="text-gray-500 hover:text-red-400 transition shrink-0"
                     title="Remove step"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">

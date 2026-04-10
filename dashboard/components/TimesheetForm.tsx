@@ -361,7 +361,7 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
                       <button
                         key={m.id}
                         onClick={() => toggleCoworker(m)}
-                        className={`w-full text-left px-4 py-2.5 flex items-center justify-between hover:bg-gray-700 transition-colors ${
+                        className={`w-full text-left px-4 py-2.5 flex items-center justify-between hover:bg-gray-800/50 transition-colors ${
                           selected ? "bg-purple-900/30" : ""
                         }`}
                       >
@@ -565,7 +565,7 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
               ? new Date(log.log_date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })
               : "";
             return (
-              <div key={log.log_date} className="p-4 rounded-lg bg-gray-800/50 border border-gray-700/50">
+              <div key={log.log_date} className="p-4 rounded-lg bg-gray-800/50 border border-gray-800/60">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-sm font-bold text-gray-200">
                     {dayLabel} <span className="text-gray-500 font-normal">{dateLabel}</span>

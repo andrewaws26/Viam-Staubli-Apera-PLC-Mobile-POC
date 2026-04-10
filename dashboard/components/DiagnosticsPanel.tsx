@@ -262,7 +262,7 @@ export default function DiagnosticsPanel({ readings }: Props) {
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 mb-2 pb-2 sm:mb-3 sm:pb-3 border-b border-gray-800">
             {cameraRate !== null && (
               <span>
-                Flipper: <span className={cameraRate > 0 ? "text-green-500" : "text-gray-600"}>{cameraRate.toFixed(1)}/min</span>
+                Flipper: <span className={cameraRate > 0 ? "text-green-500" : "text-gray-500"}>{cameraRate.toFixed(1)}/min</span>
                 {cameraTrend && cameraTrend !== "stable" && (
                   <span className={cameraTrend === "dead" ? "text-red-400 ml-1" : "text-yellow-500 ml-1"}>
                     ({cameraTrend})
@@ -272,7 +272,7 @@ export default function DiagnosticsPanel({ readings }: Props) {
             )}
             {ejectRate !== null && (
               <span>
-                Ejects: <span className={ejectRate > 0 ? "text-green-500" : "text-gray-600"}>{ejectRate.toFixed(1)}/min</span>
+                Ejects: <span className={ejectRate > 0 ? "text-green-500" : "text-gray-500"}>{ejectRate.toFixed(1)}/min</span>
               </span>
             )}
             {modbusTime !== null && (
@@ -322,7 +322,7 @@ export default function DiagnosticsPanel({ readings }: Props) {
                   {diag.title}
                 </span>
                 {diag.category && (
-                  <span className="text-xs uppercase tracking-wider text-gray-600">
+                  <span className="text-xs uppercase tracking-wider text-gray-500">
                     {CATEGORY_LABEL[diag.category] || diag.category}
                   </span>
                 )}
@@ -374,7 +374,7 @@ export default function DiagnosticsPanel({ readings }: Props) {
                     className={[
                       "text-xs block truncate",
                       check.severity === "ok"
-                        ? "text-gray-600"
+                        ? "text-gray-500"
                         : check.severity === "warn"
                         ? "text-yellow-600"
                         : "text-red-400",
@@ -453,7 +453,7 @@ export default function DiagnosticsPanel({ readings }: Props) {
             {/* Evidence */}
             {selectedDiag.evidence && (
               <div className="bg-gray-900 rounded-lg p-3">
-                <span className="text-xs text-gray-600 uppercase tracking-wide block mb-1">
+                <span className="text-xs text-gray-500 uppercase tracking-wide block mb-1">
                   Details
                 </span>
                 <p className="text-sm text-gray-400 leading-relaxed">

@@ -202,7 +202,7 @@ export default function SessionsPage() {
         {/* Session List */}
         <div className="lg:col-span-3 space-y-2">
           {loading ? (
-            <div className="text-center py-12 text-gray-600 text-sm">Loading...</div>
+            <div className="text-center py-12 text-gray-500 text-sm">Loading...</div>
           ) : sessions.length === 0 ? (
             <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-8 text-center">
               <p className="text-sm text-gray-500">No sessions recorded</p>
@@ -238,11 +238,11 @@ export default function SessionsPage() {
                   </div>
                   <div className="flex items-center gap-3 ml-4">
                     <span className={`text-xs capitalize ${sc.text}`}>{s.status}</span>
-                    <span className="text-xs text-gray-600">
+                    <span className="text-xs text-gray-500">
                       {duration(s.startedAt, s.endedAt)}
                     </span>
                     {s.tokensUsed && (
-                      <span className="text-xs text-gray-600">
+                      <span className="text-xs text-gray-500">
                         {s.tokensUsed > 1000 ? `${(s.tokensUsed / 1000).toFixed(1)}k` : s.tokensUsed} tokens
                       </span>
                     )}
@@ -260,7 +260,7 @@ export default function SessionsPage() {
         <div className="lg:col-span-2">
           {!detail || selectedId === null ? (
             <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-12 text-center">
-              <p className="text-sm text-gray-600">Select a session to view details</p>
+              <p className="text-sm text-gray-500">Select a session to view details</p>
             </div>
           ) : (
             <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-4 space-y-4">
@@ -276,37 +276,37 @@ export default function SessionsPage() {
               {/* Metadata grid */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <span className="text-xs text-gray-600 uppercase block">Status</span>
+                  <span className="text-xs text-gray-500 uppercase block">Status</span>
                   <span className={`text-sm font-semibold capitalize ${(STATUS_COLORS[detail.status] || STATUS_COLORS.cancelled).text}`}>
                     {detail.status}
                   </span>
                 </div>
                 <div>
-                  <span className="text-xs text-gray-600 uppercase block">Type</span>
+                  <span className="text-xs text-gray-500 uppercase block">Type</span>
                   <span className="text-sm text-gray-300">
                     {(TYPE_LABELS[detail.sessionType] || TYPE_LABELS.manual).label}
                   </span>
                 </div>
                 <div>
-                  <span className="text-xs text-gray-600 uppercase block">Duration</span>
+                  <span className="text-xs text-gray-500 uppercase block">Duration</span>
                   <span className="text-sm text-gray-300">
                     {duration(detail.startedAt, detail.endedAt)}
                   </span>
                 </div>
                 <div>
-                  <span className="text-xs text-gray-600 uppercase block">Cost</span>
+                  <span className="text-xs text-gray-500 uppercase block">Cost</span>
                   <span className="text-sm text-gray-300">
                     {detail.costCents ? `$${(detail.costCents / 100).toFixed(2)}` : "--"}
                   </span>
                 </div>
                 <div>
-                  <span className="text-xs text-gray-600 uppercase block">Tokens</span>
+                  <span className="text-xs text-gray-500 uppercase block">Tokens</span>
                   <span className="text-sm text-gray-300">
                     {detail.tokensUsed ? detail.tokensUsed.toLocaleString() : "--"}
                   </span>
                 </div>
                 <div>
-                  <span className="text-xs text-gray-600 uppercase block">Started</span>
+                  <span className="text-xs text-gray-500 uppercase block">Started</span>
                   <span className="text-sm text-gray-300">
                     {new Date(detail.startedAt).toLocaleString()}
                   </span>

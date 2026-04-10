@@ -131,7 +131,7 @@ export function ShareModal({ open, onClose, entityType, entityId, entityPayload,
 
               <button
                 onClick={handleClose}
-                className="w-full px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm font-semibold transition-colors"
+                className="w-full px-4 py-2 bg-gray-800 hover:bg-gray-800/50 rounded-lg text-sm font-semibold transition-colors"
               >
                 Done
               </button>
@@ -145,7 +145,7 @@ export function ShareModal({ open, onClose, entityType, entityId, entityPayload,
 
               <div>
                 <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">
-                  Recipient email <span className="normal-case text-gray-600">(optional)</span>
+                  Recipient email <span className="normal-case text-gray-500">(optional)</span>
                 </label>
                 <input
                   type="email"
@@ -159,7 +159,7 @@ export function ShareModal({ open, onClose, entityType, entityId, entityPayload,
               {recipientEmail && (
                 <div>
                   <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">
-                    Recipient name <span className="normal-case text-gray-600">(optional)</span>
+                    Recipient name <span className="normal-case text-gray-500">(optional)</span>
                   </label>
                   <input
                     type="text"
@@ -173,7 +173,7 @@ export function ShareModal({ open, onClose, entityType, entityId, entityPayload,
 
               <div>
                 <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">
-                  Message <span className="normal-case text-gray-600">(optional)</span>
+                  Message <span className="normal-case text-gray-500">(optional)</span>
                 </label>
                 <textarea
                   value={message}
@@ -211,7 +211,7 @@ export function ShareModal({ open, onClose, entityType, entityId, entityPayload,
                 </button>
                 <button
                   onClick={handleClose}
-                  className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm font-semibold transition-colors"
+                  className="px-4 py-2 bg-gray-800 hover:bg-gray-800/50 rounded-lg text-sm font-semibold transition-colors"
                 >
                   Cancel
                 </button>

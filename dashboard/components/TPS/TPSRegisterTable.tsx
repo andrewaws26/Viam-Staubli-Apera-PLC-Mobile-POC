@@ -18,7 +18,7 @@ export default function TPSRegisterTable({
 }: TPSRegisterTableProps) {
   return (
     <div>
-      <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+      <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-800/50 pb-1">
         Live Readings
         <span className="ml-2 text-gray-700 normal-case tracking-normal font-normal">
           {Object.keys(readings).length} fields, {pollMs / 1000}s refresh

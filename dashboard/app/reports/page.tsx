@@ -369,11 +369,11 @@ export default function ReportsPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-800/50">
                     {sortedResults.map((row, ri) => (
-                      <tr key={ri} className="hover:bg-gray-900/50">
+                      <tr key={ri} className="hover:bg-gray-800/50">
                         {columns.map((col) => (
                           <td key={col} className="px-4 py-2 text-gray-300 whitespace-nowrap">
                             {row[col] === null ? (
-                              <span className="text-gray-600 italic">null</span>
+                              <span className="text-gray-500 italic">null</span>
                             ) : (
                               String(row[col])
                             )}
@@ -432,7 +432,7 @@ export default function ReportsPage() {
               <div className="w-6 h-6 border-2 border-gray-700 border-t-gray-400 rounded-full animate-spin" />
             </div>
           ) : savedReports.length === 0 ? (
-            <p className="text-center text-gray-600 text-sm py-8">
+            <p className="text-center text-gray-500 text-sm py-8">
               No saved reports yet. Generate a report and save it to build your library.
             </p>
           ) : (
@@ -457,11 +457,11 @@ export default function ReportsPage() {
                       {report.description}
                     </p>
                   )}
-                  <p className="text-xs text-gray-600 mb-3 line-clamp-1 italic">
+                  <p className="text-xs text-gray-500 mb-3 line-clamp-1 italic">
                     "{report.prompt}"
                   </p>
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 text-xs text-gray-600">
+                    <div className="flex items-center gap-3 text-xs text-gray-500">
                       <span>by {report.created_by_name}</span>
                       {report.run_count > 0 && (
                         <span>{report.run_count} runs</span>
@@ -480,7 +480,7 @@ export default function ReportsPage() {
                       {report.created_by === user?.id && (
                         <button
                           onClick={() => handleDelete(report.id)}
-                          className="px-2 py-1 text-xs text-gray-600 hover:text-red-400 rounded transition-colors"
+                          className="px-2 py-1 text-xs text-gray-500 hover:text-red-400 rounded transition-colors"
                         >
                           Delete
                         </button>

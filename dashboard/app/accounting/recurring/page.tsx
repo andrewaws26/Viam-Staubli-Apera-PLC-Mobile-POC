@@ -291,7 +291,7 @@ export default function RecurringEntriesPage() {
         {/* Summary Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           <div className="p-4 rounded-xl bg-gray-900/50 border border-gray-800">
-            <p className="text-xs uppercase tracking-wider text-gray-600 font-medium">
+            <p className="text-xs uppercase tracking-wider text-gray-500 font-medium">
               Total Templates
             </p>
             <p className="text-xl font-black mt-1 text-gray-200">
@@ -299,7 +299,7 @@ export default function RecurringEntriesPage() {
             </p>
           </div>
           <div className="p-4 rounded-xl bg-gray-900/50 border border-gray-800">
-            <p className="text-xs uppercase tracking-wider text-gray-600 font-medium">
+            <p className="text-xs uppercase tracking-wider text-gray-500 font-medium">
               Active
             </p>
             <p className="text-xl font-black mt-1 text-emerald-400">
@@ -307,7 +307,7 @@ export default function RecurringEntriesPage() {
             </p>
           </div>
           <div className="p-4 rounded-xl bg-gray-900/50 border border-gray-800">
-            <p className="text-xs uppercase tracking-wider text-gray-600 font-medium">
+            <p className="text-xs uppercase tracking-wider text-gray-500 font-medium">
               Paused
             </p>
             <p className="text-xl font-black mt-1 text-amber-400">
@@ -315,7 +315,7 @@ export default function RecurringEntriesPage() {
             </p>
           </div>
           <div className="p-4 rounded-xl bg-gray-900/50 border border-gray-800">
-            <p className="text-xs uppercase tracking-wider text-gray-600 font-medium">
+            <p className="text-xs uppercase tracking-wider text-gray-500 font-medium">
               Next Due
             </p>
             <p className="text-xl font-black mt-1 text-blue-400">
@@ -364,7 +364,7 @@ export default function RecurringEntriesPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="sm:col-span-2 lg:col-span-3">
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">
                   Description *
                 </label>
                 <input
@@ -376,7 +376,7 @@ export default function RecurringEntriesPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">
                   Reference
                 </label>
                 <input
@@ -388,7 +388,7 @@ export default function RecurringEntriesPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">
                   Frequency *
                 </label>
                 <select
@@ -402,7 +402,7 @@ export default function RecurringEntriesPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">
                   Next Date *
                 </label>
                 <input
@@ -413,7 +413,7 @@ export default function RecurringEntriesPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">
                   End Date
                 </label>
                 <input
@@ -422,7 +422,7 @@ export default function RecurringEntriesPage() {
                   onChange={(e) => setFormEndDate(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-gray-600 [color-scheme:dark]"
                 />
-                <p className="text-xs text-gray-600 mt-1">
+                <p className="text-xs text-gray-500 mt-1">
                   Leave blank for no end date
                 </p>
               </div>
@@ -430,7 +430,7 @@ export default function RecurringEntriesPage() {
 
             {/* Line Items */}
             <div>
-              <label className="block text-xs text-gray-600 uppercase tracking-wider mb-2">
+              <label className="block text-xs text-gray-500 uppercase tracking-wider mb-2">
                 Journal Lines *
               </label>
               <div className="space-y-2">
@@ -441,7 +441,7 @@ export default function RecurringEntriesPage() {
                   >
                     <div className="col-span-4">
                       {idx === 0 && (
-                        <span className="text-[9px] text-gray-600 uppercase">
+                        <span className="text-[9px] text-gray-500 uppercase">
                           Account
                         </span>
                       )}
@@ -462,7 +462,7 @@ export default function RecurringEntriesPage() {
                     </div>
                     <div className="col-span-2">
                       {idx === 0 && (
-                        <span className="text-[9px] text-gray-600 uppercase">
+                        <span className="text-[9px] text-gray-500 uppercase">
                           Debit
                         </span>
                       )}
@@ -484,7 +484,7 @@ export default function RecurringEntriesPage() {
                     </div>
                     <div className="col-span-2">
                       {idx === 0 && (
-                        <span className="text-[9px] text-gray-600 uppercase">
+                        <span className="text-[9px] text-gray-500 uppercase">
                           Credit
                         </span>
                       )}
@@ -506,7 +506,7 @@ export default function RecurringEntriesPage() {
                     </div>
                     <div className="col-span-3">
                       {idx === 0 && (
-                        <span className="text-[9px] text-gray-600 uppercase">
+                        <span className="text-[9px] text-gray-500 uppercase">
                           Description
                         </span>
                       )}
@@ -602,7 +602,7 @@ export default function RecurringEntriesPage() {
           <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
             <table className="w-full text-sm min-w-[800px]">
               <thead>
-                <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
+                <tr className="text-xs uppercase tracking-wider text-gray-500 border-b border-gray-800">
                   <th className="text-left px-4 py-3 font-medium w-8" />
                   <th className="text-left px-4 py-3 font-medium">
                     Description
@@ -643,7 +643,7 @@ export default function RecurringEntriesPage() {
                           setExpandedId(isExpanded ? null : tpl.id)
                         }
                       >
-                        <td className="px-4 py-3 text-gray-600">
+                        <td className="px-4 py-3 text-gray-500">
                           <svg
                             className={`w-4 h-4 transition-transform ${
                               isExpanded ? "rotate-90" : ""
@@ -730,13 +730,13 @@ export default function RecurringEntriesPage() {
                             className="bg-gray-950/50 border-t border-gray-800/50"
                           >
                             <div className="px-8 py-3">
-                              <p className="text-xs text-gray-600 uppercase tracking-wider mb-2">
+                              <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">
                                 Template Lines &mdash;{" "}
                                 {fmtCurrency(lineDebits)} per entry
                               </p>
                               <table className="w-full text-sm">
                                 <thead>
-                                  <tr className="text-[9px] uppercase tracking-wider text-gray-600">
+                                  <tr className="text-[9px] uppercase tracking-wider text-gray-500">
                                     <th className="text-left py-1 font-medium">
                                       Account
                                     </th>
@@ -796,7 +796,7 @@ export default function RecurringEntriesPage() {
                   <tr>
                     <td
                       colSpan={7}
-                      className="px-4 py-8 text-center text-gray-600"
+                      className="px-4 py-8 text-center text-gray-500"
                     >
                       No recurring templates yet. Click &quot;+ New
                       Template&quot; to create one.

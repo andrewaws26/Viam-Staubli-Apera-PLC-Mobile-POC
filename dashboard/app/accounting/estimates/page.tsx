@@ -167,19 +167,19 @@ export default function EstimatesPage() {
         {/* Summary cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           <div className="p-4 rounded-xl bg-gray-900/50 border border-gray-800">
-            <div className="text-xs text-gray-600 uppercase tracking-wider mb-1">Total Estimates</div>
+            <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Total Estimates</div>
             <div className="text-xl font-bold text-gray-100">{totalEstimates}</div>
           </div>
           <div className="p-4 rounded-xl bg-gray-900/50 border border-gray-800">
-            <div className="text-xs text-gray-600 uppercase tracking-wider mb-1">Open (Draft + Sent)</div>
+            <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Open (Draft + Sent)</div>
             <div className="text-xl font-bold text-blue-400">{openCount}</div>
           </div>
           <div className="p-4 rounded-xl bg-gray-900/50 border border-gray-800">
-            <div className="text-xs text-gray-600 uppercase tracking-wider mb-1">Accepted</div>
+            <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Accepted</div>
             <div className="text-xl font-bold text-emerald-400">{acceptedCount}</div>
           </div>
           <div className="p-4 rounded-xl bg-gray-900/50 border border-gray-800">
-            <div className="text-xs text-gray-600 uppercase tracking-wider mb-1">Converted to Invoice</div>
+            <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Converted to Invoice</div>
             <div className="text-xl font-bold text-purple-400">{convertedCount}</div>
           </div>
         </div>
@@ -199,7 +199,7 @@ export default function EstimatesPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Customer *</label>
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Customer *</label>
                 <select value={customerId} onChange={(e) => setCustomerId(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white">
                   <option value="">Select customer...</option>
@@ -207,12 +207,12 @@ export default function EstimatesPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Estimate Date</label>
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Estimate Date</label>
                 <input type="date" value={estimateDate} onChange={(e) => setEstimateDate(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white [color-scheme:dark]" />
               </div>
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Expiry Date</label>
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Expiry Date</label>
                 <input type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white [color-scheme:dark]" />
               </div>
@@ -220,7 +220,7 @@ export default function EstimatesPage() {
 
             {/* Line items */}
             <div>
-              <label className="block text-xs text-gray-600 uppercase tracking-wider mb-2">Line Items</label>
+              <label className="block text-xs text-gray-500 uppercase tracking-wider mb-2">Line Items</label>
               <div className="space-y-2">
                 {lines.map((line, idx) => (
                   <div key={idx} className="flex gap-2 items-center">
@@ -251,7 +251,7 @@ export default function EstimatesPage() {
             </div>
 
             <div>
-              <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Notes</label>
+              <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Notes</label>
               <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2}
                 className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
             </div>
@@ -281,7 +281,7 @@ export default function EstimatesPage() {
           <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
             <table className="w-full text-sm min-w-[800px]">
               <thead>
-                <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
+                <tr className="text-xs uppercase tracking-wider text-gray-500 border-b border-gray-800">
                   <th className="text-left px-4 py-3 font-medium w-20">#</th>
                   <th className="text-left px-4 py-3 font-medium">Customer</th>
                   <th className="text-left px-4 py-3 font-medium w-24">Date</th>
@@ -339,7 +339,7 @@ export default function EstimatesPage() {
                 })}
                 {estimates.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-gray-600">
+                    <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                       No estimates yet. Create your first estimate above.
                     </td>
                   </tr>

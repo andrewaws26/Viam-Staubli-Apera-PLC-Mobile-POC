@@ -360,7 +360,7 @@ function SnapshotDetail({ snapshot, onBack }: { snapshot: SnapshotFull; onBack: 
           <button onClick={() => setShowShare(true)} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-semibold transition-colors">
             Share
           </button>
-          <button onClick={() => window.print()} className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm font-semibold transition-colors">
+          <button onClick={() => window.print()} className="px-4 py-2 bg-gray-800 hover:bg-gray-800/50 rounded-lg text-sm font-semibold transition-colors">
             Print / PDF
           </button>
         </div>
@@ -517,7 +517,7 @@ function SnapshotDetail({ snapshot, onBack }: { snapshot: SnapshotFull; onBack: 
       )}
 
       {/* Footer */}
-      <div className="text-center text-xs text-gray-600 mt-6 pt-4 border-t border-gray-800">
+      <div className="text-center text-xs text-gray-500 mt-6 pt-4 border-t border-gray-800">
         IronSight Digital Twin Snapshot &mdash; Captured {fmtDate(snapshot.captured_at)} &mdash; {fieldCount} data points
       </div>
     </div>
@@ -657,7 +657,7 @@ function CaptureForm({ onCapture, onCancel }: {
                 <div key={sys.id} className={`rounded-xl border transition-all ${
                   active
                     ? `${SYSTEM_BTN_ACTIVE[sys.id]} border-opacity-100`
-                    : "bg-gray-800/30 border-gray-700/50"
+                    : "bg-gray-800/30 border-gray-800/60"
                 }`}>
                   {/* System toggle header */}
                   <button
@@ -668,7 +668,7 @@ function CaptureForm({ onCapture, onCancel }: {
                     <span className="text-xl">{sys.icon}</span>
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm font-semibold ${active ? "text-white" : "text-gray-500"}`}>{sys.label}</p>
-                      <p className={`text-xs ${active ? "opacity-60" : "text-gray-600"}`}>{sys.desc}</p>
+                      <p className={`text-xs ${active ? "opacity-60" : "text-gray-500"}`}>{sys.desc}</p>
                     </div>
                     {active && (
                       <span className="text-xs text-gray-400">{sysIncluded}/{sysFieldKeys.length} metrics</span>
@@ -742,7 +742,7 @@ function CaptureForm({ onCapture, onCancel }: {
                           );
                         })}
                         {sysSections.length === 0 && query && (
-                          <p className="text-xs text-gray-600 py-2">No metrics match &quot;{metricSearch}&quot;</p>
+                          <p className="text-xs text-gray-500 py-2">No metrics match &quot;{metricSearch}&quot;</p>
                         )}
                       </div>
                     </div>
@@ -804,7 +804,7 @@ function CaptureForm({ onCapture, onCancel }: {
             {saving ? "Capturing..." : `Capture ${selectedSystems.length} System${selectedSystems.length !== 1 ? "s" : ""}`}
           </button>
           <button onClick={onCancel}
-            className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm font-semibold transition-colors">
+            className="px-4 py-2 bg-gray-800 hover:bg-gray-800/50 rounded-lg text-sm font-semibold transition-colors">
             Cancel
           </button>
         </div>
@@ -893,7 +893,7 @@ export default function SnapshotsPage() {
       ) : snapshots.length === 0 ? (
         <div className="text-center py-20">
           <p className="text-gray-500 text-lg">No snapshots yet</p>
-          <p className="text-gray-600 text-sm mt-2">
+          <p className="text-gray-500 text-sm mt-2">
             Capture your first snapshot to see the complete state of a truck at a specific moment
           </p>
         </div>
@@ -929,7 +929,7 @@ export default function SnapshotsPage() {
                       })}
                     </div>
                   )}
-                  {s.notes && <p className="text-xs text-gray-600 mt-1">{s.notes}</p>}
+                  {s.notes && <p className="text-xs text-gray-500 mt-1">{s.notes}</p>}
                 </div>
                 <div className="flex items-center gap-4 text-xs text-gray-400">
                   {s.engine_rpm != null && <span>RPM: <b className="text-gray-200">{Math.round(s.engine_rpm)}</b></span>}
@@ -939,7 +939,7 @@ export default function SnapshotsPage() {
                   {(s.active_dtc_count ?? 0) > 0 && <span className="text-red-400">{s.active_dtc_count} DTCs</span>}
                   <button
                     onClick={(e) => { e.stopPropagation(); deleteSnapshot(s.id); }}
-                    className="text-gray-600 hover:text-red-400 transition-colors ml-2"
+                    className="text-gray-500 hover:text-red-400 transition-colors ml-2"
                     title="Delete snapshot"
                   >
                     &times;

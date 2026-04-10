@@ -216,7 +216,7 @@ export default function BankReconciliationPage() {
         {/* Account Selector */}
         <div className="flex flex-wrap items-end gap-4 mb-6">
           <div>
-            <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Bank Account</label>
+            <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Bank Account</label>
             <select value={selectedAccount} onChange={(e) => setSelectedAccount(e.target.value)}
               className="px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white min-w-[250px]">
               {accounts.map((a) => (
@@ -245,7 +245,7 @@ export default function BankReconciliationPage() {
             { label: "Uncleared Withdrawals", value: fmt(unclearedWithdrawals), color: "text-amber-400" },
           ].map((c) => (
             <div key={c.label} className="rounded-xl bg-gray-900/50 border border-gray-800 p-4">
-              <p className="text-xs uppercase tracking-wider text-gray-600 font-medium">{c.label}</p>
+              <p className="text-xs uppercase tracking-wider text-gray-500 font-medium">{c.label}</p>
               <p className={`text-xl font-black mt-1 ${c.color}`}>{c.value}</p>
             </div>
           ))}
@@ -276,17 +276,17 @@ export default function BankReconciliationPage() {
             {!reconId ? (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Statement Date</label>
+                  <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Statement Date</label>
                   <input type="date" value={reconStatementDate} onChange={(e) => setReconStatementDate(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white [color-scheme:dark]" />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Statement Ending Balance</label>
+                  <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Statement Ending Balance</label>
                   <input type="number" value={reconStatementBal} onChange={(e) => setReconStatementBal(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" step="0.01" />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Beginning Balance</label>
+                  <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Beginning Balance</label>
                   <input type="number" value={reconBeginBal} onChange={(e) => setReconBeginBal(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" step="0.01" />
                 </div>
@@ -320,7 +320,7 @@ export default function BankReconciliationPage() {
           <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
             <table className="w-full text-sm min-w-[700px]">
               <thead>
-                <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
+                <tr className="text-xs uppercase tracking-wider text-gray-500 border-b border-gray-800">
                   <th className="text-center px-3 py-3 font-medium w-12">Cleared</th>
                   <th className="text-left px-4 py-3 font-medium">Date</th>
                   <th className="text-left px-4 py-3 font-medium">Description</th>
@@ -352,7 +352,7 @@ export default function BankReconciliationPage() {
                 ))}
                 {transactions.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-gray-600">
+                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                       No transactions. Import a bank statement CSV to get started.
                     </td>
                   </tr>

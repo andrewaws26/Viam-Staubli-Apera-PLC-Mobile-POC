@@ -115,7 +115,7 @@ export default function TruckAssignments() {
 
   if (loading) {
     return (
-      <div className="text-center py-12 text-gray-600 text-sm">Loading assignments...</div>
+      <div className="text-center py-12 text-gray-500 text-sm">Loading assignments...</div>
     );
   }
 
@@ -175,7 +175,7 @@ export default function TruckAssignments() {
 
       {/* Assignments by truck */}
       {assignments.length === 0 ? (
-        <div className="text-center py-8 text-gray-600 text-sm">
+        <div className="text-center py-8 text-gray-500 text-sm">
           No assignments yet. Assign operators and mechanics to trucks above.
         </div>
       ) : (
@@ -194,7 +194,7 @@ export default function TruckAssignments() {
                     </div>
                     <button
                       onClick={() => handleUnassign(a.id)}
-                      className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 transition-all p-1"
+                      className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-all p-1"
                       title="Unassign"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

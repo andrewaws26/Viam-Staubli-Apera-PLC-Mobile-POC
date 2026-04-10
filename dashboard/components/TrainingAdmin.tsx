@@ -153,7 +153,7 @@ export default function TrainingAdmin() {
         <p className="text-red-400 mb-4">{error}</p>
         <button
           onClick={loadData}
-          className="px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-white text-sm font-bold uppercase tracking-wider transition-colors"
+          className="px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-800/50 text-white text-sm font-bold uppercase tracking-wider transition-colors"
         >
           Retry
         </button>
@@ -365,7 +365,7 @@ export default function TrainingAdmin() {
                 {/* Notes */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-400 mb-2">
-                    Notes <span className="text-gray-600 font-normal">(optional)</span>
+                    Notes <span className="text-gray-500 font-normal">(optional)</span>
                   </label>
                   <textarea
                     value={logNotes}

@@ -92,7 +92,7 @@ export default function CommandPanel({ data }: CommandPanelProps) {
 
   return (
     <div>
-      <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+      <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-800/50 pb-1">
         Diagnostic Trouble Codes
         {(dtcCount as number) > 0 && (
           <span className="ml-2 text-red-400 normal-case tracking-normal font-normal">

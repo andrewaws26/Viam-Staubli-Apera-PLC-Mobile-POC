@@ -234,7 +234,7 @@ export default function PerDiemSummary({ currentUserId, currentUserRole }: Props
           ) : (
             <div className="text-center py-12">
               <p className="text-gray-500">No per diem entries for this period.</p>
-              <p className="text-xs text-gray-600 mt-1">
+              <p className="text-xs text-gray-500 mt-1">
                 Per diem is auto-calculated when timesheets with nights out or layovers are approved.
               </p>
             </div>

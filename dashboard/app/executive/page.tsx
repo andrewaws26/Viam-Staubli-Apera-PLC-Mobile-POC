@@ -81,7 +81,7 @@ export default function ExecutiveDashboard() {
             <h1 className="text-2xl font-bold">Executive Dashboard</h1>
             <p className="text-sm text-gray-500">As of {data.as_of}</p>
           </div>
-          <button onClick={() => { setLoading(true); load(); }} className="text-sm px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-md text-gray-300">
+          <button onClick={() => { setLoading(true); load(); }} className="text-sm px-3 py-1.5 bg-gray-800 hover:bg-gray-800/50 border border-gray-700 rounded-md text-gray-300">
             Refresh
           </button>
         </div>
@@ -301,7 +301,7 @@ export default function ExecutiveDashboard() {
               <div className="space-y-1.5 max-h-72 overflow-y-auto">
                 {data.recent_activity.map((a) => (
                   <div key={a.id} className="flex gap-2 text-xs border-b border-gray-800/50 pb-1.5">
-                    <span className="text-gray-600 whitespace-nowrap">
+                    <span className="text-gray-500 whitespace-nowrap">
                       {new Date(a.at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                     </span>
                     <span className="text-gray-400">

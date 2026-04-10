@@ -38,7 +38,7 @@ export default function EditTimesheetPage() {
     return (
       <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center gap-3">
         <div className="w-10 h-10 rounded-full border-2 border-gray-600 border-t-gray-300 animate-spin" />
-        <p className="text-gray-600 text-sm uppercase tracking-widest">Loading Timesheet</p>
+        <p className="text-gray-500 text-sm uppercase tracking-widest">Loading Timesheet</p>
       </div>
     );
   }
@@ -70,7 +70,7 @@ export default function EditTimesheetPage() {
           <h1 className="text-xl sm:text-2xl font-black tracking-widest uppercase text-gray-100">
             Timesheet
           </h1>
-          <p className="text-xs text-gray-600 mt-0.5 tracking-wide">
+          <p className="text-xs text-gray-500 mt-0.5 tracking-wide">
             {timesheet.user_name} — Week ending {new Date(timesheet.week_ending + "T12:00:00").toLocaleDateString()}
           </p>
         </div>

@@ -187,7 +187,7 @@ export default function FleetManager() {
   if (loading) {
     return (
       <div className="bg-gray-900/50 rounded-2xl border border-gray-800 p-6">
-        <div className="text-center py-12 text-gray-600 text-sm">Loading fleet...</div>
+        <div className="text-center py-12 text-gray-500 text-sm">Loading fleet...</div>
       </div>
     );
   }
@@ -198,7 +198,7 @@ export default function FleetManager() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-bold text-gray-200">Fleet Management</h2>
-          <p className="text-xs text-gray-600 mt-0.5">
+          <p className="text-xs text-gray-500 mt-0.5">
             {trucks.length} truck{trucks.length !== 1 ? "s" : ""} registered
           </p>
         </div>
@@ -226,7 +226,7 @@ export default function FleetManager() {
             </h3>
             <button
               onClick={closeForm}
-              className="text-gray-600 hover:text-gray-400 transition-colors p-1"
+              className="text-gray-500 hover:text-gray-400 transition-colors p-1"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -437,7 +437,7 @@ export default function FleetManager() {
               <button
                 type="button"
                 onClick={closeForm}
-                className="min-h-[44px] px-5 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs font-bold uppercase tracking-wider transition-colors"
+                className="min-h-[44px] px-5 py-2 rounded-lg bg-gray-800 hover:bg-gray-800/50 text-gray-400 text-xs font-bold uppercase tracking-wider transition-colors"
               >
                 Cancel
               </button>
@@ -449,7 +449,7 @@ export default function FleetManager() {
       {/* Truck Table */}
       {trucks.length === 0 ? (
         <div className="bg-gray-900/50 rounded-2xl border border-gray-800 p-6">
-          <div className="text-center py-8 text-gray-600 text-sm">
+          <div className="text-center py-8 text-gray-500 text-sm">
             No trucks registered. Click &quot;Add Truck&quot; to get started.
           </div>
         </div>
@@ -510,7 +510,7 @@ export default function FleetManager() {
                       <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => openEditForm(truck)}
-                          className="px-2.5 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 text-xs font-bold uppercase tracking-wider transition-colors"
+                          className="px-2.5 py-1 rounded bg-gray-800 hover:bg-gray-800/50 text-gray-400 hover:text-gray-200 text-xs font-bold uppercase tracking-wider transition-colors"
                         >
                           Edit
                         </button>
@@ -527,7 +527,7 @@ export default function FleetManager() {
                                 </button>
                                 <button
                                   onClick={() => setConfirmDecommission(null)}
-                                  className="px-2.5 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-500 text-xs font-bold uppercase tracking-wider transition-colors"
+                                  className="px-2.5 py-1 rounded bg-gray-800 hover:bg-gray-800/50 text-gray-500 text-xs font-bold uppercase tracking-wider transition-colors"
                                 >
                                   No
                                 </button>
@@ -567,7 +567,7 @@ export default function FleetManager() {
                   {[truck.year, truck.make, truck.model].filter(Boolean).join(" ")}
                   {truck.vin && <span className="ml-2 font-mono">VIN: ...{truck.vin.slice(-6)}</span>}
                 </div>
-                <div className="text-xs text-gray-600">{truck.home_base}</div>
+                <div className="text-xs text-gray-500">{truck.home_base}</div>
                 <div className="flex items-center justify-between">
                   <div className="flex gap-1">
                     {truck.has_tps && (
@@ -583,7 +583,7 @@ export default function FleetManager() {
                   <div className="flex gap-1">
                     <button
                       onClick={() => openEditForm(truck)}
-                      className="min-h-[44px] px-3 py-2 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs font-bold uppercase tracking-wider transition-colors"
+                      className="min-h-[44px] px-3 py-2 rounded bg-gray-800 hover:bg-gray-800/50 text-gray-400 text-xs font-bold uppercase tracking-wider transition-colors"
                     >
                       Edit
                     </button>

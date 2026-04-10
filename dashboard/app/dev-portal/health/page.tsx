@@ -155,7 +155,7 @@ export default function HealthPage() {
                     <div key={`empty-${i}`} className="h-6 flex-1 rounded-sm bg-gray-800/50" />
                   ))}
                 </div>
-                <span className="text-xs text-gray-600 w-14 text-right shrink-0">
+                <span className="text-xs text-gray-500 w-14 text-right shrink-0">
                   {sourceHistory.length > 0 ? `${sourceHistory[0].response_ms || "--"}ms` : "--"}
                 </span>
               </div>
@@ -179,7 +179,7 @@ export default function HealthPage() {
         <div className="space-y-1 max-h-80 overflow-y-auto">
           {filteredHistory.length === 0 ? (
             <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-6 text-center">
-              <p className="text-sm text-gray-600">No health checks recorded yet</p>
+              <p className="text-sm text-gray-500">No health checks recorded yet</p>
             </div>
           ) : filteredHistory.map((h) => {
             const c = STATUS_COLORS[h.status] || STATUS_COLORS.unknown;
@@ -188,7 +188,7 @@ export default function HealthPage() {
                 <span className={`h-2 w-2 rounded-full ${c.dot} shrink-0`} />
                 <span className="text-xs text-gray-400 w-20">{h.source}</span>
                 <span className={`text-xs capitalize ${c.text} w-16`}>{h.status}</span>
-                <span className="text-xs text-gray-600 w-14 text-right">{h.response_ms ? `${h.response_ms}ms` : "--"}</span>
+                <span className="text-xs text-gray-500 w-14 text-right">{h.response_ms ? `${h.response_ms}ms` : "--"}</span>
                 <span className="text-xs text-gray-700 ml-auto">{timeAgo(h.checked_at)}</span>
               </div>
             );

@@ -243,7 +243,7 @@ export default function FixedAssetsPage() {
               { label: "Accum. Depreciation", value: fmt(summary.total_accumulated_depr), color: "text-amber-400" },
             ].map((c) => (
               <div key={c.label} className="rounded-xl bg-gray-900/50 border border-gray-800 p-4">
-                <p className="text-xs uppercase tracking-wider text-gray-600 font-medium">{c.label}</p>
+                <p className="text-xs uppercase tracking-wider text-gray-500 font-medium">{c.label}</p>
                 <p className={`text-xl font-black mt-1 ${c.color}`}>{c.value}</p>
               </div>
             ))}
@@ -280,67 +280,67 @@ export default function FixedAssetsPage() {
             <h3 className="text-sm font-bold uppercase tracking-wider text-gray-300">New Fixed Asset</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Name *</label>
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Name *</label>
                 <input type="text" value={formName} onChange={(e) => setFormName(e.target.value)}
                   placeholder="2019 Mack Granite GU713"
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
               </div>
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Asset Tag</label>
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Asset Tag</label>
                 <input type="text" value={formAssetTag} onChange={(e) => setFormAssetTag(e.target.value)}
                   placeholder="FA-001"
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
               </div>
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Category *</label>
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Category *</label>
                 <select value={formCategory} onChange={(e) => setFormCategory(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white">
                   {CATEGORIES.map((c) => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Purchase Date *</label>
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Purchase Date *</label>
                 <input type="date" value={formPurchaseDate} onChange={(e) => setFormPurchaseDate(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white [color-scheme:dark]" />
               </div>
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">In-Service Date *</label>
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">In-Service Date *</label>
                 <input type="date" value={formInServiceDate} onChange={(e) => setFormInServiceDate(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white [color-scheme:dark]" />
               </div>
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Purchase Cost *</label>
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Purchase Cost *</label>
                 <input type="number" value={formPurchaseCost} onChange={(e) => setFormPurchaseCost(e.target.value)}
                   step="0.01" placeholder="85000.00"
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
               </div>
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Salvage Value</label>
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Salvage Value</label>
                 <input type="number" value={formSalvageValue} onChange={(e) => setFormSalvageValue(e.target.value)}
                   step="0.01" placeholder="5000.00"
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
               </div>
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Useful Life (months)</label>
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Useful Life (months)</label>
                 <input type="number" value={formUsefulLifeMonths} onChange={(e) => setFormUsefulLifeMonths(e.target.value)}
                   placeholder="60"
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
               </div>
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Depreciation Method</label>
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Depreciation Method</label>
                 <select value={formMethod} onChange={(e) => setFormMethod(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white">
                   {METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Linked Truck ID</label>
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Linked Truck ID</label>
                 <input type="text" value={formTruckId} onChange={(e) => setFormTruckId(e.target.value)}
                   placeholder="Optional"
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
               </div>
               <div className="sm:col-span-2 lg:col-span-3">
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Description</label>
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Description</label>
                 <input type="text" value={formDescription} onChange={(e) => setFormDescription(e.target.value)}
                   placeholder="Optional description"
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
@@ -362,7 +362,7 @@ export default function FixedAssetsPage() {
             </p>
             <div className="flex items-end gap-4">
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Period (1st of Month)</label>
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Period (1st of Month)</label>
                 <input type="date" value={deprPeriod} onChange={(e) => setDeprPeriod(e.target.value)}
                   className="px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white [color-scheme:dark]" />
               </div>
@@ -385,18 +385,18 @@ export default function FixedAssetsPage() {
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Disposal Date</label>
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Disposal Date</label>
                 <input type="date" value={disposeDate} onChange={(e) => setDisposeDate(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white [color-scheme:dark]" />
               </div>
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Amount Received</label>
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Amount Received</label>
                 <input type="number" value={disposeAmount} onChange={(e) => setDisposeAmount(e.target.value)}
                   step="0.01" placeholder="0.00"
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
               </div>
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Disposal Method</label>
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Disposal Method</label>
                 <select value={disposeMethod} onChange={(e) => setDisposeMethod(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white">
                   {["sold", "scrapped", "traded", "donated"].map((m) => (
@@ -418,29 +418,29 @@ export default function FixedAssetsPage() {
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold uppercase tracking-wider text-gray-300">
                 {selectedAsset.name}
-                {selectedAsset.asset_tag && <span className="ml-2 text-gray-600 font-mono text-xs">({selectedAsset.asset_tag})</span>}
+                {selectedAsset.asset_tag && <span className="ml-2 text-gray-500 font-mono text-xs">({selectedAsset.asset_tag})</span>}
               </h3>
-              <button onClick={() => setSelectedAsset(null)} className="text-gray-600 hover:text-gray-400 text-sm">Close</button>
+              <button onClick={() => setSelectedAsset(null)} className="text-gray-500 hover:text-gray-400 text-sm">Close</button>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-              <div><span className="text-gray-600 text-xs uppercase">Category</span><p className="text-gray-300 capitalize">{selectedAsset.category}</p></div>
-              <div><span className="text-gray-600 text-xs uppercase">Status</span><p><span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${STATUS_COLORS[selectedAsset.status] || ""}`}>{selectedAsset.status.replace("_", " ")}</span></p></div>
-              <div><span className="text-gray-600 text-xs uppercase">Purchase Cost</span><p className="text-gray-300">{fmt(Number(selectedAsset.purchase_cost))}</p></div>
-              <div><span className="text-gray-600 text-xs uppercase">Book Value</span><p className="text-emerald-400">{fmt(Number(selectedAsset.book_value))}</p></div>
-              <div><span className="text-gray-600 text-xs uppercase">Salvage Value</span><p className="text-gray-300">{fmt(Number(selectedAsset.salvage_value))}</p></div>
-              <div><span className="text-gray-600 text-xs uppercase">Accum. Depr.</span><p className="text-amber-400">{fmt(Number(selectedAsset.accumulated_depreciation))}</p></div>
-              <div><span className="text-gray-600 text-xs uppercase">Method</span><p className="text-gray-300">{selectedAsset.depreciation_method.replace(/_/g, " ")}</p></div>
-              <div><span className="text-gray-600 text-xs uppercase">Useful Life</span><p className="text-gray-300">{selectedAsset.useful_life_months} months</p></div>
+              <div><span className="text-gray-500 text-xs uppercase">Category</span><p className="text-gray-300 capitalize">{selectedAsset.category}</p></div>
+              <div><span className="text-gray-500 text-xs uppercase">Status</span><p><span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${STATUS_COLORS[selectedAsset.status] || ""}`}>{selectedAsset.status.replace("_", " ")}</span></p></div>
+              <div><span className="text-gray-500 text-xs uppercase">Purchase Cost</span><p className="text-gray-300">{fmt(Number(selectedAsset.purchase_cost))}</p></div>
+              <div><span className="text-gray-500 text-xs uppercase">Book Value</span><p className="text-emerald-400">{fmt(Number(selectedAsset.book_value))}</p></div>
+              <div><span className="text-gray-500 text-xs uppercase">Salvage Value</span><p className="text-gray-300">{fmt(Number(selectedAsset.salvage_value))}</p></div>
+              <div><span className="text-gray-500 text-xs uppercase">Accum. Depr.</span><p className="text-amber-400">{fmt(Number(selectedAsset.accumulated_depreciation))}</p></div>
+              <div><span className="text-gray-500 text-xs uppercase">Method</span><p className="text-gray-300">{selectedAsset.depreciation_method.replace(/_/g, " ")}</p></div>
+              <div><span className="text-gray-500 text-xs uppercase">Useful Life</span><p className="text-gray-300">{selectedAsset.useful_life_months} months</p></div>
             </div>
 
             {/* Depreciation Schedule */}
             {selectedAsset.depreciation_entries && selectedAsset.depreciation_entries.length > 0 && (
               <div>
-                <h4 className="text-xs uppercase tracking-wider text-gray-600 font-medium mb-2 mt-2">Depreciation Schedule</h4>
+                <h4 className="text-xs uppercase tracking-wider text-gray-500 font-medium mb-2 mt-2">Depreciation Schedule</h4>
                 <div className="rounded-lg border border-gray-800 overflow-hidden overflow-x-auto">
                   <table className="w-full text-sm min-w-[500px]">
                     <thead>
-                      <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
+                      <tr className="text-xs uppercase tracking-wider text-gray-500 border-b border-gray-800">
                         <th className="text-left px-4 py-2 font-medium">Period</th>
                         <th className="text-right px-4 py-2 font-medium">Depreciation</th>
                         <th className="text-right px-4 py-2 font-medium">Accum. Total</th>
@@ -473,7 +473,7 @@ export default function FixedAssetsPage() {
           <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
             <table className="w-full text-sm min-w-[800px]">
               <thead>
-                <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
+                <tr className="text-xs uppercase tracking-wider text-gray-500 border-b border-gray-800">
                   <th className="text-left px-4 py-3 font-medium">Name</th>
                   <th className="text-left px-4 py-3 font-medium">Category</th>
                   <th className="text-left px-4 py-3 font-medium">Status</th>
@@ -491,7 +491,7 @@ export default function FixedAssetsPage() {
                     className="border-t border-gray-800/50 hover:bg-gray-800/20 transition-colors cursor-pointer">
                     <td className="px-4 py-2">
                       <span className="text-gray-200">{a.name}</span>
-                      {a.asset_tag && <span className="ml-2 text-gray-600 text-xs font-mono">{a.asset_tag}</span>}
+                      {a.asset_tag && <span className="ml-2 text-gray-500 text-xs font-mono">{a.asset_tag}</span>}
                     </td>
                     <td className="px-4 py-2 text-gray-400 capitalize">{a.category}</td>
                     <td className="px-4 py-2">
@@ -508,7 +508,7 @@ export default function FixedAssetsPage() {
                 ))}
                 {assets.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-gray-600">
+                    <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
                       No fixed assets. Click &quot;Add Asset&quot; to register your first capital asset.
                     </td>
                   </tr>

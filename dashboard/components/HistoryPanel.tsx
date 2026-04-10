@@ -90,12 +90,12 @@ export default function HistoryPanel({ summary, loading, error, onRefresh }: Pro
           </h3>
           <button
             onClick={onRefresh}
-            className="text-xs sm:text-xs text-gray-600 hover:text-gray-400 uppercase tracking-wide min-h-[44px] px-4 py-2 border border-gray-800 rounded-lg transition-colors"
+            className="text-xs sm:text-xs text-gray-500 hover:text-gray-400 uppercase tracking-wide min-h-[44px] px-4 py-2 border border-gray-800 rounded-lg transition-colors"
           >
             Retry
           </button>
         </div>
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-gray-500">
           Historical data unavailable — {error}
         </p>
       </div>
@@ -108,7 +108,7 @@ export default function HistoryPanel({ summary, loading, error, onRefresh }: Pro
         <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-3">
           Production History
         </h3>
-        <p className="text-sm text-gray-600 animate-pulse">
+        <p className="text-sm text-gray-500 animate-pulse">
           Loading historical data...
         </p>
       </div>
@@ -132,7 +132,7 @@ export default function HistoryPanel({ summary, loading, error, onRefresh }: Pro
         <button
           onClick={onRefresh}
           disabled={loading}
-          className="text-xs sm:text-xs text-gray-600 hover:text-gray-400 disabled:text-gray-800 uppercase tracking-wide min-h-[44px] px-4 py-2 border border-gray-800 rounded-lg transition-colors shrink-0"
+          className="text-xs sm:text-xs text-gray-500 hover:text-gray-400 disabled:text-gray-800 uppercase tracking-wide min-h-[44px] px-4 py-2 border border-gray-800 rounded-lg transition-colors shrink-0"
         >
           Refresh
         </button>
@@ -140,7 +140,7 @@ export default function HistoryPanel({ summary, loading, error, onRefresh }: Pro
 
       <div className="px-3 sm:px-6 pb-3 sm:pb-6 space-y-3 sm:space-y-6">
         {noData ? (
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-gray-500">
             No data captured in the last {summary.totalHours} hours.
           </p>
         ) : (
@@ -149,7 +149,7 @@ export default function HistoryPanel({ summary, loading, error, onRefresh }: Pro
             {/* Shift Summary Card                                             */}
             {/* -------------------------------------------------------------- */}
             <div>
-              <h4 className="text-xs sm:text-xs font-bold uppercase tracking-widest text-gray-600 mb-3">
+              <h4 className="text-xs sm:text-xs font-bold uppercase tracking-widest text-gray-500 mb-3">
                 Period Summary
               </h4>
               <div className="text-xs text-gray-700 mb-3">
@@ -160,19 +160,19 @@ export default function HistoryPanel({ summary, loading, error, onRefresh }: Pro
               {/* Big 3 metrics */}
               <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-4">
                 <div className="flex flex-col items-center p-2 sm:p-3 bg-gray-900/50 rounded-xl">
-                  <span className="text-xs sm:text-xs text-gray-600 uppercase tracking-wide">
+                  <span className="text-xs sm:text-xs text-gray-500 uppercase tracking-wide">
                     Distance
                   </span>
                   <span className="font-mono font-bold text-lg sm:text-xl text-blue-400">
                     {summary.totalDistance_ft.toLocaleString()}
-                    <span className="text-gray-600 font-normal text-xs ml-0.5">ft</span>
+                    <span className="text-gray-500 font-normal text-xs ml-0.5">ft</span>
                   </span>
                   <span className="text-xs text-gray-700">
                     {(summary.totalDistance_ft / 5280).toFixed(2)} mi
                   </span>
                 </div>
                 <div className="flex flex-col items-center p-2 sm:p-3 bg-gray-900/50 rounded-xl">
-                  <span className="text-xs sm:text-xs text-gray-600 uppercase tracking-wide">
+                  <span className="text-xs sm:text-xs text-gray-500 uppercase tracking-wide">
                     Plates
                   </span>
                   <span className="font-mono font-bold text-lg sm:text-xl text-green-400">
@@ -183,12 +183,12 @@ export default function HistoryPanel({ summary, loading, error, onRefresh }: Pro
                   </span>
                 </div>
                 <div className="flex flex-col items-center p-2 sm:p-3 bg-gray-900/50 rounded-xl">
-                  <span className="text-xs sm:text-xs text-gray-600 uppercase tracking-wide">
+                  <span className="text-xs sm:text-xs text-gray-500 uppercase tracking-wide">
                     TPS Active
                   </span>
                   <span className="font-mono font-bold text-lg sm:text-xl text-gray-200">
                     {summary.tpsPowerOnPct}
-                    <span className="text-gray-600 font-normal text-xs ml-0.5">%</span>
+                    <span className="text-gray-500 font-normal text-xs ml-0.5">%</span>
                   </span>
                   <span className="text-xs text-gray-700">
                     {formatDuration(summary.tpsPowerOnMinutes)}
@@ -242,7 +242,7 @@ export default function HistoryPanel({ summary, loading, error, onRefresh }: Pro
             {/* -------------------------------------------------------------- */}
             {summary.events.length > 0 && (
               <div>
-                <h4 className="text-xs sm:text-xs font-bold uppercase tracking-widest text-gray-600 mb-2">
+                <h4 className="text-xs sm:text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">
                   Events
                 </h4>
                 <div className="space-y-0.5 max-h-48 overflow-y-auto">
@@ -273,7 +273,7 @@ export default function HistoryPanel({ summary, loading, error, onRefresh }: Pro
 
             {summary.events.length === 0 && (
               <div>
-                <h4 className="text-xs sm:text-xs font-bold uppercase tracking-widest text-gray-600 mb-2">
+                <h4 className="text-xs sm:text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">
                   Events
                 </h4>
                 <p className="text-xs text-gray-700 px-2">
@@ -302,7 +302,7 @@ function StatItem({
 }) {
   return (
     <div className="flex flex-col min-w-0">
-      <span className="text-xs sm:text-xs text-gray-600 uppercase tracking-wide truncate">
+      <span className="text-xs sm:text-xs text-gray-500 uppercase tracking-wide truncate">
         {label}
       </span>
       <span

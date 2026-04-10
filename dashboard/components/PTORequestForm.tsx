@@ -254,7 +254,7 @@ export default function PTORequestForm({ currentUserId }: Props) {
         <div>
           <label className="block text-sm font-semibold text-gray-400 mb-2">
             Hours Requested
-            <span className="text-xs text-gray-600 font-normal ml-2">
+            <span className="text-xs text-gray-500 font-normal ml-2">
               ({countBusinessDays(startDate, endDate)} business day{countBusinessDays(startDate, endDate) !== 1 ? "s" : ""} x 8h = {calculatedHours}h)
             </span>
           </label>
@@ -280,7 +280,7 @@ export default function PTORequestForm({ currentUserId }: Props) {
       {/* Reason */}
       <section className="mb-8">
         <label className="block text-sm font-semibold text-gray-300 mb-2 uppercase tracking-wider">
-          Reason <span className="text-gray-600 font-normal normal-case">(optional)</span>
+          Reason <span className="text-gray-500 font-normal normal-case">(optional)</span>
         </label>
         <textarea
           value={reason}

@@ -265,7 +265,7 @@ export default function TaxReportsPage() {
     if (diffDays <= 30) {
       return { label: "Due Soon", color: "text-yellow-400", bgColor: "bg-yellow-900/30 border-yellow-800/50" };
     }
-    return { label: "Upcoming", color: "text-gray-500", bgColor: "bg-gray-800/30 border-gray-700/50" };
+    return { label: "Upcoming", color: "text-gray-500", bgColor: "bg-gray-800/30 border-gray-800/60" };
   }
 
   // ── Summary cards (from summary data or individual reports) ──
@@ -316,7 +316,7 @@ export default function TaxReportsPage() {
                 className={`px-3 py-1.5 rounded-md text-sm font-semibold whitespace-nowrap transition-colors ${
                   tab === t
                     ? "bg-violet-600 text-white"
-                    : "text-gray-400 hover:text-gray-200 hover:bg-gray-800"
+                    : "text-gray-400 hover:text-gray-200 hover:bg-gray-800/50"
                 }`}
               >
                 {t}
@@ -411,7 +411,7 @@ function Tab941({ data }: { data: Report941 | null }) {
           </div>
           <button
             onClick={() => window.print()}
-            className="print:hidden px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm rounded-lg transition-colors"
+            className="print:hidden px-3 py-1.5 bg-gray-800 hover:bg-gray-800/50 text-gray-300 text-sm rounded-lg transition-colors"
           >
             Print
           </button>

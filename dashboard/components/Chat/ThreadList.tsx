@@ -79,11 +79,11 @@ export default function ThreadList({ onSelectThread, selectedThreadId, onNewDM }
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="p-3 border-b border-gray-700/50">
+      <div className="p-3 border-b border-gray-800/60">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-sm font-bold text-gray-100 uppercase tracking-wider">
             Chat {totalUnread > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 rounded-full bg-purple-600 text-white text-xs font-mono">
+              <span className="ml-1 px-1.5 py-0.5 rounded-full bg-violet-500 text-white text-xs font-mono">
                 {totalUnread}
               </span>
             )}
@@ -110,7 +110,7 @@ export default function ThreadList({ onSelectThread, selectedThreadId, onNewDM }
               className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap transition-colors ${
                 filter === f
                   ? "bg-purple-600/30 text-purple-300 border border-purple-500/50"
-                  : "bg-gray-800 text-gray-400 border border-gray-700/50 hover:text-gray-300"
+                  : "bg-gray-800 text-gray-400 border border-gray-800/60 hover:text-gray-300"
               }`}
             >
               {f === "all" ? "All" : ENTITY_LABELS[f]}
@@ -147,14 +147,14 @@ export default function ThreadList({ onSelectThread, selectedThreadId, onNewDM }
                       <span className="text-xs text-gray-500">{timeAgo(t.lastMessage.createdAt)}</span>
                     )}
                     {t.unreadCount > 0 && (
-                      <span className="px-1 py-0.5 rounded-full bg-purple-600 text-white text-xs font-mono min-w-[16px] text-center">
+                      <span className="w-5 h-5 flex items-center justify-center rounded-full bg-violet-500 text-white text-xs font-mono">
                         {t.unreadCount}
                       </span>
                     )}
                   </div>
                 </div>
                 {t.lastMessage && (
-                  <p className="text-xs text-gray-500 truncate mt-0.5">
+                  <p className="line-clamp-1 text-xs text-gray-500 mt-0.5">
                     <span className="text-gray-400">{t.lastMessage.senderName}:</span>{" "}
                     {t.lastMessage.deletedAt ? "[deleted]" : t.lastMessage.body}
                   </p>

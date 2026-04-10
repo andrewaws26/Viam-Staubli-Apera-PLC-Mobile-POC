@@ -288,7 +288,7 @@ export default function CellWatchdog({ staubli, apera, network, internet = null,
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-xs uppercase tracking-wider font-bold opacity-70">{alert.category}</span>
-                    <span className="text-xs text-gray-600">{alert.source}</span>
+                    <span className="text-xs text-gray-500">{alert.source}</span>
                   </div>
                   <h4 className="text-sm font-semibold">{alert.title}</h4>
                   <p className="text-xs opacity-80 mt-1 leading-relaxed">{alert.detail}</p>
@@ -304,7 +304,7 @@ export default function CellWatchdog({ staubli, apera, network, internet = null,
         <div className="px-4 sm:px-6 pb-4 sm:pb-6">
           <div className="p-4 bg-emerald-950/20 border border-emerald-900/30 rounded-lg text-center">
             <p className="text-sm text-emerald-400 font-medium">All systems operating normally</p>
-            <p className="text-xs text-gray-600 mt-1">
+            <p className="text-xs text-gray-500 mt-1">
               Monitoring {staubli ? "robot" : ""}{staubli && apera ? " + " : ""}{apera ? "vision" : ""}{network.length > 0 ? ` + ${network.length} devices` : ""}
             </p>
           </div>

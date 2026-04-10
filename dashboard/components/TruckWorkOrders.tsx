@@ -44,7 +44,7 @@ export default function TruckWorkOrders({ truckId }: { truckId?: string }) {
 
   if (loading) {
     return (
-      <div className="bg-gray-900/50 border border-gray-700/50 rounded-lg p-4">
+      <div className="bg-gray-900/50 border border-gray-800/60 rounded-lg p-4">
         <h3 className="text-sm font-bold text-gray-200 mb-2">Work Orders</h3>
         <p className="text-xs text-gray-500">Loading...</p>
       </div>
@@ -56,7 +56,7 @@ export default function TruckWorkOrders({ truckId }: { truckId?: string }) {
 
   if (workOrders.length === 0) {
     return (
-      <div className="bg-gray-900/50 border border-gray-700/50 rounded-lg p-4">
+      <div className="bg-gray-900/50 border border-gray-800/60 rounded-lg p-4">
         <h3 className="text-sm font-bold text-gray-200 mb-2">Work Orders</h3>
         <p className="text-xs text-gray-500">No work orders for this truck.</p>
         <a
@@ -70,7 +70,7 @@ export default function TruckWorkOrders({ truckId }: { truckId?: string }) {
   }
 
   return (
-    <div className="bg-gray-900/50 border border-gray-700/50 rounded-lg p-4">
+    <div className="bg-gray-900/50 border border-gray-800/60 rounded-lg p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-bold text-gray-200">
           Work Orders
@@ -127,7 +127,7 @@ function WorkOrderRow({ wo }: { wo: WorkOrder }) {
 
   return (
     <div
-      className={`bg-gray-800/80 rounded-lg border border-gray-700/50 cursor-pointer hover:border-gray-600 transition ${
+      className={`bg-gray-800/80 rounded-lg border border-gray-800/60 cursor-pointer hover:border-gray-600 transition ${
         isDone ? "opacity-60" : ""
       }`}
       onClick={() => setExpanded(!expanded)}
@@ -163,7 +163,7 @@ function WorkOrderRow({ wo }: { wo: WorkOrder }) {
         </div>
 
         {expanded && (
-          <div className="mt-2 pt-2 border-t border-gray-700/50 space-y-1.5">
+          <div className="mt-2 pt-2 border-t border-gray-800/60 space-y-1.5">
             {wo.description && (
               <p className="text-[11px] text-gray-400">{wo.description}</p>
             )}
@@ -173,7 +173,7 @@ function WorkOrderRow({ wo }: { wo: WorkOrder }) {
               <div className="space-y-0.5">
                 {wo.subtasks.map((st) => (
                   <div key={st.id} className="flex items-center gap-1.5">
-                    <span className={`text-xs ${st.is_done ? "text-green-500" : "text-gray-600"}`}>
+                    <span className={`text-xs ${st.is_done ? "text-green-500" : "text-gray-500"}`}>
                       {st.is_done ? "✓" : "○"}
                     </span>
                     <span className={`text-[11px] ${st.is_done ? "text-gray-500 line-through" : "text-gray-300"}`}>
@@ -206,7 +206,7 @@ function WorkOrderRow({ wo }: { wo: WorkOrder }) {
             )}
 
             {/* Meta */}
-            <div className="flex items-center gap-3 text-xs text-gray-600">
+            <div className="flex items-center gap-3 text-xs text-gray-500">
               <span>Created by {wo.created_by_name}</span>
               {wo.completed_at && (
                 <span>Completed {new Date(wo.completed_at).toLocaleDateString()}</span>

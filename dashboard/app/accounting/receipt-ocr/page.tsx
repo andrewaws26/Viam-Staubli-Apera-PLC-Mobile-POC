@@ -376,7 +376,7 @@ export default function ReceiptOcrPage() {
                 </button>
                 <button
                   onClick={handleReset}
-                  className="flex-1 py-2.5 rounded-xl font-semibold text-sm bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors border border-gray-700"
+                  className="flex-1 py-2.5 rounded-xl font-semibold text-sm bg-gray-800 hover:bg-gray-800/50 text-gray-300 transition-colors border border-gray-700"
                 >
                   Scan Another
                 </button>
@@ -386,7 +386,7 @@ export default function ReceiptOcrPage() {
             {viewingHistory && (
               <button
                 onClick={handleReset}
-                className="w-full py-2.5 rounded-xl font-semibold text-sm bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors border border-gray-700"
+                className="w-full py-2.5 rounded-xl font-semibold text-sm bg-gray-800 hover:bg-gray-800/50 text-gray-300 transition-colors border border-gray-700"
               >
                 Back to Scanner
               </button>
@@ -493,7 +493,7 @@ export default function ReceiptOcrPage() {
             ) : (
               <div className="bg-gray-900/40 border border-gray-800/60 rounded-2xl p-12 text-center">
                 <div className="w-16 h-16 mx-auto rounded-2xl bg-gray-800/50 flex items-center justify-center mb-4">
-                  <svg className="w-8 h-8 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-8 h-8 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                 </div>
@@ -528,7 +528,7 @@ export default function ReceiptOcrPage() {
                           {fmtDate(entry.date)}
                         </span>
                         {entry.category && (
-                          <span className="text-xs text-gray-600 capitalize">
+                          <span className="text-xs text-gray-500 capitalize">
                             {CATEGORY_LABELS[entry.category] || entry.category}
                           </span>
                         )}
@@ -538,7 +538,7 @@ export default function ReceiptOcrPage() {
                       <p className="text-sm font-bold text-violet-300">
                         {fmtCurrency(entry.total_amount)}
                       </p>
-                      <p className="text-xs text-gray-600">
+                      <p className="text-xs text-gray-500">
                         {new Date(entry.scanned_at).toLocaleDateString("en-US", {
                           month: "short",
                           day: "numeric",

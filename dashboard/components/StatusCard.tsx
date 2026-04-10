@@ -78,7 +78,7 @@ export default function StatusCard({ component }: Props) {
       )}
 
       {/* Last updated */}
-      <p className="text-xs sm:text-xs text-gray-600 mt-auto font-mono">
+      <p className="text-xs sm:text-xs text-gray-500 mt-auto font-mono">
         {lastUpdated
           ? lastUpdated.toLocaleTimeString()
           : isLoading

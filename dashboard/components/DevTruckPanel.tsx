@@ -158,7 +158,7 @@ export default function DevTruckPanel() {
       {/* Header */}
       <button
         onClick={() => setExpanded((e) => !e)}
-        className="w-full min-h-[44px] p-4 sm:p-5 flex items-center justify-between gap-3 text-left hover:bg-gray-900/30 transition-colors"
+        className="w-full min-h-[44px] p-4 sm:p-5 flex items-center justify-between gap-3 text-left hover:bg-gray-800/50 transition-colors"
       >
         <div className="flex items-center gap-2 min-w-0">
           <span
@@ -179,7 +179,7 @@ export default function DevTruckPanel() {
             </span>
           )}
         </div>
-        <span className="text-gray-600 text-xs shrink-0">
+        <span className="text-gray-500 text-xs shrink-0">
           {expanded ? "\u25B2" : "\u25BC"}
         </span>
       </button>

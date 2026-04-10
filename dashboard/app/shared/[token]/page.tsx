@@ -536,7 +536,7 @@ function ShiftReportViewer({ data, meta }: { data: Record<string, unknown>; meta
       )}
 
       {(r.dataQuality as Array<{ message: string }> || []).length > 0 && (
-        <div className="text-xs text-gray-600 space-y-1">
+        <div className="text-xs text-gray-500 space-y-1">
           {(r.dataQuality as Array<{ message: string }>).map((w, i) => (
             <p key={i}>{w.message}</p>
           ))}
@@ -625,14 +625,14 @@ export default function SharedViewPage() {
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="text-blue-400 font-bold text-sm">IronSight</span>
-            <span className="text-gray-600 text-xs">|</span>
+            <span className="text-gray-500 text-xs">|</span>
             <span className="text-gray-400 text-xs">
               Shared by {shared.shared_by} &mdash; {fmtDate(shared.shared_at)}
             </span>
           </div>
           <button
             onClick={() => window.print()}
-            className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg text-xs font-semibold transition-colors"
+            className="px-3 py-1.5 bg-gray-800 hover:bg-gray-800/50 rounded-lg text-xs font-semibold transition-colors"
           >
             Print / PDF
           </button>
@@ -644,7 +644,7 @@ export default function SharedViewPage() {
         <div className="max-w-5xl mx-auto px-4 pt-4">
           <div className="bg-gray-900/50 border border-gray-800/50 rounded-xl px-4 py-3">
             <p className="text-sm text-gray-300 italic">&ldquo;{shared.message}&rdquo;</p>
-            <p className="text-xs text-gray-600 mt-1">&mdash; {shared.shared_by}</p>
+            <p className="text-xs text-gray-500 mt-1">&mdash; {shared.shared_by}</p>
           </div>
         </div>
       )}

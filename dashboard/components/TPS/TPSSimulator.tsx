@@ -24,7 +24,7 @@ export default function TPSSimulator({
         {simEnabled && <span className="ml-2 text-green-400 normal-case">(ACTIVE)</span>}
       </summary>
       <div className="px-3 pb-3 space-y-3">
-        <p className="text-xs text-gray-600">Override live PLC readings with simulated values for testing.</p>
+        <p className="text-xs text-gray-500">Override live PLC readings with simulated values for testing.</p>
         <div className="flex items-center gap-3">
           <button
             onClick={onToggle}
@@ -42,7 +42,7 @@ export default function TPSSimulator({
         </div>
         {simEnabled && (
           <>
-            <p className="text-xs uppercase tracking-wider text-gray-600 font-bold">Scenarios</p>
+            <p className="text-xs uppercase tracking-wider text-gray-500 font-bold">Scenarios</p>
             <div className="flex flex-wrap gap-1.5">
               {SIM_SCENARIOS.map((s) => (
                 <button
@@ -62,7 +62,7 @@ export default function TPSSimulator({
                 { key: "modbus_response_time_ms", label: "Modbus (ms)", type: "number" as const },
               ].map(({ key, label, type }) => (
                 <div key={key}>
-                  <label className="text-xs text-gray-600 block mb-0.5">{label}</label>
+                  <label className="text-xs text-gray-500 block mb-0.5">{label}</label>
                   <input
                     type={type}
                     value={String(simOverrides[key] ?? "")}

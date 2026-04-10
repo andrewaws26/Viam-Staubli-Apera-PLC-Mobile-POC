@@ -161,7 +161,7 @@ function ShiftReportInner() {
             )}
             <button
               onClick={() => window.print()}
-              className="min-h-[44px] px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm font-semibold transition-colors"
+              className="min-h-[44px] px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-800/50 text-sm font-semibold transition-colors"
             >
               Print
             </button>
@@ -176,11 +176,11 @@ function ShiftReportInner() {
                 className={`px-3 py-2 min-h-[44px] rounded-full text-xs font-semibold transition-colors flex items-center ${
                   activePreset === p.id
                     ? "bg-white text-gray-900"
-                    : "bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700"
+                    : "bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-800/50"
                 }`}
               >
                 {p.label}
-                <span className={`ml-1.5 ${activePreset === p.id ? "text-gray-500" : "text-gray-600"}`}>
+                <span className={`ml-1.5 ${activePreset === p.id ? "text-gray-500" : "text-gray-500"}`}>
                   {p.sub}
                 </span>
               </button>
@@ -375,7 +375,7 @@ function ReportContent({
               <MiniStat label="Moving" value={`${report.route.movingMinutes} min`} />
               <MiniStat label="Stopped" value={`${report.route.stoppedMinutes} min`} />
             </div>
-            <p className="text-gray-600 text-xs mt-3 border-t border-gray-800 pt-3">
+            <p className="text-gray-500 text-xs mt-3 border-t border-gray-800 pt-3">
               GPS data not available — install GPS module for route tracking.
             </p>
           </div>
@@ -425,7 +425,7 @@ function ReportContent({
       <PrintReport report={report} startH={startH} startM={startM} endH={endH} endM={endM} />
 
       {/* Footer (screen) */}
-      <footer className="text-xs sm:text-xs text-gray-600 text-center py-4 border-t border-gray-800 no-print">
+      <footer className="text-xs sm:text-xs text-gray-500 text-center py-4 border-t border-gray-800 no-print">
         Report generated {fmtDateTime(new Date().toISOString())} | Data points: {report.dataPointCount.tps} TPS, {report.dataPointCount.truck} truck | All times Eastern (Louisville, KY) | IronSight Fleet Monitoring
       </footer>
     </>

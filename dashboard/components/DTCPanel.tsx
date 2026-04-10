@@ -377,7 +377,7 @@ export default function DTCPanel({
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-gray-600 mt-2">
+              <p className="text-xs text-gray-500 mt-2">
                 {readiness.total_complete}/{readiness.total_supported} monitors complete
               </p>
             </div>

@@ -175,7 +175,7 @@ export default function NewJournalEntryPage() {
     return (
       <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center gap-3">
         <div className="w-10 h-10 rounded-full border-2 border-gray-600 border-t-gray-300 animate-spin" />
-        <p className="text-gray-600 text-sm uppercase tracking-widest">
+        <p className="text-gray-500 text-sm uppercase tracking-widest">
           Loading Accounts
         </p>
       </div>
@@ -235,7 +235,7 @@ export default function NewJournalEntryPage() {
         <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
           <table className="w-full text-sm min-w-[700px]">
             <thead>
-              <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
+              <tr className="text-xs uppercase tracking-wider text-gray-500 border-b border-gray-800">
                 <th className="text-left px-4 py-3 font-medium">Account</th>
                 <th className="text-right px-4 py-3 font-medium w-32">
                   Debit
@@ -322,7 +322,7 @@ export default function NewJournalEntryPage() {
                     {lines.length > 2 && (
                       <button
                         onClick={() => removeLine(line.key)}
-                        className="p-1 rounded hover:bg-red-900/40 text-gray-600 hover:text-red-400 transition-colors"
+                        className="p-1 rounded hover:bg-red-900/40 text-gray-500 hover:text-red-400 transition-colors"
                         title="Remove line"
                       >
                         <svg
