@@ -59,6 +59,64 @@ function PositionBadge({ label, active }: { label: string; active: boolean }) {
 }
 
 // ---------------------------------------------------------------------------
+// I/O Point Labels — map raw VAL3 variable keys to human-readable names
+// ---------------------------------------------------------------------------
+
+const IO_INPUT_LABELS: Record<string, string> = {
+  // Terminal 1 — Servo control
+  servo_enable: "Servo Enable Button",
+  servo_disable1: "E-Stop 1 (Cell)",
+  servo_disable2: "E-Stop 2 (Panel)",
+  servo_doorswitch: "Safety Gate Interlock",
+  servo_disable_remote: "PLC Remote Disable",
+  // Terminal 2 — Operator buttons
+  btn_tps_cycle: "Start / Cycle Button",
+  btn_abort: "Abort / Stow Button",
+  btn_clearpose: "Clear Position Button",
+  btn_warmup: "Warmup Select",
+  opt_speed: "Hi/Low Speed Toggle",
+  opt_belt_fwd: "Belt Jog Forward",
+  opt_belt_rev: "Belt Jog Reverse",
+  opt_gripper_lock: "Gripper Lock Toggle",
+  // Terminal 3 — Gripper feedback
+  gripper_on: "Gripper Magnetized",
+  gripper_off: "Gripper Released",
+  gripper_alarm: "Gripper Alarm",
+  gripper_busy: "Gripper Cycling",
+  gripper_status: "Gripper Status",
+  gripper_malfunction: "Gripper Malfunction",
+  gripper_part_detect: "Part Detected (Magnet)",
+};
+
+const IO_OUTPUT_LABELS: Record<string, string> = {
+  // Indicator lamps
+  lamp_ispowered: "Power On Lamp",
+  lamp_warmup: "Warmup Lamp",
+  lamp_servoenabled: "Servo Enabled Lamp",
+  lamp_servodisabled: "Servo Disabled Lamp",
+  lamp_servodisabled1: "E-Stop 1 Lamp",
+  lamp_servodisabled2: "E-Stop 2 Lamp",
+  lamp_cycle: "Cycle Active Lamp",
+  lamp_abort: "Abort Lamp",
+  lamp_slowspeed: "Slow Speed Lamp",
+  lamp_clearpose: "Clear Position Lamp",
+  lamp_gripperlocked: "Gripper Locked Lamp",
+  // Belt commands
+  belt_fwd: "Belt Conveyor Forward",
+  belt_rev: "Belt Conveyor Reverse",
+  // Gripper commands
+  gripper_enable: "Gripper Controller Enable",
+  gripper_mag: "Magnetize Command",
+  gripper_demag: "Demagnetize Command",
+  gripper_de_mag: "Demagnetize Command",
+  // Safety status lamps
+  safety_none: "Safety OK (Green)",
+  safety_waiting: "Safety Restart Needed",
+  safety_ss1: "Safety Stop 1 Active",
+  safety_ss2: "Safety Stop 2 Active",
+};
+
+// ---------------------------------------------------------------------------
 // Main Component
 // ---------------------------------------------------------------------------
 
@@ -71,6 +129,7 @@ export default function StaubliPanel({ readings, pollError }: Props) {
   const [expanded, setExpanded] = useState(true);
   const [showJoints, setShowJoints] = useState(false);
   const [showExtTemps, setShowExtTemps] = useState(false);
+  const [showIO, setShowIO] = useState(false);
 
   const isConnected = readings?.connected ?? false;
   const r = readings;
@@ -215,6 +274,52 @@ export default function StaubliPanel({ readings, pollError }: Props) {
                   <KV label="Slave Count" value={String(r.ioboard_slave_count)} mono color={r.ioboard_slave_count < 3 ? "text-red-400" : "text-gray-300"} />
                 </div>
               </div>
+
+              {/* ---- EtherCAT I/O Points ---- */}
+              {(r.io_inputs && Object.keys(r.io_inputs).length > 0) || (r.io_outputs && Object.keys(r.io_outputs).length > 0) ? (
+              <div>
+                <button
+                  onClick={() => setShowIO(!showIO)}
+                  className="w-full text-left text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-800/50 pb-1 hover:text-gray-400 transition-colors"
+                >
+                  {showIO ? "\u25BC" : "\u25B6"} EtherCAT I/O Points ({showIO ? "hide" : "show"})
+                </button>
+                {showIO && (
+                  <div className="space-y-3">
+                    {r.io_inputs && Object.keys(r.io_inputs).length > 0 && (
+                      <div>
+                        <span className="text-xs text-gray-600 uppercase tracking-wide">Digital Inputs (Hardware Signals)</span>
+                        <div className="flex flex-wrap gap-2 mt-1.5">
+                          {Object.entries(r.io_inputs).map(([key, val]) => (
+                            <span key={key} className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs border ${
+                              val ? "bg-emerald-900/30 text-emerald-400 border-emerald-800/50" : "bg-gray-900/30 text-gray-600 border-gray-800/30"
+                            }`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${val ? "bg-emerald-500" : "bg-gray-700"}`} />
+                              {IO_INPUT_LABELS[key] || key}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {r.io_outputs && Object.keys(r.io_outputs).length > 0 && (
+                      <div>
+                        <span className="text-xs text-gray-600 uppercase tracking-wide">Digital Outputs (Commands &amp; Lamps)</span>
+                        <div className="flex flex-wrap gap-2 mt-1.5">
+                          {Object.entries(r.io_outputs).map(([key, val]) => (
+                            <span key={key} className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs border ${
+                              val ? "bg-blue-900/30 text-blue-400 border-blue-800/50" : "bg-gray-900/30 text-gray-600 border-gray-800/30"
+                            }`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${val ? "bg-blue-500" : "bg-gray-700"}`} />
+                              {IO_OUTPUT_LABELS[key] || key}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              ) : null}
 
               {/* ---- Production ---- */}
               <div>

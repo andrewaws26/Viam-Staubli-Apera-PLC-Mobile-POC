@@ -73,6 +73,9 @@ function transformReadings(flat: Record<string, unknown>) {
     // I/O board
     ioboard_connected: bool(flat.staubli_ioboard_connected), ioboard_bus_state: str(flat.staubli_ioboard_bus_state),
     ioboard_slave_count: num(flat.staubli_ioboard_slave_count), ioboard_op_state: bool(flat.staubli_ioboard_op_state),
+    // EtherCAT I/O points (dynamic from flat keys)
+    io_inputs: collectPrefixedBool(flat, "staubli_io_inputs_"),
+    io_outputs: collectPrefixedBool(flat, "staubli_io_outputs_"),
     task_selected: str(flat.staubli_task_selected), task_status: str(flat.staubli_task_status),
     parts_found: num(flat.staubli_parts_found),
     part_picked: str(flat.staubli_part_picked), part_desired: str(flat.staubli_part_desired),
@@ -211,6 +214,16 @@ function collectIndexed(flat: Record<string, unknown>, prefix: string): unknown[
   return arr;
 }
 
+function collectPrefixedBool(flat: Record<string, unknown>, prefix: string): Record<string, boolean> {
+  const out: Record<string, boolean> = {};
+  for (const [k, v] of Object.entries(flat)) {
+    if (k.startsWith(prefix)) {
+      out[k.slice(prefix.length)] = v === true || v === "true";
+    }
+  }
+  return out;
+}
+
 /** Collect prefixed keys into a Record (e.g. apera_detections_by_class_14in_plate). */
 function collectPrefixed(flat: Record<string, unknown>, prefix: string): Record<string, number> {
   const out: Record<string, number> = {};
@@ -274,6 +287,20 @@ function getSimData() {
       torque_j4: 3.2 + jitter(), torque_j5: -8.5 + jitter(), torque_j6: 1.1 + jitter() * 0.5,
       // I/O board (sim = connected, all 3 slaves in OP)
       ioboard_connected: true, ioboard_bus_state: "OP", ioboard_slave_count: 3, ioboard_op_state: true,
+      io_inputs: {
+        servo_enable: true, servo_disable1: false, servo_disable2: false,
+        servo_doorswitch: false, servo_disable_remote: false,
+        btn_tps_cycle: true, btn_abort: false, btn_clearpose: false,
+        opt_speed: false, opt_belt_fwd: true, opt_belt_rev: false, opt_gripper_lock: false,
+        gripper_on: true, gripper_alarm: false, gripper_busy: false, gripper_off: false,
+      },
+      io_outputs: {
+        lamp_ispowered: true, lamp_servoenabled: true, lamp_cycle: true,
+        lamp_slowspeed: false, lamp_abort: false, lamp_clearpose: false, lamp_gripperlocked: false,
+        belt_fwd: true, belt_rev: false,
+        gripper_enable: true, gripper_mag: true, gripper_demag: false,
+        safety_none: true, safety_waiting: false, safety_ss1: false, safety_ss2: false,
+      },
       task_selected: "Cycle", task_status: "Cycle",
       parts_found: Math.floor(Math.random() * 8) + 1,
       part_picked: "14in_plate", part_desired: "14in_plate",

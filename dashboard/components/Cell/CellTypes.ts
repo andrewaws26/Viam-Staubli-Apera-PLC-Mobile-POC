@@ -59,6 +59,10 @@ export interface StaubliReadings {
   ioboard_slave_count: number;
   ioboard_op_state: boolean;
 
+  // EtherCAT digital I/O point states
+  io_inputs: Record<string, boolean>;
+  io_outputs: Record<string, boolean>;
+
   // Production (from HMI variables)
   task_selected: string;       // bTskSelected active key
   task_status: string;         // bTskStatus active key
