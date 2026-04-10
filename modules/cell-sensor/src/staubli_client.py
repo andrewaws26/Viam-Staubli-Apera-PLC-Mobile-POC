@@ -137,6 +137,10 @@ class StaubliState:
     ioboard_slave_count: int = 0
     ioboard_op_state: bool = False
 
+    # EtherCAT digital I/O states (from HMI variable collections)
+    io_inputs: dict[str, bool] = field(default_factory=dict)
+    io_outputs: dict[str, bool] = field(default_factory=dict)
+
     # Production
     task_selected: str = ""
     task_status: str = ""
@@ -179,7 +183,10 @@ class StaubliState:
         """Flatten to dict for Viam sensor readings."""
         d: dict[str, Any] = {}
         for k, v in self.__dict__.items():
-            if isinstance(v, list):
+            if isinstance(v, dict):
+                for dk, dv in v.items():
+                    d[f"staubli_{k}_{dk}"] = dv
+            elif isinstance(v, list):
                 for i, item in enumerate(v):
                     d[f"staubli_{k}_{i}"] = item
             else:
@@ -471,6 +478,67 @@ class StaubliClient:
             logger.debug("Failed to parse safety: %s", e)
 
         try:
+            # EtherCAT digital I/O from VAL3 variable collections
+            # Terminal 1: Servo control inputs
+            servo = data.get("diServo", {})
+            if isinstance(servo, dict):
+                for key in ("Enable", "Disable1", "Disable2", "DoorSwitch", "Disable_Remote"):
+                    if key in servo:
+                        state.io_inputs[f"servo_{key.lower()}"] = bool(servo[key])
+
+            # Terminal 2-3: Task/option inputs
+            tsk = data.get("diTskSelect", {})
+            if isinstance(tsk, dict):
+                for key in ("Abort", "TPS_Cycle", "ClearPose", "WarmUp"):
+                    if key in tsk:
+                        state.io_inputs[f"btn_{key.lower()}"] = bool(tsk[key])
+            opt = data.get("diOption", {})
+            if isinstance(opt, dict):
+                for key in ("Speed", "Belt_FWD", "Belt_REV", "Gripper_Lock"):
+                    if key in opt:
+                        state.io_inputs[f"opt_{key.lower()}"] = bool(opt[key])
+
+            # Terminal 3: Gripper feedback inputs
+            grip_in = data.get("diGripper_EGM", data.get("diGripper_EMH", {}))
+            if isinstance(grip_in, dict):
+                for key in ("ON", "Alarm", "Busy", "OFF", "STATUS", "MALFUNCTION", "PART-DETECT"):
+                    if key in grip_in:
+                        state.io_inputs[f"gripper_{key.lower().replace('-', '_')}"] = bool(grip_in[key])
+
+            # Lamp outputs
+            lamps = data.get("doLamp", {})
+            if isinstance(lamps, dict):
+                for key in ("Warmup", "isPowered", "ServoEnabled", "ServoDisabled",
+                            "ServoDisabled1", "ServoDisabled2",
+                            "Abort", "Cycle", "SlowSpeed", "ClearPose", "GripperLocked"):
+                    if key in lamps:
+                        state.io_outputs[f"lamp_{key.lower()}"] = bool(lamps[key])
+
+            # Belt outputs
+            belt = data.get("doBelt", {})
+            if isinstance(belt, dict):
+                for key in ("FWD", "REV"):
+                    if key in belt:
+                        state.io_outputs[f"belt_{key.lower()}"] = bool(belt[key])
+
+            # Gripper command outputs
+            grip_out = data.get("doGripper_EGM", data.get("doGripper_EMH", {}))
+            if isinstance(grip_out, dict):
+                for key in ("Enable", "Mag", "DeMag", "MAG", "DE-MAG"):
+                    if key in grip_out:
+                        state.io_outputs[f"gripper_{key.lower().replace('-', '_')}"] = bool(grip_out[key])
+
+            # Safety stop lamp outputs
+            safety_out = data.get("doSafteyStop", data.get("doSafetyStop", {}))
+            if isinstance(safety_out, dict):
+                for key in ("None", "Waiting", "SS1", "SS2"):
+                    if key in safety_out:
+                        state.io_outputs[f"safety_{key.lower()}"] = bool(safety_out[key])
+
+        except Exception as e:
+            logger.debug("Failed to parse I/O points: %s", e)
+
+        try:
             # Production state
             state.task_selected = str(data.get("bTskSelected", data.get("task_selected", "")))
             state.task_status = str(data.get("bTskStatus", data.get("task_status", "")))
@@ -486,7 +554,10 @@ class StaubliClient:
         handled = {"joints", "tcp", "cartesian", "temperatures", "sTextTemp",
                     "diServo", "safety", "bTskSelected", "bTskStatus",
                     "nPartsFound", "sPart", "sJointRx",
-                    "DsiIO", "StarcIO", "CpuIO", "Rsi9IO"}
+                    "DsiIO", "StarcIO", "CpuIO", "Rsi9IO",
+                    "diTskSelect", "diOption", "diGripper_EGM", "diGripper_EMH",
+                    "doLamp", "doBelt", "doGripper_EGM", "doGripper_EMH",
+                    "doSafteyStop", "doSafetyStop"}
         unknown = set(data.keys()) - handled
         if unknown:
             logger.info("Unhandled Staubli fields (baseline): %s", unknown)
