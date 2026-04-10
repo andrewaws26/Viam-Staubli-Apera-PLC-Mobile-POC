@@ -185,7 +185,7 @@ export default function VisionPage() {
             Company OS for B&B Metals
           </p>
           <p className="mt-6 text-gray-500 text-sm max-w-xl mx-auto leading-relaxed">
-            One platform replacing QuickBooks, paper timesheets, and a dozen spreadsheets for a 34-truck
+            One platform replacing QuickBooks, paper timesheets, and a dozen spreadsheets for a 36-truck
             railroad contractor. Fleet diagnostics, workforce management, financials, compliance, and
             AI-powered insights — connected end to end.
           </p>
@@ -207,7 +207,7 @@ export default function VisionPage() {
               <h3 className="text-lg font-bold text-white mb-3">The Company</h3>
               <p className="text-gray-400 text-sm leading-relaxed mb-4">
                 Bill Coots started B&B Metals in 1989 with a torch, a tractor, and one employee.
-                Today we operate <span className="text-amber-400 font-bold">34 registered trucks</span>, employ 20+ people,
+                Today we operate <span className="text-amber-400 font-bold">36 registered trucks</span>, employ 20+ people,
                 and hold contracts with Norfolk Southern and other Class I railroads.
               </p>
               <p className="text-gray-400 text-sm leading-relaxed">
@@ -611,7 +611,7 @@ export default function VisionPage() {
                 </p>
               </div>
               <div>
-                <p className="text-3xl font-black text-white">34 trucks</p>
+                <p className="text-3xl font-black text-white">36 trucks</p>
                 <p className="text-gray-400 text-sm mt-1">
                   FMCSA-registered fleet. Each truck generates maintenance, fuel, IFTA, and payroll data daily.
                 </p>

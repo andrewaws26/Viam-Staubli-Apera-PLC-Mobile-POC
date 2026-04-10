@@ -50,7 +50,9 @@ export const NAV_SECTIONS: NavSection[] = [
       {
         title: "System",
         items: [
+          { href: "/admin", label: "Admin Panel" },
           { href: "/setup", label: "Setup Wizard" },
+          { href: "/vision", label: "Platform Vision" },
         ],
       },
     ],
@@ -80,6 +82,7 @@ export const NAV_SECTIONS: NavSection[] = [
         items: [
           { href: "/work", label: "Work Orders" },
           { href: "/chat", label: "Team Chat" },
+          { href: "/inventory", label: "Parts & Inventory" },
         ],
       },
     ],
@@ -95,6 +98,7 @@ export const NAV_SECTIONS: NavSection[] = [
           { href: "/timesheets", label: "My Timesheets" },
           { href: "/timesheets/new", label: "New Timesheet" },
           { href: "/pto", label: "Time Off" },
+          { href: "/payroll", label: "Payroll Summary", adminOnly: true },
         ],
       },
       {
@@ -199,7 +203,16 @@ export const NAV_SECTIONS: NavSection[] = [
     label: "Reports",
     href: "/reports",
     roles: ["developer", "manager"],
-    sidebar: [],
+    sidebar: [
+      {
+        title: "Reports",
+        items: [
+          { href: "/reports", label: "Report Builder" },
+          { href: "/accounting/reports", label: "Financial Reports" },
+          { href: "/shift-report", label: "Shift Report" },
+        ],
+      },
+    ],
   },
   {
     id: "devportal",
@@ -211,6 +224,7 @@ export const NAV_SECTIONS: NavSection[] = [
         title: "Overview",
         items: [
           { href: "/dev-portal", label: "Control Plane" },
+          { href: "/dev", label: "Dev Tools" },
         ],
       },
       {
@@ -254,8 +268,17 @@ export function resolveSection(pathname: string): NavSection | null {
   if (pathname.startsWith("/reports")) {
     return NAV_SECTIONS.find((s) => s.id === "reports") ?? null;
   }
-  if (pathname.startsWith("/dev-portal")) {
+  if (pathname.startsWith("/dev-portal") || pathname.startsWith("/dev")) {
     return NAV_SECTIONS.find((s) => s.id === "devportal") ?? null;
+  }
+  if (pathname.startsWith("/admin") || pathname.startsWith("/vision")) {
+    return NAV_SECTIONS.find((s) => s.id === "manager") ?? null;
+  }
+  if (pathname.startsWith("/inventory")) {
+    return NAV_SECTIONS.find((s) => s.id === "operations") ?? null;
+  }
+  if (pathname.startsWith("/payroll")) {
+    return NAV_SECTIONS.find((s) => s.id === "people") ?? null;
   }
   for (const section of NAV_SECTIONS) {
     for (const group of section.sidebar) {

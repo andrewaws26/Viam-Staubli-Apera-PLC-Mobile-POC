@@ -24,6 +24,7 @@
   "dependencies": {
     "@clerk/nextjs": "^7.0.8",
     "@hello-pangea/dnd": "^18.0.1",
+    "@sentry/nextjs": "^10.48.0",
     "@supabase/supabase-js": "^2.101.1",
     "@tailwindcss/typography": "^0.5.19",
     "@types/leaflet": "^1.9.21",
