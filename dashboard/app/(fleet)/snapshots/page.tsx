@@ -728,7 +728,7 @@ function CaptureForm({ onCapture, onCancel }: {
                                       onChange={() => {
                                         setExcludedFields(prev => {
                                           const next = new Set(prev);
-                                          next.has(f.key) ? next.delete(f.key) : next.add(f.key);
+                                          if (next.has(f.key)) { next.delete(f.key); } else { next.add(f.key); }
                                           return next;
                                         });
                                       }}

@@ -400,7 +400,7 @@ describe("report generate route: SQL generation rules", () => {
   });
 
   it("warns dtc_history has no code column", () => {
-    expect(generateRouteSource).toMatch(/no.*\"code\".*column/i);
+    expect(generateRouteSource).toMatch(/no.*"code".*column/i);
   });
 
   it("warns maintenance_events not maintenance_log", () => {
