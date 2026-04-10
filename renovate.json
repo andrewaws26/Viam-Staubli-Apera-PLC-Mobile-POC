@@ -1,0 +1,71 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "schedule:weekly",
+    ":disableDependencyDashboard"
+  ],
+  "labels": ["dependencies"],
+  "rangeStrategy": "pin",
+  "timezone": "America/New_York",
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security"]
+  },
+  "packageRules": [
+    {
+      "description": "Dashboard dependencies",
+      "matchFileNames": ["dashboard/package.json"],
+      "groupName": "dashboard dependencies",
+      "automerge": false
+    },
+    {
+      "description": "Auto-merge patch updates for dev dependencies",
+      "matchFileNames": ["dashboard/package.json"],
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      "description": "Mobile dependencies",
+      "matchFileNames": ["mobile/package.json"],
+      "groupName": "mobile dependencies",
+      "automerge": false
+    },
+    {
+      "description": "MCP server dependencies",
+      "matchFileNames": ["mcp-server/package.json"],
+      "groupName": "mcp-server dependencies",
+      "automerge": false
+    },
+    {
+      "description": "Group Next.js ecosystem together",
+      "matchPackageNames": ["next", "eslint-config-next", "@next/*"],
+      "groupName": "Next.js",
+      "automerge": false
+    },
+    {
+      "description": "Group Clerk together",
+      "matchPackageNames": ["@clerk/*"],
+      "groupName": "Clerk auth",
+      "automerge": false
+    },
+    {
+      "description": "Group Supabase together",
+      "matchPackageNames": ["@supabase/*", "supabase"],
+      "groupName": "Supabase",
+      "automerge": false
+    },
+    {
+      "description": "Pin Python dependencies (requirements.txt)",
+      "matchManagers": ["pip_requirements"],
+      "enabled": true,
+      "automerge": false
+    }
+  ],
+  "ignorePaths": [
+    "dev-app/**",
+    "pi-daemon/**"
+  ]
+}

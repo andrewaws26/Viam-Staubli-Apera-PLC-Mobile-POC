@@ -462,7 +462,8 @@ If you can't fix it, just write a diagnosis to the result file."""
 
     code, out = run(
         f'cd {PROJECT_DIR} && /usr/local/bin/claude -p "{prompt}" '
-        f'--dangerously-skip-permissions --output-format text',
+        f'--dangerously-skip-permissions --output-format text '
+        f'--max-turns 15',
         timeout=300  # 5 minute max
     )
 

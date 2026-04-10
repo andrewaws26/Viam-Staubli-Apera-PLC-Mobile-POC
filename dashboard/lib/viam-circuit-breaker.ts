@@ -47,7 +47,7 @@ class CircuitBreaker {
 
   get status(): { state: BreakerState; failures: number } {
     // Trigger state transition check
-    this.isOpen;
+    const _open = this.isOpen;
     return { state: this.state, failures: this.failures };
   }
 

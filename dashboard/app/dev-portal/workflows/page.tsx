@@ -138,7 +138,6 @@ export default function WorkflowsPage() {
       }
     }, 2000);
     return () => clearInterval(poll);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRunId]);
 
   const fetchWorkflows = useCallback(async () => {

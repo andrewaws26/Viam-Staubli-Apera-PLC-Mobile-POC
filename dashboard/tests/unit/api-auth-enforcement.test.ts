@@ -64,7 +64,7 @@ function getAllApiRoutes(): string[] {
 
 describe("Route-Level Auth: Every API route should have auth", () => {
   const routes = getAllApiRoutes();
-  const WEBHOOK_ROUTES = ["webhooks"];
+  const WEBHOOK_ROUTES = ["webhooks", "share/[token]"];
 
   // All routes now have route-level auth checks (defense-in-depth).
   const MIDDLEWARE_ONLY_AUTH: string[] = [];

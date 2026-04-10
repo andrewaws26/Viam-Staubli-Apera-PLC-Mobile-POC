@@ -1,16 +1,51 @@
-# TPS Remote Monitoring System
+# IronSight Company OS
 
 ## What this is
-A fleet monitoring system for 30+ railroad trucks. Each truck has a single **Raspberry Pi 5** running all three sensor modules:
+A full company operating system for B&B Metals — fleet monitoring, accounting (QuickBooks replacement), timesheets, job costing, team chat, AI diagnostics, and employee management. Built as a monorepo: Next.js dashboard, Python sensor modules on Raspberry Pi, React Native mobile app.
+
+Each of 30+ railroad trucks has a **Raspberry Pi 5** running three sensor modules:
 - **plc-sensor**: Reads a Click PLC C0-10DD2E-D via Modbus TCP (TPS production monitoring)
 - **j1939-sensor**: Reads J1939 CAN bus for truck engine/transmission diagnostics (passive, listen-only via CAN HAT)
 - **cell-sensor**: Reads Staubli robot + Apera vision (robot cell monitoring)
 
-Data syncs to Viam Cloud at 1 Hz. A Next.js dashboard on Vercel shows live status, AI diagnostics, shift reports, and fleet overview.
+Data syncs to Viam Cloud at 1 Hz. The dashboard on Vercel shows live status, AI diagnostics, shift reports, fleet overview, and the full business operations suite.
 
-**There is NO E-Cat, NO servo/robot, NO vision in this system.**
+## Rules — READ THESE FIRST
 
-*Historical note: The system previously used a Pi Zero 2 W as a second device for J1939. This was consolidated to a single Pi 5 in April 2026 by moving the CAN HAT to the Pi 5.*
+These apply to every change you make. Follow them exactly.
+
+### Safety
+- **Never use DD1 for distance** — use DS10 countdown (see Encoder section below)
+- **Never disable listen-only mode on the CAN bus** — normal mode ACKs truck frames and triggers DTCs/warning lights
+- **CAN bus = 250kbps J1939 only** — do not change bitrate to 500kbps or set protocol to obd2 on the truck bus
+- All Viam credentials stay server-side (Next.js API route), never in browser
+
+### Git & Deploy
+- Always branch and PR, never push directly to main (docs excepted)
+- Push to develop freely; push to prod after bug fixes verified
+- Dashboard changes: push to git → Vercel auto-deploys. If webhook fails: `cd /path/to/repo && vercel --prod --yes` (from repo root, NOT dashboard/)
+- Module changes on Pi: `sudo systemctl restart viam-server` after code change
+
+### Design & UI
+- **All dashboard pages must be responsive — optimized for both mobile and desktop.** Use responsive patterns: stack on mobile, side-by-side on desktop. Test at 375px (iPhone) and 1440px (desktop). No horizontal scroll on mobile.
+- Keep the design consistent with existing pages — dark sidebar, card-based layouts, Tailwind utility classes
+- Always add navigation links when building new pages — don't leave features invisible
+
+### Documentation Lookups
+- When working with external libraries (Next.js, Viam SDK, Supabase, Clerk, Expo, Tailwind, etc.), use the Context7 MCP to fetch current documentation before writing code. This prevents using outdated APIs or deprecated patterns.
+
+### After Every Change
+- **Tests**: If you modify source code, check if a corresponding test file exists. If it does, run it. If it doesn't and the code has business logic, write one following patterns in `dashboard/tests/unit/`.
+- **Types**: If you change a database table, API response shape, or shared interface, update the corresponding type in `packages/shared/src/` and verify both dashboard and mobile still compile.
+- **Documentation**: If you add/remove an API route, dashboard page, database table, or module feature, update the relevant section of this CLAUDE.md file.
+- **Comments**: Add comments only where logic isn't self-evident. Don't add boilerplate JSDoc to every function.
+- **Auth**: Every new API route must have auth middleware. Financial routes require manager/developer role.
+
+### AI Diagnostic Prompts
+- AI is a **diagnostic partner**, not an oracle — present possibilities, not certainties
+- NEVER make safety/liability judgments — that's the mechanic's professional call
+- Always ask about vehicle history, recent repairs, symptoms BEFORE diagnosing
+- Say "this COULD indicate" not "this IS caused by"
 
 ## Architecture
 - **Pi → PLC**: Modbus TCP (host: 169.168.10.21, port: 502) over Ethernet
@@ -133,26 +168,8 @@ DD1 is still read and reported as `encoder_count` for raw display, but is NOT us
 
 See `docs/encoder-distance.md` for the full explanation.
 
-## PLC Register Map (decoded from .ckp project file)
-478 registers fully decoded. Key registers:
-
-**DS Registers (Holding 0-24):**
-- DS1: Encoder Ignore (threshold)
-- DS2: Adjustable Tie Spacing (×0.5", so 39 = 19.5")
-- DS3: Tie Spacing (×0.1", so 195 = 19.5")
-- DS5: Detector Offset Bits
-- DS6: Detector Offset (×0.1", so 6070 = 607.0")
-- DS7: Plate Count
-- DS8: AVG Plates per Min
-- DS9: Detector Next Tie
-- DS10: **Encoder Next Tie** — THE distance source (see above)
-- DS19: HMI screen control
-
-**DD1**: Raw HSC encoder count (NOT usable for distance — see warning above)
-
-**C-bits**: 34 application coils including operating modes (C20-C27), drop pipeline (C16/C17/C29/C30/C32), detection (C3/C12/C7)
-
-**Full map**: `docs/plc-register-map.md`
+## PLC Register Map
+478 registers fully decoded. Key: DS10 (Encoder Next Tie) is the distance source, DS7 (Plate Count), DS8 (AVG Plates/Min). DD1 is raw encoder count — NOT usable for distance. Full map: `docs/plc-register-map.md`
 
 ## Diagnostic Engine
 19 rules in `diagnostics.py` across 5 categories (camera, encoder, eject, PLC, operation). Each diagnostic includes severity, plain-English title, and step-by-step operator actions. Runs on every 1Hz reading after 60-second warmup.
@@ -264,16 +281,10 @@ When plugged into a new truck's switch, the Pi auto-negotiates:
 
 **Manual re-discovery**: `sudo python3 scripts/plc-autodiscover.py --force`
 
-## Rules
-- **Never use DD1 for distance** — use DS10 countdown (see above)
-- **Never disable listen-only mode on the CAN bus** — normal mode ACKs truck frames and triggers DTCs/warning lights. OBD-II (which needs transmit) goes on a separate device.
-- **CAN bus = 250kbps J1939 only** — do not change bitrate to 500kbps or set protocol to obd2 on the truck bus
-- Robot cell monitoring code (Staubli, Apera, cell watchdog) lives in `dashboard/components/Cell/` and `dashboard/app/api/cell-readings/`
-- Keep dashboard mobile-friendly
-- All Viam credentials stay server-side (Next.js API route), never in browser
-- Always branch and PR, never push directly to main (docs excepted)
-- Test with: `python3 scripts/test_plc_modbus.py` (reads live PLC)
-- Build dashboard with: `cd dashboard && npm run build`
+## Quick Commands
+- Test PLC: `python3 scripts/test_plc_modbus.py` (reads live PLC)
+- Build dashboard: `cd dashboard && npm run build`
+- Robot cell code: `dashboard/components/Cell/` and `dashboard/app/api/cell-readings/`
 
 ## Fleet Architecture
 
@@ -359,13 +370,7 @@ The dashboard includes an AI-powered diagnostic system that uses Claude to help 
 - Structured output: Data Summary, Trouble Codes, Engine Health, Questions for Mechanic, Maintenance Recommendations, Fleet Note
 - Uses claude-sonnet-4-20250514, 2000 max tokens
 
-**Critical prompt design rules:**
-- AI is a **diagnostic partner**, not an oracle — present possibilities, not certainties
-- NEVER make safety/liability judgments — that's the mechanic's professional call
-- NEVER blame previous mechanic work without full context
-- Always ask about vehicle history, recent repairs, symptoms BEFORE diagnosing
-- End every response with 2-3 suggested follow-up questions for mechanics new to AI
-- Say "this COULD indicate" not "this IS caused by"
+**Prompt design rules:** See "AI Diagnostic Prompts" in Rules section at top of file. Additionally: never blame previous mechanic work without full context, and end every response with 2-3 suggested follow-up questions for mechanics new to AI.
 
 **Logging:**
 - All AI conversations logged via `console.log("[AI-CHAT-LOG]", ...)` — viewable in Vercel Functions logs

@@ -382,7 +382,7 @@ export default function TimesheetSections({ timesheetId, canEdit }: Props) {
                           <div className="flex items-center gap-3">
                             {receiptPreview ? (
                               <>
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
+
                                 <img
                                   src={receiptPreview}
                                   alt="Receipt preview"
@@ -410,7 +410,7 @@ export default function TimesheetSections({ timesheetId, canEdit }: Props) {
                               </>
                             ) : formData.receipt_image_url ? (
                               <>
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
+
                                 <img
                                   src={formData.receipt_image_url as string}
                                   alt="Receipt"
@@ -455,7 +455,7 @@ export default function TimesheetSections({ timesheetId, canEdit }: Props) {
                           <div className="flex items-center gap-3">
                             {odometerPreview ? (
                               <>
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
+
                                 <img
                                   src={odometerPreview}
                                   alt="Odometer preview"
@@ -483,7 +483,7 @@ export default function TimesheetSections({ timesheetId, canEdit }: Props) {
                               </>
                             ) : formData.odometer_image_url ? (
                               <>
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
+
                                 <img
                                   src={formData.odometer_image_url as string}
                                   alt="Odometer"
@@ -630,7 +630,7 @@ function renderEntrySummary(section: string, entry: EntryRecord): React.ReactNod
               title="View receipt"
               className="shrink-0"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
+
               <img
                 src={entry.receipt_image_url as string}
                 alt="Receipt"
@@ -646,7 +646,7 @@ function renderEntrySummary(section: string, entry: EntryRecord): React.ReactNod
               title="View odometer"
               className="shrink-0"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
+
               <img
                 src={entry.odometer_image_url as string}
                 alt="Odometer"

@@ -17,8 +17,9 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 // Use production Supabase for integration tests (test DB lacks accounting tables).
 // Tests create data with a unique prefix and clean up in afterAll.
-const TEST_URL = process.env.SUPABASE_URL || "https://bppztvrvaajrgyfwesoe.supabase.co";
-const TEST_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJwcHp0dnJ2YWFqcmd5Zndlc29lIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTQ4MjEyNCwiZXhwIjoyMDkxMDU4MTI0fQ.R7q-9t2-81vVC2vva2TyTS_D_C_l070KhPynktjZyIE";
+const TEST_URL = process.env.SUPABASE_URL;
+const TEST_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const HAS_SUPABASE = Boolean(TEST_URL && TEST_KEY);
 
 const TEST_USER_ID = "test_integration_user";
 const TEST_USER_NAME = "Integration Test";
@@ -38,7 +39,8 @@ const cleanup = {
 };
 
 beforeAll(() => {
-  sb = createClient(TEST_URL, TEST_KEY);
+  if (!HAS_SUPABASE) return;
+  sb = createClient(TEST_URL!, TEST_KEY!);
 });
 
 afterAll(async () => {
@@ -84,7 +86,7 @@ async function getAccountByNumber(num: number): Promise<{ id: string; account_nu
 // SECTION 1: Schema Verification — all tables exist with correct columns
 // ═══════════════════════════════════════════════════════════════════════
 
-describe("Schema: Core Accounting Tables", () => {
+describe.skipIf(!HAS_SUPABASE)("Schema: Core Accounting Tables", () => {
   it("chart_of_accounts has required columns", async () => {
     const { data, error } = await sb
       .from("chart_of_accounts")
@@ -113,7 +115,7 @@ describe("Schema: Core Accounting Tables", () => {
   });
 });
 
-describe("Schema: AR Tables", () => {
+describe.skipIf(!HAS_SUPABASE)("Schema: AR Tables", () => {
   it("customers table exists with all columns", async () => {
     const { data, error } = await sb
       .from("customers")
@@ -151,7 +153,7 @@ describe("Schema: AR Tables", () => {
   });
 });
 
-describe("Schema: AP Tables", () => {
+describe.skipIf(!HAS_SUPABASE)("Schema: AP Tables", () => {
   it("vendors table exists with all columns", async () => {
     const { data, error } = await sb
       .from("vendors")
@@ -189,7 +191,7 @@ describe("Schema: AP Tables", () => {
   });
 });
 
-describe("Schema: Periods & Recurring Tables", () => {
+describe.skipIf(!HAS_SUPABASE)("Schema: Periods & Recurring Tables", () => {
   it("accounting_periods table exists", async () => {
     const { data, error } = await sb
       .from("accounting_periods")
@@ -222,7 +224,7 @@ describe("Schema: Periods & Recurring Tables", () => {
 // SECTION 2: Chart of Accounts — key accounts exist
 // ═══════════════════════════════════════════════════════════════════════
 
-describe("Chart of Accounts: Required accounts exist", () => {
+describe.skipIf(!HAS_SUPABASE)("Chart of Accounts: Required accounts exist", () => {
   const requiredAccounts = [
     { num: 1000, name: "Cash", type: "asset" },
     { num: 1100, name: "Accounts Receivable", type: "asset" },
@@ -244,7 +246,7 @@ describe("Chart of Accounts: Required accounts exist", () => {
 // SECTION 3: Seed Data Verification
 // ═══════════════════════════════════════════════════════════════════════
 
-describe("Seed Data: Customers and Vendors exist", () => {
+describe.skipIf(!HAS_SUPABASE)("Seed Data: Customers and Vendors exist", () => {
   it("has seeded customers", async () => {
     const { data, error } = await sb.from("customers").select("id").limit(1);
     expect(error).toBeNull();
@@ -268,7 +270,7 @@ describe("Seed Data: Customers and Vendors exist", () => {
 // SECTION 4: Full AR Pipeline — Invoice Lifecycle
 // ═══════════════════════════════════════════════════════════════════════
 
-describe("AR Pipeline: Invoice lifecycle (create → send → pay → verify)", () => {
+describe.skipIf(!HAS_SUPABASE)("AR Pipeline: Invoice lifecycle (create → send → pay → verify)", () => {
   let testCustomerId: string;
   let testInvoiceId: string;
   let arAccountId: string;
@@ -352,18 +354,17 @@ describe("AR Pipeline: Invoice lifecycle (create → send → pay → verify)", 
   it("step 4: simulate 'send' — create AR journal entry", async () => {
     arAccountId = (await getAccountByNumber(1100)).id;
 
-    // Create JE: DR AR / CR Revenue (mimics what invoices API PATCH send does)
+    // Create JE as draft first (DB trigger prevents inserting as posted without lines)
     const { data: je, error: jeErr } = await sb.from("journal_entries").insert({
       entry_date: "2026-04-01",
       description: `Invoice sent — ${TEST_PREFIX}`,
       reference: `INV-TEST-${Date.now()}`,
       source: "invoice",
       source_id: testInvoiceId,
-      status: "posted",
+      status: "draft",
       total_amount: 5300,
       created_by: TEST_USER_ID,
       created_by_name: TEST_USER_NAME,
-      posted_at: new Date().toISOString(),
     }).select().single();
 
     expect(jeErr).toBeNull();
@@ -380,6 +381,12 @@ describe("AR Pipeline: Invoice lifecycle (create → send → pay → verify)", 
     // Note: line 2 credits AR for tax — in production the tax goes to a tax payable account.
     // For this test we're just verifying that JE lines can be created and balance.
     expect(lineErr).toBeNull();
+
+    // Post the JE now that lines exist (trigger validates balance)
+    const { error: postErr } = await sb.from("journal_entries")
+      .update({ status: "posted", posted_at: new Date().toISOString() })
+      .eq("id", sendJeId);
+    expect(postErr).toBeNull();
 
     // Update invoice status
     await sb.from("invoices").update({
@@ -403,17 +410,17 @@ describe("AR Pipeline: Invoice lifecycle (create → send → pay → verify)", 
   it("step 6: record partial payment $2000", async () => {
     cashAccountId = (await getAccountByNumber(1000)).id;
 
+    // Create JE as draft first (DB trigger prevents inserting as posted without lines)
     const { data: je, error: jeErr } = await sb.from("journal_entries").insert({
       entry_date: "2026-04-15",
       description: `Payment received — ${TEST_PREFIX}`,
       reference: `PMT-TEST-${Date.now()}`,
       source: "invoice",
       source_id: testInvoiceId,
-      status: "posted",
+      status: "draft",
       total_amount: 2000,
       created_by: TEST_USER_ID,
       created_by_name: TEST_USER_NAME,
-      posted_at: new Date().toISOString(),
     }).select().single();
 
     expect(jeErr).toBeNull();
@@ -426,6 +433,12 @@ describe("AR Pipeline: Invoice lifecycle (create → send → pay → verify)", 
       { journal_entry_id: paymentJeId, account_id: arAccountId, debit: 0, credit: 2000, description: "AR reduction", line_order: 1 },
     ]);
     expect(lineErr).toBeNull();
+
+    // Post the JE now that lines exist (trigger validates balance)
+    const { error: postErr } = await sb.from("journal_entries")
+      .update({ status: "posted", posted_at: new Date().toISOString() })
+      .eq("id", paymentJeId);
+    expect(postErr).toBeNull();
 
     // Record invoice_payment
     const { data: pmt, error: pmtErr } = await sb.from("invoice_payments").insert({
@@ -477,7 +490,7 @@ describe("AR Pipeline: Invoice lifecycle (create → send → pay → verify)", 
 // SECTION 5: Full AP Pipeline — Bill Lifecycle
 // ═══════════════════════════════════════════════════════════════════════
 
-describe("AP Pipeline: Bill lifecycle (create → pay → verify)", () => {
+describe.skipIf(!HAS_SUPABASE)("AP Pipeline: Bill lifecycle (create → pay → verify)", () => {
   let testVendorId: string;
   let testBillId: string;
   let apAccountId: string;
@@ -504,17 +517,16 @@ describe("AP Pipeline: Bill lifecycle (create → pay → verify)", () => {
     apAccountId = (await getAccountByNumber(2000)).id;
     expenseAccountId = (await getAccountByNumber(5500)).id;  // Equipment Maintenance
 
-    // Create JE first (mimics bills API POST)
+    // Create JE as draft first (DB trigger prevents inserting as posted without lines)
     const { data: je, error: jeErr } = await sb.from("journal_entries").insert({
       entry_date: "2026-03-15",
       description: `Bill from vendor — ${TEST_PREFIX}`,
       reference: "VEND-INV-2026-001",
       source: "manual",
-      status: "posted",
+      status: "draft",
       total_amount: 1850,
       created_by: TEST_USER_ID,
       created_by_name: TEST_USER_NAME,
-      posted_at: new Date().toISOString(),
     }).select().single();
 
     expect(jeErr).toBeNull();
@@ -528,6 +540,12 @@ describe("AP Pipeline: Bill lifecycle (create → pay → verify)", () => {
       { journal_entry_id: billJeId, account_id: apAccountId, debit: 0, credit: 1850, description: "AP — VEND-INV-2026-001", line_order: 2 },
     ]);
     expect(lineErr).toBeNull();
+
+    // Post the JE now that lines exist (trigger validates balance)
+    const { error: postErr } = await sb.from("journal_entries")
+      .update({ status: "posted", posted_at: new Date().toISOString() })
+      .eq("id", billJeId);
+    expect(postErr).toBeNull();
 
     // Create the bill
     const { data: bill, error: billErr } = await sb.from("bills").insert({
@@ -572,16 +590,16 @@ describe("AP Pipeline: Bill lifecycle (create → pay → verify)", () => {
   it("step 4: pay the bill in full (DR AP / CR Cash)", async () => {
     cashAccountId = (await getAccountByNumber(1000)).id;
 
+    // Create JE as draft first (DB trigger prevents inserting as posted without lines)
     const { data: je, error: jeErr } = await sb.from("journal_entries").insert({
       entry_date: "2026-04-10",
       description: `Bill payment — ${TEST_PREFIX}`,
       reference: "CHK-5678",
       source: "manual",
-      status: "posted",
+      status: "draft",
       total_amount: 1850,
       created_by: TEST_USER_ID,
       created_by_name: TEST_USER_NAME,
-      posted_at: new Date().toISOString(),
     }).select().single();
 
     expect(jeErr).toBeNull();
@@ -593,6 +611,12 @@ describe("AP Pipeline: Bill lifecycle (create → pay → verify)", () => {
       { journal_entry_id: paymentJeId, account_id: cashAccountId, debit: 0, credit: 1850, description: "Cash disbursement", line_order: 1 },
     ]);
     expect(lineErr).toBeNull();
+
+    // Post the JE now that lines exist (trigger validates balance)
+    const { error: postErr } = await sb.from("journal_entries")
+      .update({ status: "posted", posted_at: new Date().toISOString() })
+      .eq("id", paymentJeId);
+    expect(postErr).toBeNull();
 
     // Record bill_payment
     const { data: pmt, error: pmtErr } = await sb.from("bill_payments").insert({
@@ -644,7 +668,7 @@ describe("AP Pipeline: Bill lifecycle (create → pay → verify)", () => {
 // SECTION 6: Double-Entry Integrity
 // ═══════════════════════════════════════════════════════════════════════
 
-describe("Double-Entry Integrity", () => {
+describe.skipIf(!HAS_SUPABASE)("Double-Entry Integrity", () => {
   it("all posted JEs have balanced lines (total debits = total credits)", async () => {
     const { data: entries, error: entriesErr } = await sb
       .from("journal_entries")
@@ -714,7 +738,7 @@ describe("Double-Entry Integrity", () => {
 // SECTION 7: Relational Integrity — JOINs used by APIs work
 // ═══════════════════════════════════════════════════════════════════════
 
-describe("Relational Integrity: API JOIN patterns", () => {
+describe.skipIf(!HAS_SUPABASE)("Relational Integrity: API JOIN patterns", () => {
   it("invoices → customers JOIN works (used by GET /api/accounting/invoices)", async () => {
     const { error } = await sb
       .from("invoices")
@@ -761,7 +785,7 @@ describe("Relational Integrity: API JOIN patterns", () => {
 // SECTION 8: Constraint Validation
 // ═══════════════════════════════════════════════════════════════════════
 
-describe("Constraints: Payment terms and status enums", () => {
+describe.skipIf(!HAS_SUPABASE)("Constraints: Payment terms and status enums", () => {
   it("rejects invalid customer payment_terms", async () => {
     const { error } = await sb.from("customers").insert({
       company_name: `${TEST_PREFIX} Bad Terms Customer`,
