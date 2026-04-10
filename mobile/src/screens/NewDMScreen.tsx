@@ -10,7 +10,10 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { apiRequest } from '@/services/api-client';
-import { useChatStore } from '@/stores/chat-store';
+import ErrorBoundary from '@/components/ui/ErrorBoundary';
+import { colors } from '@/theme/colors';
+import { spacing, radii } from '@/theme/spacing';
+import { typography } from '@/theme/typography';
 
 interface OrgUser {
   id: string;
@@ -26,9 +29,8 @@ const ROLE_COLORS: Record<string, string> = {
   operator: '#eab308',
 };
 
-export default function NewDMScreen() {
+function NewDMScreenInner() {
   const router = useRouter();
-  const { getOrCreateEntityThread } = useChatStore();
   const [users, setUsers] = useState<OrgUser[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -70,12 +72,12 @@ export default function NewDMScreen() {
         value={search}
         onChangeText={setSearch}
         placeholder="Search users..."
-        placeholderTextColor="#6b7280"
+        placeholderTextColor={colors.textMuted}
         autoFocus
       />
 
       {loading ? (
-        <ActivityIndicator color="#7c3aed" style={{ marginTop: 40 }} />
+        <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
           data={filtered}
@@ -86,7 +88,7 @@ export default function NewDMScreen() {
                 <Text style={styles.userName}>{item.name}</Text>
                 <Text style={styles.userEmail}>{item.email}</Text>
               </View>
-              <Text style={[styles.userRole, { color: ROLE_COLORS[item.role] || '#9ca3af' }]}>
+              <Text style={[styles.userRole, { color: ROLE_COLORS[item.role] || colors.textSecondary }]}>
                 {item.role}
               </Text>
             </TouchableOpacity>
@@ -100,28 +102,37 @@ export default function NewDMScreen() {
   );
 }
 
+export default function NewDMScreen() {
+  return (
+    <ErrorBoundary fallbackTitle="New DM screen crashed">
+      <NewDMScreenInner />
+    </ErrorBoundary>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#030712' },
+  container: { flex: 1, backgroundColor: colors.background },
   searchInput: {
-    margin: 16,
-    backgroundColor: '#1f2937',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    color: '#f3f4f6',
-    fontSize: 14,
+    margin: spacing.lg,
+    backgroundColor: colors.surface1,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    color: colors.text,
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.body,
   },
   userRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg - 2,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#1f2937',
+    borderBottomColor: colors.border,
   },
-  userName: { color: '#e5e7eb', fontSize: 14, fontWeight: '600' },
-  userEmail: { color: '#6b7280', fontSize: 12, marginTop: 2 },
-  userRole: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase' },
-  emptyText: { color: '#6b7280', textAlign: 'center', marginTop: 40, fontSize: 13 },
+  userName: { color: colors.text, fontSize: typography.sizes.sm, fontFamily: typography.fonts.heading },
+  userEmail: { color: colors.textMuted, fontSize: typography.sizes.xs, fontFamily: typography.fonts.body, marginTop: 2 },
+  userRole: { fontSize: typography.sizes['2xs'], fontFamily: typography.fonts.label, textTransform: 'uppercase' },
+  emptyText: { color: colors.textMuted, textAlign: 'center', marginTop: spacing['4xl'], fontSize: typography.sizes.sm },
 });
