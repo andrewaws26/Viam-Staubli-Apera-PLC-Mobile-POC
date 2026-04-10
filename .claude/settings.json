@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/hooks/pre-tool-guard.py"
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.claude/hooks/pre-tool-guard.py\""
           }
         ]
       }
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/hooks/post-tool-audit.py"
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.claude/hooks/post-tool-audit.py\""
           }
         ]
       }
