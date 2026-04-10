@@ -20,6 +20,11 @@ export const TRUCK_GAUGE_THRESHOLDS: GaugeThresholds = {
 
   // Voltage — below threshold is bad
   battery_voltage_v: { warn: 12.0, crit: 11.5, inverted: true },
+  alternator_voltage_v: { warn: 13.2, crit: 12.0, inverted: true },
+  charging_spread_v: { warn: 0.5, crit: 0, inverted: true },
+
+  // Current — below threshold is bad
+  alternator_current_a: { warn: 5, crit: 0, inverted: true },
 
   // Fuel — below threshold is bad
   fuel_level_pct: { warn: 20, crit: 10, inverted: true },

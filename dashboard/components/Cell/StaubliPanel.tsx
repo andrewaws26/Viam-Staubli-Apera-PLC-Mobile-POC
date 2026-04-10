@@ -70,6 +70,7 @@ interface Props {
 export default function StaubliPanel({ readings, pollError }: Props) {
   const [expanded, setExpanded] = useState(true);
   const [showJoints, setShowJoints] = useState(false);
+  const [showExtTemps, setShowExtTemps] = useState(false);
 
   const isConnected = readings?.connected ?? false;
   const r = readings;
@@ -130,6 +131,88 @@ export default function StaubliPanel({ readings, pollError }: Props) {
                   <TempGauge label="J5" value={r.temp_j5} warn={TEMP_THRESHOLDS.motor_warn} crit={TEMP_THRESHOLDS.motor_crit} />
                   <TempGauge label="J6" value={r.temp_j6} warn={TEMP_THRESHOLDS.motor_warn} crit={TEMP_THRESHOLDS.motor_crit} />
                   <TempGauge label="DSI" value={r.temp_dsi} warn={TEMP_THRESHOLDS.dsi_warn} crit={TEMP_THRESHOLDS.dsi_crit} />
+                </div>
+              </div>
+
+              {/* ---- Extended Temperatures (Collapsed) ---- */}
+              <div>
+                <button
+                  onClick={() => setShowExtTemps(!showExtTemps)}
+                  className="w-full text-left text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-800/50 pb-1 hover:text-gray-400 transition-colors"
+                >
+                  {showExtTemps ? "\u25BC" : "\u25B6"} Extended Temperatures ({showExtTemps ? "hide" : "show"})
+                </button>
+                {showExtTemps && (
+                  <div className="space-y-3">
+                    <div>
+                      <span className="text-xs text-gray-600 uppercase tracking-wide">Encoder</span>
+                      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mt-1">
+                        {[1,2,3,4,5,6].map(i => (
+                          <TempGauge key={`enc${i}`} label={`J${i}`} value={(r as any)[`temp_encoder_j${i}`] || 0} warn={TEMP_THRESHOLDS.encoder_warn} crit={TEMP_THRESHOLDS.encoder_crit} />
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-xs text-gray-600 uppercase tracking-wide">Drive Case</span>
+                      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mt-1">
+                        {[1,2,3,4,5,6].map(i => (
+                          <TempGauge key={`dc${i}`} label={`J${i}`} value={(r as any)[`temp_drive_case_j${i}`] || 0} warn={TEMP_THRESHOLDS.drive_case_warn} crit={TEMP_THRESHOLDS.drive_case_crit} />
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-xs text-gray-600 uppercase tracking-wide">Motor Winding</span>
+                      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mt-1">
+                        {[1,2,3,4,5,6].map(i => (
+                          <TempGauge key={`mw${i}`} label={`J${i}`} value={(r as any)[`temp_winding_j${i}`] || 0} warn={TEMP_THRESHOLDS.winding_warn} crit={TEMP_THRESHOLDS.winding_crit} />
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-xs text-gray-600 uppercase tracking-wide">Drive Junction</span>
+                      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mt-1">
+                        {[1,2,3,4,5,6].map(i => (
+                          <TempGauge key={`dj${i}`} label={`J${i}`} value={(r as any)[`temp_junction_j${i}`] || 0} warn={TEMP_THRESHOLDS.junction_warn} crit={TEMP_THRESHOLDS.junction_crit} />
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-xs text-gray-600 uppercase tracking-wide">Board Temps</span>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-1">
+                        <TempGauge label="CPU" value={r.temp_cpu} warn={TEMP_THRESHOLDS.cpu_warn} crit={TEMP_THRESHOLDS.cpu_crit} />
+                        <TempGauge label="CPU Board" value={r.temp_cpu_board} warn={TEMP_THRESHOLDS.board_warn} crit={TEMP_THRESHOLDS.board_crit} />
+                        <TempGauge label="RSI" value={r.temp_rsi} warn={TEMP_THRESHOLDS.board_warn} crit={TEMP_THRESHOLDS.board_crit} />
+                        <TempGauge label="STARC" value={r.temp_starc_board} warn={TEMP_THRESHOLDS.board_warn} crit={TEMP_THRESHOLDS.board_crit} />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* ---- Joint Torques ---- */}
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-800/50 pb-1">
+                  Joint Torques
+                </h3>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-x-4 gap-y-1">
+                  {[1,2,3,4,5,6].map(i => (
+                    <KV key={`tq${i}`} label={`J${i}`} value={`${((r as any)[`torque_j${i}`] || 0).toFixed(1)} N\u00B7m`} mono />
+                  ))}
+                </div>
+              </div>
+
+              {/* ---- EtherCAT I/O Board ---- */}
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-800/50 pb-1">
+                  EtherCAT I/O Board
+                </h3>
+                <div className="flex flex-wrap gap-3 mb-2">
+                  <StatusDot ok={r.ioboard_connected} label={r.ioboard_connected ? "Connected" : "Disconnected"} />
+                  <StatusDot ok={r.ioboard_op_state} label={r.ioboard_op_state ? "All Slaves OP" : "Slaves Not OP"} />
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1">
+                  <KV label="Bus State" value={r.ioboard_bus_state || "\u2014"} />
+                  <KV label="Slave Count" value={String(r.ioboard_slave_count)} mono color={r.ioboard_slave_count < 3 ? "text-red-400" : "text-gray-300"} />
                 </div>
               </div>
 

@@ -29,6 +29,12 @@ _API_PATTERNS = [
     "/data",                    # Legacy web server
 ]
 
+# Additional REST endpoints to discover and poll
+_EXTRA_ENDPOINTS = {
+    "torque": "/api/arm/model/staticjnttorque",
+    "ioboard": "/api/ios/ioboard/status",
+}
+
 # HMI variables we want to read (decoded from VALHTML dump)
 _HMI_VARIABLES = [
     # Joint positions
@@ -86,6 +92,50 @@ class StaubliState:
     temp_j5: float = 0.0
     temp_j6: float = 0.0
     temp_dsi: float = 0.0
+
+    # Extended temperatures (from REST API additional endpoints)
+    temp_encoder_j1: float = 0.0
+    temp_encoder_j2: float = 0.0
+    temp_encoder_j3: float = 0.0
+    temp_encoder_j4: float = 0.0
+    temp_encoder_j5: float = 0.0
+    temp_encoder_j6: float = 0.0
+    temp_drive_case_j1: float = 0.0
+    temp_drive_case_j2: float = 0.0
+    temp_drive_case_j3: float = 0.0
+    temp_drive_case_j4: float = 0.0
+    temp_drive_case_j5: float = 0.0
+    temp_drive_case_j6: float = 0.0
+    temp_winding_j1: float = 0.0
+    temp_winding_j2: float = 0.0
+    temp_winding_j3: float = 0.0
+    temp_winding_j4: float = 0.0
+    temp_winding_j5: float = 0.0
+    temp_winding_j6: float = 0.0
+    temp_junction_j1: float = 0.0
+    temp_junction_j2: float = 0.0
+    temp_junction_j3: float = 0.0
+    temp_junction_j4: float = 0.0
+    temp_junction_j5: float = 0.0
+    temp_junction_j6: float = 0.0
+    temp_cpu: float = 0.0
+    temp_cpu_board: float = 0.0
+    temp_rsi: float = 0.0
+    temp_starc_board: float = 0.0
+
+    # Joint torques (N*m, from /api/arm/model/staticjnttorque)
+    torque_j1: float = 0.0
+    torque_j2: float = 0.0
+    torque_j3: float = 0.0
+    torque_j4: float = 0.0
+    torque_j5: float = 0.0
+    torque_j6: float = 0.0
+
+    # EtherCAT I/O board status (from /api/ios/ioboard/status)
+    ioboard_connected: bool = False
+    ioboard_bus_state: str = ""
+    ioboard_slave_count: int = 0
+    ioboard_op_state: bool = False
 
     # Production
     task_selected: str = ""
@@ -145,7 +195,7 @@ class StaubliClient:
         self.port = port
         self._base_url = f"http://{host}:{port}"
         self._client: httpx.AsyncClient | None = None
-        self._discovered_api: str | None = None
+        self._discovered_endpoints: dict[str, str] = {}  # name -> url_path
         self._poll_count = 0
         self._consecutive_failures = 0
         self._last_raw_response: dict[str, Any] = {}
@@ -164,7 +214,8 @@ class StaubliClient:
         """Probe the controller to find the working API pattern.
 
         Tries each known pattern and returns the first one that responds.
-        Logs all responses for debugging. Returns the working base path
+        Also probes extra endpoints (torque, ioboard) against the working base.
+        Logs all responses for debugging. Returns the working HMI base path
         or None if nothing responds.
         """
         client = await self._get_client()
@@ -176,6 +227,7 @@ class StaubliClient:
             f"http://{self.host}:2400",
         ]
 
+        hmi_pattern: str | None = None
         for base in bases:
             for pattern in _API_PATTERNS:
                 url = f"{base}{pattern}"
@@ -187,14 +239,33 @@ class StaubliClient:
                     )
                     if resp.status_code < 400:
                         self._base_url = base
-                        self._discovered_api = pattern
-                        logger.info("API discovered: %s%s", base, pattern)
-                        return pattern
+                        self._discovered_endpoints["hmi"] = pattern
+                        hmi_pattern = pattern
+                        logger.info("HMI API discovered: %s%s", base, pattern)
+                        break
                 except Exception as e:
                     logger.debug("DISCOVER %s → %s", url, e)
+            if hmi_pattern:
+                break
 
-        logger.warning("No Staubli REST API found at %s", self.host)
-        return None
+        # Probe extra endpoints against the working base URL
+        if hmi_pattern:
+            for name, path in _EXTRA_ENDPOINTS.items():
+                url = f"{self._base_url}{path}"
+                try:
+                    resp = await client.get(url)
+                    if resp.status_code < 400:
+                        self._discovered_endpoints[name] = path
+                        logger.info("Extra endpoint discovered: %s → %s", name, url)
+                    else:
+                        logger.debug("Extra endpoint %s returned %d", name, resp.status_code)
+                except Exception as e:
+                    logger.debug("Extra endpoint %s failed: %s", name, e)
+
+        if not self._discovered_endpoints:
+            logger.warning("No Staubli REST API found at %s", self.host)
+
+        return hmi_pattern
 
     async def poll(self) -> StaubliState:
         """Poll the controller for current state.
@@ -209,7 +280,7 @@ class StaubliClient:
             client = await self._get_client()
 
             # Discovery on first poll or after failures (with cooldown)
-            if self._discovered_api is None:
+            if not self._discovered_endpoints:
                 now = time.monotonic()
                 if now - self._last_discovery_attempt >= _DISCOVERY_COOLDOWN:
                     self._last_discovery_attempt = now
@@ -219,9 +290,9 @@ class StaubliClient:
                     state.last_poll_ms = (time.monotonic() - t0) * 1000
                     return state
 
-            if self._discovered_api is not None:
-                # Read variables via discovered API
-                url = f"{self._base_url}{self._discovered_api}"
+            if "hmi" in self._discovered_endpoints:
+                # Read variables via discovered HMI API
+                url = f"{self._base_url}{self._discovered_endpoints['hmi']}"
                 resp = await client.get(url)
                 if resp.status_code < 400:
                     data = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
@@ -230,6 +301,36 @@ class StaubliClient:
                     state.connected = True
                 else:
                     state.error = f"HTTP {resp.status_code}"
+
+                # Poll extra endpoints concurrently
+                extra_tasks = []
+                extra_names = []
+                for name in ("torque", "ioboard"):
+                    if name in self._discovered_endpoints:
+                        extra_url = f"{self._base_url}{self._discovered_endpoints[name]}"
+                        extra_tasks.append(client.get(extra_url))
+                        extra_names.append(name)
+
+                if extra_tasks:
+                    extra_results = await asyncio.gather(*extra_tasks, return_exceptions=True)
+                    for name, result in zip(extra_names, extra_results):
+                        if isinstance(result, Exception):
+                            logger.debug("Extra endpoint %s error: %s", name, result)
+                            continue
+                        if result.status_code < 400:
+                            try:
+                                extra_data = result.json()
+                                if name == "torque":
+                                    self._parse_torque(state, extra_data)
+                                elif name == "ioboard":
+                                    self._parse_ioboard(state, extra_data)
+                            except Exception as e:
+                                logger.debug("Failed to parse %s response: %s", name, e)
+
+            elif self._discovered_endpoints:
+                # Have some endpoints but no HMI — still mark connected
+                state.connected = True
+                state.error = "HMI endpoint not available"
             else:
                 # No API found — try a basic connection test
                 try:
@@ -257,7 +358,7 @@ class StaubliClient:
             # Full client reset after 5 consecutive failures — stale connections
             # in the httpx pool won't recover on their own after a network disruption
             if self._consecutive_failures >= 5:
-                self._discovered_api = None
+                self._discovered_endpoints = {}
                 self._consecutive_failures = 0
                 if self._client and not self._client.is_closed:
                     try:
@@ -328,6 +429,38 @@ class StaubliClient:
             logger.debug("Failed to parse temperatures: %s", e)
 
         try:
+            # Extended temperatures from subsystem data
+            _TEMP_MAP = {
+                "temp_encoder_j": ("DsiIO", "encoder{}_temp", 6),
+                "temp_drive_case_j": ("StarcIO", "driveCase{}_temp", 6),
+                "temp_winding_j": ("StarcIO", "motorWinding{}_temp", 6),
+                "temp_junction_j": ("StarcIO", "driveJunction{}_temp", 6),
+            }
+            for prefix, (subsystem, pattern, count) in _TEMP_MAP.items():
+                sub_data = data.get(subsystem, {})
+                if isinstance(sub_data, dict):
+                    for i in range(1, count + 1):
+                        key = pattern.format(i)
+                        val = sub_data.get(key)
+                        if val is not None:
+                            setattr(state, f"{prefix}{i}", float(val))
+            # Board temps
+            cpu_io = data.get("CpuIO", {})
+            if isinstance(cpu_io, dict):
+                if "cpu_temp" in cpu_io:
+                    state.temp_cpu = float(cpu_io["cpu_temp"])
+                if "cpuBoard_temp" in cpu_io:
+                    state.temp_cpu_board = float(cpu_io["cpuBoard_temp"])
+            rsi_io = data.get("Rsi9IO", {})
+            if isinstance(rsi_io, dict) and "IWtemperature" in rsi_io:
+                state.temp_rsi = float(rsi_io["IWtemperature"])
+            starc_io = data.get("StarcIO", {})
+            if isinstance(starc_io, dict) and "STARCboard_temp" in starc_io:
+                state.temp_starc_board = float(starc_io["STARCboard_temp"])
+        except Exception as e:
+            logger.debug("Failed to parse extended temps: %s", e)
+
+        try:
             # Safety interlocks
             servo = data.get("diServo", data.get("safety", {}))
             if isinstance(servo, dict):
@@ -352,10 +485,41 @@ class StaubliClient:
         # Log any fields we didn't handle (for baselining)
         handled = {"joints", "tcp", "cartesian", "temperatures", "sTextTemp",
                     "diServo", "safety", "bTskSelected", "bTskStatus",
-                    "nPartsFound", "sPart", "sJointRx"}
+                    "nPartsFound", "sPart", "sJointRx",
+                    "DsiIO", "StarcIO", "CpuIO", "Rsi9IO"}
         unknown = set(data.keys()) - handled
         if unknown:
             logger.info("Unhandled Staubli fields (baseline): %s", unknown)
+
+    def _parse_torque(self, state: StaubliState, data: Any) -> None:
+        """Parse joint torque data from /api/arm/model/staticjnttorque."""
+        try:
+            if isinstance(data, list) and len(data) >= 6:
+                for i in range(6):
+                    setattr(state, f"torque_j{i+1}", round(float(data[i]), 2))
+            elif isinstance(data, dict):
+                torques = data.get("torques", data.get("joint_torques", data))
+                if isinstance(torques, list) and len(torques) >= 6:
+                    for i in range(6):
+                        setattr(state, f"torque_j{i+1}", round(float(torques[i]), 2))
+                elif isinstance(torques, dict):
+                    for i in range(6):
+                        val = torques.get(f"j{i+1}", torques.get(str(i)))
+                        if val is not None:
+                            setattr(state, f"torque_j{i+1}", round(float(val), 2))
+        except Exception as e:
+            logger.debug("Failed to parse torque: %s", e)
+
+    def _parse_ioboard(self, state: StaubliState, data: Any) -> None:
+        """Parse EtherCAT I/O board status from /api/ios/ioboard/status."""
+        try:
+            if isinstance(data, dict):
+                state.ioboard_connected = True
+                state.ioboard_bus_state = str(data.get("busState", data.get("state", "")))
+                state.ioboard_slave_count = int(data.get("slaveCount", data.get("slaves", data.get("connectedSlaves", 0))))
+                state.ioboard_op_state = bool(data.get("allSlavesOp", data.get("allOp", data.get("op", False))))
+        except Exception as e:
+            logger.debug("Failed to parse ioboard: %s", e)
 
     async def close(self) -> None:
         if self._client and not self._client.is_closed:

@@ -152,8 +152,16 @@ PGN_65271 = PGNDefinition(
     pgn=65271,
     name="Vehicle Electrical Power (VEP)",
     spns=[
+        SPNDefinition(114, "Net Battery Current", "net_battery_current_a",
+                      0, 8, 1.0, -125.0, "A"),
+        SPNDefinition(115, "Alternator Current", "alternator_current_a",
+                      1, 8, 1.0, 0.0, "A"),
+        SPNDefinition(167, "Charging System Potential (Voltage)", "alternator_voltage_v",
+                      2, 16, 0.05, 0.0, "V"),
         SPNDefinition(158, "Battery Potential / Power Input", "battery_voltage_v",
                       4, 16, 0.05, 0.0, "V"),
+        SPNDefinition(168, "Battery Potential (Switched)", "battery_voltage_switched_v",
+                      6, 16, 0.05, 0.0, "V"),
     ]
 )
 

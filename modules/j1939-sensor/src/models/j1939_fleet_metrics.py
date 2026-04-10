@@ -231,6 +231,35 @@ def compute_fleet_metrics(readings: dict, prev_speed: float, prev_accel: float, 
                 else:
                     readings["battery_health"] = "OK"
 
+    # Electrical system health -- alternator vs battery while engine running
+    alt_v = readings.get("alternator_voltage_v", None)
+    alt_a = readings.get("alternator_current_a", None)
+    if batt is not None and alt_v is not None:
+        readings["charging_spread_v"] = round(alt_v - batt, 2)
+        if rpm > 0:
+            # Engine running -- alternator should be producing
+            if alt_a is not None and alt_a <= 0:
+                readings["electrical_health"] = "NOT_CHARGING"
+            elif alt_v < batt:
+                readings["electrical_health"] = "NOT_CHARGING"
+            elif is_24v:
+                if alt_v > 30.0:
+                    readings["electrical_health"] = "OVERCHARGE"
+                elif alt_v < 26.0:
+                    readings["electrical_health"] = "LOW"
+                else:
+                    readings["electrical_health"] = "OK"
+            else:
+                if alt_v > 15.0:
+                    readings["electrical_health"] = "OVERCHARGE"
+                elif alt_v < 13.2:
+                    readings["electrical_health"] = "LOW"
+                else:
+                    readings["electrical_health"] = "OK"
+        else:
+            # Engine off -- no alternator output expected
+            readings["electrical_health"] = "OK"
+
     return (speed, accel, now)
 
 

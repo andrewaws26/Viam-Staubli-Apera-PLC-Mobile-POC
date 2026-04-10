@@ -332,6 +332,61 @@ class TestPGN65271_VEP:
         result = decode_pgn(65271, data)
         assert result["battery_voltage_v"] == 11.5
 
+    def test_net_battery_current_positive(self):
+        """30A net current: 30 + 125 = 155 = 0x9B"""
+        data = bytes([0x9B, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
+        result = decode_pgn(65271, data)
+        assert result["net_battery_current_a"] == 30.0
+
+    def test_net_battery_current_negative(self):
+        """-50A net current (discharging): -50 + 125 = 75 = 0x4B"""
+        data = bytes([0x4B, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
+        result = decode_pgn(65271, data)
+        assert result["net_battery_current_a"] == -50.0
+
+    def test_alternator_current(self):
+        """45A alternator output: 45 / 1.0 = 45 = 0x2D"""
+        data = bytes([0xFF, 0x2D, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
+        result = decode_pgn(65271, data)
+        assert result["alternator_current_a"] == 45.0
+
+    def test_alternator_voltage(self):
+        """14.4V: 14.4 / 0.05 = 288 = 0x0120 LE: [0x20, 0x01]"""
+        data = bytes([0xFF, 0xFF, 0x20, 0x01, 0xFF, 0xFF, 0xFF, 0xFF])
+        result = decode_pgn(65271, data)
+        assert abs(result["alternator_voltage_v"] - 14.4) < 0.01
+
+    def test_battery_voltage_switched(self):
+        """12.5V switched: 12.5 / 0.05 = 250 = 0x00FA LE: [0xFA, 0x00]"""
+        data = bytes([0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFA, 0x00])
+        result = decode_pgn(65271, data)
+        assert result["battery_voltage_switched_v"] == 12.5
+
+    def test_full_vep_frame(self):
+        """All 5 SPNs present in one frame."""
+        # byte 0: 155 (net current 30A), byte 1: 45 (alt current 45A)
+        # bytes 2-3: 288 LE (alt voltage 14.4V), bytes 4-5: 276 LE (batt 13.8V)
+        # bytes 6-7: 250 LE (switched 12.5V)
+        data = bytes([0x9B, 0x2D, 0x20, 0x01, 0x14, 0x01, 0xFA, 0x00])
+        result = decode_pgn(65271, data)
+        assert result["net_battery_current_a"] == 30.0
+        assert result["alternator_current_a"] == 45.0
+        assert abs(result["alternator_voltage_v"] - 14.4) < 0.01
+        assert result["battery_voltage_v"] == 13.8
+        assert result["battery_voltage_switched_v"] == 12.5
+
+    def test_vep_not_available(self):
+        """All 0xFF = not available, no keys should be present."""
+        data = bytes([0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
+        result = decode_pgn(65271, data)
+        # 8-bit 0xFF and 16-bit 0xFFFF are sentinels -- should return empty
+        assert "net_battery_current_a" not in result
+        assert "alternator_current_a" not in result
+        # 16-bit sentinels
+        assert "alternator_voltage_v" not in result
+        assert "battery_voltage_v" not in result
+        assert "battery_voltage_switched_v" not in result
+
 
 # =========================================================================
 # PGN 65253 — Engine Hours

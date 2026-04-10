@@ -52,6 +52,27 @@ function transformReadings(flat: Record<string, unknown>) {
     temp_j1: num(flat.staubli_temp_j1), temp_j2: num(flat.staubli_temp_j2), temp_j3: num(flat.staubli_temp_j3),
     temp_j4: num(flat.staubli_temp_j4), temp_j5: num(flat.staubli_temp_j5), temp_j6: num(flat.staubli_temp_j6),
     temp_dsi: num(flat.staubli_temp_dsi),
+    // Extended temperatures
+    temp_encoder_j1: num(flat.staubli_temp_encoder_j1), temp_encoder_j2: num(flat.staubli_temp_encoder_j2),
+    temp_encoder_j3: num(flat.staubli_temp_encoder_j3), temp_encoder_j4: num(flat.staubli_temp_encoder_j4),
+    temp_encoder_j5: num(flat.staubli_temp_encoder_j5), temp_encoder_j6: num(flat.staubli_temp_encoder_j6),
+    temp_drive_case_j1: num(flat.staubli_temp_drive_case_j1), temp_drive_case_j2: num(flat.staubli_temp_drive_case_j2),
+    temp_drive_case_j3: num(flat.staubli_temp_drive_case_j3), temp_drive_case_j4: num(flat.staubli_temp_drive_case_j4),
+    temp_drive_case_j5: num(flat.staubli_temp_drive_case_j5), temp_drive_case_j6: num(flat.staubli_temp_drive_case_j6),
+    temp_winding_j1: num(flat.staubli_temp_winding_j1), temp_winding_j2: num(flat.staubli_temp_winding_j2),
+    temp_winding_j3: num(flat.staubli_temp_winding_j3), temp_winding_j4: num(flat.staubli_temp_winding_j4),
+    temp_winding_j5: num(flat.staubli_temp_winding_j5), temp_winding_j6: num(flat.staubli_temp_winding_j6),
+    temp_junction_j1: num(flat.staubli_temp_junction_j1), temp_junction_j2: num(flat.staubli_temp_junction_j2),
+    temp_junction_j3: num(flat.staubli_temp_junction_j3), temp_junction_j4: num(flat.staubli_temp_junction_j4),
+    temp_junction_j5: num(flat.staubli_temp_junction_j5), temp_junction_j6: num(flat.staubli_temp_junction_j6),
+    temp_cpu: num(flat.staubli_temp_cpu), temp_cpu_board: num(flat.staubli_temp_cpu_board),
+    temp_rsi: num(flat.staubli_temp_rsi), temp_starc_board: num(flat.staubli_temp_starc_board),
+    // Joint torques
+    torque_j1: num(flat.staubli_torque_j1), torque_j2: num(flat.staubli_torque_j2), torque_j3: num(flat.staubli_torque_j3),
+    torque_j4: num(flat.staubli_torque_j4), torque_j5: num(flat.staubli_torque_j5), torque_j6: num(flat.staubli_torque_j6),
+    // I/O board
+    ioboard_connected: bool(flat.staubli_ioboard_connected), ioboard_bus_state: str(flat.staubli_ioboard_bus_state),
+    ioboard_slave_count: num(flat.staubli_ioboard_slave_count), ioboard_op_state: bool(flat.staubli_ioboard_op_state),
     task_selected: str(flat.staubli_task_selected), task_status: str(flat.staubli_task_status),
     parts_found: num(flat.staubli_parts_found),
     part_picked: str(flat.staubli_part_picked), part_desired: str(flat.staubli_part_desired),
@@ -127,6 +148,24 @@ function transformReadings(flat: Record<string, unknown>) {
     vpn_ip: str(flat.vpn_ip),
   };
 
+  // -- Staubli Logs (from FTP scraping) --
+  const staubliLogs = {
+    log_connected: bool(flat.staubli_log_log_connected),
+    urps_events_24h: num(flat.staubli_log_urps_events_24h),
+    urps_last_time: str(flat.staubli_log_urps_last_time),
+    urps_last_code: str(flat.staubli_log_urps_last_code),
+    ethercat_events_24h: num(flat.staubli_log_ethercat_events_24h),
+    ethercat_frame_loss_24h: num(flat.staubli_log_ethercat_frame_loss_24h),
+    safety_stops_24h: num(flat.staubli_log_safety_stops_24h),
+    safety_last_cause: str(flat.staubli_log_safety_last_cause),
+    servo_disable_count_24h: num(flat.staubli_log_servo_disable_count_24h),
+    servo_enable_count_24h: num(flat.staubli_log_servo_enable_count_24h),
+    app_restarts_24h: num(flat.staubli_log_app_restarts_24h),
+    arm_total_cycles: num(flat.staubli_log_arm_total_cycles),
+    arm_power_on_hours: num(flat.staubli_log_arm_power_on_hours),
+    controller_cpu_load_pct: num(flat.staubli_log_controller_cpu_load_pct),
+  };
+
   // -- Pi 5 health --
   const piHealth = {
     cpu_temp_c: num(flat.pi_cpu_temp_c),
@@ -150,6 +189,7 @@ function transformReadings(flat: Record<string, unknown>) {
 
   return {
     staubli,
+    staubliLogs,
     apera,
     network,
     internet,
@@ -219,6 +259,21 @@ function getSimData() {
       temp_j1: 42 + jitter() * 3, temp_j2: 45 + jitter() * 3, temp_j3: 48 + jitter() * 3,
       temp_j4: 38 + jitter() * 3, temp_j5: 41 + jitter() * 3, temp_j6: 44 + jitter() * 3,
       temp_dsi: 39 + jitter() * 2,
+      // Extended temperatures (sim = no data)
+      temp_encoder_j1: 0.0, temp_encoder_j2: 0.0, temp_encoder_j3: 0.0,
+      temp_encoder_j4: 0.0, temp_encoder_j5: 0.0, temp_encoder_j6: 0.0,
+      temp_drive_case_j1: 0.0, temp_drive_case_j2: 0.0, temp_drive_case_j3: 0.0,
+      temp_drive_case_j4: 0.0, temp_drive_case_j5: 0.0, temp_drive_case_j6: 0.0,
+      temp_winding_j1: 0.0, temp_winding_j2: 0.0, temp_winding_j3: 0.0,
+      temp_winding_j4: 0.0, temp_winding_j5: 0.0, temp_winding_j6: 0.0,
+      temp_junction_j1: 0.0, temp_junction_j2: 0.0, temp_junction_j3: 0.0,
+      temp_junction_j4: 0.0, temp_junction_j5: 0.0, temp_junction_j6: 0.0,
+      temp_cpu: 0.0, temp_cpu_board: 0.0, temp_rsi: 0.0, temp_starc_board: 0.0,
+      // Joint torques (sim = no data)
+      torque_j1: 0.0, torque_j2: 0.0, torque_j3: 0.0,
+      torque_j4: 0.0, torque_j5: 0.0, torque_j6: 0.0,
+      // I/O board (sim = disconnected)
+      ioboard_connected: false, ioboard_bus_state: "", ioboard_slave_count: 0, ioboard_op_state: false,
       task_selected: "Cycle", task_status: "Cycle",
       parts_found: Math.floor(Math.random() * 8) + 1,
       part_picked: "14in_plate", part_desired: "14in_plate",
@@ -233,6 +288,15 @@ function getSimData() {
       arm_cycles: 16609, power_on_hours: 6.65,
       urps_errors_24h: 0, ethercat_errors_24h: 0,
       last_error_code: "", last_error_time: "",
+    },
+    staubliLogs: {
+      log_connected: false,
+      urps_events_24h: 0, urps_last_time: "", urps_last_code: "",
+      ethercat_events_24h: 0, ethercat_frame_loss_24h: 0,
+      safety_stops_24h: 0, safety_last_cause: "",
+      servo_disable_count_24h: 0, servo_enable_count_24h: 0,
+      app_restarts_24h: 0, arm_total_cycles: 0, arm_power_on_hours: 0,
+      controller_cpu_load_pct: 0,
     },
     apera: {
       connected: true,

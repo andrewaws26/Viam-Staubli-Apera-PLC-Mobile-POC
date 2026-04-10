@@ -63,6 +63,44 @@ function runWatchdog(input: WatchdogInput): CellAlert[] {
     }
   }
 
+  // Extended thermal monitoring
+  if (s) {
+    // Motor windings have higher operating temps
+    const windings = [
+      { name: "J1 Winding", val: (s as any).temp_winding_j1 || 0 },
+      { name: "J2 Winding", val: (s as any).temp_winding_j2 || 0 },
+      { name: "J3 Winding", val: (s as any).temp_winding_j3 || 0 },
+      { name: "J4 Winding", val: (s as any).temp_winding_j4 || 0 },
+      { name: "J5 Winding", val: (s as any).temp_winding_j5 || 0 },
+      { name: "J6 Winding", val: (s as any).temp_winding_j6 || 0 },
+    ];
+    for (const w of windings) {
+      if (w.val >= 120) alert("critical", "thermal", `${w.name} Overheating`, `Winding at ${cToF(w.val)}\u00B0F \u2014 insulation degradation risk. Stop robot immediately.`, "Staubli");
+      else if (w.val >= 100) alert("warning", "thermal", `${w.name} Running Hot`, `Winding at ${cToF(w.val)}\u00B0F \u2014 approaching insulation limit. Reduce cycle rate.`, "Staubli");
+    }
+    // Drive junction temps (proxy for current draw)
+    const junctions = [
+      { name: "J1 Junction", val: (s as any).temp_junction_j1 || 0 },
+      { name: "J2 Junction", val: (s as any).temp_junction_j2 || 0 },
+      { name: "J3 Junction", val: (s as any).temp_junction_j3 || 0 },
+      { name: "J4 Junction", val: (s as any).temp_junction_j4 || 0 },
+      { name: "J5 Junction", val: (s as any).temp_junction_j5 || 0 },
+      { name: "J6 Junction", val: (s as any).temp_junction_j6 || 0 },
+    ];
+    for (const j of junctions) {
+      if (j.val >= 110) alert("critical", "thermal", `${j.name} Overheating`, `Drive junction at ${cToF(j.val)}\u00B0F \u2014 power transistor thermal limit. Check motor load.`, "Staubli");
+      else if (j.val >= 90) alert("warning", "thermal", `${j.name} Running Hot`, `Drive junction at ${cToF(j.val)}\u00B0F \u2014 high current draw detected via thermal proxy.`, "Staubli");
+    }
+    // Controller CPU
+    const cpuTemp = (s as any).temp_cpu || 0;
+    if (cpuTemp >= 90) alert("critical", "thermal", "CS9 CPU Overheating", `Controller CPU at ${cToF(cpuTemp)}\u00B0F \u2014 risk of controller shutdown.`, "Staubli");
+    else if (cpuTemp >= 75) alert("warning", "thermal", "CS9 CPU Warm", `Controller CPU at ${cToF(cpuTemp)}\u00B0F \u2014 check cabinet ventilation.`, "Staubli");
+    // I/O board
+    if ((s as any).ioboard_connected && (s as any).ioboard_slave_count < 3) {
+      alert("critical", "communication", "EtherCAT Slave Missing", `Only ${(s as any).ioboard_slave_count} of 3 expected EtherCAT slaves connected. A terminal may be offline.`, "Staubli");
+    }
+  }
+
   if (a) {
     if (a.system_status === "down") {
       alert("critical", "vision", "Apera Vue System Down", "Containerloader reports system is DOWN. Use Restart Apera button or check the vision PC directly.", "Apera");
