@@ -16,6 +16,7 @@ import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import TextInput from '@/components/ui/TextInput';
 import EmptyState from '@/components/ui/EmptyState';
+import ErrorBoundary from '@/components/ui/ErrorBoundary';
 import { useSyncStore } from '@/sync/sync-status';
 import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
@@ -31,7 +32,7 @@ const SUGGESTED = [
   "Prioritize my repairs today",
 ];
 
-export default function AiScreen() {
+function AiScreenInner() {
   const [mode, setMode] = useState(0);
   const { trucks, selectedTruckId, selectTruck, readings } = useFleetStore();
   const { conversations, addMessage, setConversation, clearConversation, diagnoses, setDiagnosis, isLoading, setLoading } = useAiStore();
@@ -155,6 +156,14 @@ export default function AiScreen() {
         </ScrollView>
       )}
     </KeyboardAvoidingView>
+  );
+}
+
+export default function AiScreen() {
+  return (
+    <ErrorBoundary fallbackTitle="AI screen crashed">
+      <AiScreenInner />
+    </ErrorBoundary>
   );
 }
 

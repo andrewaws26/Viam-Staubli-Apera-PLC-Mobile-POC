@@ -14,12 +14,13 @@ import TruckSelector from '@/components/TruckSelector';
 import SegmentedControl from '@/components/ui/SegmentedControl';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
+import ErrorBoundary from '@/components/ui/ErrorBoundary';
 import { colors } from '@/theme/colors';
 import { spacing, PREFERRED_TOUCH_TARGET } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
 import { INSPECTION_CHECKLIST, type InspectionItem, type CheckResult } from '@/types/inspection';
 
-export default function InspectScreen() {
+function InspectScreenInner() {
   const { currentUser } = useAppAuth();
   const { trucks, selectedTruckId, selectTruck } = useFleetStore();
   const [shiftType, setShiftType] = useState(0); // 0=pre, 1=post
@@ -128,6 +129,14 @@ export default function InspectScreen() {
 
       <View style={{ height: spacing['5xl'] }} />
     </ScrollView>
+  );
+}
+
+export default function InspectScreen() {
+  return (
+    <ErrorBoundary fallbackTitle="Inspection screen crashed">
+      <InspectScreenInner />
+    </ErrorBoundary>
   );
 }
 

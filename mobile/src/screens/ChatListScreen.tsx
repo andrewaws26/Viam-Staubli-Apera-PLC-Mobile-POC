@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useChatStore } from '@/stores/chat-store';
+import ErrorBoundary from '@/components/ui/ErrorBoundary';
 import type { ChatThreadWithPreview, ChatEntityType } from '@/types/chat';
 import { colors } from '@/theme/colors';
 
@@ -37,7 +38,7 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(hours / 24)}d`;
 }
 
-export default function ChatListScreen() {
+function ChatListScreenInner() {
   const router = useRouter();
   const { threads, totalUnread, isLoading, fetchThreads } = useChatStore();
   const [search, setSearch] = React.useState('');
@@ -145,6 +146,14 @@ export default function ChatListScreen() {
         }
       />
     </View>
+  );
+}
+
+export default function ChatListScreen() {
+  return (
+    <ErrorBoundary fallbackTitle="Chat crashed">
+      <ChatListScreenInner />
+    </ErrorBoundary>
   );
 }
 

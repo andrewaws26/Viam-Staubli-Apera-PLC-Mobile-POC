@@ -17,6 +17,8 @@ import SegmentedControl from '@/components/ui/SegmentedControl';
 import Button from '@/components/ui/Button';
 import EmptyState from '@/components/ui/EmptyState';
 import LoadingState from '@/components/ui/LoadingState';
+import ErrorBoundary from '@/components/ui/ErrorBoundary';
+import NetworkError from '@/components/ui/NetworkError';
 import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
@@ -36,10 +38,10 @@ const STATUS_COLORS: Record<WorkOrderStatus, string> = {
   done: colors.successLight,
 };
 
-export default function WorkScreen() {
+function WorkScreenInner() {
   const router = useRouter();
   const { currentUser } = useAppAuth();
-  const { workOrders, isLoading, loadWorkOrders, viewMode, setViewMode } = useWorkStore();
+  const { workOrders, isLoading, error, loadWorkOrders, viewMode, setViewMode } = useWorkStore();
   const [refreshing, setRefreshing] = useState(false);
 
   const isManager = currentUser && (canManageFleet(currentUser.role) || currentUser.role === 'mechanic');
@@ -85,6 +87,7 @@ export default function WorkScreen() {
 
   return (
     <View style={styles.container}>
+      {error && <NetworkError message={error} onRetry={loadWorkOrders} />}
       {/* Header controls */}
       <View style={styles.topBar}>
         <View style={styles.segmentedWrapper}>
@@ -125,6 +128,14 @@ export default function WorkScreen() {
         />
       )}
     </View>
+  );
+}
+
+export default function WorkScreen() {
+  return (
+    <ErrorBoundary fallbackTitle="Work screen crashed">
+      <WorkScreenInner />
+    </ErrorBoundary>
   );
 }
 
@@ -255,7 +266,7 @@ const styles = StyleSheet.create({
   columnTitle: {
     color: colors.text,
     fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.bold as any,
+    fontFamily: typography.fonts.heading,
   },
   countBadge: {
     backgroundColor: colors.border,
@@ -266,7 +277,7 @@ const styles = StyleSheet.create({
   countText: {
     color: colors.textSecondary,
     fontSize: 10,
-    fontWeight: typography.weights.bold as any,
+    fontFamily: typography.fonts.heading,
   },
   columnScroll: {
     flex: 1,

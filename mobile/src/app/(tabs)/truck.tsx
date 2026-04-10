@@ -16,16 +16,19 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import EmptyState from '@/components/ui/EmptyState';
 import LoadingState from '@/components/ui/LoadingState';
+import ErrorBoundary from '@/components/ui/ErrorBoundary';
+import NetworkError from '@/components/ui/NetworkError';
 import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
 import { formatValue, timeAgo } from '@/utils/format';
 import type { TruckSensorReadings } from '@/types/sensor';
 
-export default function TruckScreen() {
+function TruckScreenInner() {
   const router = useRouter();
   const { trucks, selectedTruckId, selectTruck, readings, readingsUpdatedAt, updateReadings } = useFleetStore();
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const truckId = selectedTruckId || trucks[0]?.id;
   const truckReadings = truckId ? readings[truckId] : null;
@@ -33,9 +36,14 @@ export default function TruckScreen() {
 
   const loadReadings = useCallback(async () => {
     if (!truckId) return;
-    const result = await fetchTruckReadings(truckId);
-    if (result.data?.readings) {
-      updateReadings(truckId, result.data.readings as TruckSensorReadings);
+    try {
+      const result = await fetchTruckReadings(truckId);
+      if (result.data?.readings) {
+        updateReadings(truckId, result.data.readings as TruckSensorReadings);
+      }
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load truck data');
     }
   }, [truckId, updateReadings]);
 
@@ -78,6 +86,7 @@ export default function TruckScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
     >
       <TruckSelector trucks={trucks} selectedId={truckId} onSelect={selectTruck} />
+      {error && <NetworkError message={error} onRetry={loadReadings} />}
 
       {updatedAt && (
         <Text style={styles.updated}>Updated {timeAgo(new Date(updatedAt).toISOString())}</Text>
@@ -152,6 +161,14 @@ export default function TruckScreen() {
 
       <View style={{ height: spacing['5xl'] }} />
     </ScrollView>
+  );
+}
+
+export default function TruckScreen() {
+  return (
+    <ErrorBoundary fallbackTitle="Truck screen crashed">
+      <TruckScreenInner />
+    </ErrorBoundary>
   );
 }
 
