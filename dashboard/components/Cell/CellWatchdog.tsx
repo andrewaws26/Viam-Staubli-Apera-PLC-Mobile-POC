@@ -262,17 +262,17 @@ export default function CellWatchdog({ staubli, apera, network, internet = null,
         </div>
         <div className="flex items-center gap-2">
           {criticals.length > 0 && (
-            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-950/50 text-red-400 border border-red-900/50">
+            <span className="px-2 py-0.5 rounded text-xs font-bold bg-red-950/50 text-red-400 border border-red-900/50">
               {criticals.length} CRITICAL
             </span>
           )}
           {warnings.length > 0 && (
-            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-orange-950/50 text-orange-400 border border-orange-900/50">
+            <span className="px-2 py-0.5 rounded text-xs font-bold bg-orange-950/50 text-orange-400 border border-orange-900/50">
               {warnings.length} WARN
             </span>
           )}
           {alerts.length === 0 && (
-            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950/50 text-emerald-400 border border-emerald-800/50">
+            <span className="px-2 py-0.5 rounded text-xs font-bold bg-emerald-950/50 text-emerald-400 border border-emerald-800/50">
               ALL CLEAR
             </span>
           )}
@@ -287,8 +287,8 @@ export default function CellWatchdog({ staubli, apera, network, internet = null,
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[10px] uppercase tracking-wider font-bold opacity-70">{alert.category}</span>
-                    <span className="text-[10px] text-gray-600">{alert.source}</span>
+                    <span className="text-xs uppercase tracking-wider font-bold opacity-70">{alert.category}</span>
+                    <span className="text-xs text-gray-600">{alert.source}</span>
                   </div>
                   <h4 className="text-sm font-semibold">{alert.title}</h4>
                   <p className="text-xs opacity-80 mt-1 leading-relaxed">{alert.detail}</p>

@@ -255,7 +255,7 @@ export default function WorkflowsPage() {
           <div className="flex items-center gap-3">
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Workflow Builder</h1>
             {isLocal && (
-              <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-green-500/20 text-green-400 border border-green-600/30">
+              <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-green-500/20 text-green-400 border border-green-600/30">
                 LOCAL ENGINE
               </span>
             )}
@@ -295,7 +295,7 @@ export default function WorkflowsPage() {
             <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
               <h3 className="text-sm font-bold text-green-400 mb-2">1. Self-Hosted Runner</h3>
               <p className="text-xs text-gray-500 mb-3">Register your Pi 5 as a GitHub Actions runner for always-on CI/CD.</p>
-              <pre className="text-[10px] text-gray-400 bg-gray-950 rounded p-2 overflow-x-auto font-mono leading-relaxed">{`# On your Pi 5:
+              <pre className="text-xs text-gray-400 bg-gray-950 rounded p-2 overflow-x-auto font-mono leading-relaxed">{`# On your Pi 5:
 cd ~/actions-runner
 ./config.sh --url \\
   https://github.com/OWNER/REPO \\
@@ -308,7 +308,7 @@ sudo ./svc.sh start`}</pre>
             <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
               <h3 className="text-sm font-bold text-green-400 mb-2">2. Cron Automation</h3>
               <p className="text-xs text-gray-500 mb-3">Schedule scripts directly on the Pi for tasks that don&apos;t need CI.</p>
-              <pre className="text-[10px] text-gray-400 bg-gray-950 rounded p-2 overflow-x-auto font-mono leading-relaxed">{`# Example cron entries:
+              <pre className="text-xs text-gray-400 bg-gray-950 rounded p-2 overflow-x-auto font-mono leading-relaxed">{`# Example cron entries:
 # Daily report generation
 0 3 * * * claude -p "Generate \\
   shift report" >> /var/log/reports.log
@@ -323,7 +323,7 @@ sudo ./svc.sh start`}</pre>
             <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
               <h3 className="text-sm font-bold text-green-400 mb-2">3. Always-On Claude</h3>
               <p className="text-xs text-gray-500 mb-3">Run long Claude Code sessions that would time out on serverless.</p>
-              <pre className="text-[10px] text-gray-400 bg-gray-950 rounded p-2 overflow-x-auto font-mono leading-relaxed">{`# Automated diagnostic analysis
+              <pre className="text-xs text-gray-400 bg-gray-950 rounded p-2 overflow-x-auto font-mono leading-relaxed">{`# Automated diagnostic analysis
 claude -p "Analyze last 24h of \\
   fleet sensor data and write \\
   a summary to /tmp/daily.md"
@@ -426,26 +426,26 @@ ssh andrew@100.112.68.52`}</pre>
                     <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${w.isActive ? "bg-green-400" : "bg-gray-600"}`} />
                   </span>
                   <span className="text-sm font-semibold text-gray-200 truncate flex-1">{w.name}</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${em.bg} ${em.text}`}>{em.label}</span>
+                  <span className={`text-xs px-1.5 py-0.5 rounded ${em.bg} ${em.text}`}>{em.label}</span>
                 </div>
                 {w.description && (
                   <p className="text-xs text-gray-500 ml-5 mb-1 line-clamp-1">{w.description}</p>
                 )}
                 <div className="flex items-center gap-2 ml-5">
                   {w.cronExpression && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
                       {describeCron(w.cronExpression)}
                     </span>
                   )}
                   {lastStatus && (
                     <span className="flex items-center gap-1">
                       <span className={`h-1.5 w-1.5 rounded-full ${lastStatus.dot}`} />
-                      <span className={`text-[10px] capitalize ${lastStatus.text}`}>
+                      <span className={`text-xs capitalize ${lastStatus.text}`}>
                         {w.lastRun!.status}
                       </span>
                     </span>
                   )}
-                  <span className="text-[10px] text-gray-700 ml-auto">{timeAgo(w.updatedAt)}</span>
+                  <span className="text-xs text-gray-700 ml-auto">{timeAgo(w.updatedAt)}</span>
                 </div>
               </button>
             );
@@ -465,10 +465,10 @@ ssh andrew@100.112.68.52`}</pre>
                 <div>
                   <h2 className="text-lg font-bold text-gray-100">{selected.name}</h2>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${ENGINE_META[selected.engine]?.bg || ""} ${ENGINE_META[selected.engine]?.text || ""}`}>
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${ENGINE_META[selected.engine]?.bg || ""} ${ENGINE_META[selected.engine]?.text || ""}`}>
                       {ENGINE_META[selected.engine]?.label || selected.engine}
                     </span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${selected.isActive ? "bg-green-500/20 text-green-400" : "bg-gray-700/50 text-gray-500"}`}>
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${selected.isActive ? "bg-green-500/20 text-green-400" : "bg-gray-700/50 text-gray-500"}`}>
                       {selected.isActive ? "Active" : "Inactive"}
                     </span>
                   </div>
@@ -500,21 +500,21 @@ ssh andrew@100.112.68.52`}</pre>
               {/* Config */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <span className="text-[10px] text-gray-600 uppercase block">Schedule</span>
+                  <span className="text-xs text-gray-600 uppercase block">Schedule</span>
                   <span className="text-sm text-gray-300 font-mono">
                     {selected.cronExpression ? describeCron(selected.cronExpression) : "Manual only"}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-gray-600 uppercase block">Cron</span>
+                  <span className="text-xs text-gray-600 uppercase block">Cron</span>
                   <span className="text-sm text-gray-300 font-mono">{selected.cronExpression || "--"}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-gray-600 uppercase block">Engine</span>
+                  <span className="text-xs text-gray-600 uppercase block">Engine</span>
                   <span className="text-sm text-gray-300">{ENGINE_META[selected.engine]?.desc || selected.engine}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-gray-600 uppercase block">Created</span>
+                  <span className="text-xs text-gray-600 uppercase block">Created</span>
                   <span className="text-sm text-gray-300">{new Date(selected.createdAt).toLocaleDateString()}</span>
                 </div>
               </div>
@@ -524,7 +524,7 @@ ssh andrew@100.112.68.52`}</pre>
                 <div className="space-y-2">
                   {selected.config.command ? (
                     <div>
-                      <span className="text-[10px] text-gray-600 uppercase block">Command</span>
+                      <span className="text-xs text-gray-600 uppercase block">Command</span>
                       <code className="text-xs text-cyan-400 bg-gray-950 rounded px-2 py-1 block mt-0.5 font-mono">
                         {String(selected.config.command)}
                       </code>
@@ -532,7 +532,7 @@ ssh andrew@100.112.68.52`}</pre>
                   ) : null}
                   {selected.config.prompt ? (
                     <div>
-                      <span className="text-[10px] text-gray-600 uppercase block">Claude Prompt</span>
+                      <span className="text-xs text-gray-600 uppercase block">Claude Prompt</span>
                       <p className="text-xs text-gray-400 bg-gray-950 rounded px-2 py-1 mt-0.5 whitespace-pre-wrap">
                         {String(selected.config.prompt)}
                       </p>
@@ -554,11 +554,11 @@ ssh andrew@100.112.68.52`}</pre>
                         <div key={r.id} className="flex items-center gap-2 p-2 rounded-lg border border-gray-800/50 bg-gray-900/30">
                           <span className={`h-2 w-2 rounded-full ${sc.dot} shrink-0`} />
                           <span className={`text-xs capitalize ${sc.text} w-16`}>{r.status}</span>
-                          <span className="text-[10px] px-1 py-0.5 rounded bg-gray-800 text-gray-500">{r.trigger}</span>
-                          <span className="text-[10px] text-gray-600 ml-auto">
+                          <span className="text-xs px-1 py-0.5 rounded bg-gray-800 text-gray-500">{r.trigger}</span>
+                          <span className="text-xs text-gray-600 ml-auto">
                             {duration(r.startedAt, r.endedAt)}
                           </span>
-                          <span className="text-[10px] text-gray-700">{timeAgo(r.startedAt)}</span>
+                          <span className="text-xs text-gray-700">{timeAgo(r.startedAt)}</span>
                         </div>
                       );
                     })}
@@ -598,7 +598,7 @@ ssh andrew@100.112.68.52`}</pre>
                       // Structured output from local engine
                       return (
                         <div className="space-y-2">
-                          <div className="flex gap-2 text-[10px]">
+                          <div className="flex gap-2 text-xs">
                             <span className={`px-1.5 py-0.5 rounded ${out.exitCode === 0 ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"}`}>
                               exit {out.exitCode}
                             </span>
@@ -691,7 +691,7 @@ ssh andrew@100.112.68.52`}</pre>
                       }`}>
                       <div className="text-lg mb-1">{meta.icon}</div>
                       <div className={`text-xs font-bold ${formEngine === e ? "text-cyan-400" : "text-gray-300"}`}>{meta.label}</div>
-                      <div className="text-[10px] text-gray-500 mt-0.5 line-clamp-2">{meta.desc}</div>
+                      <div className="text-xs text-gray-500 mt-0.5 line-clamp-2">{meta.desc}</div>
                     </button>
                   );
                 })}
@@ -706,7 +706,7 @@ ssh andrew@100.112.68.52`}</pre>
               <div className="flex gap-1.5 mt-2 flex-wrap">
                 {CRON_PRESETS.map((p) => (
                   <button key={p.value} onClick={() => setFormCron(p.value)}
-                    className={`px-2 py-0.5 text-[10px] rounded border transition-colors ${
+                    className={`px-2 py-0.5 text-xs rounded border transition-colors ${
                       formCron === p.value
                         ? "border-cyan-600 bg-cyan-600/20 text-cyan-400"
                         : "border-gray-700 bg-gray-800/30 text-gray-500 hover:border-gray-600"
@@ -716,7 +716,7 @@ ssh andrew@100.112.68.52`}</pre>
                 ))}
               </div>
               {formCron && (
-                <p className="text-[10px] text-gray-500 mt-1">
+                <p className="text-xs text-gray-500 mt-1">
                   Schedule: <span className="text-gray-300">{describeCron(formCron)}</span>
                 </p>
               )}
@@ -728,7 +728,7 @@ ssh andrew@100.112.68.52`}</pre>
 
               {(formEngine === "dev-pi" || formEngine === "vercel-cron") && (
                 <div>
-                  <label className="text-[10px] text-gray-600 block mb-1">
+                  <label className="text-xs text-gray-600 block mb-1">
                     {formEngine === "dev-pi" ? "SSH Command (runs on Pi 5)" : "Shell Command (runs locally)"}
                   </label>
                   <input value={formCommand} onChange={(e) => setFormCommand(e.target.value)}
@@ -739,7 +739,7 @@ ssh andrew@100.112.68.52`}</pre>
 
               {formEngine === "github-actions" && (
                 <div>
-                  <label className="text-[10px] text-gray-600 block mb-1">Workflow File</label>
+                  <label className="text-xs text-gray-600 block mb-1">Workflow File</label>
                   <input value={formCommand} onChange={(e) => setFormCommand(e.target.value)}
                     className="w-full px-3 py-2 text-sm rounded-lg border border-gray-700 bg-gray-800/50 text-gray-200 font-mono"
                     placeholder="dev-pi.yml" />
@@ -747,7 +747,7 @@ ssh andrew@100.112.68.52`}</pre>
               )}
 
               <div>
-                <label className="text-[10px] text-gray-600 block mb-1">Claude Prompt (optional — runs Claude CLI)</label>
+                <label className="text-xs text-gray-600 block mb-1">Claude Prompt (optional — runs Claude CLI)</label>
                 <textarea value={formPrompt} onChange={(e) => setFormPrompt(e.target.value)} rows={3}
                   className="w-full px-3 py-2 text-sm rounded-lg border border-gray-700 bg-gray-800/50 text-gray-200 font-mono"
                   placeholder="Analyze the last 24h of fleet data and generate a summary report..." />

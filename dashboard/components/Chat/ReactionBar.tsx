@@ -29,7 +29,7 @@ export default function ReactionBar({ reactions, onToggle }: ReactionBarProps) {
               title={label.label}
             >
               <span>{label.emoji}</span>
-              <span className="font-mono text-[10px]">{r.count}</span>
+              <span className="font-mono text-xs">{r.count}</span>
             </button>
           );
         })}

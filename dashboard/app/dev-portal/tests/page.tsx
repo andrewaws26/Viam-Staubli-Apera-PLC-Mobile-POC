@@ -179,7 +179,7 @@ export default function TestRunsPage() {
                     {r.status === "running" && <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${sc.dot} opacity-75`} />}
                     <span className={`relative inline-flex rounded-full h-2 w-2 ${sc.dot}`} />
                   </span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${suc.bg} ${suc.text}`}>{r.suite}</span>
+                  <span className={`text-xs px-1.5 py-0.5 rounded ${suc.bg} ${suc.text}`}>{r.suite}</span>
                   <span className={`text-xs capitalize ${sc.text} flex-1`}>{r.status}</span>
                   {r.totalTests !== null && (
                     <span className="text-xs text-gray-400">
@@ -190,10 +190,10 @@ export default function TestRunsPage() {
                   )}
                 </div>
                 <div className="flex items-center gap-3 ml-4">
-                  {r.branch && <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">{r.branch}</span>}
-                  {r.durationMs !== null && <span className="text-[10px] text-gray-600">{(r.durationMs / 1000).toFixed(1)}s</span>}
-                  <span className="text-[10px] text-gray-700">{r.trigger}</span>
-                  <span className="text-[10px] text-gray-700 ml-auto">{timeAgo(r.startedAt)}</span>
+                  {r.branch && <span className="text-xs px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">{r.branch}</span>}
+                  {r.durationMs !== null && <span className="text-xs text-gray-600">{(r.durationMs / 1000).toFixed(1)}s</span>}
+                  <span className="text-xs text-gray-700">{r.trigger}</span>
+                  <span className="text-xs text-gray-700 ml-auto">{timeAgo(r.startedAt)}</span>
                 </div>
               </button>
             );
@@ -208,7 +208,7 @@ export default function TestRunsPage() {
           ) : (
             <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-4 space-y-4">
               <div className="flex items-center gap-2">
-                <span className={`text-[10px] px-1.5 py-0.5 rounded ${(SUITE_COLORS[selected.suite] || SUITE_COLORS.unit).bg} ${(SUITE_COLORS[selected.suite] || SUITE_COLORS.unit).text}`}>{selected.suite}</span>
+                <span className={`text-xs px-1.5 py-0.5 rounded ${(SUITE_COLORS[selected.suite] || SUITE_COLORS.unit).bg} ${(SUITE_COLORS[selected.suite] || SUITE_COLORS.unit).text}`}>{selected.suite}</span>
                 <h2 className="text-lg font-bold text-gray-100 capitalize">{selected.status}</h2>
               </div>
 
@@ -235,12 +235,12 @@ export default function TestRunsPage() {
               )}
 
               <div className="grid grid-cols-2 gap-3">
-                <div><span className="text-[10px] text-gray-600 uppercase block">Duration</span><span className="text-sm text-gray-300">{selected.durationMs ? `${(selected.durationMs / 1000).toFixed(1)}s` : "--"}</span></div>
-                <div><span className="text-[10px] text-gray-600 uppercase block">Trigger</span><span className="text-sm text-gray-300">{selected.trigger}</span></div>
-                <div><span className="text-[10px] text-gray-600 uppercase block">Branch</span><span className="text-sm text-gray-300 font-mono">{selected.branch || "--"}</span></div>
-                <div><span className="text-[10px] text-gray-600 uppercase block">Commit</span><span className="text-sm text-gray-300 font-mono">{selected.commitSha?.slice(0, 7) || "--"}</span></div>
-                <div><span className="text-[10px] text-gray-600 uppercase block">Started</span><span className="text-sm text-gray-300">{new Date(selected.startedAt).toLocaleString()}</span></div>
-                <div><span className="text-[10px] text-gray-600 uppercase block">Ended</span><span className="text-sm text-gray-300">{selected.endedAt ? new Date(selected.endedAt).toLocaleString() : "ongoing"}</span></div>
+                <div><span className="text-xs text-gray-600 uppercase block">Duration</span><span className="text-sm text-gray-300">{selected.durationMs ? `${(selected.durationMs / 1000).toFixed(1)}s` : "--"}</span></div>
+                <div><span className="text-xs text-gray-600 uppercase block">Trigger</span><span className="text-sm text-gray-300">{selected.trigger}</span></div>
+                <div><span className="text-xs text-gray-600 uppercase block">Branch</span><span className="text-sm text-gray-300 font-mono">{selected.branch || "--"}</span></div>
+                <div><span className="text-xs text-gray-600 uppercase block">Commit</span><span className="text-sm text-gray-300 font-mono">{selected.commitSha?.slice(0, 7) || "--"}</span></div>
+                <div><span className="text-xs text-gray-600 uppercase block">Started</span><span className="text-sm text-gray-300">{new Date(selected.startedAt).toLocaleString()}</span></div>
+                <div><span className="text-xs text-gray-600 uppercase block">Ended</span><span className="text-sm text-gray-300">{selected.endedAt ? new Date(selected.endedAt).toLocaleString() : "ongoing"}</span></div>
               </div>
 
               {selected.outputUrl && (

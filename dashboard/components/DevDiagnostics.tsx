@@ -127,9 +127,9 @@ export default function DevDiagnostics({ components, truckReadings, connectionSt
   return (
     <div className="border border-amber-900/50 rounded-2xl bg-amber-950/10 overflow-hidden">
       <div className="px-4 sm:px-5 py-3 border-b border-amber-900/30 flex items-center gap-2 flex-wrap">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-amber-500">Dev Diagnostics</span>
+        <span className="text-xs font-bold uppercase tracking-widest text-amber-500">Dev Diagnostics</span>
         {heartbeat && (
-          <span className={`text-[10px] font-mono ${
+          <span className={`text-xs font-mono ${
             (Date.now() / 1000 - heartbeat.epoch) < 180 ? "text-green-500" : "text-red-400"
           }`}>
             Pi {(Date.now() / 1000 - heartbeat.epoch) < 180 ? "alive" : "stale"} ({
@@ -138,18 +138,18 @@ export default function DevDiagnostics({ components, truckReadings, connectionSt
           </span>
         )}
         {errorFlags.length > 0 && (
-          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-900/30 text-red-400">{errorFlags.length} ERROR</span>
+          <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-red-900/30 text-red-400">{errorFlags.length} ERROR</span>
         )}
         {warnFlags.length > 0 && (
-          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-900/30 text-yellow-400">{warnFlags.length} WARN</span>
+          <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-yellow-900/30 text-yellow-400">{warnFlags.length} WARN</span>
         )}
         {allFlags.length === 0 && (
-          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-green-900/30 text-green-400">ALL OK</span>
+          <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-green-900/30 text-green-400">ALL OK</span>
         )}
         <button
           onClick={() => triggerFix("all")}
           disabled={!!fixRunning}
-          className={`ml-auto px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider transition-colors ${
+          className={`ml-auto px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider transition-colors ${
             fixRunning
               ? "bg-amber-900/30 text-amber-600 cursor-wait"
               : "bg-amber-900/50 text-amber-400 hover:bg-amber-800/50"
@@ -157,7 +157,7 @@ export default function DevDiagnostics({ components, truckReadings, connectionSt
         >
           {fixRunning === "all" ? "Running..." : "Run All Checks"}
         </button>
-        <a href="/dev" className="text-[10px] text-amber-600 hover:text-amber-400 transition-colors">
+        <a href="/dev" className="text-xs text-amber-600 hover:text-amber-400 transition-colors">
           Full Dev Panel &rarr;
         </a>
       </div>
@@ -213,11 +213,11 @@ export default function DevDiagnostics({ components, truckReadings, connectionSt
                   flag.level === "error" ? "bg-red-500" : "bg-yellow-500"
                 }`} />
                 <div className="min-w-0">
-                  <span className="text-[10px] text-gray-400">{flag.label}: </span>
-                  <span className={`text-[10px] font-mono ${flag.level === "error" ? "text-red-400" : "text-yellow-400"}`}>
+                  <span className="text-xs text-gray-400">{flag.label}: </span>
+                  <span className={`text-xs font-mono ${flag.level === "error" ? "text-red-400" : "text-yellow-400"}`}>
                     {typeof flag.value === "number" ? flag.value.toFixed(1) : flag.value}
                   </span>
-                  <p className="text-[10px] text-gray-600">{flag.reason}</p>
+                  <p className="text-xs text-gray-600">{flag.reason}</p>
                 </div>
               </div>
             ))}
@@ -233,8 +233,8 @@ export default function DevDiagnostics({ components, truckReadings, connectionSt
                   d.level === "critical" ? "bg-red-500" : d.level === "warning" ? "bg-yellow-500" : "bg-blue-500"
                 }`} />
                 <div className="min-w-0">
-                  {d.code && <span className="text-[10px] font-mono text-gray-500">{d.code} </span>}
-                  <span className="text-[10px] text-gray-300">{d.message}</span>
+                  {d.code && <span className="text-xs font-mono text-gray-500">{d.code} </span>}
+                  <span className="text-xs text-gray-300">{d.message}</span>
                 </div>
               </div>
             ))}
@@ -260,7 +260,7 @@ export default function DevDiagnostics({ components, truckReadings, connectionSt
 
         {/* ── Fix Result (if just triggered) ── */}
         {fixResult && (
-          <div className={`p-2 rounded-lg border text-[10px] ${
+          <div className={`p-2 rounded-lg border text-xs ${
             fixResult.status === "ok" || fixResult.status === "fixed"
               ? "border-green-800/50 bg-green-950/20 text-green-400"
               : "border-red-800/50 bg-red-950/20 text-red-400"
@@ -274,7 +274,7 @@ export default function DevDiagnostics({ components, truckReadings, connectionSt
           {healStatus ? (
             <>
               {healStatus.checks.map((c, i) => (
-                <div key={i} className="flex items-center justify-between gap-2 text-[10px]">
+                <div key={i} className="flex items-center justify-between gap-2 text-xs">
                   <span className="text-gray-500">{c.check}</span>
                   <div className="flex items-center gap-1.5">
                     <span className={`font-mono ${
@@ -298,13 +298,13 @@ export default function DevDiagnostics({ components, truckReadings, connectionSt
                 </div>
               ))}
               {healStatus.checks.filter(c => c.status !== "ok").map((c, i) => (
-                <div key={`d-${i}`} className="text-[10px] text-gray-600 pl-2 border-l border-gray-800">
+                <div key={`d-${i}`} className="text-xs text-gray-600 pl-2 border-l border-gray-800">
                   {c.check}: {c.detail}
                 </div>
               ))}
             </>
           ) : (
-            <p className="text-[10px] text-gray-600">No heal data yet — waiting for first check cycle</p>
+            <p className="text-xs text-gray-600">No heal data yet — waiting for first check cycle</p>
           )}
         </Section>
 
@@ -333,7 +333,7 @@ export default function DevDiagnostics({ components, truckReadings, connectionSt
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h4 className="text-[10px] font-bold uppercase tracking-widest text-gray-600 mb-1.5 border-b border-gray-800/30 pb-1">
+      <h4 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-1.5 border-b border-gray-800/30 pb-1">
         {title}
       </h4>
       <div className="space-y-1">
@@ -345,7 +345,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function KV({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
-    <div className="flex items-center justify-between gap-2 text-[10px]">
+    <div className="flex items-center justify-between gap-2 text-xs">
       <span className="text-gray-500">{label}</span>
       <span className={`font-mono ${color ?? "text-gray-300"}`}>{value}</span>
     </div>

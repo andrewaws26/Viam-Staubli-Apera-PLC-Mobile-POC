@@ -52,10 +52,10 @@ export default function SnapshotMap({ latitude, longitude, heading, speed, altit
         </MapContainer>
       </div>
       <div className="px-3 py-2 border-t border-gray-200 flex flex-wrap justify-between items-center gap-2 bg-gray-50">
-        <span className="text-[10px] text-gray-600 font-mono font-bold">
+        <span className="text-xs text-gray-600 font-mono font-bold">
           {latitude.toFixed(6)}, {longitude.toFixed(6)}
         </span>
-        <div className="flex items-center gap-3 text-[10px] text-gray-500">
+        <div className="flex items-center gap-3 text-xs text-gray-500">
           {heading != null && <span>Heading: <b className="text-gray-700">{Math.round(heading)}&deg;</b></span>}
           {speed != null && <span>GPS Speed: <b className="text-gray-700">{Number(speed).toFixed(1)} mph</b></span>}
           {altitude != null && <span>Alt: <b className="text-gray-700">{Math.round(Number(altitude))} ft</b></span>}

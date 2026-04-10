@@ -190,7 +190,7 @@ export default function ControlPlanePage() {
                     {s.status}
                   </span>
                   {s.responseMs !== null && (
-                    <span className="text-[10px] text-gray-600">
+                    <span className="text-xs text-gray-600">
                       {s.responseMs}ms
                     </span>
                   )}
@@ -209,7 +209,7 @@ export default function ControlPlanePage() {
             <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">
               Recent Deployments
             </h2>
-            <a href="/dev-portal/deployments" className="text-[10px] text-cyan-500 hover:text-cyan-400">
+            <a href="/dev-portal/deployments" className="text-xs text-cyan-500 hover:text-cyan-400">
               View All
             </a>
           </div>
@@ -234,18 +234,18 @@ export default function ControlPlanePage() {
                         {d.target}
                       </span>
                       {d.branch && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
                           {d.branch}
                         </span>
                       )}
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
                       {d.commitSha && (
-                        <span className="text-[10px] text-gray-600 font-mono">
+                        <span className="text-xs text-gray-600 font-mono">
                           {d.commitSha.slice(0, 7)}
                         </span>
                       )}
-                      <span className="text-[10px] text-gray-700">
+                      <span className="text-xs text-gray-700">
                         {timeAgo(d.startedAt)}
                       </span>
                     </div>
@@ -262,7 +262,7 @@ export default function ControlPlanePage() {
             <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">
               Recent Test Runs
             </h2>
-            <a href="/dev-portal/tests" className="text-[10px] text-cyan-500 hover:text-cyan-400">
+            <a href="/dev-portal/tests" className="text-xs text-cyan-500 hover:text-cyan-400">
               View All
             </a>
           </div>
@@ -287,18 +287,18 @@ export default function ControlPlanePage() {
                         {t.suite}
                       </span>
                       {t.totalTests !== null && (
-                        <span className="text-[10px] text-gray-500">
+                        <span className="text-xs text-gray-500">
                           {t.passed}/{t.totalTests} passed
                         </span>
                       )}
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
                       {t.durationMs !== null && (
-                        <span className="text-[10px] text-gray-600">
+                        <span className="text-xs text-gray-600">
                           {(t.durationMs / 1000).toFixed(1)}s
                         </span>
                       )}
-                      <span className="text-[10px] text-gray-700">
+                      <span className="text-xs text-gray-700">
                         {timeAgo(t.startedAt)}
                       </span>
                     </div>
@@ -335,10 +335,10 @@ export default function ControlPlanePage() {
                     {s.title || s.sessionType}
                   </span>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">
                       {s.sessionType}
                     </span>
-                    <span className="text-[10px] text-gray-700">
+                    <span className="text-xs text-gray-700">
                       {timeAgo(s.startedAt)}
                     </span>
                   </div>

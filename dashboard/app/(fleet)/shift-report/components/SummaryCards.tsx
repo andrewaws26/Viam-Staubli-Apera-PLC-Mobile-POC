@@ -25,7 +25,7 @@ export function SummaryCard({
 
   return (
     <div className={`bg-gray-900 rounded-xl border p-3 sm:p-4 print-kpi-cell ${colorMap[color]}`}>
-      <p className="text-[10px] sm:text-xs text-gray-500 uppercase tracking-widest">{label}</p>
+      <p className="text-xs sm:text-xs text-gray-500 uppercase tracking-widest">{label}</p>
       <p className={`text-2xl sm:text-4xl font-black mt-1 leading-none ${colorMap[color].split(" ")[0]}`}>
         {value}
         <span className="text-sm sm:text-lg font-normal ml-1 opacity-60">{unit}</span>
@@ -60,9 +60,9 @@ export function PeakCard({
 
   return (
     <div className={`rounded-xl border p-3 sm:p-4 ${bgMap[color]}`}>
-      <p className="text-[10px] sm:text-xs text-gray-500 uppercase tracking-widest">{label}</p>
+      <p className="text-xs sm:text-xs text-gray-500 uppercase tracking-widest">{label}</p>
       <p className={`text-xl sm:text-2xl font-bold mt-1 ${textMap[color]}`}>{value}</p>
-      {time && <p className="text-[10px] text-gray-600 mt-0.5">at {fmtTime(time)}</p>}
+      {time && <p className="text-xs text-gray-600 mt-0.5">at {fmtTime(time)}</p>}
     </div>
   );
 }
@@ -70,7 +70,7 @@ export function PeakCard({
 export function MiniStat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="bg-gray-800/50 rounded-lg px-3 py-2">
-      <p className="text-[10px] text-gray-500 uppercase tracking-widest">{label}</p>
+      <p className="text-xs text-gray-500 uppercase tracking-widest">{label}</p>
       <p className="text-lg font-bold text-gray-200 mt-0.5">{value}</p>
       {sub && <p className="text-[9px] text-gray-600">{sub}</p>}
     </div>

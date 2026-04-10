@@ -165,19 +165,19 @@ export default function InvoicesPage() {
         {/* Summary cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           <div className="p-4 rounded-xl bg-gray-900/50 border border-gray-800">
-            <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">Total Invoices</div>
+            <div className="text-xs text-gray-600 uppercase tracking-wider mb-1">Total Invoices</div>
             <div className="text-xl font-bold text-gray-100">{invoices.length}</div>
           </div>
           <div className="p-4 rounded-xl bg-gray-900/50 border border-gray-800">
-            <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">Outstanding</div>
+            <div className="text-xs text-gray-600 uppercase tracking-wider mb-1">Outstanding</div>
             <div className="text-xl font-bold text-blue-400">{fmtCurrency(totalOutstanding)}</div>
           </div>
           <div className="p-4 rounded-xl bg-gray-900/50 border border-gray-800">
-            <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">Overdue</div>
+            <div className="text-xs text-gray-600 uppercase tracking-wider mb-1">Overdue</div>
             <div className="text-xl font-bold text-red-400">{fmtCurrency(totalOverdue)}</div>
           </div>
           <div className="p-4 rounded-xl bg-gray-900/50 border border-gray-800">
-            <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">Paid (All Time)</div>
+            <div className="text-xs text-gray-600 uppercase tracking-wider mb-1">Paid (All Time)</div>
             <div className="text-xl font-bold text-green-400">
               {fmtCurrency(invoices.filter((i) => i.status === "paid").reduce((s, i) => s + Number(i.total), 0))}
             </div>
@@ -199,7 +199,7 @@ export default function InvoicesPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
-                <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Customer *</label>
+                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Customer *</label>
                 <select value={customerId} onChange={(e) => {
                   setCustomerId(e.target.value);
                   const cust = customers.find((c) => c.id === e.target.value);
@@ -214,17 +214,17 @@ export default function InvoicesPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Invoice Date</label>
+                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Invoice Date</label>
                 <input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white [color-scheme:dark]" />
               </div>
               <div>
-                <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Due Date</label>
+                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Due Date</label>
                 <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white [color-scheme:dark]" />
               </div>
               <div>
-                <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Job</label>
+                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Job</label>
                 <select value={jobId} onChange={(e) => setJobId(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white">
                   <option value="">No job</option>
@@ -235,7 +235,7 @@ export default function InvoicesPage() {
 
             {/* Line items */}
             <div>
-              <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-2">Line Items</label>
+              <label className="block text-xs text-gray-600 uppercase tracking-wider mb-2">Line Items</label>
               <div className="space-y-2">
                 {lines.map((line, idx) => (
                   <div key={idx} className="flex gap-2 items-center">
@@ -266,7 +266,7 @@ export default function InvoicesPage() {
             </div>
 
             <div>
-              <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Notes</label>
+              <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Notes</label>
               <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2}
                 className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
             </div>
@@ -296,7 +296,7 @@ export default function InvoicesPage() {
           <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
             <table className="w-full text-sm min-w-[800px]">
               <thead>
-                <tr className="text-[10px] uppercase tracking-wider text-gray-600 border-b border-gray-800">
+                <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
                   <th className="text-left px-4 py-3 font-medium w-20">#</th>
                   <th className="text-left px-4 py-3 font-medium">Customer</th>
                   <th className="text-left px-4 py-3 font-medium w-24">Date</th>
@@ -317,7 +317,7 @@ export default function InvoicesPage() {
                       <td className="px-4 py-3 text-gray-400 text-xs">{fmtDate(inv.invoice_date)}</td>
                       <td className="px-4 py-3 text-gray-400 text-xs">{fmtDate(inv.due_date)}</td>
                       <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${style.bg} ${style.text}`}>
+                        <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${style.bg} ${style.text}`}>
                           {inv.status}
                         </span>
                       </td>
@@ -366,17 +366,17 @@ export default function InvoicesPage() {
             <div className="bg-gray-900 rounded-xl border border-gray-700 p-6 w-full max-w-md space-y-4">
               <h3 className="text-sm font-bold uppercase tracking-wider text-gray-300">Record Payment</h3>
               <div>
-                <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Amount</label>
+                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Amount</label>
                 <input type="number" step="0.01" value={payAmount} onChange={(e) => setPayAmount(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-sm text-white" />
               </div>
               <div>
-                <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Date</label>
+                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Date</label>
                 <input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-sm text-white [color-scheme:dark]" />
               </div>
               <div>
-                <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Method</label>
+                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Method</label>
                 <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-sm text-white">
                   <option value="check">Check</option>
@@ -387,7 +387,7 @@ export default function InvoicesPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Reference / Check #</label>
+                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Reference / Check #</label>
                 <input value={payRef} onChange={(e) => setPayRef(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-sm text-white" />
               </div>

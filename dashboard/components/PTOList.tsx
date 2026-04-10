@@ -167,10 +167,10 @@ export default function PTOList({ currentUserRole }: Props) {
                       <span className="text-sm font-bold text-gray-100">
                         {startFormatted} - {endFormatted}
                       </span>
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${typeBadge.bg} ${typeBadge.text}`}>
+                      <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${typeBadge.bg} ${typeBadge.text}`}>
                         {PTO_TYPE_LABELS[req.pto_type]}
                       </span>
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${statusBadge.bg} ${statusBadge.text}`}>
+                      <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${statusBadge.bg} ${statusBadge.text}`}>
                         {PTO_STATUS_LABELS[req.status]}
                       </span>
                     </div>

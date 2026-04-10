@@ -278,7 +278,7 @@ export default function BudgetPage() {
                 {/* Fiscal Year + Save */}
                 <div className="flex flex-wrap items-end gap-4">
                   <div>
-                    <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">
+                    <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">
                       Fiscal Year
                     </label>
                     <input
@@ -321,7 +321,7 @@ export default function BudgetPage() {
                             </div>
                           </th>
                         </tr>
-                        <tr className="text-[10px] uppercase tracking-wider text-gray-600 border-b border-gray-800">
+                        <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
                           <th className="text-left px-4 py-3 font-medium w-28">Acct #</th>
                           <th className="text-left px-4 py-3 font-medium">Account Name</th>
                           <th className="text-right px-4 py-3 font-medium w-44">Budget</th>
@@ -360,7 +360,7 @@ export default function BudgetPage() {
                         {/* Revenue Total */}
                         <tr className="border-t border-gray-700 bg-gray-800/40">
                           <td colSpan={2} className="px-4 py-2.5 text-right">
-                            <span className="text-[10px] uppercase tracking-wider text-gray-500">
+                            <span className="text-xs uppercase tracking-wider text-gray-500">
                               Revenue Total
                             </span>
                           </td>
@@ -388,7 +388,7 @@ export default function BudgetPage() {
                             </div>
                           </th>
                         </tr>
-                        <tr className="text-[10px] uppercase tracking-wider text-gray-600 border-b border-gray-800">
+                        <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
                           <th className="text-left px-4 py-3 font-medium w-28">Acct #</th>
                           <th className="text-left px-4 py-3 font-medium">Account Name</th>
                           <th className="text-right px-4 py-3 font-medium w-44">Budget</th>
@@ -427,7 +427,7 @@ export default function BudgetPage() {
                         {/* Expense Total */}
                         <tr className="border-t border-gray-700 bg-gray-800/40">
                           <td colSpan={2} className="px-4 py-2.5 text-right">
-                            <span className="text-[10px] uppercase tracking-wider text-gray-500">
+                            <span className="text-xs uppercase tracking-wider text-gray-500">
                               Expense Total
                             </span>
                           </td>
@@ -443,7 +443,7 @@ export default function BudgetPage() {
                 {/* Net Budget */}
                 <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] uppercase tracking-wider text-gray-600 font-medium">
+                    <span className="text-xs uppercase tracking-wider text-gray-600 font-medium">
                       Net Budgeted Income
                     </span>
                     <span
@@ -466,7 +466,7 @@ export default function BudgetPage() {
                 {/* Controls */}
                 <div className="flex flex-wrap items-end gap-4">
                   <div>
-                    <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">
+                    <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">
                       Fiscal Year
                     </label>
                     <input
@@ -502,31 +502,31 @@ export default function BudgetPage() {
                     {/* Summary Cards */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                       <div className="rounded-xl bg-gray-900/50 border border-gray-800 p-4">
-                        <p className="text-[10px] uppercase tracking-wider text-gray-600 font-medium">
+                        <p className="text-xs uppercase tracking-wider text-gray-600 font-medium">
                           Revenue
                         </p>
                         <p className="text-lg font-black text-emerald-400 mt-1">
                           {fmtCurrency(reportData.summary.total_revenue_actual)}
                         </p>
-                        <p className="text-[10px] text-gray-500 mt-0.5">
+                        <p className="text-xs text-gray-500 mt-0.5">
                           Budget: {fmtCurrency(reportData.summary.total_revenue_budget)}
                         </p>
                       </div>
 
                       <div className="rounded-xl bg-gray-900/50 border border-gray-800 p-4">
-                        <p className="text-[10px] uppercase tracking-wider text-gray-600 font-medium">
+                        <p className="text-xs uppercase tracking-wider text-gray-600 font-medium">
                           Expenses
                         </p>
                         <p className="text-lg font-black text-red-400 mt-1">
                           {fmtCurrency(reportData.summary.total_expense_actual)}
                         </p>
-                        <p className="text-[10px] text-gray-500 mt-0.5">
+                        <p className="text-xs text-gray-500 mt-0.5">
                           Budget: {fmtCurrency(reportData.summary.total_expense_budget)}
                         </p>
                       </div>
 
                       <div className="rounded-xl bg-gray-900/50 border border-gray-800 p-4">
-                        <p className="text-[10px] uppercase tracking-wider text-gray-600 font-medium">
+                        <p className="text-xs uppercase tracking-wider text-gray-600 font-medium">
                           Net Income
                         </p>
                         <p
@@ -538,13 +538,13 @@ export default function BudgetPage() {
                         >
                           {fmtCurrency(reportData.summary.net_actual)}
                         </p>
-                        <p className="text-[10px] text-gray-500 mt-0.5">
+                        <p className="text-xs text-gray-500 mt-0.5">
                           Budget: {fmtCurrency(reportData.summary.net_budget)}
                         </p>
                       </div>
 
                       <div className="rounded-xl bg-gray-900/50 border border-gray-800 p-4">
-                        <p className="text-[10px] uppercase tracking-wider text-gray-600 font-medium">
+                        <p className="text-xs uppercase tracking-wider text-gray-600 font-medium">
                           Overall Variance
                         </p>
                         <p
@@ -558,7 +558,7 @@ export default function BudgetPage() {
                             reportData.summary.net_actual - reportData.summary.net_budget
                           )}
                         </p>
-                        <p className="text-[10px] text-gray-500 mt-0.5">
+                        <p className="text-xs text-gray-500 mt-0.5">
                           {reportData.summary.net_budget !== 0
                             ? fmtPercent(
                                 ((reportData.summary.net_actual -
@@ -576,7 +576,7 @@ export default function BudgetPage() {
                     <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
                       <table className="w-full text-sm min-w-[800px]">
                         <thead>
-                          <tr className="text-[10px] uppercase tracking-wider text-gray-600 border-b border-gray-800">
+                          <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
                             <th className="text-left px-4 py-3 font-medium">Account</th>
                             <th className="text-right px-4 py-3 font-medium w-28">Budget</th>
                             <th className="text-right px-4 py-3 font-medium w-28">Actual</th>
@@ -632,7 +632,7 @@ export default function BudgetPage() {
                                   </td>
                                   <td className="px-4 py-2.5 text-center">
                                     <span
-                                      className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                                      className={`inline-block px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider ${
                                         row.favorable
                                           ? "bg-emerald-900/60 text-emerald-300"
                                           : "bg-red-900/60 text-red-300"
@@ -646,7 +646,7 @@ export default function BudgetPage() {
                               {/* Revenue Total */}
                               <tr className="border-t border-gray-700">
                                 <td className="px-4 py-2 text-right">
-                                  <span className="text-[10px] uppercase tracking-wider text-gray-500">
+                                  <span className="text-xs uppercase tracking-wider text-gray-500">
                                     Revenue Total
                                   </span>
                                 </td>
@@ -721,7 +721,7 @@ export default function BudgetPage() {
                                   </td>
                                   <td className="px-4 py-2.5 text-center">
                                     <span
-                                      className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                                      className={`inline-block px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider ${
                                         row.favorable
                                           ? "bg-emerald-900/60 text-emerald-300"
                                           : "bg-red-900/60 text-red-300"
@@ -735,7 +735,7 @@ export default function BudgetPage() {
                               {/* Expense Total */}
                               <tr className="border-t border-gray-700">
                                 <td className="px-4 py-2 text-right">
-                                  <span className="text-[10px] uppercase tracking-wider text-gray-500">
+                                  <span className="text-xs uppercase tracking-wider text-gray-500">
                                     Expense Total
                                   </span>
                                 </td>
@@ -806,7 +806,7 @@ export default function BudgetPage() {
                             </td>
                             <td className="px-4 py-3 text-center">
                               <span
-                                className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                                className={`inline-block px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider ${
                                   reportData.summary.net_actual >= reportData.summary.net_budget
                                     ? "bg-emerald-900/60 text-emerald-300"
                                     : "bg-red-900/60 text-red-300"

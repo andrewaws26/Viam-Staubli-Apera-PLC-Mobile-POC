@@ -232,21 +232,21 @@ export default function SessionsPage() {
                     <span className="text-sm font-semibold text-gray-200 truncate flex-1">
                       {s.title || `${tc.label} Session`}
                     </span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${tc.bg} ${tc.text}`}>
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${tc.bg} ${tc.text}`}>
                       {tc.label}
                     </span>
                   </div>
                   <div className="flex items-center gap-3 ml-4">
                     <span className={`text-xs capitalize ${sc.text}`}>{s.status}</span>
-                    <span className="text-[10px] text-gray-600">
+                    <span className="text-xs text-gray-600">
                       {duration(s.startedAt, s.endedAt)}
                     </span>
                     {s.tokensUsed && (
-                      <span className="text-[10px] text-gray-600">
+                      <span className="text-xs text-gray-600">
                         {s.tokensUsed > 1000 ? `${(s.tokensUsed / 1000).toFixed(1)}k` : s.tokensUsed} tokens
                       </span>
                     )}
-                    <span className="text-[10px] text-gray-700 ml-auto">
+                    <span className="text-xs text-gray-700 ml-auto">
                       {timeAgo(s.startedAt)}
                     </span>
                   </div>
@@ -276,37 +276,37 @@ export default function SessionsPage() {
               {/* Metadata grid */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <span className="text-[10px] text-gray-600 uppercase block">Status</span>
+                  <span className="text-xs text-gray-600 uppercase block">Status</span>
                   <span className={`text-sm font-semibold capitalize ${(STATUS_COLORS[detail.status] || STATUS_COLORS.cancelled).text}`}>
                     {detail.status}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-gray-600 uppercase block">Type</span>
+                  <span className="text-xs text-gray-600 uppercase block">Type</span>
                   <span className="text-sm text-gray-300">
                     {(TYPE_LABELS[detail.sessionType] || TYPE_LABELS.manual).label}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-gray-600 uppercase block">Duration</span>
+                  <span className="text-xs text-gray-600 uppercase block">Duration</span>
                   <span className="text-sm text-gray-300">
                     {duration(detail.startedAt, detail.endedAt)}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-gray-600 uppercase block">Cost</span>
+                  <span className="text-xs text-gray-600 uppercase block">Cost</span>
                   <span className="text-sm text-gray-300">
                     {detail.costCents ? `$${(detail.costCents / 100).toFixed(2)}` : "--"}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-gray-600 uppercase block">Tokens</span>
+                  <span className="text-xs text-gray-600 uppercase block">Tokens</span>
                   <span className="text-sm text-gray-300">
                     {detail.tokensUsed ? detail.tokensUsed.toLocaleString() : "--"}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-gray-600 uppercase block">Started</span>
+                  <span className="text-xs text-gray-600 uppercase block">Started</span>
                   <span className="text-sm text-gray-300">
                     {new Date(detail.startedAt).toLocaleString()}
                   </span>

@@ -82,10 +82,10 @@ export default function TruckMap({ latitude, longitude, vehicleState }: any) {
         </MapContainer>
       </div>
       <div className="px-3 py-2 border-t border-gray-200 flex flex-wrap justify-between items-center gap-1 bg-gray-50">
-         <span className="text-[10px] text-gray-600 font-mono font-bold">{latitude.toFixed(5)}, {longitude.toFixed(5)}</span>
+         <span className="text-xs text-gray-600 font-mono font-bold">{latitude.toFixed(5)}, {longitude.toFixed(5)}</span>
          <div className="flex items-center gap-2">
-           <span className="text-[10px] text-gray-400 uppercase font-bold tracking-tighter">Status:</span>
-           <span className="text-[10px] text-blue-600 font-black uppercase">{vehicleState}</span>
+           <span className="text-xs text-gray-400 uppercase font-bold tracking-tighter">Status:</span>
+           <span className="text-xs text-blue-600 font-black uppercase">{vehicleState}</span>
          </div>
       </div>
     </div>

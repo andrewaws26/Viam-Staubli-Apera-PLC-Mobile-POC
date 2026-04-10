@@ -155,7 +155,7 @@ export default function HealthPage() {
                     <div key={`empty-${i}`} className="h-6 flex-1 rounded-sm bg-gray-800/50" />
                   ))}
                 </div>
-                <span className="text-[10px] text-gray-600 w-14 text-right shrink-0">
+                <span className="text-xs text-gray-600 w-14 text-right shrink-0">
                   {sourceHistory.length > 0 ? `${sourceHistory[0].response_ms || "--"}ms` : "--"}
                 </span>
               </div>
@@ -171,7 +171,7 @@ export default function HealthPage() {
             {selectedSource ? `${selectedSource} History` : "All Check History"}
           </h2>
           {selectedSource && (
-            <button onClick={() => setSelectedSource(null)} className="text-[10px] text-cyan-500 hover:text-cyan-400">
+            <button onClick={() => setSelectedSource(null)} className="text-xs text-cyan-500 hover:text-cyan-400">
               Show All
             </button>
           )}
@@ -188,8 +188,8 @@ export default function HealthPage() {
                 <span className={`h-2 w-2 rounded-full ${c.dot} shrink-0`} />
                 <span className="text-xs text-gray-400 w-20">{h.source}</span>
                 <span className={`text-xs capitalize ${c.text} w-16`}>{h.status}</span>
-                <span className="text-[10px] text-gray-600 w-14 text-right">{h.response_ms ? `${h.response_ms}ms` : "--"}</span>
-                <span className="text-[10px] text-gray-700 ml-auto">{timeAgo(h.checked_at)}</span>
+                <span className="text-xs text-gray-600 w-14 text-right">{h.response_ms ? `${h.response_ms}ms` : "--"}</span>
+                <span className="text-xs text-gray-700 ml-auto">{timeAgo(h.checked_at)}</span>
               </div>
             );
           })}

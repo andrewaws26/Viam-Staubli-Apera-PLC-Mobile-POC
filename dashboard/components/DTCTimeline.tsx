@@ -51,7 +51,7 @@ export default function DTCTimeline({ events, onClear }: DTCTimelineProps) {
         </button>
         <button
           onClick={onClear}
-          className="text-[10px] text-gray-600 hover:text-gray-400 px-2 py-1"
+          className="text-xs text-gray-600 hover:text-gray-400 px-2 py-1"
         >
           Clear History
         </button>
@@ -62,7 +62,7 @@ export default function DTCTimeline({ events, onClear }: DTCTimelineProps) {
           {/* Intermittent pattern alerts */}
           {intermittent.length > 0 && (
             <div className="bg-yellow-950/30 border border-yellow-800/30 rounded-lg px-3 py-2 mb-3">
-              <span className="text-[10px] font-bold text-yellow-400 uppercase tracking-wider">
+              <span className="text-xs font-bold text-yellow-400 uppercase tracking-wider">
                 Intermittent Codes Detected
               </span>
               <div className="mt-1 space-y-1">
@@ -103,7 +103,7 @@ export default function DTCTimeline({ events, onClear }: DTCTimelineProps) {
                   <span className="text-gray-700 ml-1">
                     ({lookupFMI(e.fmi)})
                   </span>
-                  <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">
+                  <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">
                     {e.ecuLabel}
                   </span>
                 </div>

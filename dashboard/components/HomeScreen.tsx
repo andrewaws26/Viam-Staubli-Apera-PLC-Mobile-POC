@@ -311,7 +311,7 @@ function ModuleSection({
 
   return (
     <div>
-      <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-600 mb-3 px-1">
+      <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-gray-600 mb-3 px-1">
         {title}
       </h2>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -429,7 +429,7 @@ export default function HomeScreen() {
 
         {/* Footer */}
         <div className="mt-16 pt-6 border-t border-gray-800/50 text-center">
-          <p className="text-[10px] text-gray-700 uppercase tracking-widest">
+          <p className="text-xs text-gray-700 uppercase tracking-widest">
             IronSight v1.0 — B&B Metals Fleet Intelligence
           </p>
         </div>

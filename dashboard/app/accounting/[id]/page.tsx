@@ -244,7 +244,7 @@ export default function JournalEntryDetailPage() {
                   {entry.description}
                 </h2>
                 <span
-                  className={`inline-block px-2.5 py-0.5 rounded border text-[10px] font-bold uppercase tracking-wider ${
+                  className={`inline-block px-2.5 py-0.5 rounded border text-xs font-bold uppercase tracking-wider ${
                     STATUS_BADGE[entry.status]
                   }`}
                 >
@@ -254,7 +254,7 @@ export default function JournalEntryDetailPage() {
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
                 <div>
-                  <div className="text-[10px] text-gray-600 uppercase tracking-wider">
+                  <div className="text-xs text-gray-600 uppercase tracking-wider">
                     Date
                   </div>
                   <div className="text-gray-300 font-mono">
@@ -262,7 +262,7 @@ export default function JournalEntryDetailPage() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-[10px] text-gray-600 uppercase tracking-wider">
+                  <div className="text-xs text-gray-600 uppercase tracking-wider">
                     Reference
                   </div>
                   <div className="text-gray-300 font-mono">
@@ -270,7 +270,7 @@ export default function JournalEntryDetailPage() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-[10px] text-gray-600 uppercase tracking-wider">
+                  <div className="text-xs text-gray-600 uppercase tracking-wider">
                     Source
                   </div>
                   <div className="text-gray-300">
@@ -278,7 +278,7 @@ export default function JournalEntryDetailPage() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-[10px] text-gray-600 uppercase tracking-wider">
+                  <div className="text-xs text-gray-600 uppercase tracking-wider">
                     Created By
                   </div>
                   <div className="text-gray-300">
@@ -295,7 +295,7 @@ export default function JournalEntryDetailPage() {
             </div>
 
             <div className="text-right">
-              <div className="text-[10px] text-gray-600 uppercase tracking-wider">
+              <div className="text-xs text-gray-600 uppercase tracking-wider">
                 Total Amount
               </div>
               <div className="text-2xl font-black font-mono text-gray-100">
@@ -338,7 +338,7 @@ export default function JournalEntryDetailPage() {
         <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
           <table className="w-full text-sm min-w-[600px]">
             <thead>
-              <tr className="text-[10px] uppercase tracking-wider text-gray-600 border-b border-gray-800">
+              <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
                 <th className="text-left px-4 py-3 font-medium w-24">
                   Acct #
                 </th>
@@ -395,11 +395,11 @@ export default function JournalEntryDetailPage() {
                 </td>
                 <td className="px-4 py-3">
                   {Math.abs(totalDebits - totalCredits) < 0.01 ? (
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
                       Balanced
                     </span>
                   ) : (
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-red-400">
+                    <span className="text-xs font-bold uppercase tracking-wider text-red-400">
                       Unbalanced
                     </span>
                   )}
@@ -442,7 +442,7 @@ export default function JournalEntryDetailPage() {
         </div>
 
         {/* Metadata footer */}
-        <div className="text-[10px] text-gray-700 flex items-center gap-4 pt-2">
+        <div className="text-xs text-gray-700 flex items-center gap-4 pt-2">
           <span>Created {fmtDateTime(entry.created_at)}</span>
           {entry.updated_at !== entry.created_at && (
             <span>Updated {fmtDateTime(entry.updated_at)}</span>

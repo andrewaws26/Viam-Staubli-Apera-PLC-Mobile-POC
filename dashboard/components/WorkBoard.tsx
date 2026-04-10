@@ -11,6 +11,7 @@ import {
 import type { WorkOrder, WorkOrderStatus } from "@ironsight/shared/work-order";
 import WorkOrderChatTab from "@/components/Chat/WorkOrderChatTab";
 import { useToast } from "@/components/Toast";
+import PromptModal from "@/components/ui/PromptModal";
 
 type Status = WorkOrderStatus;
 const STATUSES: Status[] = ["open", "in_progress", "blocked", "done"];
@@ -55,6 +56,10 @@ export default function WorkBoard() {
   const [viewMode, setViewMode] = useState<"board" | "my_work">("board");
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [fleetTrucks, setFleetTrucks] = useState<FleetTruck[]>([]);
+  const [blockerPrompt, setBlockerPrompt] = useState<{
+    woId: string;
+    source: "drag" | "button";
+  } | null>(null);
 
   const role =
     ((user?.publicMetadata as Record<string, unknown>)?.role as string) || "operator";
@@ -151,9 +156,7 @@ export default function WorkBoard() {
       if (!wo || wo.status === newStatus) return;
 
       if (newStatus === "blocked") {
-        const reason = prompt("What's blocking this?");
-        if (!reason) return;
-        updateStatus(draggableId, newStatus, { blocker_reason: reason });
+        setBlockerPrompt({ woId: draggableId, source: "drag" });
         return;
       }
 
@@ -277,6 +280,7 @@ export default function WorkBoard() {
                                 onToggleSubtask={(subtaskId) => updateOrder(wo.id, { status: wo.status, toggle_subtask_id: subtaskId })}
                                 onAssign={(userId, userName) => updateOrder(wo.id, { assigned_to: userId, assigned_to_name: userName })}
                                 onSetTruck={(truckId) => updateOrder(wo.id, { truck_id: truckId })}
+                                onBlock={() => setBlockerPrompt({ woId: wo.id, source: "button" })}
                               />
                             </div>
                           )}
@@ -320,6 +324,7 @@ export default function WorkBoard() {
                   onToggleSubtask={(subtaskId) => updateOrder(wo.id, { status: wo.status, toggle_subtask_id: subtaskId })}
                   onAssign={(userId, userName) => updateOrder(wo.id, { assigned_to: userId, assigned_to_name: userName })}
                   onSetTruck={(truckId) => updateOrder(wo.id, { truck_id: truckId })}
+                  onBlock={() => setBlockerPrompt({ woId: wo.id, source: "button" })}
                 />
               ))}
             </div>
@@ -339,6 +344,20 @@ export default function WorkBoard() {
           }}
         />
       )}
+
+      {/* Blocker Reason Modal */}
+      <PromptModal
+        open={!!blockerPrompt}
+        title="What's blocking this?"
+        placeholder="Describe the blocker..."
+        onConfirm={(reason) => {
+          if (blockerPrompt && reason) {
+            updateStatus(blockerPrompt.woId, "blocked", { blocker_reason: reason });
+          }
+          setBlockerPrompt(null);
+        }}
+        onCancel={() => setBlockerPrompt(null)}
+      />
     </div>
   );
 }
@@ -355,6 +374,7 @@ function WorkOrderCard({
   onToggleSubtask,
   onAssign,
   onSetTruck,
+  onBlock,
 }: {
   wo: WorkOrder;
   isDragging: boolean;
@@ -365,6 +385,7 @@ function WorkOrderCard({
   onToggleSubtask: (subtaskId: string) => void;
   onAssign: (userId: string | null, userName: string | null) => void;
   onSetTruck: (truckId: string | null) => void;
+  onBlock: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [showAssignMenu, setShowAssignMenu] = useState(false);
@@ -435,7 +456,7 @@ function WorkOrderCard({
             {wo.title}
           </p>
           {showStatus && (
-            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${statusBadgeColor}`}>
+            <span className={`text-xs font-bold px-1.5 py-0.5 rounded shrink-0 ${statusBadgeColor}`}>
               {STATUS_LABELS[wo.status]}
             </span>
           )}
@@ -444,7 +465,7 @@ function WorkOrderCard({
         {/* Meta row */}
         <div className="flex items-center gap-2 mt-2 flex-wrap">
           {wo.priority === "urgent" && (
-            <span className="text-[10px] font-bold text-red-400 bg-red-900/30 px-1.5 py-0.5 rounded">
+            <span className="text-xs font-bold text-red-400 bg-red-900/30 px-1.5 py-0.5 rounded">
               URGENT
             </span>
           )}
@@ -452,7 +473,7 @@ function WorkOrderCard({
             <a
               href={`/?truck=${wo.truck_id}`}
               onClick={(e) => e.stopPropagation()}
-              className="text-[10px] font-medium text-blue-400 bg-blue-900/30 px-1.5 py-0.5 rounded hover:bg-blue-900/50 hover:text-blue-300 transition"
+              className="text-xs font-medium text-blue-400 bg-blue-900/30 px-1.5 py-0.5 rounded hover:bg-blue-900/50 hover:text-blue-300 transition"
             >
               {fleetTrucks.find((t) => t.id === wo.truck_id)?.name || wo.truck_id} →
             </a>
@@ -508,7 +529,7 @@ function WorkOrderCard({
                       } flex items-center justify-center transition`}
                     >
                       {st.is_done && (
-                        <span className="text-[10px] text-white">✓</span>
+                        <span className="text-xs text-white">✓</span>
                       )}
                     </div>
                     <span
@@ -531,7 +552,7 @@ function WorkOrderCard({
                 {wo.linked_dtcs.map((dtc, i) => (
                   <span
                     key={`${dtc.spn}-${i}`}
-                    className="text-[10px] bg-red-900/30 text-red-400 px-1.5 py-0.5 rounded"
+                    className="text-xs bg-red-900/30 text-red-400 px-1.5 py-0.5 rounded"
                   >
                     SPN {dtc.spn} / FMI {dtc.fmi}
                   </span>
@@ -556,10 +577,7 @@ function WorkOrderCard({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    const reason = prompt("What's blocking this?");
-                    if (reason) {
-                      onStatusChange("blocked", { blocker_reason: reason });
-                    }
+                    onBlock();
                   }}
                   className="text-xs px-3 py-1.5 bg-red-900/50 hover:bg-red-900/70 text-red-300 rounded-md font-medium transition"
                 >
@@ -637,11 +655,11 @@ function WorkOrderCard({
                           setShowAssignMenu(false);
                         }}
                       >
-                        <span className="w-5 h-5 rounded-full bg-gray-600 flex items-center justify-center text-[10px] text-gray-300 shrink-0">
+                        <span className="w-5 h-5 rounded-full bg-gray-600 flex items-center justify-center text-xs text-gray-300 shrink-0">
                           {m.name.charAt(0).toUpperCase()}
                         </span>
                         <span className="truncate">{m.name}</span>
-                        <span className="text-gray-600 text-[10px] ml-auto shrink-0">{m.role}</span>
+                        <span className="text-gray-600 text-xs ml-auto shrink-0">{m.role}</span>
                       </button>
                     ))}
                     {teamMembers.length === 0 && (
@@ -652,7 +670,7 @@ function WorkOrderCard({
               </div>
             </div>
 
-            <p className="text-[10px] text-gray-600">
+            <p className="text-xs text-gray-600">
               Created by {wo.created_by_name} · {timeAgo(wo.created_at)}
             </p>
 
@@ -872,7 +890,7 @@ function CreateModal({
             <div className="mt-2 space-y-1.5">
               {subtasks.map((step, i) => (
                 <div key={i} className="flex items-center gap-2">
-                  <span className="text-[10px] text-gray-600 w-4 text-right shrink-0">
+                  <span className="text-xs text-gray-600 w-4 text-right shrink-0">
                     {i + 1}.
                   </span>
                   <input

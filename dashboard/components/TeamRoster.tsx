@@ -93,7 +93,7 @@ export default function TeamRoster() {
                   <p className="text-sm font-semibold text-gray-200 truncate">{m.name}</p>
                   <p className="text-xs text-gray-500 truncate">{m.email}</p>
                 </div>
-                <span className={`shrink-0 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${badge.bg} ${badge.text}`}>
+                <span className={`shrink-0 px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider border ${badge.bg} ${badge.text}`}>
                   {m.role}
                 </span>
               </div>

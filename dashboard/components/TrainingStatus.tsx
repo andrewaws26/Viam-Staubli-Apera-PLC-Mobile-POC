@@ -180,7 +180,7 @@ function TrainingDetailCard({ detail }: { detail: TrainingComplianceDetail }) {
             {/* Status indicator dot */}
             <div className={`w-2.5 h-2.5 rounded-full ${style.dot} shrink-0`} />
             <span className="text-sm font-bold text-gray-100">{requirement.name}</span>
-            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${style.bg} ${style.text}`}>
+            <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${style.bg} ${style.text}`}>
               {COMPLIANCE_STATUS_LABELS[detail.status]}
             </span>
           </div>

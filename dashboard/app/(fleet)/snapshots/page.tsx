@@ -527,7 +527,7 @@ function SnapshotDetail({ snapshot, onBack }: { snapshot: SnapshotFull; onBack: 
 function KeyMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="text-center">
-      <p className="text-[10px] text-gray-500 uppercase tracking-wider">{label}</p>
+      <p className="text-xs text-gray-500 uppercase tracking-wider">{label}</p>
       <p className="text-lg font-bold text-white font-mono">{value}</p>
     </div>
   );
@@ -668,7 +668,7 @@ function CaptureForm({ onCapture, onCancel }: {
                     <span className="text-xl">{sys.icon}</span>
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm font-semibold ${active ? "text-white" : "text-gray-500"}`}>{sys.label}</p>
-                      <p className={`text-[10px] ${active ? "opacity-60" : "text-gray-600"}`}>{sys.desc}</p>
+                      <p className={`text-xs ${active ? "opacity-60" : "text-gray-600"}`}>{sys.desc}</p>
                     </div>
                     {active && (
                       <span className="text-xs text-gray-400">{sysIncluded}/{sysFieldKeys.length} metrics</span>
@@ -922,7 +922,7 @@ export default function SnapshotsPage() {
                       {s.systems.map(sys => {
                         const info = AVAILABLE_SYSTEMS.find(a => a.id === sys);
                         return info ? (
-                          <span key={sys} className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${SYSTEM_BADGE_CLASSES[sys] || "bg-gray-800 text-gray-500"}`}>
+                          <span key={sys} className={`text-xs px-1.5 py-0.5 rounded font-medium ${SYSTEM_BADGE_CLASSES[sys] || "bg-gray-800 text-gray-500"}`}>
                             {info.icon} {info.label}
                           </span>
                         ) : null;

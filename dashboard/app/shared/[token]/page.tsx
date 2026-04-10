@@ -549,7 +549,7 @@ function ShiftReportViewer({ data, meta }: { data: Record<string, unknown>; meta
 function KeyMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="text-center">
-      <p className="text-[10px] text-gray-500 uppercase tracking-wider">{label}</p>
+      <p className="text-xs text-gray-500 uppercase tracking-wider">{label}</p>
       <p className="text-lg font-bold text-white font-mono">{value}</p>
     </div>
   );
@@ -558,7 +558,7 @@ function KeyMetric({ label, value }: { label: string; value: string }) {
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-800/50 text-center">
-      <p className="text-[10px] text-gray-500 uppercase tracking-wider">{label}</p>
+      <p className="text-xs text-gray-500 uppercase tracking-wider">{label}</p>
       <p className="text-xl font-bold text-white font-mono mt-1">{value}</p>
     </div>
   );

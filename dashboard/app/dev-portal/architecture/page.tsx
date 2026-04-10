@@ -229,13 +229,13 @@ export default function ArchitecturePage() {
                           selectedNodeId === n.id ? `${nc.border} ${nc.bg}` : "border-gray-800 bg-gray-900/40 hover:border-gray-700"
                         }`}>
                         <div className="flex items-center gap-2 mb-1">
-                          <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-bold ${nc.bg} ${nc.text}`}>
+                          <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold ${nc.bg} ${nc.text}`}>
                             {nc.icon}
                           </span>
                           <span className={`h-2 w-2 rounded-full ${STATUS_DOT[n.status] || STATUS_DOT.inactive}`} />
                         </div>
                         <div className="text-sm font-semibold text-gray-200 truncate">{n.name}</div>
-                        <div className="text-[10px] text-gray-600 mt-0.5">{connCount} connection{connCount !== 1 ? "s" : ""}</div>
+                        <div className="text-xs text-gray-600 mt-0.5">{connCount} connection{connCount !== 1 ? "s" : ""}</div>
                       </button>
                     );
                   })}
@@ -279,11 +279,11 @@ export default function ArchitecturePage() {
                       const direction = e.source_id === selectedNodeId ? "->" : "<-";
                       return (
                         <div key={e.id} className={`flex items-center gap-2 p-2 rounded-lg border ${EDGE_COLORS[e.edge_type] || EDGE_COLORS.data} bg-gray-950/30`}>
-                          <span className="text-[10px] text-gray-500 font-mono">{direction}</span>
+                          <span className="text-xs text-gray-500 font-mono">{direction}</span>
                           <span className="text-xs text-gray-300 flex-1">{other?.name || "?"}</span>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-500">{e.edge_type}</span>
-                          {e.label && <span className="text-[10px] text-gray-600">{e.label}</span>}
-                          <button onClick={() => deleteEdge(e.id)} className="text-[10px] text-red-500 hover:text-red-400">x</button>
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-gray-800 text-gray-500">{e.edge_type}</span>
+                          {e.label && <span className="text-xs text-gray-600">{e.label}</span>}
+                          <button onClick={() => deleteEdge(e.id)} className="text-xs text-red-500 hover:text-red-400">x</button>
                         </div>
                       );
                     })}
@@ -295,7 +295,7 @@ export default function ArchitecturePage() {
               {Object.keys(selectedNode.metadata).length > 0 && (
                 <div>
                   <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">Metadata</h3>
-                  <pre className="p-2 rounded-lg bg-gray-950 border border-gray-800 text-[10px] text-gray-400 font-mono overflow-x-auto">
+                  <pre className="p-2 rounded-lg bg-gray-950 border border-gray-800 text-xs text-gray-400 font-mono overflow-x-auto">
                     {JSON.stringify(selectedNode.metadata, null, 2)}
                   </pre>
                 </div>

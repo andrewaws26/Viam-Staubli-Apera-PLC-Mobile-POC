@@ -116,7 +116,7 @@ export default function TimesheetList({ currentUserRole }: Props) {
                         {" - "}
                         {weekEnd.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                       </span>
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${badge.bg} ${badge.text}`}>
+                      <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${badge.bg} ${badge.text}`}>
                         {badge.label}
                       </span>
                     </div>

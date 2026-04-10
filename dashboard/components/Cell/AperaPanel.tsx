@@ -13,7 +13,7 @@ import type { AperaReadings } from "./CellTypes";
 function KV({ label, value, color, mono }: { label: string; value: string; color?: string; mono?: boolean }) {
   return (
     <div className="flex flex-col min-w-0">
-      <span className="text-[10px] text-gray-600 uppercase tracking-wide truncate">{label}</span>
+      <span className="text-xs text-gray-600 uppercase tracking-wide truncate">{label}</span>
       <span className={`text-xs sm:text-sm truncate ${mono ? "font-mono" : ""} ${color || "text-gray-300"}`}>{value}</span>
     </div>
   );
@@ -140,7 +140,7 @@ export default function AperaPanel({ readings, pollError }: Props) {
             <>
               {/* ---- Pipeline Status ---- */}
               <div>
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
                   Pipeline
                 </h3>
                 <div className="flex items-center gap-3 mb-3">
@@ -157,7 +157,7 @@ export default function AperaPanel({ readings, pollError }: Props) {
 
               {/* ---- Detection Results ---- */}
               <div>
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
                   Detections
                 </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2 mb-3">
@@ -171,10 +171,10 @@ export default function AperaPanel({ readings, pollError }: Props) {
                 </div>
 
                 {sortedDetections.length > 0 && (
-                  <div className="grid grid-cols-5 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                     {sortedDetections.map(([cls, count]) => (
                       <div key={cls} className="bg-gray-900/50 border border-gray-800/50 rounded-lg p-2 text-center">
-                        <div className="text-[10px] text-gray-500 truncate">{cls.replace(/_/g, " ")}</div>
+                        <div className="text-xs text-gray-500 truncate">{cls.replace(/_/g, " ")}</div>
                         <div className="font-mono font-bold text-sm text-gray-200">{count}</div>
                       </div>
                     ))}
@@ -184,7 +184,7 @@ export default function AperaPanel({ readings, pollError }: Props) {
 
               {/* ---- Calibration ---- */}
               <div>
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
                   Calibration
                 </h3>
                 <div className="flex items-center gap-3 mb-2">
@@ -198,7 +198,7 @@ export default function AperaPanel({ readings, pollError }: Props) {
 
               {/* ---- System Health & Controls ---- */}
               <div>
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
                   System Health
                 </h3>
                 <div className="flex items-center gap-3 mb-3">
@@ -215,14 +215,14 @@ export default function AperaPanel({ readings, pollError }: Props) {
                   <button
                     onClick={() => sendCommand("apera_reconnect")}
                     disabled={!!actionPending}
-                    className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg border border-blue-800/50 bg-blue-950/30 text-blue-400 hover:bg-blue-900/40 disabled:opacity-50 transition-colors"
+                    className="px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg border border-blue-800/50 bg-blue-950/30 text-blue-400 hover:bg-blue-900/40 disabled:opacity-50 transition-colors"
                   >
                     {actionPending === "apera_reconnect" ? "Reconnecting\u2026" : "Reconnect Socket"}
                   </button>
                   <button
                     onClick={() => sendCommand("apera_health")}
                     disabled={!!actionPending}
-                    className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg border border-cyan-800/50 bg-cyan-950/30 text-cyan-400 hover:bg-cyan-900/40 disabled:opacity-50 transition-colors"
+                    className="px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg border border-cyan-800/50 bg-cyan-950/30 text-cyan-400 hover:bg-cyan-900/40 disabled:opacity-50 transition-colors"
                   >
                     {actionPending === "apera_health" ? "Checking\u2026" : "Health Check"}
                   </button>
@@ -233,7 +233,7 @@ export default function AperaPanel({ readings, pollError }: Props) {
                       }
                     }}
                     disabled={!!actionPending}
-                    className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg border border-orange-800/50 bg-orange-950/30 text-orange-400 hover:bg-orange-900/40 disabled:opacity-50 transition-colors"
+                    className="px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg border border-orange-800/50 bg-orange-950/30 text-orange-400 hover:bg-orange-900/40 disabled:opacity-50 transition-colors"
                   >
                     {actionPending === "apera_restart" ? "Restarting\u2026" : "Restart Apera"}
                   </button>

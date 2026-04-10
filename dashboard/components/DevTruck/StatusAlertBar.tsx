@@ -31,14 +31,14 @@ export default function StatusAlertBar({
 
       {/* Idle Waste Alert */}
       {idleWaste && (
-        <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-orange-600/30 text-orange-300 border border-orange-600/50">
+        <span className="px-2 py-1 rounded-full text-xs font-bold bg-orange-600/30 text-orange-300 border border-orange-600/50">
           IDLE WASTE
         </span>
       )}
 
       {/* Harsh Behavior Alert */}
       {harshBehavior && (
-        <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-red-600/30 text-red-300 border border-red-600/50 animate-pulse">
+        <span className="px-2 py-1 rounded-full text-xs font-bold bg-red-600/30 text-red-300 border border-red-600/50 animate-pulse">
           HARSH EVENT
         </span>
       )}

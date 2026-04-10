@@ -147,7 +147,7 @@ export default function PTOAdmin() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-sm font-bold text-gray-100">{req.user_name}</span>
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-blue-900/50 text-blue-300">
+                        <span className="px-2 py-0.5 rounded text-xs font-bold uppercase bg-blue-900/50 text-blue-300">
                           {PTO_TYPE_LABELS[req.pto_type]}
                         </span>
                       </div>
@@ -250,7 +250,7 @@ export default function PTOAdmin() {
                       {startLabel} - {endLabel}
                     </span>
                   </div>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-rose-900/40 text-rose-300 shrink-0">
+                  <span className="px-2 py-0.5 rounded text-xs font-bold uppercase bg-rose-900/40 text-rose-300 shrink-0">
                     {PTO_TYPE_LABELS[req.pto_type]}
                   </span>
                 </div>

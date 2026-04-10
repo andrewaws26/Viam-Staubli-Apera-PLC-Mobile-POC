@@ -292,7 +292,7 @@ export default function TimesheetSections({ timesheetId, canEdit }: Props) {
                   {section.label}
                 </span>
                 {sectionEntries.length > 0 && (
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${colors.badge}`}>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${colors.badge}`}>
                     {sectionEntries.length}
                   </span>
                 )}
@@ -616,7 +616,7 @@ function renderEntrySummary(section: string, entry: EntryRecord): React.ReactNod
       return (
         <div className="flex items-center gap-3">
           <span className="font-bold text-rose-400">${(entry.amount as number).toFixed(2)}</span>
-          <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-gray-700 text-gray-300">
+          <span className="px-2 py-0.5 rounded text-xs font-bold uppercase bg-gray-700 text-gray-300">
             {entry.category as string}
           </span>
           {entry.description ? (

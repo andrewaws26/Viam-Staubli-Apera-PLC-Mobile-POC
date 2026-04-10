@@ -40,7 +40,7 @@ export function TripTimeline({
           );
         })}
       </div>
-      <div className="flex justify-between text-[10px] text-gray-500 mt-1 print-hide-visual">
+      <div className="flex justify-between text-xs text-gray-500 mt-1 print-hide-visual">
         <span>{fmtTime(periodStart)}</span>
         <span className="flex items-center gap-2">
           <span className="inline-block w-3 h-2 bg-green-600/70 rounded-sm" /> Engine On

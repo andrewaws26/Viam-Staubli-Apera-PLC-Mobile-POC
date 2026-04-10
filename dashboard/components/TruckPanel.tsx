@@ -452,7 +452,7 @@ export default function TruckPanel({ simMode = false, truckId, onReadingsChange 
 
       {/* Data freshness indicator */}
       {connected && dataAge !== null && (
-        <div className={`flex items-center gap-2 px-3 py-1.5 mb-3 rounded-lg text-[10px] sm:text-xs ${
+        <div className={`flex items-center gap-2 px-3 py-1.5 mb-3 rounded-lg text-xs sm:text-xs ${
           dataAge < 10 ? "bg-green-900/20 text-green-400 border border-green-800/30" :
           dataAge < 60 ? "bg-yellow-900/20 text-yellow-400 border border-yellow-800/30" :
           dataAge < 300 ? "bg-orange-900/20 text-orange-400 border border-orange-800/30" :
@@ -499,7 +499,7 @@ export default function TruckPanel({ simMode = false, truckId, onReadingsChange 
 
       {/* Staleness warning */}
       {busConnected && secsSinceFrame > 5 && (
-        <div className="bg-yellow-900/30 border border-yellow-700/50 rounded-lg px-3 py-1.5 mb-3 text-[10px] sm:text-xs text-yellow-300">
+        <div className="bg-yellow-900/30 border border-yellow-700/50 rounded-lg px-3 py-1.5 mb-3 text-xs sm:text-xs text-yellow-300">
           No CAN data for {secsSinceFrame.toFixed(0)}s — check connection
         </div>
       )}

@@ -109,7 +109,7 @@ export default function AuditLogViewer() {
                     <span className="text-gray-600 ml-auto shrink-0">{formatTime(entry.created_at)}</span>
                   </div>
                   {Object.keys(entry.details).length > 0 && (
-                    <div className="text-[10px] text-gray-500 mt-0.5 truncate">
+                    <div className="text-xs text-gray-500 mt-0.5 truncate">
                       {Object.entries(entry.details)
                         .filter(([, v]) => v != null && v !== "")
                         .map(([k, v]) => `${k}: ${typeof v === "string" ? v.substring(0, 60) : v}`)

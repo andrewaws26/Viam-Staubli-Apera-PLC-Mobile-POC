@@ -29,7 +29,7 @@ export default function TrendChart({
   if (data.length < 2) {
     return (
       <div className="bg-gray-900/50 rounded-lg p-2">
-        <span className="text-[10px] text-gray-600">{label}: collecting data...</span>
+        <span className="text-xs text-gray-600">{label}: collecting data...</span>
       </div>
     );
   }
@@ -73,9 +73,9 @@ export default function TrendChart({
   return (
     <div className="bg-gray-900/50 rounded-lg p-2">
       <div className="flex items-center justify-between mb-1">
-        <span className="text-[10px] text-gray-500 uppercase tracking-wider">{label}</span>
+        <span className="text-xs text-gray-500 uppercase tracking-wider">{label}</span>
         <div className="flex items-center gap-2">
-          <span className={`text-[10px] font-mono ${deltaColor}`}>{deltaStr}{unit}</span>
+          <span className={`text-xs font-mono ${deltaColor}`}>{deltaStr}{unit}</span>
           <span className="text-xs font-mono font-bold text-gray-200">
             {current.toFixed(1)}{unit}
           </span>

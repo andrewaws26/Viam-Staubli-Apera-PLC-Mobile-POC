@@ -139,7 +139,7 @@ export default function KnowledgeBasePage() {
         <div className="flex gap-1.5 flex-wrap">
           {allTags.map((tag) => (
             <button key={tag} onClick={() => setSearch(tag)}
-              className="px-2 py-0.5 text-[10px] rounded-full border border-gray-700 bg-gray-800/30 text-gray-500 hover:border-gray-600 hover:text-gray-400 transition-colors">
+              className="px-2 py-0.5 text-xs rounded-full border border-gray-700 bg-gray-800/30 text-gray-500 hover:border-gray-600 hover:text-gray-400 transition-colors">
               {tag}
             </button>
           ))}
@@ -163,14 +163,14 @@ export default function KnowledgeBasePage() {
                 className={`w-full text-left rounded-lg border p-3 transition-all ${selectedId === e.id ? "border-cyan-600/50 bg-cyan-900/10" : "border-gray-800 bg-gray-900/40 hover:border-gray-700"}`}>
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-sm font-semibold text-gray-200 truncate flex-1">{e.title}</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${cc.bg} ${cc.text}`}>{e.category}</span>
+                  <span className={`text-xs px-1.5 py-0.5 rounded ${cc.bg} ${cc.text}`}>{e.category}</span>
                 </div>
                 <p className="text-xs text-gray-500 line-clamp-2">{e.body.slice(0, 120)}{e.body.length > 120 ? "..." : ""}</p>
                 <div className="flex items-center gap-2 mt-1.5">
                   {e.tags.slice(0, 3).map((t) => (
-                    <span key={t} className="text-[10px] px-1 py-0.5 rounded bg-gray-800 text-gray-500">{t}</span>
+                    <span key={t} className="text-xs px-1 py-0.5 rounded bg-gray-800 text-gray-500">{t}</span>
                   ))}
-                  <span className="text-[10px] text-gray-700 ml-auto">{timeAgo(e.updated_at)}</span>
+                  <span className="text-xs text-gray-700 ml-auto">{timeAgo(e.updated_at)}</span>
                 </div>
               </button>
             );
@@ -188,8 +188,8 @@ export default function KnowledgeBasePage() {
                 <div>
                   <h2 className="text-lg font-bold text-gray-100">{selected.title}</h2>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${(CATEGORY_COLORS[selected.category] || CATEGORY_COLORS.convention).bg} ${(CATEGORY_COLORS[selected.category] || CATEGORY_COLORS.convention).text}`}>{selected.category}</span>
-                    <span className="text-[10px] text-gray-600">{timeAgo(selected.updated_at)}</span>
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${(CATEGORY_COLORS[selected.category] || CATEGORY_COLORS.convention).bg} ${(CATEGORY_COLORS[selected.category] || CATEGORY_COLORS.convention).text}`}>{selected.category}</span>
+                    <span className="text-xs text-gray-600">{timeAgo(selected.updated_at)}</span>
                   </div>
                 </div>
                 <div className="flex gap-2 shrink-0">
@@ -207,7 +207,7 @@ export default function KnowledgeBasePage() {
               {selected.tags.length > 0 && (
                 <div className="flex gap-1.5 flex-wrap">
                   {selected.tags.map((t) => (
-                    <span key={t} className="text-[10px] px-2 py-0.5 rounded-full border border-gray-700 bg-gray-800/30 text-gray-400">{t}</span>
+                    <span key={t} className="text-xs px-2 py-0.5 rounded-full border border-gray-700 bg-gray-800/30 text-gray-400">{t}</span>
                   ))}
                 </div>
               )}

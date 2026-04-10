@@ -121,7 +121,7 @@ function AddAccountModal({
             }
             className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white text-sm font-mono placeholder-gray-600 focus:outline-none focus:border-gray-500"
           />
-          <p className="text-[10px] text-gray-600 mt-1">
+          <p className="text-xs text-gray-600 mt-1">
             Range for {ACCOUNT_TYPE_LABELS[form.account_type]}:{" "}
             {ACCOUNT_NUMBER_RANGES[form.account_type].label}
           </p>
@@ -342,7 +342,7 @@ function ChartOfAccountsTab() {
               <div className="border-t border-gray-800">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-[10px] uppercase tracking-wider text-gray-600">
+                    <tr className="text-xs uppercase tracking-wider text-gray-600">
                       <th className="text-left px-4 py-2 font-medium w-28">
                         Acct #
                       </th>
@@ -368,12 +368,12 @@ function ChartOfAccountsTab() {
                         <td className="px-4 py-2.5 text-gray-200">
                           <span>{a.name}</span>
                           {!a.is_active && (
-                            <span className="ml-2 text-[10px] uppercase tracking-wider text-gray-600 bg-gray-800 px-1.5 py-0.5 rounded">
+                            <span className="ml-2 text-xs uppercase tracking-wider text-gray-600 bg-gray-800 px-1.5 py-0.5 rounded">
                               Inactive
                             </span>
                           )}
                           {a.is_system && (
-                            <span className="ml-2 text-[10px] uppercase tracking-wider text-gray-600 bg-gray-800 px-1.5 py-0.5 rounded">
+                            <span className="ml-2 text-xs uppercase tracking-wider text-gray-600 bg-gray-800 px-1.5 py-0.5 rounded">
                               System
                             </span>
                           )}
@@ -451,7 +451,7 @@ function JournalEntriesTab() {
         </select>
 
         <div className="flex items-center gap-2">
-          <label className="text-[10px] text-gray-600 uppercase tracking-wider">
+          <label className="text-xs text-gray-600 uppercase tracking-wider">
             From
           </label>
           <input
@@ -463,7 +463,7 @@ function JournalEntriesTab() {
         </div>
 
         <div className="flex items-center gap-2">
-          <label className="text-[10px] text-gray-600 uppercase tracking-wider">
+          <label className="text-xs text-gray-600 uppercase tracking-wider">
             To
           </label>
           <input
@@ -497,7 +497,7 @@ function JournalEntriesTab() {
         <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
           <table className="w-full text-sm min-w-[640px]">
             <thead>
-              <tr className="text-[10px] uppercase tracking-wider text-gray-600 border-b border-gray-800">
+              <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
                 <th className="text-left px-4 py-3 font-medium w-28">
                   Date
                 </th>
@@ -544,7 +544,7 @@ function JournalEntriesTab() {
                   </td>
                   <td className="px-4 py-3 text-center">
                     <span
-                      className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                      className={`inline-block px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider ${
                         STATUS_COLORS[entry.status]
                       }`}
                     >

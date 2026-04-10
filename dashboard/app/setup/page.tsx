@@ -161,7 +161,7 @@ function StepBar({ current }: { current: number }) {
               )}
             </div>
             <span
-              className={`text-[10px] font-medium whitespace-nowrap ${
+              className={`text-xs font-medium whitespace-nowrap ${
                 i <= current ? "text-gray-300" : "text-gray-600"
               }`}
             >
@@ -217,13 +217,13 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
         </p>
         <ul className="space-y-3 text-sm text-gray-400">
           <li className="flex items-start gap-3">
-            <span className="mt-0.5 w-5 h-5 rounded-full bg-violet-500/20 flex items-center justify-center text-violet-400 text-[10px] font-bold shrink-0">
+            <span className="mt-0.5 w-5 h-5 rounded-full bg-violet-500/20 flex items-center justify-center text-violet-400 text-xs font-bold shrink-0">
               1
             </span>
             <span>Your company name, address, and EIN</span>
           </li>
           <li className="flex items-start gap-3">
-            <span className="mt-0.5 w-5 h-5 rounded-full bg-violet-500/20 flex items-center justify-center text-violet-400 text-[10px] font-bold shrink-0">
+            <span className="mt-0.5 w-5 h-5 rounded-full bg-violet-500/20 flex items-center justify-center text-violet-400 text-xs font-bold shrink-0">
               2
             </span>
             <span>
@@ -232,7 +232,7 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
             </span>
           </li>
           <li className="flex items-start gap-3">
-            <span className="mt-0.5 w-5 h-5 rounded-full bg-violet-500/20 flex items-center justify-center text-violet-400 text-[10px] font-bold shrink-0">
+            <span className="mt-0.5 w-5 h-5 rounded-full bg-violet-500/20 flex items-center justify-center text-violet-400 text-xs font-bold shrink-0">
               3
             </span>
             <span>
@@ -332,7 +332,7 @@ function CompanyStep({
         </div>
 
         {/* City / State / Zip */}
-        <div className="grid grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
           <div className="col-span-2">
             <label className={labelCls}>City</label>
             <input
@@ -405,7 +405,7 @@ function CompanyStep({
               value={data.ein}
               onChange={(e) => set("ein", e.target.value)}
             />
-            <p className="text-[10px] text-gray-600 mt-1">
+            <p className="text-xs text-gray-600 mt-1">
               Employer Identification Number (for payroll/tax)
             </p>
           </div>
@@ -472,7 +472,7 @@ function CompanyStep({
                   Cash
                 </label>
               </div>
-              <p className="text-[10px] text-gray-600 mt-1.5">
+              <p className="text-xs text-gray-600 mt-1.5">
                 {data.accounting_method === "accrual"
                   ? "Record income when earned and expenses when incurred (most common for businesses with employees)"
                   : "Record income when received and expenses when paid (simpler, common for sole proprietors)"}
@@ -672,12 +672,12 @@ function ImportStep({
                       {result.imported} imported
                     </p>
                     {result.skipped > 0 && (
-                      <p className="text-[10px] text-gray-500">
+                      <p className="text-xs text-gray-500">
                         {result.skipped} skipped
                       </p>
                     )}
                     {result.errors > 0 && (
-                      <p className="text-[10px] text-red-400">
+                      <p className="text-xs text-red-400">
                         {result.errors} errors
                       </p>
                     )}
@@ -711,11 +711,11 @@ function ImportStep({
                   <button
                     type="button"
                     onClick={() => downloadTemplate(key, columns)}
-                    className="text-[10px] text-violet-400/70 hover:text-violet-400 underline underline-offset-2"
+                    className="text-xs text-violet-400/70 hover:text-violet-400 underline underline-offset-2"
                   >
                     Download template
                   </button>
-                  <span className="text-[10px] text-gray-700 font-mono truncate">
+                  <span className="text-xs text-gray-700 font-mono truncate">
                     e.g. {example}
                   </span>
                 </div>
@@ -856,7 +856,7 @@ function ChecklistStep({
                           />
                         </svg>
                       ) : optional ? (
-                        <span className="text-[10px] font-medium">OPT</span>
+                        <span className="text-xs font-medium">OPT</span>
                       ) : (
                         <span className="text-xs font-bold">!</span>
                       )}

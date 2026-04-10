@@ -14,7 +14,7 @@ import { TEMP_THRESHOLDS, tempColor, tempBg } from "./CellTypes";
 function KV({ label, value, color, mono }: { label: string; value: string; color?: string; mono?: boolean }) {
   return (
     <div className="flex flex-col min-w-0">
-      <span className="text-[10px] text-gray-600 uppercase tracking-wide truncate">{label}</span>
+      <span className="text-xs text-gray-600 uppercase tracking-wide truncate">{label}</span>
       <span className={`text-xs sm:text-sm truncate ${mono ? "font-mono" : ""} ${color || "text-gray-300"}`}>{value}</span>
     </div>
   );
@@ -36,7 +36,7 @@ function TempGauge({ label, value, warn, crit }: { label: string; value: number;
   return (
     <div className={`p-2.5 rounded-lg border ${tempBg(value, warn, crit)}`}>
       <div className="flex justify-between items-baseline mb-1">
-        <span className="text-[10px] text-gray-500 uppercase tracking-wide">{label}</span>
+        <span className="text-xs text-gray-500 uppercase tracking-wide">{label}</span>
         <span className={`font-mono text-sm font-bold ${tempColor(value, warn, crit)}`}>
           {fahrenheit.toFixed(0)}°F
         </span>
@@ -50,7 +50,7 @@ function TempGauge({ label, value, warn, crit }: { label: string; value: number;
 
 function PositionBadge({ label, active }: { label: string; active: boolean }) {
   return (
-    <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${
+    <span className={`px-2 py-1 rounded text-xs font-bold uppercase tracking-wider ${
       active ? "bg-emerald-900/40 text-emerald-400 border border-emerald-800/50" : "bg-gray-900/30 text-gray-700 border border-gray-800/30"
     }`}>
       {label}
@@ -106,7 +106,7 @@ export default function StaubliPanel({ readings, pollError }: Props) {
             <>
               {/* ---- Safety Status ---- */}
               <div>
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
                   Safety
                 </h3>
                 <div className="flex flex-wrap gap-3">
@@ -119,7 +119,7 @@ export default function StaubliPanel({ readings, pollError }: Props) {
 
               {/* ---- Motor Temperatures ---- */}
               <div>
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
                   Motor Temperatures
                 </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -135,7 +135,7 @@ export default function StaubliPanel({ readings, pollError }: Props) {
 
               {/* ---- Production ---- */}
               <div>
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
                   Production
                 </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2">
@@ -150,10 +150,10 @@ export default function StaubliPanel({ readings, pollError }: Props) {
 
                 {/* Class breakdown */}
                 {r.class_ids && r.class_ids.some(Boolean) && (
-                  <div className="mt-3 grid grid-cols-5 gap-2">
+                  <div className="mt-3 grid grid-cols-2 sm:grid-cols-5 gap-2">
                     {r.class_ids.map((cls, i) => cls ? (
                       <div key={i} className="bg-gray-900/50 border border-gray-800/50 rounded-lg p-2 text-center">
-                        <div className="text-[10px] text-gray-500 truncate">{cls}</div>
+                        <div className="text-xs text-gray-500 truncate">{cls}</div>
                         <div className="font-mono font-bold text-sm text-gray-200">{r.class_counts[i] ?? 0}</div>
                       </div>
                     ) : null)}
@@ -163,7 +163,7 @@ export default function StaubliPanel({ readings, pollError }: Props) {
 
               {/* ---- Robot Position ---- */}
               <div>
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
                   Position
                 </h3>
                 <div className="flex flex-wrap gap-1.5 mb-3">
@@ -186,7 +186,7 @@ export default function StaubliPanel({ readings, pollError }: Props) {
                 </div>
                 <button
                   onClick={() => setShowJoints(!showJoints)}
-                  className="mt-2 text-[10px] text-gray-600 hover:text-gray-400 uppercase tracking-wider"
+                  className="mt-2 text-xs text-gray-600 hover:text-gray-400 uppercase tracking-wider"
                 >
                   {showJoints ? "\u25BC" : "\u25B6"} Joint angles
                 </button>
@@ -204,7 +204,7 @@ export default function StaubliPanel({ readings, pollError }: Props) {
 
               {/* ---- System Health ---- */}
               <div>
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
                   System Health
                 </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2">

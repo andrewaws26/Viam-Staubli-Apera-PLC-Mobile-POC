@@ -322,7 +322,7 @@ export default function DiagnosticsPanel({ readings }: Props) {
                   {diag.title}
                 </span>
                 {diag.category && (
-                  <span className="text-[10px] uppercase tracking-wider text-gray-600">
+                  <span className="text-xs uppercase tracking-wider text-gray-600">
                     {CATEGORY_LABEL[diag.category] || diag.category}
                   </span>
                 )}

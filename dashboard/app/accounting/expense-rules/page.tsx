@@ -499,19 +499,19 @@ export default function ExpenseRulesPage() {
         {/* Summary cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           <div className="p-4 rounded-xl bg-gray-900/50 border border-gray-800">
-            <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">Rules</div>
+            <div className="text-xs text-gray-600 uppercase tracking-wider mb-1">Rules</div>
             <div className="text-xl font-bold text-gray-100">{rules.length}</div>
           </div>
           <div className="p-4 rounded-xl bg-gray-900/50 border border-gray-800">
-            <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">Pending</div>
+            <div className="text-xs text-gray-600 uppercase tracking-wider mb-1">Pending</div>
             <div className="text-xl font-bold text-amber-400">{pendingCount}</div>
           </div>
           <div className="p-4 rounded-xl bg-gray-900/50 border border-gray-800">
-            <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">Categorized</div>
+            <div className="text-xs text-gray-600 uppercase tracking-wider mb-1">Categorized</div>
             <div className="text-xl font-bold text-blue-400">{categorizedCount}</div>
           </div>
           <div className="p-4 rounded-xl bg-gray-900/50 border border-gray-800">
-            <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">Total Charges</div>
+            <div className="text-xs text-gray-600 uppercase tracking-wider mb-1">Total Charges</div>
             <div className="text-xl font-bold text-emerald-400">{fmtCurrency(totalCharges)}</div>
           </div>
         </div>
@@ -567,12 +567,12 @@ export default function ExpenseRulesPage() {
                     <h3 className="text-sm font-bold uppercase tracking-wider text-gray-300">New Categorization Rule</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div>
-                        <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Rule Name *</label>
+                        <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Rule Name *</label>
                         <input value={ruleName} onChange={(e) => setRuleName(e.target.value)} placeholder="e.g., Gas stations"
                           className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
                       </div>
                       <div>
-                        <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Match Type *</label>
+                        <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Match Type *</label>
                         <select value={ruleMatchType} onChange={(e) => setRuleMatchType(e.target.value)}
                           className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white">
                           <option value="contains">Contains</option>
@@ -582,17 +582,17 @@ export default function ExpenseRulesPage() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Pattern *</label>
+                        <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Pattern *</label>
                         <input value={rulePattern} onChange={(e) => setRulePattern(e.target.value)} placeholder="e.g., SHELL"
                           className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
                       </div>
                       <div>
-                        <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Category *</label>
+                        <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Category *</label>
                         <input value={ruleCategory} onChange={(e) => setRuleCategory(e.target.value)} placeholder="e.g., Fuel"
                           className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
                       </div>
                       <div>
-                        <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">GL Account</label>
+                        <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">GL Account</label>
                         <select value={ruleGlAccountId} onChange={(e) => setRuleGlAccountId(e.target.value)}
                           className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white">
                           <option value="">Select account...</option>
@@ -602,7 +602,7 @@ export default function ExpenseRulesPage() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Priority (0-100)</label>
+                        <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Priority (0-100)</label>
                         <input type="number" value={rulePriority} onChange={(e) => setRulePriority(Number(e.target.value))} min={0} max={100}
                           className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
                       </div>
@@ -624,7 +624,7 @@ export default function ExpenseRulesPage() {
                 <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
                   <table className="w-full text-sm min-w-[900px]">
                     <thead>
-                      <tr className="text-[10px] uppercase tracking-wider text-gray-600 border-b border-gray-800">
+                      <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
                         <th className="text-left px-4 py-3 font-medium">Name</th>
                         <th className="text-left px-4 py-3 font-medium w-24">Type</th>
                         <th className="text-left px-4 py-3 font-medium">Pattern</th>
@@ -647,7 +647,7 @@ export default function ExpenseRulesPage() {
                               ) : rule.name}
                             </td>
                             <td className="px-4 py-3">
-                              <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-gray-800 text-gray-300">
+                              <span className="px-2 py-0.5 rounded text-xs font-bold uppercase bg-gray-800 text-gray-300">
                                 {MATCH_TYPE_LABELS[rule.match_type] || rule.match_type}
                               </span>
                             </td>
@@ -726,17 +726,17 @@ export default function ExpenseRulesPage() {
                     <h3 className="text-sm font-bold uppercase tracking-wider text-gray-300">New Credit Card Account</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div>
-                        <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Card Name *</label>
+                        <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Card Name *</label>
                         <input value={ccName} onChange={(e) => setCcName(e.target.value)} placeholder="e.g., Company Chase Visa"
                           className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
                       </div>
                       <div>
-                        <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Last 4 Digits</label>
+                        <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Last 4 Digits</label>
                         <input value={ccLastFour} onChange={(e) => setCcLastFour(e.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="1234" maxLength={4}
                           className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white font-mono" />
                       </div>
                       <div>
-                        <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Liability GL Account</label>
+                        <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Liability GL Account</label>
                         <select value={ccGlAccountId} onChange={(e) => setCcGlAccountId(e.target.value)}
                           className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white">
                           <option value="">Select account...</option>
@@ -763,7 +763,7 @@ export default function ExpenseRulesPage() {
                 <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="text-[10px] uppercase tracking-wider text-gray-600 border-b border-gray-800">
+                      <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
                         <th className="text-left px-4 py-3 font-medium">Card Name</th>
                         <th className="text-left px-4 py-3 font-medium w-24">Last 4</th>
                         <th className="text-left px-4 py-3 font-medium">Liability Account</th>
@@ -812,7 +812,7 @@ export default function ExpenseRulesPage() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Credit Card Account *</label>
+                      <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Credit Card Account *</label>
                       <select value={importCcAccountId} onChange={(e) => setImportCcAccountId(e.target.value)}
                         className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white">
                         <option value="">Select card...</option>
@@ -822,7 +822,7 @@ export default function ExpenseRulesPage() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">CSV File *</label>
+                      <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">CSV File *</label>
                       <input ref={fileRef} type="file" accept=".csv" onChange={handleFileChange}
                         className="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-gray-800 file:text-gray-300 hover:file:bg-gray-700" />
                     </div>
@@ -841,7 +841,7 @@ export default function ExpenseRulesPage() {
                       <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto max-h-80 overflow-y-auto">
                         <table className="w-full text-sm">
                           <thead className="sticky top-0 bg-gray-900">
-                            <tr className="text-[10px] uppercase tracking-wider text-gray-600 border-b border-gray-800">
+                            <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
                               <th className="text-left px-4 py-2 font-medium w-28">Date</th>
                               <th className="text-left px-4 py-2 font-medium">Description</th>
                               <th className="text-right px-4 py-2 font-medium w-28">Amount</th>
@@ -906,7 +906,7 @@ export default function ExpenseRulesPage() {
                 <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
                   <table className="w-full text-sm min-w-[1000px]">
                     <thead>
-                      <tr className="text-[10px] uppercase tracking-wider text-gray-600 border-b border-gray-800">
+                      <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
                         <th className="text-center px-3 py-3 font-medium w-10">
                           <input type="checkbox" checked={selectedTxIds.size > 0 && selectedTxIds.size === filteredTransactions.filter((t) => t.status === "categorized").length}
                             onChange={(e) => {
@@ -986,14 +986,14 @@ export default function ExpenseRulesPage() {
                               )}
                             </td>
                             <td className="px-3 py-2 text-center">
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${style.bg} ${style.text}`}>
+                              <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${style.bg} ${style.text}`}>
                                 {tx.status}
                               </span>
                             </td>
                             <td className="px-3 py-2 text-right">
                               {(tx.status === "pending" || tx.status === "categorized") && (
                                 <button onClick={() => handleExcludeTx(tx.id)}
-                                  className="text-[10px] text-red-400/60 hover:text-red-300 font-bold uppercase">
+                                  className="text-xs text-red-400/60 hover:text-red-300 font-bold uppercase">
                                   Excl
                                 </button>
                               )}

@@ -122,7 +122,7 @@ export default function AIChatPanel({
             <h4 className="text-sm sm:text-base font-black text-purple-300 uppercase tracking-wider">
               AI Mechanic
             </h4>
-            <p className="text-[10px] text-gray-600">
+            <p className="text-xs text-gray-600">
               Ask anything — Claude sees live vehicle data in real-time
             </p>
           </div>
@@ -132,7 +132,7 @@ export default function AIChatPanel({
             <button
               onClick={runAiDiagnosis}
               disabled={aiLoading}
-              className={`min-h-[44px] px-3 sm:px-4 py-2 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-colors ${
+              className={`min-h-[44px] px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-xs font-bold uppercase tracking-wider transition-colors ${
                 aiLoading
                   ? "bg-purple-900 text-purple-400 animate-pulse"
                   : "bg-purple-700 hover:bg-purple-600 text-white"
@@ -143,7 +143,7 @@ export default function AIChatPanel({
           )}
           <button
             onClick={() => setChatOpen(!chatOpen)}
-            className={`min-h-[44px] px-3 sm:px-4 py-2 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-colors ${
+            className={`min-h-[44px] px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-xs font-bold uppercase tracking-wider transition-colors ${
               chatOpen
                 ? "bg-purple-600 text-white"
                 : "bg-purple-900/50 text-purple-300 border border-purple-700/50 hover:bg-purple-800"
@@ -180,7 +180,7 @@ export default function AIChatPanel({
                 <button
                   key={q}
                   onClick={() => sendChat(q)}
-                  className="px-3 py-2 rounded-lg text-[10px] sm:text-xs text-left text-purple-300 bg-purple-950/30 border border-purple-800/30 hover:bg-purple-900/50 transition-colors"
+                  className="px-3 py-2 rounded-lg text-xs sm:text-xs text-left text-purple-300 bg-purple-950/30 border border-purple-800/30 hover:bg-purple-900/50 transition-colors"
                 >
                   {q}
                 </button>
@@ -200,7 +200,7 @@ export default function AIChatPanel({
                 }`}
               >
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                  <span className="text-xs font-bold uppercase tracking-wider text-gray-500">
                     {msg.role === "user" ? "You" : "\u{1F9E0} AI Mechanic"}
                   </span>
                 </div>
@@ -249,7 +249,7 @@ export default function AIChatPanel({
           {chatMessages.length > 0 && (
             <button
               onClick={() => setChatMessages([])}
-              className="text-[10px] text-gray-600 hover:text-gray-400 mt-2 self-end"
+              className="text-xs text-gray-600 hover:text-gray-400 mt-2 self-end"
             >
               Clear conversation
             </button>

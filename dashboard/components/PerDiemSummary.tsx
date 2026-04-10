@@ -95,7 +95,7 @@ export default function PerDiemSummary({ currentUserId, currentUserRole }: Props
         <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4">
           <div className="flex gap-3 flex-1">
             <div>
-              <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wider">From</label>
+              <label className="block text-xs text-gray-500 mb-1 uppercase tracking-wider">From</label>
               <input
                 type="date"
                 value={startDate}
@@ -104,7 +104,7 @@ export default function PerDiemSummary({ currentUserId, currentUserRole }: Props
               />
             </div>
             <div>
-              <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wider">To</label>
+              <label className="block text-xs text-gray-500 mb-1 uppercase tracking-wider">To</label>
               <input
                 type="date"
                 value={endDate}
@@ -117,7 +117,7 @@ export default function PerDiemSummary({ currentUserId, currentUserRole }: Props
           {/* Manager-only: user selector */}
           {isManager && teamMembers.length > 0 && (
             <div className="w-full sm:w-auto">
-              <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wider">Employee</label>
+              <label className="block text-xs text-gray-500 mb-1 uppercase tracking-wider">Employee</label>
               <select
                 value={selectedUserId}
                 onChange={(e) => setSelectedUserId(e.target.value)}

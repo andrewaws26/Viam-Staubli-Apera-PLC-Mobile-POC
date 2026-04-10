@@ -140,11 +140,11 @@ function WorkOrderRow({ wo }: { wo: WorkOrder }) {
               {wo.title}
             </p>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
-              <span className="text-[10px] text-gray-500">
+              <span className="text-xs text-gray-500">
                 {STATUS_LABELS[wo.status]}
               </span>
               {wo.assigned_to_name && (
-                <span className="text-[10px] text-gray-500">
+                <span className="text-xs text-gray-500">
                   → {wo.assigned_to_name}
                 </span>
               )}
@@ -154,7 +154,7 @@ function WorkOrderRow({ wo }: { wo: WorkOrder }) {
                 </span>
               )}
               {subtasksTotal > 0 && (
-                <span className="text-[10px] text-gray-500">
+                <span className="text-xs text-gray-500">
                   {subtasksDone}/{subtasksTotal} tasks
                 </span>
               )}
@@ -173,7 +173,7 @@ function WorkOrderRow({ wo }: { wo: WorkOrder }) {
               <div className="space-y-0.5">
                 {wo.subtasks.map((st) => (
                   <div key={st.id} className="flex items-center gap-1.5">
-                    <span className={`text-[10px] ${st.is_done ? "text-green-500" : "text-gray-600"}`}>
+                    <span className={`text-xs ${st.is_done ? "text-green-500" : "text-gray-600"}`}>
                       {st.is_done ? "✓" : "○"}
                     </span>
                     <span className={`text-[11px] ${st.is_done ? "text-gray-500 line-through" : "text-gray-300"}`}>
@@ -201,12 +201,12 @@ function WorkOrderRow({ wo }: { wo: WorkOrder }) {
             {/* Blocker */}
             {wo.status === "blocked" && wo.blocker_reason && (
               <div className="bg-red-900/20 rounded px-2 py-1">
-                <p className="text-[10px] text-red-400">{wo.blocker_reason}</p>
+                <p className="text-xs text-red-400">{wo.blocker_reason}</p>
               </div>
             )}
 
             {/* Meta */}
-            <div className="flex items-center gap-3 text-[10px] text-gray-600">
+            <div className="flex items-center gap-3 text-xs text-gray-600">
               <span>Created by {wo.created_by_name}</span>
               {wo.completed_at && (
                 <span>Completed {new Date(wo.completed_at).toLocaleDateString()}</span>

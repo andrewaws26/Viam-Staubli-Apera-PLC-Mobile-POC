@@ -82,7 +82,7 @@ export default function Vendor1099Page() {
 
         {/* Year Selector */}
         <div className="flex items-center gap-3 mb-6">
-          <label className="text-[10px] uppercase tracking-wider text-gray-600 font-medium">Fiscal Year</label>
+          <label className="text-xs uppercase tracking-wider text-gray-600 font-medium">Fiscal Year</label>
           <input
             type="number"
             value={fiscalYear}
@@ -102,11 +102,11 @@ export default function Vendor1099Page() {
             { label: "Total 1099 Amount", value: fmt(summary.total_1099_amount), color: "text-gray-200" },
           ].map((c) => (
             <div key={c.label} className="rounded-xl bg-gray-900/50 border border-gray-800 p-4">
-              <p className="text-[10px] uppercase tracking-wider text-gray-600 font-medium">{c.label}</p>
+              <p className="text-xs uppercase tracking-wider text-gray-600 font-medium">{c.label}</p>
               {c.badge ? (
                 <div className="flex items-center gap-2 mt-1">
                   <p className={`text-xl font-black ${c.color}`}>{c.value}</p>
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${c.badgeColor}`}>
+                  <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${c.badgeColor}`}>
                     {c.label === "Threshold Met (>=$600)" ? "FILING" : "ACTION"}
                   </span>
                 </div>
@@ -129,7 +129,7 @@ export default function Vendor1099Page() {
           <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
             <table className="w-full text-sm min-w-[900px]">
               <thead>
-                <tr className="text-[10px] uppercase tracking-wider text-gray-600 border-b border-gray-800">
+                <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
                   <th className="text-left px-4 py-3 font-medium">Vendor Name</th>
                   <th className="text-left px-4 py-3 font-medium">Contact</th>
                   <th className="text-left px-4 py-3 font-medium">Tax ID</th>
@@ -152,7 +152,7 @@ export default function Vendor1099Page() {
                       {v.tax_id ? (
                         <span className="text-gray-400 font-mono text-xs">{v.tax_id}</span>
                       ) : v.threshold_met ? (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-red-900/50 text-red-300">
+                        <span className="px-2 py-0.5 rounded text-xs font-bold uppercase bg-red-900/50 text-red-300">
                           MISSING
                         </span>
                       ) : (
@@ -163,17 +163,17 @@ export default function Vendor1099Page() {
                     <td className="px-4 py-3 text-right text-gray-200 font-mono">{fmt(v.ytd_payments)}</td>
                     <td className="px-4 py-3">
                       {v.needs_1099 && !v.missing_tax_id && (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-900/50 text-emerald-300">
+                        <span className="px-2 py-0.5 rounded text-xs font-bold uppercase bg-emerald-900/50 text-emerald-300">
                           1099 REQUIRED
                         </span>
                       )}
                       {v.missing_tax_id && v.threshold_met && (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-red-900/50 text-red-300">
+                        <span className="px-2 py-0.5 rounded text-xs font-bold uppercase bg-red-900/50 text-red-300">
                           NEED TIN
                         </span>
                       )}
                       {!v.threshold_met && (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-gray-800 text-gray-400">
+                        <span className="px-2 py-0.5 rounded text-xs font-bold uppercase bg-gray-800 text-gray-400">
                           BELOW $600
                         </span>
                       )}
@@ -195,7 +195,7 @@ export default function Vendor1099Page() {
         {/* Export Note */}
         {!loading && (
           <div className="mt-6 p-4 rounded-xl bg-gray-900/50 border border-gray-800">
-            <p className="text-[10px] uppercase tracking-wider text-gray-600 font-medium mb-1">Filing Reminder</p>
+            <p className="text-xs uppercase tracking-wider text-gray-600 font-medium mb-1">Filing Reminder</p>
             <p className="text-sm text-gray-400">
               1099-NEC forms must be filed by January 31. For electronic filing via the IRS FIRE system, use the export function (coming soon).
             </p>

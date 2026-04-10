@@ -25,7 +25,7 @@ import type { SensorReadings, ShiftState, ShiftStats } from "./TPSFields";
 function KV({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="flex flex-col min-w-0">
-      <span className="text-[10px] text-gray-600 uppercase tracking-wide truncate">{label}</span>
+      <span className="text-xs text-gray-600 uppercase tracking-wide truncate">{label}</span>
       <span className={`text-xs sm:text-sm text-gray-300 truncate ${mono ? "font-mono" : ""}`}>{value}</span>
     </div>
   );
@@ -34,7 +34,7 @@ function KV({ label, value, mono }: { label: string; value: string; mono?: boole
 function ShiftStat({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
     <div className="flex flex-col items-center p-2 bg-gray-900/50 rounded-xl">
-      <span className="text-[10px] text-gray-600 uppercase tracking-wide">{label}</span>
+      <span className="text-xs text-gray-600 uppercase tracking-wide">{label}</span>
       <span className={`font-mono font-bold text-sm ${color || "text-gray-200"}`}>{value}</span>
     </div>
   );
@@ -212,7 +212,7 @@ export default function DevTPSPanel() {
             Pi 5 &mdash; TPS / PLC
           </h2>
           {simEnabled && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-900/30 text-purple-400 uppercase font-bold tracking-wider">
+            <span className="text-xs px-1.5 py-0.5 rounded bg-purple-900/30 text-purple-400 uppercase font-bold tracking-wider">
               SIM
             </span>
           )}
@@ -232,7 +232,7 @@ export default function DevTPSPanel() {
 
           {/* PLC Connection */}
           <div>
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
               PLC Connection
             </h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2">
@@ -282,7 +282,7 @@ export default function DevTPSPanel() {
           <div>
             <button
               onClick={() => setShowRaw((r) => !r)}
-              className="text-[10px] font-bold uppercase tracking-widest text-gray-600 hover:text-gray-400 transition-colors"
+              className="text-xs font-bold uppercase tracking-widest text-gray-600 hover:text-gray-400 transition-colors"
             >
               {showRaw ? "\u25BC" : "\u25B6"} Raw JSON
             </button>
@@ -294,11 +294,11 @@ export default function DevTPSPanel() {
                     setCopied(true);
                     setTimeout(() => setCopied(false), 2000);
                   }}
-                  className="absolute top-2 right-2 px-2 py-1 bg-gray-800 hover:bg-gray-700 text-gray-400 text-[10px] rounded transition-colors"
+                  className="absolute top-2 right-2 px-2 py-1 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs rounded transition-colors"
                 >
                   {copied ? "Copied!" : "Copy"}
                 </button>
-                <pre className="bg-gray-900/50 border border-gray-800 rounded-lg p-3 text-[10px] sm:text-xs text-gray-400 font-mono overflow-x-auto max-h-96 overflow-y-auto">
+                <pre className="bg-gray-900/50 border border-gray-800 rounded-lg p-3 text-xs sm:text-xs text-gray-400 font-mono overflow-x-auto max-h-96 overflow-y-auto">
                   {JSON.stringify(readings, null, 2)}
                 </pre>
               </div>
@@ -307,7 +307,7 @@ export default function DevTPSPanel() {
 
           {/* Encoder Calibration */}
           <details className="border border-gray-800/50 rounded-xl">
-            <summary className="p-3 cursor-pointer select-none text-[10px] font-bold uppercase tracking-widest text-gray-600 hover:text-gray-400">
+            <summary className="p-3 cursor-pointer select-none text-xs font-bold uppercase tracking-widest text-gray-600 hover:text-gray-400">
               Encoder Calibration
             </summary>
             <div className="px-3 pb-3 space-y-3">
@@ -318,7 +318,7 @@ export default function DevTPSPanel() {
                 <KV label="Speed (ft/min)" value={readings ? fmtVal(readings.encoder_speed_ftpm) : "\u2014"} />
               </div>
               <div className="bg-gray-900/50 rounded-lg p-3 border-l-2 border-blue-500/40">
-                <ol className="text-[10px] text-gray-500 space-y-1 list-decimal list-inside">
+                <ol className="text-xs text-gray-500 space-y-1 list-decimal list-inside">
                   <li>Mark a start point on the rail.</li>
                   <li>Click &quot;Mark Start&quot; to capture encoder reading.</li>
                   <li>Push truck a known distance (e.g. 100 ft).</li>
@@ -334,12 +334,12 @@ export default function DevTPSPanel() {
                     }
                   }}
                   disabled={!readings}
-                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-[10px] font-bold uppercase rounded-lg transition-colors"
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-xs font-bold uppercase rounded-lg transition-colors"
                 >
                   Mark Start
                 </button>
                 {calStartEncoder !== null && (
-                  <span className="text-[10px] text-gray-500">
+                  <span className="text-xs text-gray-500">
                     Start: {calStartEncoder.toFixed(2)} ft
                     {readings && (
                       <span className="ml-2 text-gray-400">
@@ -351,7 +351,7 @@ export default function DevTPSPanel() {
               </div>
               <div className="flex flex-wrap items-end gap-3">
                 <div className="flex flex-col">
-                  <label className="text-[10px] text-gray-600 uppercase tracking-wide mb-0.5">Actual Distance (ft)</label>
+                  <label className="text-xs text-gray-600 uppercase tracking-wide mb-0.5">Actual Distance (ft)</label>
                   <input
                     type="number"
                     step="0.1"
@@ -371,7 +371,7 @@ export default function DevTPSPanel() {
                     setCalResult({ corrected: currentDia * (actual / measured), current: currentDia });
                   }}
                   disabled={!readings || calStartEncoder === null || !calActualDist}
-                  className="px-3 py-1.5 bg-green-600 hover:bg-green-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-[10px] font-bold uppercase rounded-lg transition-colors"
+                  className="px-3 py-1.5 bg-green-600 hover:bg-green-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-xs font-bold uppercase rounded-lg transition-colors"
                 >
                   Calculate
                 </button>
@@ -381,11 +381,11 @@ export default function DevTPSPanel() {
                   <div className="grid grid-cols-2 gap-3">
                     <KV label="Current Diameter" value={`${calResult.current.toFixed(2)} mm`} />
                     <div className="flex flex-col min-w-0">
-                      <span className="text-[10px] text-green-600 uppercase tracking-wide">Corrected Diameter</span>
+                      <span className="text-xs text-green-600 uppercase tracking-wide">Corrected Diameter</span>
                       <span className="font-mono font-bold text-sm text-green-400">{calResult.corrected.toFixed(2)} mm</span>
                     </div>
                   </div>
-                  <p className="text-[10px] text-gray-500 mt-2">
+                  <p className="text-xs text-gray-500 mt-2">
                     Update Viam config: <code className="bg-gray-900 px-1 py-0.5 rounded text-green-400">&quot;wheel_diameter_mm&quot;: {calResult.corrected.toFixed(2)}</code>
                   </p>
                 </div>
@@ -395,7 +395,7 @@ export default function DevTPSPanel() {
 
           {/* Shift Simulator */}
           <details className="border border-gray-800/50 rounded-xl">
-            <summary className="p-3 cursor-pointer select-none text-[10px] font-bold uppercase tracking-widest text-gray-600 hover:text-gray-400">
+            <summary className="p-3 cursor-pointer select-none text-xs font-bold uppercase tracking-widest text-gray-600 hover:text-gray-400">
               Shift Simulator
               {shift.active && <span className="ml-2 text-green-500 normal-case animate-pulse">ACTIVE</span>}
             </summary>
@@ -405,14 +405,14 @@ export default function DevTPSPanel() {
                   <button
                     onClick={() => setShift({ active: true, startTime: Date.now(), startReadings: readings, log: [] })}
                     disabled={!readings}
-                    className="px-3 py-1.5 bg-green-600 hover:bg-green-500 disabled:bg-gray-700 text-white text-[10px] font-bold uppercase rounded-lg transition-colors"
+                    className="px-3 py-1.5 bg-green-600 hover:bg-green-500 disabled:bg-gray-700 text-white text-xs font-bold uppercase rounded-lg transition-colors"
                   >
                     Start Shift
                   </button>
                 ) : (
                   <button
                     onClick={() => setShift((p) => ({ ...p, active: false }))}
-                    className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-[10px] font-bold uppercase rounded-lg transition-colors"
+                    className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase rounded-lg transition-colors"
                   >
                     End Shift
                   </button>
@@ -420,7 +420,7 @@ export default function DevTPSPanel() {
               </div>
               {shiftStats && (
                 <>
-                  <div className="text-[10px] text-gray-600">
+                  <div className="text-xs text-gray-600">
                     Started: {fmtTimestamp(shiftStats.startTime)} | Samples: {shift.log.length}
                   </div>
                   <div className="grid grid-cols-3 gap-2">
@@ -428,7 +428,7 @@ export default function DevTPSPanel() {
                     <ShiftStat label="Distance" value={`${shiftStats.distance.toFixed(1)} ft`} color="text-blue-400" />
                     <ShiftStat label="Plates" value={String(shiftStats.plates)} color="text-green-400" />
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px]">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                     <KV label="Avg Speed" value={`${shiftStats.avgSpeed.toFixed(1)} ft/min`} />
                     <KV label="Max Speed" value={`${shiftStats.maxSpeed.toFixed(1)} ft/min`} />
                     <KV label="Rate" value={`${shiftStats.ratePerMin.toFixed(1)}/min`} />
@@ -437,7 +437,7 @@ export default function DevTPSPanel() {
                 </>
               )}
               {!shiftStats && !shift.active && (
-                <p className="text-[10px] text-gray-600">Track live production metrics during a shift.</p>
+                <p className="text-xs text-gray-600">Track live production metrics during a shift.</p>
               )}
             </div>
           </details>

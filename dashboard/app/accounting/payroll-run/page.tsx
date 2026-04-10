@@ -278,7 +278,7 @@ export default function PayrollRunPage() {
             { label: "Posted", value: postedCount, color: "text-emerald-400" },
           ].map((c) => (
             <div key={c.label} className="rounded-xl bg-gray-900/50 border border-gray-800 p-4">
-              <p className="text-[10px] uppercase tracking-wider text-gray-600 font-medium">
+              <p className="text-xs uppercase tracking-wider text-gray-600 font-medium">
                 {c.label}
               </p>
               <p className={`text-xl font-black mt-1 ${c.color}`}>{c.value}</p>
@@ -321,7 +321,7 @@ export default function PayrollRunPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">
+                  <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">
                     Pay Period Start *
                   </label>
                   <input
@@ -332,7 +332,7 @@ export default function PayrollRunPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">
+                  <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">
                     Pay Period End *
                   </label>
                   <input
@@ -343,7 +343,7 @@ export default function PayrollRunPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">
+                  <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">
                     Pay Date *
                   </label>
                   <input
@@ -382,7 +382,7 @@ export default function PayrollRunPage() {
                   <div className="rounded-xl border border-gray-800 bg-gray-950/50 overflow-hidden overflow-x-auto">
                     <table className="w-full text-sm min-w-[1100px]">
                       <thead>
-                        <tr className="text-[10px] uppercase tracking-wider text-gray-600 border-b border-gray-800">
+                        <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
                           <th className="text-left px-4 py-3 font-medium">Employee</th>
                           <th className="text-right px-3 py-3 font-medium">Reg Hrs</th>
                           <th className="text-right px-3 py-3 font-medium">OT Hrs</th>
@@ -485,7 +485,7 @@ export default function PayrollRunPage() {
           <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
             <table className="w-full text-sm min-w-[1000px]">
               <thead>
-                <tr className="text-[10px] uppercase tracking-wider text-gray-600 border-b border-gray-800">
+                <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
                   <th className="text-left px-4 py-3 font-medium w-8" />
                   <th className="text-left px-4 py-3 font-medium">Pay Period</th>
                   <th className="text-left px-4 py-3 font-medium">Pay Date</th>
@@ -535,7 +535,7 @@ export default function PayrollRunPage() {
                         {/* Status */}
                         <td className="px-4 py-3 text-center">
                           <span
-                            className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                            className={`inline-block px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider ${
                               STATUS_COLORS[run.status] || "bg-gray-800 text-gray-400"
                             }`}
                           >
@@ -621,7 +621,7 @@ export default function PayrollRunPage() {
                                 <p className="text-sm text-gray-600 py-3">No employee lines found</p>
                               ) : (
                                 <>
-                                  <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-2">
+                                  <p className="text-xs text-gray-600 uppercase tracking-wider mb-2">
                                     Employee Breakdown &mdash; {expandedLines.length} employee{expandedLines.length !== 1 ? "s" : ""}
                                   </p>
                                   <div className="overflow-x-auto">
@@ -669,7 +669,7 @@ export default function PayrollRunPage() {
                                 </p>
                               )}
                               {run.created_by_name && (
-                                <p className="mt-1 text-[10px] text-gray-600">
+                                <p className="mt-1 text-xs text-gray-600">
                                   Created by {run.created_by_name}
                                 </p>
                               )}

@@ -83,7 +83,7 @@ export default function ThreadList({ onSelectThread, selectedThreadId, onNewDM }
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-sm font-bold text-gray-100 uppercase tracking-wider">
             Chat {totalUnread > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 rounded-full bg-purple-600 text-white text-[10px] font-mono">
+              <span className="ml-1 px-1.5 py-0.5 rounded-full bg-purple-600 text-white text-xs font-mono">
                 {totalUnread}
               </span>
             )}
@@ -107,7 +107,7 @@ export default function ThreadList({ onSelectThread, selectedThreadId, onNewDM }
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`text-[10px] px-2 py-0.5 rounded-full whitespace-nowrap transition-colors ${
+              className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap transition-colors ${
                 filter === f
                   ? "bg-purple-600/30 text-purple-300 border border-purple-500/50"
                   : "bg-gray-800 text-gray-400 border border-gray-700/50 hover:text-gray-300"
@@ -125,7 +125,7 @@ export default function ThreadList({ onSelectThread, selectedThreadId, onNewDM }
 
         {Array.from(groups.entries()).map(([type, items]) => (
           <div key={type}>
-            <div className="px-3 py-1.5 text-[10px] text-gray-500 uppercase tracking-wider font-medium bg-gray-900/50 sticky top-0">
+            <div className="px-3 py-1.5 text-xs text-gray-500 uppercase tracking-wider font-medium bg-gray-900/50 sticky top-0">
               {ENTITY_ICONS[type]} {ENTITY_LABELS[type]}
             </div>
             {items.map((t) => (
@@ -144,17 +144,17 @@ export default function ThreadList({ onSelectThread, selectedThreadId, onNewDM }
                   </span>
                   <div className="flex items-center gap-1.5 ml-2 shrink-0">
                     {t.lastMessage && (
-                      <span className="text-[10px] text-gray-500">{timeAgo(t.lastMessage.createdAt)}</span>
+                      <span className="text-xs text-gray-500">{timeAgo(t.lastMessage.createdAt)}</span>
                     )}
                     {t.unreadCount > 0 && (
-                      <span className="px-1 py-0.5 rounded-full bg-purple-600 text-white text-[10px] font-mono min-w-[16px] text-center">
+                      <span className="px-1 py-0.5 rounded-full bg-purple-600 text-white text-xs font-mono min-w-[16px] text-center">
                         {t.unreadCount}
                       </span>
                     )}
                   </div>
                 </div>
                 {t.lastMessage && (
-                  <p className="text-[10px] text-gray-500 truncate mt-0.5">
+                  <p className="text-xs text-gray-500 truncate mt-0.5">
                     <span className="text-gray-400">{t.lastMessage.senderName}:</span>{" "}
                     {t.lastMessage.deletedAt ? "[deleted]" : t.lastMessage.body}
                   </p>

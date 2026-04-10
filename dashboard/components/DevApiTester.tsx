@@ -138,7 +138,7 @@ export default function DevApiTester() {
           {/* Route selector */}
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1">
-              <label className="text-[10px] text-gray-600 uppercase tracking-wide block mb-1">
+              <label className="text-xs text-gray-600 uppercase tracking-wide block mb-1">
                 Route
               </label>
               <select
@@ -166,7 +166,7 @@ export default function DevApiTester() {
 
           {/* Query params */}
           <div>
-            <label className="text-[10px] text-gray-600 uppercase tracking-wide block mb-1">
+            <label className="text-xs text-gray-600 uppercase tracking-wide block mb-1">
               Query Parameters
             </label>
             <input
@@ -181,7 +181,7 @@ export default function DevApiTester() {
           {/* Request body (POST only) */}
           {route.method === "POST" && (
             <div>
-              <label className="text-[10px] text-gray-600 uppercase tracking-wide block mb-1">
+              <label className="text-xs text-gray-600 uppercase tracking-wide block mb-1">
                 Request Body (JSON)
               </label>
               <textarea
@@ -213,12 +213,12 @@ export default function DevApiTester() {
                     setCopied(true);
                     setTimeout(() => setCopied(false), 2000);
                   }}
-                  className="ml-auto px-2 py-1 bg-gray-800 hover:bg-gray-700 text-gray-400 text-[10px] rounded transition-colors"
+                  className="ml-auto px-2 py-1 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs rounded transition-colors"
                 >
                   {copied ? "Copied!" : "Copy"}
                 </button>
               </div>
-              <pre className="bg-gray-900/50 border border-gray-800 rounded-lg p-3 text-[10px] sm:text-xs text-gray-400 font-mono overflow-x-auto max-h-96 overflow-y-auto">
+              <pre className="bg-gray-900/50 border border-gray-800 rounded-lg p-3 text-xs sm:text-xs text-gray-400 font-mono overflow-x-auto max-h-96 overflow-y-auto">
                 {typeof response.data === "string"
                   ? response.data
                   : JSON.stringify(response.data, null, 2)}
