@@ -172,6 +172,15 @@ function MoreScreenInner() {
         <SyncStatusBar />
       </View>
 
+      {/* Time & Attendance */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Time & Attendance</Text>
+        <View style={{ gap: spacing.sm }}>
+          <Button title="My Timesheets" onPress={() => router.push('/me/timesheets' as any)} variant="secondary" size="md" fullWidth />
+          <Button title="Time Off (PTO)" onPress={() => router.push('/me/pto' as any)} variant="secondary" size="md" fullWidth />
+        </View>
+      </View>
+
       {/* Inspections */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Inspections</Text>
