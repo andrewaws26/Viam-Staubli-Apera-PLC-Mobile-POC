@@ -128,8 +128,8 @@ interface Props {
 export default function StaubliPanel({ readings, pollError }: Props) {
   const [expanded, setExpanded] = useState(true);
   const [showJoints, setShowJoints] = useState(false);
-  const [showExtTemps, setShowExtTemps] = useState(false);
-  const [showIO, setShowIO] = useState(false);
+  const [showExtTemps, setShowExtTemps] = useState(true);
+  const [showIO, setShowIO] = useState(true);
 
   const isConnected = readings?.connected ?? false;
   const r = readings;
