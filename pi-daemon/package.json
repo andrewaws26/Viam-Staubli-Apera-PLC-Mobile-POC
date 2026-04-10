@@ -1,0 +1,13 @@
+{
+  "name": "ironsight-pi-daemon",
+  "version": "1.0.0",
+  "description": "IronSight Pi 5 automation daemon — syncs with Mac app via Supabase",
+  "main": "daemon.js",
+  "scripts": {
+    "start": "node daemon.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.0",
+    "node-cron": "^3.0.3"
+  }
+}
