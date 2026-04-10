@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import StaubliPanel from "./StaubliPanel";
 import AperaPanel from "./AperaPanel";
 import CellWatchdog from "./CellWatchdog";
+import LogPanel from "./LogPanel";
 import InfraPanel from "./InfraPanel";
 import type { CellState } from "./CellTypes";
 
@@ -106,6 +107,9 @@ export default function CellSection({ simMode = false, truckId }: Props) {
         <StaubliPanel readings={data?.staubli ?? null} pollError={error} />
         <AperaPanel readings={data?.apera ?? null} pollError={!data?.staubli ? null : error} />
       </div>
+
+      {/* System event log — FTP-scraped CS9 events */}
+      <LogPanel logs={data?.staubliLogs ?? null} />
 
       {/* Infrastructure monitoring — internet, switch/VPN, Pi health */}
       <InfraPanel

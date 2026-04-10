@@ -226,6 +226,45 @@ export function fetchTeamMembers() {
   return apiRequest<{ id: string; name: string; email: string; role: string }[]>('/api/team-members');
 }
 
+// ── Timesheets ──────────────────────────────────────────────────────
+
+/** Fetch user's timesheets. */
+export function fetchTimesheets() {
+  return apiRequest<Record<string, unknown>[]>('/api/timesheets');
+}
+
+/** Fetch a single timesheet by ID. */
+export function fetchTimesheet(id: string) {
+  return apiRequest<Record<string, unknown>>(`/api/timesheets/${id}`);
+}
+
+/** Create a new timesheet. */
+export function createTimesheet(data: Record<string, unknown>) {
+  return apiRequest('/api/timesheets', { method: 'POST', body: data });
+}
+
+/** Update a timesheet (status change, field edits). */
+export function updateTimesheet(id: string, data: Record<string, unknown>) {
+  return apiRequest(`/api/timesheets/${id}`, { method: 'PATCH', body: data });
+}
+
+// ── PTO ─────────────────────────────────────────────────────────────
+
+/** Fetch user's PTO requests. */
+export function fetchPtoRequests() {
+  return apiRequest<Record<string, unknown>[]>('/api/pto');
+}
+
+/** Create a PTO request. */
+export function createPtoRequest(data: Record<string, unknown>) {
+  return apiRequest('/api/pto', { method: 'POST', body: data });
+}
+
+/** Fetch PTO balance. */
+export function fetchPtoBalance() {
+  return apiRequest<Record<string, unknown>>('/api/pto/balance');
+}
+
 // ── AI ──────────────────────────────────────────────────────────────
 
 /** AI-powered step suggestions for work orders. */

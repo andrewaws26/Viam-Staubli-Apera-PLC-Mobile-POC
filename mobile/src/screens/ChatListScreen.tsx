@@ -13,6 +13,8 @@ import { useChatStore } from '@/stores/chat-store';
 import ErrorBoundary from '@/components/ui/ErrorBoundary';
 import type { ChatThreadWithPreview, ChatEntityType } from '@/types/chat';
 import { colors } from '@/theme/colors';
+import { spacing, radii } from '@/theme/spacing';
+import { typography } from '@/theme/typography';
 
 const ENTITY_ICONS: Record<ChatEntityType, string> = {
   truck: '🚛',
@@ -122,7 +124,7 @@ function ChatListScreenInner() {
         value={search}
         onChangeText={setSearch}
         placeholder="Search threads..."
-        placeholderTextColor="#6b7280"
+        placeholderTextColor={colors.textMuted}
       />
 
       <SectionList
@@ -138,7 +140,7 @@ function ChatListScreenInner() {
           <RefreshControl
             refreshing={isLoading}
             onRefresh={fetchThreads}
-            tintColor="#a855f7"
+            tintColor={colors.primaryLight}
           />
         }
         ListEmptyComponent={
@@ -158,73 +160,75 @@ export default function ChatListScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#030712' },
+  container: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 4,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
   },
-  headerTitle: { color: '#f3f4f6', fontSize: 18, fontWeight: '700' },
+  headerTitle: { color: colors.text, fontSize: typography.sizes.lg, fontFamily: typography.fonts.heading },
   newDmButton: {
-    backgroundColor: '#7c3aed',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radii.sm,
   },
-  newDmText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+  newDmText: { color: '#fff', fontSize: typography.sizes.xs, fontFamily: typography.fonts.heading },
   searchInput: {
-    marginHorizontal: 16,
-    marginVertical: 8,
-    backgroundColor: '#1f2937',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    color: '#f3f4f6',
-    fontSize: 13,
+    marginHorizontal: spacing.lg,
+    marginVertical: spacing.sm,
+    backgroundColor: colors.surface1,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    color: colors.text,
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.body,
   },
   sectionHeader: {
-    backgroundColor: '#0a0f1a',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
+    backgroundColor: colors.surface0,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xs + 2,
   },
   sectionTitle: {
-    color: '#6b7280',
-    fontSize: 11,
-    fontWeight: '600',
+    color: colors.textMuted,
+    fontSize: typography.sizes['2xs'],
+    fontFamily: typography.fonts.label,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: typography.letterSpacing.wide,
   },
   threadRow: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#1f2937',
+    borderBottomColor: colors.border,
   },
-  threadInfo: { flex: 1, marginRight: 8 },
-  threadTitle: { color: '#d1d5db', fontSize: 14 },
-  threadTitleBold: { color: '#f3f4f6', fontWeight: '700' },
-  threadPreview: { color: '#6b7280', fontSize: 12, marginTop: 2 },
+  threadInfo: { flex: 1, marginRight: spacing.sm },
+  threadTitle: { color: colors.textSecondary, fontSize: typography.sizes.sm, fontFamily: typography.fonts.body },
+  threadTitleBold: { color: colors.text, fontFamily: typography.fonts.heading },
+  threadPreview: { color: colors.textMuted, fontSize: typography.sizes.xs, fontFamily: typography.fonts.body, marginTop: 2 },
   threadMeta: { alignItems: 'flex-end' },
-  threadTime: { color: '#6b7280', fontSize: 11 },
+  threadTime: { color: colors.textMuted, fontSize: typography.sizes['2xs'] },
   unreadBadge: {
-    backgroundColor: '#7c3aed',
+    backgroundColor: colors.primary,
     borderRadius: 10,
     minWidth: 18,
     height: 18,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: spacing.xs,
     paddingHorizontal: 5,
   },
-  unreadText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+  unreadText: { color: '#fff', fontSize: typography.sizes['2xs'], fontFamily: typography.fonts.heading },
   emptyText: {
-    color: '#6b7280',
+    color: colors.textMuted,
     textAlign: 'center',
-    marginTop: 40,
-    fontSize: 13,
+    marginTop: spacing['4xl'],
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.body,
   },
 });

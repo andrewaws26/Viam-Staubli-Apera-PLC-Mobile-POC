@@ -9,11 +9,15 @@ import {
   Platform,
   StyleSheet,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@clerk/clerk-expo';
 import { useChatStore } from '@/stores/chat-store';
+import ErrorBoundary from '@/components/ui/ErrorBoundary';
 import type { ChatMessage, ChatReaction } from '@/types/chat';
 import { REACTION_LABELS, VALID_REACTIONS } from '@/types/chat';
+import { colors } from '@/theme/colors';
+import { spacing, radii } from '@/theme/spacing';
+import { typography } from '@/theme/typography';
 
 const ROLE_COLORS: Record<string, string> = {
   developer: '#a855f7',
@@ -129,10 +133,9 @@ function MessageItem({
   );
 }
 
-export default function ThreadScreen() {
+function ThreadScreenInner() {
   const { id: threadId } = useLocalSearchParams<{ id: string }>();
   const { userId } = useAuth();
-  const router = useRouter();
   const {
     messages: allMessages,
     fetchMessages,
@@ -232,84 +235,93 @@ export default function ThreadScreen() {
   );
 }
 
+export default function ThreadScreen() {
+  return (
+    <ErrorBoundary fallbackTitle="Chat thread crashed">
+      <ThreadScreenInner />
+    </ErrorBoundary>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#030712' },
-  messageList: { padding: 12, paddingBottom: 4 },
-  messageRow: { marginBottom: 8, alignItems: 'flex-start' },
+  container: { flex: 1, backgroundColor: colors.background },
+  messageList: { padding: spacing.md, paddingBottom: spacing.xs },
+  messageRow: { marginBottom: spacing.sm, alignItems: 'flex-start' },
   messageRowOwn: { alignItems: 'flex-end' },
   bubble: {
     maxWidth: '80%',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radii.md,
   },
-  bubbleOwn: { backgroundColor: '#4c1d95', borderBottomRightRadius: 4 },
-  bubbleOther: { backgroundColor: '#1f2937', borderBottomLeftRadius: 4 },
+  bubbleOwn: { backgroundColor: colors.primaryDark, borderBottomRightRadius: 4 },
+  bubbleOther: { backgroundColor: colors.surface1, borderBottomLeftRadius: 4 },
   bubbleAi: { backgroundColor: '#164e63', borderBottomLeftRadius: 4 },
   senderRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
-  senderName: { color: '#e5e7eb', fontSize: 12, fontWeight: '600' },
-  senderRole: { fontSize: 10, fontWeight: '500', textTransform: 'uppercase' },
-  bodyText: { color: '#f3f4f6', fontSize: 14, lineHeight: 20 },
-  editedText: { color: '#6b7280', fontSize: 10, fontStyle: 'italic', marginTop: 2 },
-  deletedText: { color: '#6b7280', fontSize: 13, fontStyle: 'italic' },
-  timeText: { color: '#6b7280', fontSize: 10, marginTop: 4, alignSelf: 'flex-end' },
-  systemMsg: { alignItems: 'center', paddingVertical: 4 },
-  systemMsgText: { color: '#6b7280', fontSize: 11, fontStyle: 'italic' },
+  senderName: { color: colors.text, fontSize: typography.sizes.xs, fontFamily: typography.fonts.heading },
+  senderRole: { fontSize: typography.sizes['2xs'], fontFamily: typography.fonts.label, textTransform: 'uppercase' },
+  bodyText: { color: colors.text, fontSize: typography.sizes.sm, fontFamily: typography.fonts.body, lineHeight: 20 },
+  editedText: { color: colors.textMuted, fontSize: typography.sizes['2xs'], fontStyle: 'italic', marginTop: 2 },
+  deletedText: { color: colors.textMuted, fontSize: typography.sizes.sm, fontStyle: 'italic' },
+  timeText: { color: colors.textMuted, fontSize: typography.sizes['2xs'], marginTop: 4, alignSelf: 'flex-end' },
+  systemMsg: { alignItems: 'center', paddingVertical: spacing.xs },
+  systemMsgText: { color: colors.textMuted, fontSize: typography.sizes['2xs'], fontStyle: 'italic' },
   snapshotBadge: {
-    marginTop: 4,
-    backgroundColor: '#111827',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    marginTop: spacing.xs,
+    backgroundColor: colors.card,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#374151',
+    borderColor: colors.borderLight,
   },
-  snapshotText: { color: '#9ca3af', fontSize: 11 },
-  reactionsRow: { flexDirection: 'row', gap: 4, marginTop: 4, flexWrap: 'wrap' },
+  snapshotText: { color: colors.textSecondary, fontSize: typography.sizes['2xs'] },
+  reactionsRow: { flexDirection: 'row', gap: 4, marginTop: spacing.xs, flexWrap: 'wrap' },
   reactionPill: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 12,
-    backgroundColor: '#374151',
+    borderRadius: radii.full,
+    backgroundColor: colors.surface2,
   },
-  reactionPillActive: { backgroundColor: '#4c1d95', borderWidth: 1, borderColor: '#7c3aed' },
-  reactionText: { color: '#d1d5db', fontSize: 11 },
+  reactionPillActive: { backgroundColor: colors.primaryDark, borderWidth: 1, borderColor: colors.primary },
+  reactionText: { color: colors.textSecondary, fontSize: typography.sizes['2xs'] },
   reactionPicker: {
     flexDirection: 'row',
-    backgroundColor: '#1f2937',
-    borderRadius: 12,
+    backgroundColor: colors.surface1,
+    borderRadius: radii.md,
     padding: 6,
-    gap: 8,
-    marginTop: 4,
+    gap: spacing.sm,
+    marginTop: spacing.xs,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: colors.borderLight,
   },
-  reactionPickerItem: { padding: 4 },
+  reactionPickerItem: { padding: spacing.xs },
   inputContainer: {
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#1f2937',
-    padding: 8,
+    borderTopColor: colors.border,
+    padding: spacing.sm,
   },
-  aiIndicator: { color: '#06b6d4', fontSize: 10, marginBottom: 4, marginLeft: 4 },
-  inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+  aiIndicator: { color: '#06b6d4', fontSize: typography.sizes['2xs'], marginBottom: spacing.xs, marginLeft: spacing.xs },
+  inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm },
   textInput: {
     flex: 1,
-    backgroundColor: '#1f2937',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    color: '#f3f4f6',
-    fontSize: 14,
+    backgroundColor: colors.surface1,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    color: colors.text,
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.body,
     maxHeight: 100,
   },
   sendButton: {
-    backgroundColor: '#7c3aed',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    backgroundColor: colors.primary,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
   },
-  sendButtonDisabled: { backgroundColor: '#374151' },
-  sendButtonText: { color: '#fff', fontWeight: '600', fontSize: 13 },
+  sendButtonDisabled: { backgroundColor: colors.surface2 },
+  sendButtonText: { color: '#fff', fontFamily: typography.fonts.heading, fontSize: typography.sizes.sm },
 });
