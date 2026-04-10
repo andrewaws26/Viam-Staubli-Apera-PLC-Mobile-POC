@@ -95,3 +95,37 @@ Full mobile parity spec written: `docs/superpowers/specs/2026-04-10-mobile-parit
 - LoadingState component used consistently on all data screens
 - Pull-to-refresh on chat, ai, inspect, more screens
 - Network error handling on work orders, chat, more screens
+
+---
+
+## Iteration 3 — Sprint 1B Nav + Sprint 1C Timesheets + Theme Consistency (2026-04-10)
+
+### Navigation Restructure
+- Restructured from 7 tabs → 5 visible (Home, Fleet, Work, Chat, Me) + 4 hidden
+- Added Home screen with role-based dashboard, quick stat cards, assigned work orders
+- Renamed More → Me, added Time & Attendance section linking to timesheets/PTO
+
+### Timesheet System (Sprint 1C)
+Created full timesheet mobile experience:
+- `src/stores/timesheet-store.ts` — Zustand store (list, detail, create, submit, updateStatus)
+- `src/app/me/_layout.tsx` — Stack navigator for me/ sub-screens with dark headers
+- `src/app/me/timesheets/index.tsx` — My Timesheets list with status badges, pull-to-refresh
+- `src/app/me/timesheets/[id].tsx` — Timesheet detail with daily logs, submit flow, rejection banner
+- `src/app/me/timesheets/new.tsx` — Create new with week/railroad selection
+- `src/app/me/pto/index.tsx` — PTO balance cards + request list with status badges
+- Added timesheet + PTO API functions to `services/api-client.ts`
+
+### Theme Consistency Audit
+Identified 3 chat screens using 30+ hardcoded hex colors instead of theme tokens:
+- `ChatListScreen.tsx` — migrated all styles to colors/spacing/typography tokens
+- `ThreadScreen.tsx` — migrated + added ErrorBoundary wrapper
+- `NewDMScreen.tsx` — migrated + added ErrorBoundary + removed unused imports
+
+**Result**: Only 2 non-theme files remain with hardcoded colors:
+- `work-order/[id].tsx` (specialized AI/role bubble colors — acceptable)
+- `gps-tracker.ts` (not a UI file)
+
+### TypeScript Status
+- 5 pre-existing errors (unchanged, not introduced by this work)
+- 0 errors in any new/modified files
+- All new screens compile cleanly with `@ironsight/shared/timesheet` types
