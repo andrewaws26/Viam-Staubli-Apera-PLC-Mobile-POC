@@ -2,7 +2,8 @@
   "enabledPlugins": {
     "typescript-lsp@claude-plugins-official": true,
     "pyright-lsp@claude-plugins-official": true,
-    "sentry@claude-plugins-official": true
+    "sentry@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true
   },
   "hooks": {
     "PreToolUse": [
