@@ -39,12 +39,12 @@ export default function TPSRemoteControl({ readings }: TPSRemoteControlProps) {
 
   return (
     <details className="border border-blue-800/30 rounded-xl">
-      <summary className="p-3 cursor-pointer select-none text-[10px] font-bold uppercase tracking-widest text-blue-500 hover:text-blue-400">
+      <summary className="p-3 cursor-pointer select-none text-xs font-bold uppercase tracking-widest text-blue-500 hover:text-blue-400">
         Remote Control (PLC do_command)
       </summary>
       <div className="px-3 pb-3 space-y-3">
         {/* TPS power status */}
-        <div className={`p-2 rounded-lg text-[10px] ${
+        <div className={`p-2 rounded-lg text-xs ${
           readings?.tps_power_loop
             ? "bg-green-950/30 border border-green-800/50 text-green-400"
             : "bg-yellow-950/30 border border-yellow-800/50 text-yellow-400"
@@ -54,7 +54,7 @@ export default function TPSRemoteControl({ readings }: TPSRemoteControlProps) {
 
         {/* Command result */}
         {cmdResult && (
-          <div className={`p-2 rounded-lg text-[10px] ${
+          <div className={`p-2 rounded-lg text-xs ${
             cmdResult.status === "ok"
               ? "bg-green-950/30 border border-green-800/50 text-green-300"
               : "bg-red-950/30 border border-red-800/50 text-red-300"
@@ -65,11 +65,11 @@ export default function TPSRemoteControl({ readings }: TPSRemoteControlProps) {
 
         {/* Eject */}
         <div>
-          <p className="text-[10px] uppercase tracking-wider text-gray-600 font-bold mb-1">Eject Plate</p>
+          <p className="text-xs uppercase tracking-wider text-gray-600 font-bold mb-1">Eject Plate</p>
           <button
             disabled={cmdLoading}
             onClick={() => sendCommand({ action: "software_eject" })}
-            className="bg-red-800 hover:bg-red-700 disabled:bg-gray-800 text-white text-[10px] px-4 py-1.5 rounded-lg font-bold transition-colors"
+            className="bg-red-800 hover:bg-red-700 disabled:bg-gray-800 text-white text-xs px-4 py-1.5 rounded-lg font-bold transition-colors"
           >
             {cmdLoading ? "Sending\u2026" : "Eject"}
           </button>
@@ -77,7 +77,7 @@ export default function TPSRemoteControl({ readings }: TPSRemoteControlProps) {
 
         {/* Modes */}
         <div>
-          <p className="text-[10px] uppercase tracking-wider text-gray-600 font-bold mb-1">Operating Mode</p>
+          <p className="text-xs uppercase tracking-wider text-gray-600 font-bold mb-1">Operating Mode</p>
           <div className="flex flex-wrap gap-1.5">
             {[
               { mode: "single", label: "TPS-1 Single" },
@@ -92,7 +92,7 @@ export default function TPSRemoteControl({ readings }: TPSRemoteControlProps) {
                 key={mode}
                 disabled={cmdLoading}
                 onClick={() => sendCommand({ action: "set_mode", mode })}
-                className="bg-cyan-800 hover:bg-cyan-700 disabled:bg-gray-800 text-white text-[10px] px-2 py-1.5 rounded-lg transition-colors"
+                className="bg-cyan-800 hover:bg-cyan-700 disabled:bg-gray-800 text-white text-xs px-2 py-1.5 rounded-lg transition-colors"
               >
                 {label}
               </button>
@@ -102,7 +102,7 @@ export default function TPSRemoteControl({ readings }: TPSRemoteControlProps) {
 
         {/* Spacing */}
         <div>
-          <p className="text-[10px] uppercase tracking-wider text-gray-600 font-bold mb-1">
+          <p className="text-xs uppercase tracking-wider text-gray-600 font-bold mb-1">
             Tie Spacing (current: {readings?.ds2 ? `${Number(readings.ds2) * 0.5}"` : "\u2014"})
           </p>
           <div className="flex flex-wrap gap-1.5">
@@ -117,7 +117,7 @@ export default function TPSRemoteControl({ readings }: TPSRemoteControlProps) {
                 key={value}
                 disabled={cmdLoading}
                 onClick={() => sendCommand({ action: "set_spacing", value })}
-                className={`text-[10px] px-2 py-1 rounded-lg font-bold transition-colors ${
+                className={`text-xs px-2 py-1 rounded-lg font-bold transition-colors ${
                   readings?.ds2 === value
                     ? "bg-green-700 text-white"
                     : "bg-gray-700 hover:bg-gray-600 text-white"
@@ -131,7 +131,7 @@ export default function TPSRemoteControl({ readings }: TPSRemoteControlProps) {
 
         {/* Toggles */}
         <div>
-          <p className="text-[10px] uppercase tracking-wider text-gray-600 font-bold mb-1">Toggles</p>
+          <p className="text-xs uppercase tracking-wider text-gray-600 font-bold mb-1">Toggles</p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
             {[
               { action: "toggle_drop_enable", label: "Drop Enable", key: "drop_enable", color: "bg-green-800" },
@@ -145,7 +145,7 @@ export default function TPSRemoteControl({ readings }: TPSRemoteControlProps) {
                   key={action}
                   disabled={cmdLoading}
                   onClick={() => sendCommand({ action })}
-                  className={`text-[10px] px-2 py-1.5 rounded-lg font-bold transition-colors ${
+                  className={`text-xs px-2 py-1.5 rounded-lg font-bold transition-colors ${
                     isOn ? `${color} text-white` : "bg-gray-800 text-gray-400 hover:bg-gray-700"
                   }`}
                 >
@@ -158,19 +158,19 @@ export default function TPSRemoteControl({ readings }: TPSRemoteControlProps) {
 
         {/* Utilities */}
         <div>
-          <p className="text-[10px] uppercase tracking-wider text-gray-600 font-bold mb-1">Utilities</p>
+          <p className="text-xs uppercase tracking-wider text-gray-600 font-bold mb-1">Utilities</p>
           <div className="flex flex-wrap gap-1.5">
             <button
               disabled={cmdLoading}
               onClick={() => sendCommand({ action: "reset_counters" })}
-              className="bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 text-white text-[10px] px-3 py-1.5 rounded-lg font-bold transition-colors"
+              className="bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 text-white text-xs px-3 py-1.5 rounded-lg font-bold transition-colors"
             >
               Reset Pi Counters
             </button>
             <button
               disabled={cmdLoading}
               onClick={() => sendCommand({ action: "clear_data_counts" })}
-              className="bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 text-white text-[10px] px-3 py-1.5 rounded-lg font-bold transition-colors"
+              className="bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 text-white text-xs px-3 py-1.5 rounded-lg font-bold transition-colors"
             >
               Clear PLC Counts
             </button>

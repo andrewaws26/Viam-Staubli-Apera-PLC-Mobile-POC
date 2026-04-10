@@ -235,7 +235,7 @@ export default function NewJournalEntryPage() {
         <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
           <table className="w-full text-sm min-w-[700px]">
             <thead>
-              <tr className="text-[10px] uppercase tracking-wider text-gray-600 border-b border-gray-800">
+              <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
                 <th className="text-left px-4 py-3 font-medium">Account</th>
                 <th className="text-right px-4 py-3 font-medium w-32">
                   Debit

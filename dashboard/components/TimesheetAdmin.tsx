@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import type { Timesheet, TimesheetStatus } from "@ironsight/shared";
 import { useToast } from "@/components/Toast";
+import PromptModal from "@/components/ui/PromptModal";
 
 const STATUS_BADGE: Record<TimesheetStatus, { bg: string; text: string; label: string }> = {
   draft: { bg: "bg-gray-700", text: "text-gray-300", label: "Draft" },
@@ -29,6 +30,7 @@ export default function TimesheetAdmin() {
   const [statusFilter, setStatusFilter] = useState<string>("submitted");
   const [weekFilter, setWeekFilter] = useState<string>("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<string | null>(null);
 
   function loadData() {
     setLoading(true);
@@ -181,7 +183,7 @@ export default function TimesheetAdmin() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-3 mb-1">
                       <span className="text-sm font-bold text-gray-100">{ts.user_name}</span>
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${badge.bg} ${badge.text}`}>
+                      <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${badge.bg} ${badge.text}`}>
                         {badge.label}
                       </span>
                     </div>
@@ -232,10 +234,7 @@ export default function TimesheetAdmin() {
                             {isProcessing ? "..." : "Approve"}
                           </button>
                           <button
-                            onClick={() => {
-                              const reason = prompt("Rejection reason (optional):");
-                              handleAction(ts.id, "rejected", reason || undefined);
-                            }}
+                            onClick={() => setRejectTarget(ts.id)}
                             disabled={isProcessing}
                             className="px-3 py-1 rounded text-xs font-medium bg-red-800 text-red-200 hover:bg-red-700 transition-colors disabled:opacity-50"
                           >
@@ -251,6 +250,17 @@ export default function TimesheetAdmin() {
           })}
         </div>
       )}
+
+      <PromptModal
+        open={!!rejectTarget}
+        title="Rejection reason (optional)"
+        placeholder="Why is this timesheet being rejected?"
+        onConfirm={(reason) => {
+          if (rejectTarget) handleAction(rejectTarget, "rejected", reason || undefined);
+          setRejectTarget(null);
+        }}
+        onCancel={() => setRejectTarget(null)}
+      />
     </div>
   );
 }

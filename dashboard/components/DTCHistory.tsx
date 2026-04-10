@@ -70,12 +70,12 @@ export default function DTCHistory({ truckId }: { truckId?: string }) {
         <div className="flex items-center gap-2">
           <span className="text-sm sm:text-base font-bold text-gray-200">DTC History</span>
           {activeCount > 0 && (
-            <span className="px-1.5 py-0.5 rounded-full bg-red-600/30 text-red-300 text-[10px] font-bold">
+            <span className="px-1.5 py-0.5 rounded-full bg-red-600/30 text-red-300 text-xs font-bold">
               {activeCount} active
             </span>
           )}
           {clearedCount > 0 && expanded && (
-            <span className="px-1.5 py-0.5 rounded-full bg-gray-600/30 text-gray-400 text-[10px] font-bold">
+            <span className="px-1.5 py-0.5 rounded-full bg-gray-600/30 text-gray-400 text-xs font-bold">
               {clearedCount} cleared
             </span>
           )}
@@ -134,17 +134,17 @@ export default function DTCHistory({ truckId }: { truckId?: string }) {
                         SPN {rec.spn} / FMI {rec.fmi}
                       </span>
                       {rec.source_address != null && (
-                        <span className="text-[10px] text-gray-600">SA 0x{rec.source_address.toString(16).padStart(2, "0")}</span>
+                        <span className="text-xs text-gray-600">SA 0x{rec.source_address.toString(16).padStart(2, "0")}</span>
                       )}
                     </div>
-                    <span className={`text-[10px] font-bold ${rec.active ? "text-red-400" : "text-gray-600"}`}>
+                    <span className={`text-xs font-bold ${rec.active ? "text-red-400" : "text-gray-600"}`}>
                       {rec.active ? "ACTIVE" : "CLEARED"}
                     </span>
                   </div>
                   {rec.description && (
                     <p className="text-xs text-gray-400 mt-1">{rec.description}</p>
                   )}
-                  <div className="flex items-center gap-3 mt-1.5 text-[10px] text-gray-500">
+                  <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-500">
                     <span>First: {formatDate(rec.first_seen_at)}</span>
                     <span>Last: {formatDate(rec.last_seen_at)}</span>
                     <span>Duration: {durationStr(rec.first_seen_at, rec.cleared_at || rec.last_seen_at)}</span>

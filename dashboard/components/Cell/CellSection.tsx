@@ -85,7 +85,7 @@ export default function CellSection({ simMode = false, truckId }: Props) {
           Robot Cell Monitoring
         </h2>
         {effectiveSimMode && (
-          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-900/30 text-purple-400 border border-purple-800/50">
+          <span className="px-2 py-0.5 rounded text-xs font-bold bg-purple-900/30 text-purple-400 border border-purple-800/50">
             SIM
           </span>
         )}
@@ -117,7 +117,7 @@ export default function CellSection({ simMode = false, truckId }: Props) {
       {/* Network status strip */}
       {data?.network && data.network.length > 0 && (
         <div className="border border-gray-800 rounded-2xl p-4 sm:p-5">
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-600 mb-3">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-3">
             Cell Network
           </h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
@@ -132,7 +132,7 @@ export default function CellSection({ simMode = false, truckId }: Props) {
                 }`} />
                 <div className="min-w-0">
                   <div className="text-xs text-gray-300 truncate">{dev.name}</div>
-                  <div className="text-[10px] text-gray-600 font-mono">{dev.ip}</div>
+                  <div className="text-xs text-gray-600 font-mono">{dev.ip}</div>
                 </div>
               </div>
             ))}

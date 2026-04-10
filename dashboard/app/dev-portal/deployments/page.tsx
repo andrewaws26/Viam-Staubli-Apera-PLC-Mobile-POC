@@ -137,14 +137,14 @@ export default function DeploymentsPage() {
                     {d.status === "deploying" && <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${sc.dot} opacity-75`} />}
                     <span className={`relative inline-flex rounded-full h-2 w-2 ${sc.dot}`} />
                   </span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${tc.bg} ${tc.text}`}>{d.target}</span>
+                  <span className={`text-xs px-1.5 py-0.5 rounded ${tc.bg} ${tc.text}`}>{d.target}</span>
                   <span className={`text-xs capitalize ${sc.text}`}>{d.status}</span>
-                  <span className="text-[10px] text-gray-700 ml-auto">{timeAgo(d.startedAt)}</span>
+                  <span className="text-xs text-gray-700 ml-auto">{timeAgo(d.startedAt)}</span>
                 </div>
                 <div className="flex items-center gap-2 ml-4">
-                  {d.branch && <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">{d.branch}</span>}
-                  {d.commitSha && <span className="text-[10px] text-gray-600 font-mono">{d.commitSha.slice(0, 7)}</span>}
-                  <span className="text-[10px] text-gray-700">{d.trigger}</span>
+                  {d.branch && <span className="text-xs px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">{d.branch}</span>}
+                  {d.commitSha && <span className="text-xs text-gray-600 font-mono">{d.commitSha.slice(0, 7)}</span>}
+                  <span className="text-xs text-gray-700">{d.trigger}</span>
                 </div>
               </button>
             );
@@ -159,14 +159,14 @@ export default function DeploymentsPage() {
           ) : (
             <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-4 space-y-4">
               <div className="flex items-center gap-2">
-                <span className={`text-[10px] px-1.5 py-0.5 rounded ${(TARGET_COLORS[selected.target] || TARGET_COLORS.vercel).bg} ${(TARGET_COLORS[selected.target] || TARGET_COLORS.vercel).text}`}>{selected.target}</span>
+                <span className={`text-xs px-1.5 py-0.5 rounded ${(TARGET_COLORS[selected.target] || TARGET_COLORS.vercel).bg} ${(TARGET_COLORS[selected.target] || TARGET_COLORS.vercel).text}`}>{selected.target}</span>
                 <h2 className={`text-lg font-bold capitalize ${(STATUS_COLORS[selected.status] || STATUS_COLORS.failed).text}`}>{selected.status}</h2>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><span className="text-[10px] text-gray-600 uppercase block">Branch</span><span className="text-sm text-gray-300 font-mono">{selected.branch || "--"}</span></div>
-                <div><span className="text-[10px] text-gray-600 uppercase block">Commit</span><span className="text-sm text-gray-300 font-mono">{selected.commitSha?.slice(0, 7) || "--"}</span></div>
-                <div><span className="text-[10px] text-gray-600 uppercase block">Trigger</span><span className="text-sm text-gray-300">{selected.trigger}</span></div>
-                <div><span className="text-[10px] text-gray-600 uppercase block">Started</span><span className="text-sm text-gray-300">{new Date(selected.startedAt).toLocaleString()}</span></div>
+                <div><span className="text-xs text-gray-600 uppercase block">Branch</span><span className="text-sm text-gray-300 font-mono">{selected.branch || "--"}</span></div>
+                <div><span className="text-xs text-gray-600 uppercase block">Commit</span><span className="text-sm text-gray-300 font-mono">{selected.commitSha?.slice(0, 7) || "--"}</span></div>
+                <div><span className="text-xs text-gray-600 uppercase block">Trigger</span><span className="text-sm text-gray-300">{selected.trigger}</span></div>
+                <div><span className="text-xs text-gray-600 uppercase block">Started</span><span className="text-sm text-gray-300">{new Date(selected.startedAt).toLocaleString()}</span></div>
               </div>
               {selected.deployUrl && (
                 <a href={selected.deployUrl} target="_blank" rel="noopener noreferrer" className="block text-xs text-cyan-400 hover:text-cyan-300 underline">View deployment</a>

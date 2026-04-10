@@ -230,7 +230,7 @@ export default function PromptLibraryPage() {
                     <span className="text-sm font-semibold text-gray-200 truncate flex-1">
                       {t.name}
                     </span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${cc.bg} ${cc.text}`}>
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${cc.bg} ${cc.text}`}>
                       {t.category}
                     </span>
                   </div>
@@ -238,10 +238,10 @@ export default function PromptLibraryPage() {
                     <p className="text-xs text-gray-500 truncate">{t.description}</p>
                   )}
                   <div className="flex items-center gap-2 mt-1.5">
-                    <span className="text-[10px] text-gray-600">
+                    <span className="text-xs text-gray-600">
                       {t.variables.length} var{t.variables.length !== 1 ? "s" : ""}
                     </span>
-                    <span className="text-[10px] text-gray-700">{timeAgo(t.updated_at)}</span>
+                    <span className="text-xs text-gray-700">{timeAgo(t.updated_at)}</span>
                   </div>
                 </button>
               );
@@ -353,7 +353,7 @@ export default function PromptLibraryPage() {
                         <span className="text-xs text-gray-400 flex-1 truncate">
                           {v.changelog || "No changelog"}
                         </span>
-                        <span className="text-[10px] text-gray-600 shrink-0">
+                        <span className="text-xs text-gray-600 shrink-0">
                           {timeAgo(v.created_at)}
                         </span>
                       </div>

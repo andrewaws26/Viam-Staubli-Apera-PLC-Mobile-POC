@@ -11,7 +11,7 @@ interface TPSDiagnosticsPanelProps {
 export default function TPSDiagnosticsPanel({ diagnostics }: TPSDiagnosticsPanelProps) {
   return (
     <div>
-      <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+      <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
         Active Diagnostics ({diagnostics.length})
       </h3>
       {diagnostics.length === 0 ? (
@@ -32,7 +32,7 @@ export default function TPSDiagnosticsPanel({ diagnostics }: TPSDiagnosticsPanel
               <span className="font-bold">[{d.severity.toUpperCase()}]</span>{" "}
               <span className="font-mono">{d.rule}</span> &mdash; {d.title}
               {d.action && (
-                <span className="block mt-0.5 text-gray-500 text-[10px]">{d.action}</span>
+                <span className="block mt-0.5 text-gray-500 text-xs">{d.action}</span>
               )}
             </div>
           ))}

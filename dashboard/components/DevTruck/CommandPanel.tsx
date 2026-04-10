@@ -92,7 +92,7 @@ export default function CommandPanel({ data }: CommandPanelProps) {
 
   return (
     <div>
-      <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+      <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
         Diagnostic Trouble Codes
         {(dtcCount as number) > 0 && (
           <span className="ml-2 text-red-400 normal-case tracking-normal font-normal">
@@ -130,7 +130,7 @@ export default function CommandPanel({ data }: CommandPanelProps) {
       {/* Pending DTCs */}
       {pendingDtcs.length > 0 && (
         <div className="mb-3">
-          <p className="text-[10px] uppercase tracking-wider text-yellow-600 font-bold mb-1">
+          <p className="text-xs uppercase tracking-wider text-yellow-600 font-bold mb-1">
             Pending
           </p>
           <div className="space-y-1">
@@ -152,7 +152,7 @@ export default function CommandPanel({ data }: CommandPanelProps) {
       {/* Permanent DTCs */}
       {permanentDtcs.length > 0 && (
         <div className="mb-3">
-          <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-1">
+          <p className="text-xs uppercase tracking-wider text-gray-500 font-bold mb-1">
             Permanent
           </p>
           <div className="space-y-1">

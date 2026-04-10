@@ -58,10 +58,10 @@ export default function SnapshotCard({ snapshot }: SnapshotCardProps) {
   return (
     <div className="mt-1 rounded-md border border-gray-700/50 bg-gray-800/50 overflow-hidden max-w-xs">
       <div className="px-2 py-1 bg-gray-800/80 border-b border-gray-700/50 flex justify-between items-center">
-        <span className="text-[10px] text-gray-400 uppercase tracking-wider font-medium">
+        <span className="text-xs text-gray-400 uppercase tracking-wider font-medium">
           Sensor Snapshot
         </span>
-        <span className="text-[10px] text-gray-500">
+        <span className="text-xs text-gray-500">
           {new Date(snapshot.captured_at).toLocaleTimeString()}
         </span>
       </div>
@@ -78,7 +78,7 @@ export default function SnapshotCard({ snapshot }: SnapshotCardProps) {
       {rest.length > 0 && (
         <button
           onClick={() => setExpanded(!expanded)}
-          className="w-full text-[10px] text-purple-400 hover:text-purple-300 py-0.5 border-t border-gray-700/50"
+          className="w-full text-xs text-purple-400 hover:text-purple-300 py-0.5 border-t border-gray-700/50"
         >
           {expanded ? "Show less" : `+${rest.length} more`}
         </button>

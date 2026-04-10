@@ -531,7 +531,7 @@ function PartDetailPanel({
             </p>
           </div>
           <span
-            className="inline-block px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider"
+            className="inline-block px-2.5 py-1 rounded text-xs font-bold uppercase tracking-wider"
             style={{
               backgroundColor: PART_STATUS_COLORS[part.status] + "20",
               color: PART_STATUS_COLORS[part.status],
@@ -547,7 +547,7 @@ function PartDetailPanel({
 
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-gray-800/50 rounded-lg px-3 py-2">
-            <div className="text-[10px] text-gray-600 uppercase tracking-wider">
+            <div className="text-xs text-gray-600 uppercase tracking-wider">
               Category
             </div>
             <div className="flex items-center gap-2 mt-1">
@@ -561,7 +561,7 @@ function PartDetailPanel({
             </div>
           </div>
           <div className="bg-gray-800/50 rounded-lg px-3 py-2">
-            <div className="text-[10px] text-gray-600 uppercase tracking-wider">
+            <div className="text-xs text-gray-600 uppercase tracking-wider">
               Location
             </div>
             <div className="text-sm text-gray-200 mt-1">
@@ -569,7 +569,7 @@ function PartDetailPanel({
             </div>
           </div>
           <div className="bg-gray-800/50 rounded-lg px-3 py-2">
-            <div className="text-[10px] text-gray-600 uppercase tracking-wider">
+            <div className="text-xs text-gray-600 uppercase tracking-wider">
               On Hand
             </div>
             <div
@@ -585,7 +585,7 @@ function PartDetailPanel({
             </div>
           </div>
           <div className="bg-gray-800/50 rounded-lg px-3 py-2">
-            <div className="text-[10px] text-gray-600 uppercase tracking-wider">
+            <div className="text-xs text-gray-600 uppercase tracking-wider">
               Reorder Point
             </div>
             <div className="text-sm text-gray-200 font-mono mt-1">
@@ -593,7 +593,7 @@ function PartDetailPanel({
             </div>
           </div>
           <div className="bg-gray-800/50 rounded-lg px-3 py-2">
-            <div className="text-[10px] text-gray-600 uppercase tracking-wider">
+            <div className="text-xs text-gray-600 uppercase tracking-wider">
               Unit Cost
             </div>
             <div className="text-sm text-gray-200 font-mono mt-1">
@@ -601,7 +601,7 @@ function PartDetailPanel({
             </div>
           </div>
           <div className="bg-gray-800/50 rounded-lg px-3 py-2">
-            <div className="text-[10px] text-gray-600 uppercase tracking-wider">
+            <div className="text-xs text-gray-600 uppercase tracking-wider">
               Total Value
             </div>
             <div className="text-sm text-gray-200 font-mono mt-1">
@@ -612,14 +612,14 @@ function PartDetailPanel({
 
         {part.supplier && (
           <div className="bg-gray-800/50 rounded-lg px-3 py-2">
-            <div className="text-[10px] text-gray-600 uppercase tracking-wider">
+            <div className="text-xs text-gray-600 uppercase tracking-wider">
               Supplier
             </div>
             <div className="text-sm text-gray-200 mt-1">{part.supplier}</div>
           </div>
         )}
 
-        <div className="flex items-center gap-4 text-[10px] text-gray-600 uppercase tracking-wider">
+        <div className="flex items-center gap-4 text-xs text-gray-600 uppercase tracking-wider">
           {part.last_ordered && (
             <span>Last ordered: {fmtDate(part.last_ordered)}</span>
           )}
@@ -724,7 +724,7 @@ function PartsCatalogTab({
         <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
           <table className="w-full text-sm min-w-[900px]">
             <thead>
-              <tr className="text-[10px] uppercase tracking-wider text-gray-600 border-b border-gray-800">
+              <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
                 <th className="text-left px-4 py-3 font-medium w-28">
                   Part #
                 </th>
@@ -791,7 +791,7 @@ function PartsCatalogTab({
                   </td>
                   <td className="px-4 py-2.5 text-center">
                     <span
-                      className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider"
+                      className="inline-block px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider"
                       style={{
                         backgroundColor:
                           PART_STATUS_COLORS[part.status] + "20",
@@ -872,7 +872,7 @@ function UsageLogTab({ parts }: { parts: Part[] }) {
         <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
           <table className="w-full text-sm min-w-[800px]">
             <thead>
-              <tr className="text-[10px] uppercase tracking-wider text-gray-600 border-b border-gray-800">
+              <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
                 <th className="text-left px-4 py-3 font-medium w-28">Date</th>
                 <th className="text-left px-4 py-3 font-medium">Part</th>
                 <th className="text-right px-4 py-3 font-medium w-20">
@@ -1022,11 +1022,11 @@ function AlertsTab() {
                     <div className="text-sm font-bold text-gray-100">
                       {p.name}
                     </div>
-                    <div className="text-[10px] text-gray-500 font-mono">
+                    <div className="text-xs text-gray-500 font-mono">
                       {p.part_number}
                     </div>
                   </div>
-                  <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-red-900/60 text-red-300">
+                  <span className="inline-block px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider bg-red-900/60 text-red-300">
                     Out of Stock
                   </span>
                 </div>
@@ -1045,7 +1045,7 @@ function AlertsTab() {
                   </span>
                 </div>
                 {p.supplier && (
-                  <div className="text-[10px] text-gray-600">
+                  <div className="text-xs text-gray-600">
                     Supplier: {p.supplier}
                   </div>
                 )}
@@ -1084,11 +1084,11 @@ function AlertsTab() {
                     <div className="text-sm font-bold text-gray-100">
                       {p.name}
                     </div>
-                    <div className="text-[10px] text-gray-500 font-mono">
+                    <div className="text-xs text-gray-500 font-mono">
                       {p.part_number}
                     </div>
                   </div>
-                  <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-900/60 text-amber-300">
+                  <span className="inline-block px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider bg-amber-900/60 text-amber-300">
                     Low Stock
                   </span>
                 </div>
@@ -1113,7 +1113,7 @@ function AlertsTab() {
                   </span>
                 </div>
                 {p.supplier && (
-                  <div className="text-[10px] text-gray-600">
+                  <div className="text-xs text-gray-600">
                     Supplier: {p.supplier}
                   </div>
                 )}

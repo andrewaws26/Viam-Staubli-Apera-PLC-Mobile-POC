@@ -231,7 +231,7 @@ export default function BillsPage() {
             { label: "Paid", value: fmt(totalPaid), color: "text-emerald-400" },
           ].map((c) => (
             <div key={c.label} className="rounded-xl bg-gray-900/50 border border-gray-800 p-4">
-              <p className="text-[10px] uppercase tracking-wider text-gray-600 font-medium">{c.label}</p>
+              <p className="text-xs uppercase tracking-wider text-gray-600 font-medium">{c.label}</p>
               <p className={`text-xl font-black mt-1 ${c.color}`}>{c.value}</p>
             </div>
           ))}
@@ -257,7 +257,7 @@ export default function BillsPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               <div>
-                <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Vendor *</label>
+                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Vendor *</label>
                 <select value={formVendor} onChange={(e) => setFormVendor(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white">
                   <option value="">Select vendor...</option>
@@ -265,22 +265,22 @@ export default function BillsPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Vendor Invoice #</label>
+                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Vendor Invoice #</label>
                 <input value={formBillNumber} onChange={(e) => setFormBillNumber(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" placeholder="e.g. INV-2026-001" />
               </div>
               <div>
-                <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Bill Date *</label>
+                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Bill Date *</label>
                 <input type="date" value={formBillDate} onChange={(e) => setFormBillDate(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
               </div>
               <div>
-                <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Due Date *</label>
+                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Due Date *</label>
                 <input type="date" value={formDueDate} onChange={(e) => setFormDueDate(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
               </div>
               <div>
-                <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Job</label>
+                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Job</label>
                 <select value={formJob} onChange={(e) => setFormJob(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white">
                   <option value="">No job</option>
@@ -291,7 +291,7 @@ export default function BillsPage() {
 
             {/* Line Items */}
             <div>
-              <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-2">Line Items *</label>
+              <label className="block text-xs text-gray-600 uppercase tracking-wider mb-2">Line Items *</label>
               <div className="space-y-2">
                 {formLines.map((line, idx) => (
                   <div key={idx} className="grid grid-cols-12 gap-2 items-end">
@@ -330,7 +330,7 @@ export default function BillsPage() {
             </div>
 
             <div>
-              <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Notes</label>
+              <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Notes</label>
               <textarea value={formNotes} onChange={(e) => setFormNotes(e.target.value)} rows={2}
                 className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
             </div>
@@ -363,7 +363,7 @@ export default function BillsPage() {
           <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
             <table className="w-full text-sm min-w-[800px]">
               <thead>
-                <tr className="text-[10px] uppercase tracking-wider text-gray-600 border-b border-gray-800">
+                <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
                   <th className="text-left px-4 py-3 font-medium">Vendor</th>
                   <th className="text-left px-4 py-3 font-medium">Bill #</th>
                   <th className="text-left px-4 py-3 font-medium">Date</th>
@@ -392,7 +392,7 @@ export default function BillsPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${STATUS_COLORS[bill.status] || "bg-gray-800 text-gray-300"}`}>
+                        <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${STATUS_COLORS[bill.status] || "bg-gray-800 text-gray-300"}`}>
                           {bill.status}
                         </span>
                       </td>
@@ -440,34 +440,34 @@ export default function BillsPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Payment Date</label>
+                  <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Payment Date</label>
                   <input type="date" value={pmtDate} onChange={(e) => setPmtDate(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-sm text-white" />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Amount</label>
+                  <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Amount</label>
                   <input type="number" value={pmtAmount} onChange={(e) => setPmtAmount(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-sm text-white" min="0.01" step="0.01" />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Method</label>
+                  <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Method</label>
                   <select value={pmtMethod} onChange={(e) => setPmtMethod(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-sm text-white">
                     {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{m.replace("_", " ")}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Check #</label>
+                  <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Check #</label>
                   <input value={pmtCheckNum} onChange={(e) => setPmtCheckNum(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-sm text-white" />
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Reference</label>
+                  <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Reference</label>
                   <input value={pmtRef} onChange={(e) => setPmtRef(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-sm text-white" />
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Notes</label>
+                  <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Notes</label>
                   <textarea value={pmtNotes} onChange={(e) => setPmtNotes(e.target.value)} rows={2}
                     className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-sm text-white" />
                 </div>

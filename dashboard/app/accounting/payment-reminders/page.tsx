@@ -296,19 +296,19 @@ export default function PaymentRemindersPage() {
         {/* Summary cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           <div className="p-4 rounded-xl bg-gray-900/50 border border-gray-800">
-            <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">Overdue Invoices</div>
+            <div className="text-xs text-gray-600 uppercase tracking-wider mb-1">Overdue Invoices</div>
             <div className="text-xl font-bold text-red-400">{overdueInvoices.length}</div>
           </div>
           <div className="p-4 rounded-xl bg-gray-900/50 border border-gray-800">
-            <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">Total Overdue</div>
+            <div className="text-xs text-gray-600 uppercase tracking-wider mb-1">Total Overdue</div>
             <div className="text-xl font-bold text-orange-400">{fmtCurrency(totalOverdueAmount)}</div>
           </div>
           <div className="p-4 rounded-xl bg-gray-900/50 border border-gray-800">
-            <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">Critical (60+ days)</div>
+            <div className="text-xs text-gray-600 uppercase tracking-wider mb-1">Critical (60+ days)</div>
             <div className="text-xl font-bold text-red-500">{critical}</div>
           </div>
           <div className="p-4 rounded-xl bg-gray-900/50 border border-gray-800">
-            <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">Pending Reminders</div>
+            <div className="text-xs text-gray-600 uppercase tracking-wider mb-1">Pending Reminders</div>
             <div className="text-xl font-bold text-amber-400">{pendingReminders}</div>
           </div>
         </div>
@@ -366,7 +366,7 @@ export default function PaymentRemindersPage() {
                 <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto mb-8">
                   <table className="w-full text-sm min-w-[900px]">
                     <thead>
-                      <tr className="text-[10px] uppercase tracking-wider text-gray-600 border-b border-gray-800">
+                      <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
                         <th className="text-left px-4 py-3 font-medium w-20">Invoice #</th>
                         <th className="text-left px-4 py-3 font-medium">Customer</th>
                         <th className="text-right px-4 py-3 font-medium w-28">Balance Due</th>
@@ -385,7 +385,7 @@ export default function PaymentRemindersPage() {
                             <td className="px-4 py-3 text-right font-mono text-gray-300">{fmtCurrency(Number(inv.balance_due))}</td>
                             <td className="px-4 py-3 text-gray-400 text-xs">{fmtDate(inv.due_date)}</td>
                             <td className="px-4 py-3 text-center">
-                              <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${sev.bg} ${sev.text} border ${sev.border}`}>
+                              <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${sev.bg} ${sev.text} border ${sev.border}`}>
                                 {inv.days_overdue}d
                               </span>
                             </td>
@@ -415,7 +415,7 @@ export default function PaymentRemindersPage() {
                     <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
                       <table className="w-full text-sm min-w-[800px]">
                         <thead>
-                          <tr className="text-[10px] uppercase tracking-wider text-gray-600 border-b border-gray-800">
+                          <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
                             <th className="text-left px-4 py-3 font-medium w-20">Invoice</th>
                             <th className="text-left px-4 py-3 font-medium">Customer</th>
                             <th className="text-left px-4 py-3 font-medium w-28">Type</th>
@@ -438,7 +438,7 @@ export default function PaymentRemindersPage() {
                                 <td className="px-4 py-3 text-gray-300 text-xs">{reminderLabel(rem.reminder_type)}</td>
                                 <td className="px-4 py-3 text-gray-400 text-xs">{fmtDate(rem.scheduled_date)}</td>
                                 <td className="px-4 py-3">
-                                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${badge.bg} ${badge.text}`}>
+                                  <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${badge.bg} ${badge.text}`}>
                                     {rem.status}
                                   </span>
                                 </td>
@@ -487,7 +487,7 @@ export default function PaymentRemindersPage() {
             {/* Current effective rate callout */}
             {currentStandard && (
               <div className="mb-6 p-5 rounded-xl bg-gradient-to-r from-violet-900/30 to-purple-900/20 border border-violet-800/40">
-                <div className="text-[10px] text-violet-400 uppercase tracking-wider mb-1">Current IRS Standard Rate</div>
+                <div className="text-xs text-violet-400 uppercase tracking-wider mb-1">Current IRS Standard Rate</div>
                 <div className="flex items-baseline gap-3">
                   <span className="text-3xl font-black text-white">{fmtRate(currentStandard.rate_per_mile)}</span>
                   <span className="text-sm text-gray-400">per mile</span>
@@ -504,7 +504,7 @@ export default function PaymentRemindersPage() {
               <h3 className="text-sm font-bold uppercase tracking-wider text-gray-300 mb-3">Mileage Reimbursement Calculator</h3>
               <div className="flex flex-wrap items-end gap-4">
                 <div>
-                  <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Miles Driven</label>
+                  <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Miles Driven</label>
                   <input
                     type="number"
                     step="0.1"
@@ -515,7 +515,7 @@ export default function PaymentRemindersPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Rate Type</label>
+                  <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Rate Type</label>
                   <select
                     value={calcRateType}
                     onChange={(e) => setCalcRateType(e.target.value)}
@@ -527,13 +527,13 @@ export default function PaymentRemindersPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Rate</label>
+                  <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Rate</label>
                   <div className="px-3 py-2 text-sm text-gray-400">
                     {currentRate ? fmtRate(currentRate.rate_per_mile) : "N/A"}
                   </div>
                 </div>
                 <div>
-                  <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Reimbursement</label>
+                  <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Reimbursement</label>
                   <div className="px-3 py-2 text-lg font-bold text-violet-300">
                     {calcResult != null ? fmtCurrency(calcResult) : "---"}
                   </div>
@@ -560,7 +560,7 @@ export default function PaymentRemindersPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                   <div>
-                    <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Effective Date *</label>
+                    <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Effective Date *</label>
                     <input
                       type="date"
                       value={rateDate}
@@ -569,7 +569,7 @@ export default function PaymentRemindersPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Rate per Mile *</label>
+                    <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Rate per Mile *</label>
                     <input
                       type="number"
                       step="0.0001"
@@ -580,7 +580,7 @@ export default function PaymentRemindersPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Rate Type</label>
+                    <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Rate Type</label>
                     <select
                       value={rateType}
                       onChange={(e) => setRateType(e.target.value)}
@@ -593,7 +593,7 @@ export default function PaymentRemindersPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Description</label>
+                    <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Description</label>
                     <input
                       value={rateDesc}
                       onChange={(e) => setRateDesc(e.target.value)}
@@ -630,7 +630,7 @@ export default function PaymentRemindersPage() {
               <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
                 <table className="w-full text-sm min-w-[700px]">
                   <thead>
-                    <tr className="text-[10px] uppercase tracking-wider text-gray-600 border-b border-gray-800">
+                    <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
                       <th className="text-left px-4 py-3 font-medium w-28">Effective</th>
                       <th className="text-left px-4 py-3 font-medium w-28">Rate Type</th>
                       <th className="text-right px-4 py-3 font-medium w-28">Rate / Mile</th>
@@ -649,7 +649,7 @@ export default function PaymentRemindersPage() {
                       >
                         <td className="px-4 py-3 text-gray-400 text-xs">{fmtDate(rate.effective_date)}</td>
                         <td className="px-4 py-3">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-violet-900/40 text-violet-300 border border-violet-800/40">
+                          <span className="px-2 py-0.5 rounded text-xs font-bold uppercase bg-violet-900/40 text-violet-300 border border-violet-800/40">
                             {RATE_TYPE_LABELS[rate.rate_type] || rate.rate_type}
                           </span>
                         </td>

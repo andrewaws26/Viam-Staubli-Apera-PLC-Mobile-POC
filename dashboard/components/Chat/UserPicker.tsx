@@ -74,11 +74,11 @@ export default function UserPicker({ onSelect, onClose, currentUserId }: UserPic
             >
               <div className="flex items-center justify-between">
                 <span className="text-xs text-gray-200 font-medium">{u.name}</span>
-                <span className={`text-[10px] ${ROLE_COLORS[u.role] || "text-gray-400"} uppercase`}>
+                <span className={`text-xs ${ROLE_COLORS[u.role] || "text-gray-400"} uppercase`}>
                   {u.role}
                 </span>
               </div>
-              <span className="text-[10px] text-gray-500">{u.email}</span>
+              <span className="text-xs text-gray-500">{u.email}</span>
             </button>
           ))}
           {!loading && filtered.length === 0 && (

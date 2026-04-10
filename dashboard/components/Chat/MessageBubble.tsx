@@ -64,7 +64,7 @@ export default function MessageBubble({ message, isOwn, onToggleReaction }: Mess
         {!isOwn && (
           <div className="flex items-center gap-1.5 mb-0.5">
             <span className="text-xs font-medium text-gray-200">{message.senderName}</span>
-            <span className={`text-[10px] ${roleColor} uppercase font-medium`}>
+            <span className={`text-xs ${roleColor} uppercase font-medium`}>
               {message.senderRole}
             </span>
           </div>
@@ -84,7 +84,7 @@ export default function MessageBubble({ message, isOwn, onToggleReaction }: Mess
 
         {/* Edited indicator */}
         {message.editedAt && (
-          <span className="text-[10px] text-gray-500 italic ml-1">(edited)</span>
+          <span className="text-xs text-gray-500 italic ml-1">(edited)</span>
         )}
 
         {/* Snapshot card */}
@@ -115,7 +115,7 @@ export default function MessageBubble({ message, isOwn, onToggleReaction }: Mess
 
         {/* Timestamp + reactions */}
         <div className="flex items-center justify-between mt-1">
-          <span className="text-[10px] text-gray-500">{time}</span>
+          <span className="text-xs text-gray-500">{time}</span>
         </div>
 
         {/* Reactions */}

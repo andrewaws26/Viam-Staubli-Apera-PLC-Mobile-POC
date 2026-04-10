@@ -12,6 +12,7 @@ import {
 } from "@ironsight/shared";
 import TimesheetSections from "./TimesheetSections";
 import { useToast } from "@/components/Toast";
+import PromptModal from "@/components/ui/PromptModal";
 
 interface TeamMember {
   id: string;
@@ -91,6 +92,7 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
   // UI state
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [showRejectModal, setShowRejectModal] = useState(false);
   const [success, setSuccess] = useState("");
   const { toast } = useToast();
 
@@ -574,7 +576,7 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div>
-                    <label className="block text-[10px] text-gray-500 mb-1 uppercase">Start</label>
+                    <label className="block text-xs text-gray-500 mb-1 uppercase">Start</label>
                     <input
                       type="time"
                       value={log.start_time}
@@ -584,7 +586,7 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] text-gray-500 mb-1 uppercase">End</label>
+                    <label className="block text-xs text-gray-500 mb-1 uppercase">End</label>
                     <input
                       type="time"
                       value={log.end_time}
@@ -594,7 +596,7 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] text-gray-500 mb-1 uppercase">Hours</label>
+                    <label className="block text-xs text-gray-500 mb-1 uppercase">Hours</label>
                     <input
                       type="number"
                       step="0.25"
@@ -607,7 +609,7 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] text-gray-500 mb-1 uppercase">Travel</label>
+                    <label className="block text-xs text-gray-500 mb-1 uppercase">Travel</label>
                     <input
                       type="number"
                       step="0.25"
@@ -622,7 +624,7 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-2">
                   <div className="sm:col-span-2">
-                    <label className="block text-[10px] text-gray-500 mb-1 uppercase">Description</label>
+                    <label className="block text-xs text-gray-500 mb-1 uppercase">Description</label>
                     <input
                       type="text"
                       value={log.description}
@@ -633,7 +635,7 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] text-gray-500 mb-1 uppercase">Lunch</label>
+                    <label className="block text-xs text-gray-500 mb-1 uppercase">Lunch</label>
                     <select
                       value={log.lunch_minutes}
                       onChange={(e) => updateDailyLog(idx, "lunch_minutes", Number(e.target.value))}
@@ -644,7 +646,7 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[10px] text-gray-500 mb-1 uppercase">From</label>
+                    <label className="block text-xs text-gray-500 mb-1 uppercase">From</label>
                     <input
                       type="text"
                       value={log.traveling_from}
@@ -655,7 +657,7 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] text-gray-500 mb-1 uppercase">To</label>
+                    <label className="block text-xs text-gray-500 mb-1 uppercase">To</label>
                     <input
                       type="text"
                       value={log.destination}
@@ -668,7 +670,7 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-2">
                   <div>
-                    <label className="block text-[10px] text-gray-500 mb-1 uppercase">Travel Miles</label>
+                    <label className="block text-xs text-gray-500 mb-1 uppercase">Travel Miles</label>
                     <input
                       type="number"
                       min={0}
@@ -778,16 +780,7 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
               Approve
             </button>
             <button
-              onClick={async () => {
-                const reason = prompt("Rejection reason (optional):");
-                setSaving(true);
-                await fetch(`/api/timesheets/${existingTimesheet.id}`, {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ status: "rejected", rejection_reason: reason }),
-                });
-                router.push("/timesheets/admin");
-              }}
+              onClick={() => setShowRejectModal(true)}
               className="px-6 py-3 rounded-lg bg-red-600 hover:bg-red-500 text-white font-semibold transition-colors"
             >
               Reject
@@ -851,6 +844,25 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
           Cancel
         </a>
       </div>
+
+      {existingTimesheet && (
+        <PromptModal
+          open={showRejectModal}
+          title="Rejection reason (optional)"
+          placeholder="Why is this timesheet being rejected?"
+          onConfirm={async (reason) => {
+            setShowRejectModal(false);
+            setSaving(true);
+            await fetch(`/api/timesheets/${existingTimesheet.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ status: "rejected", rejection_reason: reason }),
+            });
+            router.push("/timesheets/admin");
+          }}
+          onCancel={() => setShowRejectModal(false)}
+        />
+      )}
     </div>
   );
 }

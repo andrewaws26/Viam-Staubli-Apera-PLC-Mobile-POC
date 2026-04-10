@@ -118,7 +118,7 @@ function ShiftReportInner() {
         <div className="px-3 sm:px-6 py-3 sm:py-4 border-b border-gray-800 no-print">
           <div className="flex flex-wrap items-end gap-3">
             <div>
-              <label className="block text-[10px] text-gray-500 uppercase tracking-widest mb-1">Date</label>
+              <label className="block text-xs text-gray-500 uppercase tracking-widest mb-1">Date</label>
               <input
                 type="date"
                 value={date}
@@ -127,7 +127,7 @@ function ShiftReportInner() {
               />
             </div>
             <div>
-              <label className="block text-[10px] text-gray-500 uppercase tracking-widest mb-1">Start Time</label>
+              <label className="block text-xs text-gray-500 uppercase tracking-widest mb-1">Start Time</label>
               <input
                 type="time"
                 value={toTimeInput(startH, startM)}
@@ -136,7 +136,7 @@ function ShiftReportInner() {
               />
             </div>
             <div>
-              <label className="block text-[10px] text-gray-500 uppercase tracking-widest mb-1">End Time</label>
+              <label className="block text-xs text-gray-500 uppercase tracking-widest mb-1">End Time</label>
               <input
                 type="time"
                 value={toTimeInput(endH, endM)}
@@ -425,7 +425,7 @@ function ReportContent({
       <PrintReport report={report} startH={startH} startM={startM} endH={endH} endM={endM} />
 
       {/* Footer (screen) */}
-      <footer className="text-[10px] sm:text-xs text-gray-600 text-center py-4 border-t border-gray-800 no-print">
+      <footer className="text-xs sm:text-xs text-gray-600 text-center py-4 border-t border-gray-800 no-print">
         Report generated {fmtDateTime(new Date().toISOString())} | Data points: {report.dataPointCount.tps} TPS, {report.dataPointCount.truck} truck | All times Eastern (Louisville, KY) | IronSight Fleet Monitoring
       </footer>
     </>

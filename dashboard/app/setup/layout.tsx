@@ -28,7 +28,7 @@ export default function SetupLayout({ children }: { children: React.ReactNode })
               <h1 className="font-bold text-white text-lg leading-tight">
                 IronSight
               </h1>
-              <p className="text-[10px] text-gray-500 uppercase tracking-wider">
+              <p className="text-xs text-gray-500 uppercase tracking-wider">
                 Setup Wizard
               </p>
             </div>

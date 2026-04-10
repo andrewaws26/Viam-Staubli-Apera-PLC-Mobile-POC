@@ -101,7 +101,7 @@ export default function TruckNotes({ truckId }: { truckId?: string }) {
         <div className="flex items-center gap-2">
           <span className="text-sm sm:text-base font-bold text-gray-200">Truck Notes</span>
           {notes.length > 0 && (
-            <span className="px-1.5 py-0.5 rounded-full bg-purple-600/30 text-purple-300 text-[10px] font-bold">
+            <span className="px-1.5 py-0.5 rounded-full bg-purple-600/30 text-purple-300 text-xs font-bold">
               {notes.length}
             </span>
           )}
@@ -138,7 +138,7 @@ export default function TruckNotes({ truckId }: { truckId?: string }) {
                       <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold text-white ${ROLE_COLORS[note.author_role] ?? "bg-gray-600"}`}>
                         {note.author_role}
                       </span>
-                      <span className="text-[10px] text-gray-600">{timeAgo(note.created_at)}</span>
+                      <span className="text-xs text-gray-600">{timeAgo(note.created_at)}</span>
                     </div>
                     {canDelete(note.author_id) && (
                       <button

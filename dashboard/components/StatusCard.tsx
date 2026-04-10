@@ -45,7 +45,7 @@ export default function StatusCard({ component }: Props) {
           ) : isPending ? (
             <>
               <span className="text-xl sm:text-4xl opacity-40">{icon}</span>
-              <span className="text-yellow-400 font-bold text-[10px] sm:text-xs mt-0.5 sm:mt-1 uppercase tracking-wider">
+              <span className="text-yellow-400 font-bold text-xs sm:text-xs mt-0.5 sm:mt-1 uppercase tracking-wider">
                 Pending
               </span>
             </>
@@ -78,7 +78,7 @@ export default function StatusCard({ component }: Props) {
       )}
 
       {/* Last updated */}
-      <p className="text-[10px] sm:text-xs text-gray-600 mt-auto font-mono">
+      <p className="text-xs sm:text-xs text-gray-600 mt-auto font-mono">
         {lastUpdated
           ? lastUpdated.toLocaleTimeString()
           : isLoading

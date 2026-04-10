@@ -245,11 +245,11 @@ export default function TrainingAdmin() {
 
                   {/* Compliance badge */}
                   {emp.is_compliant ? (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-green-900/50 text-green-300">
+                    <span className="px-2 py-0.5 rounded text-xs font-bold uppercase bg-green-900/50 text-green-300">
                       Compliant
                     </span>
                   ) : (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-red-900/50 text-red-300">
+                    <span className="px-2 py-0.5 rounded text-xs font-bold uppercase bg-red-900/50 text-red-300">
                       Non-Compliant
                     </span>
                   )}
@@ -278,7 +278,7 @@ export default function TrainingAdmin() {
                           <div className="flex items-center gap-2 min-w-0">
                             <div className={`w-2 h-2 rounded-full ${style.dot} shrink-0`} />
                             <span className="text-sm text-gray-300">{detail.requirement.name}</span>
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${style.bg} ${style.text}`}>
+                            <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${style.bg} ${style.text}`}>
                               {COMPLIANCE_STATUS_LABELS[detail.status]}
                             </span>
                           </div>

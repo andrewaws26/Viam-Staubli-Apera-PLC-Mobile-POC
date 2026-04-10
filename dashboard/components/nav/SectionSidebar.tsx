@@ -27,7 +27,7 @@ export default function SectionSidebar({ groups, role }: Props) {
         {visibleGroups.map((group, gi) => (
           <div key={gi}>
             {group.title && (
-              <h3 className="px-3 mb-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-gray-600">
+              <h3 className="px-3 mb-1.5 text-xs font-bold uppercase tracking-[0.2em] text-gray-600">
                 {group.title}
               </h3>
             )}

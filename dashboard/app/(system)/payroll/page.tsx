@@ -93,14 +93,14 @@ function SummaryCard({
 }) {
   return (
     <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4 flex flex-col gap-1">
-      <span className="text-[10px] uppercase tracking-wider text-gray-600 font-medium">
+      <span className="text-xs uppercase tracking-wider text-gray-600 font-medium">
         {label}
       </span>
       <span className="text-xl sm:text-2xl font-black text-gray-100 font-mono tracking-tight">
         {value}
       </span>
       {sub && (
-        <span className="text-[10px] text-gray-600">{sub}</span>
+        <span className="text-xs text-gray-600">{sub}</span>
       )}
     </div>
   );
@@ -231,7 +231,7 @@ export default function PayrollPage() {
           {/* Date inputs + quick buttons */}
           <div className="flex flex-wrap items-end gap-3">
             <div>
-              <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">
+              <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">
                 From
               </label>
               <input
@@ -242,7 +242,7 @@ export default function PayrollPage() {
               />
             </div>
             <div>
-              <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">
+              <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">
                 To
               </label>
               <input
@@ -333,7 +333,7 @@ export default function PayrollPage() {
                 Download JSON
               </button>
               <div className="flex-1" />
-              <span className="text-[10px] text-gray-600">
+              <span className="text-xs text-gray-600">
                 Export date: {data.export_date} | Period: {fmtDate(data.period.from)} &mdash; {fmtDate(data.period.to)}
               </span>
             </div>
@@ -391,7 +391,7 @@ export default function PayrollPage() {
               <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
                 <table className="w-full text-sm min-w-[960px]">
                   <thead>
-                    <tr className="text-[10px] uppercase tracking-wider text-gray-600 border-b border-gray-800">
+                    <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
                       <th className="text-left px-4 py-3 font-medium">Name</th>
                       <th className="text-left px-4 py-3 font-medium w-28">
                         Week Ending

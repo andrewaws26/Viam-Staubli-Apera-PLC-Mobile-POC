@@ -158,7 +158,7 @@ function PriorityBadge({ priority }: { priority: string }) {
   };
   return (
     <span
-      className={`inline-block text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
+      className={`inline-block text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
         styles[priority] || styles.normal
       }`}
     >
@@ -176,7 +176,7 @@ function RequestTypeBadge({ type }: { type: string }) {
   };
   return (
     <span
-      className={`inline-block text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
+      className={`inline-block text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
         styles[type] || styles.vacation
       }`}
     >
@@ -588,7 +588,7 @@ export default function ManagerCommandCenter() {
                               </p>
                             </div>
                             <span
-                              className={`shrink-0 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
+                              className={`shrink-0 text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
                                 alert.status === "expired"
                                   ? "bg-red-900/50 text-red-300 border-red-700/40"
                                   : "bg-yellow-900/50 text-yellow-300 border-yellow-700/40"
@@ -644,7 +644,7 @@ export default function ManagerCommandCenter() {
                               {actionLabel(entry.action)}
                             </p>
                           </div>
-                          <span className="text-[10px] text-gray-600 whitespace-nowrap shrink-0 mt-0.5">
+                          <span className="text-xs text-gray-600 whitespace-nowrap shrink-0 mt-0.5">
                             {timeAgo(entry.created_at)}
                           </span>
                         </div>

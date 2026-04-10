@@ -68,7 +68,7 @@ export default function DebugControls({ data, readingKeys, lastChangeTimestamps 
     <>
       {/* Live Readings Table */}
       <div>
-        <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+        <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
           Live Readings ({readingKeys.length} fields)
         </h3>
         {readingKeys.length === 0 ? (
@@ -121,7 +121,7 @@ export default function DebugControls({ data, readingKeys, lastChangeTimestamps 
       <div>
         <button
           onClick={() => setShowRaw((r) => !r)}
-          className="min-h-[44px] text-[10px] font-bold uppercase tracking-widest text-gray-600 hover:text-gray-400 transition-colors"
+          className="min-h-[44px] text-xs font-bold uppercase tracking-widest text-gray-600 hover:text-gray-400 transition-colors"
         >
           {showRaw ? "\u25BC" : "\u25B6"} Raw JSON
         </button>
@@ -133,11 +133,11 @@ export default function DebugControls({ data, readingKeys, lastChangeTimestamps 
                 setCopied(true);
                 setTimeout(() => setCopied(false), 2000);
               }}
-              className="absolute top-2 right-2 min-h-[44px] px-2 py-1 bg-gray-800 hover:bg-gray-700 text-gray-400 text-[10px] rounded transition-colors"
+              className="absolute top-2 right-2 min-h-[44px] px-2 py-1 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs rounded transition-colors"
             >
               {copied ? "Copied!" : "Copy"}
             </button>
-            <pre className="bg-gray-900/50 border border-gray-800 rounded-lg p-3 text-[10px] sm:text-xs text-gray-400 font-mono overflow-x-auto max-h-96 overflow-y-auto">
+            <pre className="bg-gray-900/50 border border-gray-800 rounded-lg p-3 text-xs sm:text-xs text-gray-400 font-mono overflow-x-auto max-h-96 overflow-y-auto">
               {JSON.stringify(data, null, 2)}
             </pre>
           </div>

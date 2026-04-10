@@ -169,41 +169,41 @@ export default function CustomersVendorsPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Company Name *</label>
+                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Company Name *</label>
                 <input value={formName} onChange={(e) => setFormName(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
               </div>
               <div>
-                <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Contact Name</label>
+                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Contact Name</label>
                 <input value={formContact} onChange={(e) => setFormContact(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
               </div>
               <div>
-                <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Email</label>
+                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Email</label>
                 <input type="email" value={formEmail} onChange={(e) => setFormEmail(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
               </div>
               <div>
-                <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Phone</label>
+                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Phone</label>
                 <input value={formPhone} onChange={(e) => setFormPhone(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
               </div>
               <div className="sm:col-span-2">
-                <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">
+                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">
                   {tab === "customers" ? "Billing Address" : "Address"}
                 </label>
                 <input value={formAddress} onChange={(e) => setFormAddress(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
               </div>
               <div>
-                <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Payment Terms</label>
+                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Payment Terms</label>
                 <select value={formTerms} onChange={(e) => setFormTerms(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white">
                   {TERMS_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Tax ID / EIN</label>
+                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Tax ID / EIN</label>
                 <input value={formTaxId} onChange={(e) => setFormTaxId(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" placeholder="XX-XXXXXXX" />
               </div>
@@ -215,7 +215,7 @@ export default function CustomersVendorsPage() {
                 </div>
               )}
               <div className="sm:col-span-2">
-                <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Notes</label>
+                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Notes</label>
                 <textarea value={formNotes} onChange={(e) => setFormNotes(e.target.value)} rows={2}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
               </div>
@@ -246,7 +246,7 @@ export default function CustomersVendorsPage() {
           <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
             <table className="w-full text-sm min-w-[700px]">
               <thead>
-                <tr className="text-[10px] uppercase tracking-wider text-gray-600 border-b border-gray-800">
+                <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
                   <th className="text-left px-4 py-3 font-medium">Company</th>
                   <th className="text-left px-4 py-3 font-medium">Contact</th>
                   <th className="text-left px-4 py-3 font-medium">Email</th>
@@ -262,14 +262,14 @@ export default function CustomersVendorsPage() {
                     <td className="px-4 py-3 text-gray-400">{item.contact_name || "—"}</td>
                     <td className="px-4 py-3 text-gray-400 text-xs">{item.email || "—"}</td>
                     <td className="px-4 py-3">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-gray-800 text-gray-300">
+                      <span className="px-2 py-0.5 rounded text-xs font-bold uppercase bg-gray-800 text-gray-300">
                         {item.payment_terms}
                       </span>
                     </td>
                     {tab === "vendors" && (
                       <td className="px-4 py-3">
                         {(item as Vendor).is_1099_vendor && (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-900/50 text-amber-300">1099</span>
+                          <span className="px-2 py-0.5 rounded text-xs font-bold uppercase bg-amber-900/50 text-amber-300">1099</span>
                         )}
                       </td>
                     )}

@@ -447,7 +447,7 @@ export default function ReportsPage() {
                       {report.name}
                     </h3>
                     {report.category && (
-                      <span className="shrink-0 ml-2 px-2 py-0.5 bg-violet-500/10 text-violet-400 rounded text-[10px] font-semibold uppercase">
+                      <span className="shrink-0 ml-2 px-2 py-0.5 bg-violet-500/10 text-violet-400 rounded text-xs font-semibold uppercase">
                         {report.category}
                       </span>
                     )}
@@ -461,7 +461,7 @@ export default function ReportsPage() {
                     "{report.prompt}"
                   </p>
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 text-[10px] text-gray-600">
+                    <div className="flex items-center gap-3 text-xs text-gray-600">
                       <span>by {report.created_by_name}</span>
                       {report.run_count > 0 && (
                         <span>{report.run_count} runs</span>
@@ -473,14 +473,14 @@ export default function ReportsPage() {
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => handleRerun(report)}
-                        className="px-2 py-1 text-[10px] font-semibold text-violet-400 hover:text-violet-300 bg-violet-500/10 hover:bg-violet-500/20 rounded transition-colors"
+                        className="px-2 py-1 text-xs font-semibold text-violet-400 hover:text-violet-300 bg-violet-500/10 hover:bg-violet-500/20 rounded transition-colors"
                       >
                         Run
                       </button>
                       {report.created_by === user?.id && (
                         <button
                           onClick={() => handleDelete(report.id)}
-                          className="px-2 py-1 text-[10px] text-gray-600 hover:text-red-400 rounded transition-colors"
+                          className="px-2 py-1 text-xs text-gray-600 hover:text-red-400 rounded transition-colors"
                         >
                           Delete
                         </button>

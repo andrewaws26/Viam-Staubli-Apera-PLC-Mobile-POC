@@ -181,7 +181,7 @@ export default function FleetManager() {
   // Input style constants
   const inputClass =
     "min-h-[44px] w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-gray-200 text-xs placeholder-gray-600 focus:outline-none focus:border-purple-500";
-  const labelClass = "block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1";
+  const labelClass = "block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1";
   const checkboxLabelClass = "flex items-center gap-2 text-xs text-gray-300 cursor-pointer";
 
   if (loading) {
@@ -460,14 +460,14 @@ export default function FleetManager() {
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-gray-800">
-                  <th className="text-left px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">ID</th>
-                  <th className="text-left px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Name</th>
-                  <th className="text-left px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Year / Make / Model</th>
-                  <th className="text-left px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">VIN</th>
-                  <th className="text-left px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="text-left px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Home Base</th>
-                  <th className="text-left px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Capabilities</th>
-                  <th className="text-right px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">ID</th>
+                  <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Name</th>
+                  <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Year / Make / Model</th>
+                  <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">VIN</th>
+                  <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Home Base</th>
+                  <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Capabilities</th>
+                  <th className="text-right px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -478,11 +478,11 @@ export default function FleetManager() {
                     <td className="px-4 py-3 text-gray-400">
                       {[truck.year, truck.make, truck.model].filter(Boolean).join(" ")}
                     </td>
-                    <td className="px-4 py-3 text-gray-500 font-mono text-[10px]">
+                    <td className="px-4 py-3 text-gray-500 font-mono text-xs">
                       {truck.vin ? `...${truck.vin.slice(-6)}` : "---"}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold text-white ${STATUS_COLORS[truck.status]}`}>
+                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold text-white ${STATUS_COLORS[truck.status]}`}>
                         {truck.status}
                       </span>
                     </td>
@@ -510,7 +510,7 @@ export default function FleetManager() {
                       <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => openEditForm(truck)}
-                          className="px-2.5 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 text-[10px] font-bold uppercase tracking-wider transition-colors"
+                          className="px-2.5 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 text-xs font-bold uppercase tracking-wider transition-colors"
                         >
                           Edit
                         </button>
@@ -521,13 +521,13 @@ export default function FleetManager() {
                                 <button
                                   onClick={() => handleDecommission(truck.id)}
                                   disabled={submitting}
-                                  className="px-2.5 py-1 rounded bg-red-700 hover:bg-red-600 disabled:opacity-40 text-white text-[10px] font-bold uppercase tracking-wider transition-colors"
+                                  className="px-2.5 py-1 rounded bg-red-700 hover:bg-red-600 disabled:opacity-40 text-white text-xs font-bold uppercase tracking-wider transition-colors"
                                 >
                                   {submitting ? "..." : "Confirm"}
                                 </button>
                                 <button
                                   onClick={() => setConfirmDecommission(null)}
-                                  className="px-2.5 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-500 text-[10px] font-bold uppercase tracking-wider transition-colors"
+                                  className="px-2.5 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-500 text-xs font-bold uppercase tracking-wider transition-colors"
                                 >
                                   No
                                 </button>
@@ -535,7 +535,7 @@ export default function FleetManager() {
                             ) : (
                               <button
                                 onClick={() => setConfirmDecommission(truck.id)}
-                                className="px-2.5 py-1 rounded bg-gray-800 hover:bg-red-900/50 text-gray-500 hover:text-red-400 text-[10px] font-bold uppercase tracking-wider transition-colors"
+                                className="px-2.5 py-1 rounded bg-gray-800 hover:bg-red-900/50 text-gray-500 hover:text-red-400 text-xs font-bold uppercase tracking-wider transition-colors"
                               >
                                 Decom
                               </button>
@@ -559,7 +559,7 @@ export default function FleetManager() {
                     <span className="font-mono font-bold text-sm text-gray-300">{truck.id}</span>
                     <span className="text-sm font-semibold text-gray-200">{truck.name}</span>
                   </div>
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold text-white ${STATUS_COLORS[truck.status]}`}>
+                  <span className={`px-2 py-0.5 rounded text-xs font-bold text-white ${STATUS_COLORS[truck.status]}`}>
                     {truck.status}
                   </span>
                 </div>
@@ -583,7 +583,7 @@ export default function FleetManager() {
                   <div className="flex gap-1">
                     <button
                       onClick={() => openEditForm(truck)}
-                      className="min-h-[44px] px-3 py-2 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 text-[10px] font-bold uppercase tracking-wider transition-colors"
+                      className="min-h-[44px] px-3 py-2 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs font-bold uppercase tracking-wider transition-colors"
                     >
                       Edit
                     </button>
@@ -594,13 +594,13 @@ export default function FleetManager() {
                             <button
                               onClick={() => handleDecommission(truck.id)}
                               disabled={submitting}
-                              className="min-h-[44px] px-3 py-2 rounded bg-red-700 hover:bg-red-600 disabled:opacity-40 text-white text-[10px] font-bold uppercase tracking-wider transition-colors"
+                              className="min-h-[44px] px-3 py-2 rounded bg-red-700 hover:bg-red-600 disabled:opacity-40 text-white text-xs font-bold uppercase tracking-wider transition-colors"
                             >
                               {submitting ? "..." : "Confirm"}
                             </button>
                             <button
                               onClick={() => setConfirmDecommission(null)}
-                              className="min-h-[44px] px-3 py-2 rounded bg-gray-800 text-gray-500 text-[10px] font-bold uppercase tracking-wider transition-colors"
+                              className="min-h-[44px] px-3 py-2 rounded bg-gray-800 text-gray-500 text-xs font-bold uppercase tracking-wider transition-colors"
                             >
                               No
                             </button>
@@ -608,7 +608,7 @@ export default function FleetManager() {
                         ) : (
                           <button
                             onClick={() => setConfirmDecommission(truck.id)}
-                            className="min-h-[44px] px-3 py-2 rounded bg-gray-800 hover:bg-red-900/50 text-gray-500 hover:text-red-400 text-[10px] font-bold uppercase tracking-wider transition-colors"
+                            className="min-h-[44px] px-3 py-2 rounded bg-gray-800 hover:bg-red-900/50 text-gray-500 hover:text-red-400 text-xs font-bold uppercase tracking-wider transition-colors"
                           >
                             Decom
                           </button>

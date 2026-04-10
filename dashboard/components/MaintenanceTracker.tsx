@@ -156,17 +156,17 @@ export default function MaintenanceTracker({ truckId }: { truckId?: string }) {
         <div className="flex items-center gap-2">
           <span className="text-sm sm:text-base font-bold text-gray-200">Maintenance History</span>
           {events.length > 0 && (
-            <span className="px-1.5 py-0.5 rounded-full bg-blue-600/30 text-blue-300 text-[10px] font-bold">
+            <span className="px-1.5 py-0.5 rounded-full bg-blue-600/30 text-blue-300 text-xs font-bold">
               {events.length}
             </span>
           )}
           {overdueCount > 0 && (
-            <span className="px-1.5 py-0.5 rounded-full bg-red-600/30 text-red-300 text-[10px] font-bold">
+            <span className="px-1.5 py-0.5 rounded-full bg-red-600/30 text-red-300 text-xs font-bold">
               {overdueCount} overdue
             </span>
           )}
           {dueSoonCount > 0 && (
-            <span className="px-1.5 py-0.5 rounded-full bg-amber-600/30 text-amber-300 text-[10px] font-bold">
+            <span className="px-1.5 py-0.5 rounded-full bg-amber-600/30 text-amber-300 text-xs font-bold">
               {dueSoonCount} due soon
             </span>
           )}
@@ -198,7 +198,7 @@ export default function MaintenanceTracker({ truckId }: { truckId?: string }) {
             <div className="bg-gray-800/50 rounded-xl p-3 sm:p-4 space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Type</label>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Type</label>
                   <select
                     value={form.event_type}
                     onChange={(e) => setForm({ ...form, event_type: e.target.value })}
@@ -210,7 +210,7 @@ export default function MaintenanceTracker({ truckId }: { truckId?: string }) {
                   </select>
                 </div>
                 <div>
-                  <label className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Performed By</label>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Performed By</label>
                   <input
                     type="text"
                     value={form.performed_by}
@@ -220,7 +220,7 @@ export default function MaintenanceTracker({ truckId }: { truckId?: string }) {
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Date</label>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Date</label>
                   <input
                     type="date"
                     value={form.performed_at}
@@ -229,7 +229,7 @@ export default function MaintenanceTracker({ truckId }: { truckId?: string }) {
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Mileage</label>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Mileage</label>
                   <input
                     type="number"
                     value={form.mileage}
@@ -239,7 +239,7 @@ export default function MaintenanceTracker({ truckId }: { truckId?: string }) {
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Engine Hours</label>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Engine Hours</label>
                   <input
                     type="number"
                     value={form.engine_hours}
@@ -249,7 +249,7 @@ export default function MaintenanceTracker({ truckId }: { truckId?: string }) {
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Next Due Date</label>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Next Due Date</label>
                   <input
                     type="date"
                     value={form.next_due_date}
@@ -259,7 +259,7 @@ export default function MaintenanceTracker({ truckId }: { truckId?: string }) {
                 </div>
               </div>
               <div>
-                <label className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Notes</label>
+                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Notes</label>
                 <input
                   type="text"
                   value={form.description}
@@ -302,7 +302,7 @@ export default function MaintenanceTracker({ truckId }: { truckId?: string }) {
                         <span className="text-xs font-semibold text-gray-200">
                           {EVENT_TYPES.find((t) => t.value === event.event_type)?.label || event.event_type}
                         </span>
-                        <span className="text-[10px] text-gray-500">{formatDate(event.performed_at)}</span>
+                        <span className="text-xs text-gray-500">{formatDate(event.performed_at)}</span>
                         {status === "overdue" && (
                           <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-600/30 text-red-300">OVERDUE</span>
                         )}
@@ -321,7 +321,7 @@ export default function MaintenanceTracker({ truckId }: { truckId?: string }) {
                         </button>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 mt-1 text-[10px] text-gray-500">
+                    <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
                       <span>by {event.performed_by}</span>
                       {event.mileage && <span>{event.mileage.toLocaleString()} mi</span>}
                       {event.engine_hours && <span>{event.engine_hours} hrs</span>}

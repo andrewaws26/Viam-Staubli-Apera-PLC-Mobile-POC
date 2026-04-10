@@ -45,7 +45,7 @@ export default function InfraPanel({ internet, switchVpn, piHealth }: Props) {
 
   return (
     <div className="border border-gray-800 rounded-2xl p-4 sm:p-5 space-y-4">
-      <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-600">
+      <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600">
         Infrastructure
       </h3>
 
@@ -56,7 +56,7 @@ export default function InfraPanel({ internet, switchVpn, piHealth }: Props) {
             <StatusDot ok={inet?.reachable ?? false} />
             <span className="text-xs font-semibold text-gray-300">Internet</span>
             {inet?.reachable && (
-              <span className="ml-auto text-[10px] text-gray-600">via {inet.gateway_ip}</span>
+              <span className="ml-auto text-xs text-gray-600">via {inet.gateway_ip}</span>
             )}
           </div>
           {inet ? (
@@ -67,12 +67,12 @@ export default function InfraPanel({ internet, switchVpn, piHealth }: Props) {
               <Metric label="DNS" value={inet.dns_ok ? `${ms(inet.dns_resolve_ms)}ms` : "FAIL"} warn={!inet.dns_ok} />
               <Metric label="Viam Cloud" value={inet.viam_reachable ? `${ms(inet.viam_latency_ms)}ms` : "DOWN"} warn={!inet.viam_reachable} />
               <Metric label="Link" value={`${inet.link_speed_mbps} Mbps`} />
-              <div className="flex justify-between text-[10px] text-gray-600 mt-1 pt-1 border-t border-gray-800/50">
+              <div className="flex justify-between text-xs text-gray-600 mt-1 pt-1 border-t border-gray-800/50">
                 <span>RX {formatBytes(inet.rx_bytes)}</span>
                 <span>TX {formatBytes(inet.tx_bytes)}</span>
               </div>
               {(inet.rx_errors > 0 || inet.tx_errors > 0) && (
-                <div className="text-[10px] text-orange-400">
+                <div className="text-xs text-orange-400">
                   Errors: RX {inet.rx_errors} / TX {inet.tx_errors}
                 </div>
               )}
@@ -99,7 +99,7 @@ export default function InfraPanel({ internet, switchVpn, piHealth }: Props) {
               <Metric label="VPN Latency" value={ms1(sw.vpn_latency_ms)} unit="ms" />
               <Metric label="Web UI" value={sw.vpn_web_ok ? "OK" : "DOWN"} warn={!sw.vpn_web_ok} />
               <Metric label="Is Gateway" value={sw.vpn_is_gateway ? "Yes" : "No"} />
-              <div className="text-[10px] text-gray-600 mt-1">{sw.vpn_ip}</div>
+              <div className="text-xs text-gray-600 mt-1">{sw.vpn_ip}</div>
             </>
           ) : (
             <div className="text-xs text-gray-600">No data</div>
@@ -112,7 +112,7 @@ export default function InfraPanel({ internet, switchVpn, piHealth }: Props) {
             <StatusDot ok={pi ? !pi.throttled_now && !pi.undervoltage_now : false} />
             <span className="text-xs font-semibold text-gray-300">Pi 5</span>
             {pi && (
-              <span className="ml-auto text-[10px] text-gray-600">{pi.uptime_hours.toFixed(1)}h up</span>
+              <span className="ml-auto text-xs text-gray-600">{pi.uptime_hours.toFixed(1)}h up</span>
             )}
           </div>
           {pi ? (
@@ -131,13 +131,13 @@ export default function InfraPanel({ internet, switchVpn, piHealth }: Props) {
               {/* Throttle flags */}
               {(pi.undervoltage_now || pi.freq_capped_now || pi.throttled_now) && (
                 <div className="mt-1 p-2 rounded-lg bg-red-950/40 border border-red-900/50 space-y-0.5">
-                  {pi.undervoltage_now && <div className="text-[10px] text-red-400">Undervoltage detected</div>}
-                  {pi.freq_capped_now && <div className="text-[10px] text-orange-400">Frequency capped</div>}
-                  {pi.throttled_now && <div className="text-[10px] text-orange-400">Thermal throttled</div>}
+                  {pi.undervoltage_now && <div className="text-xs text-red-400">Undervoltage detected</div>}
+                  {pi.freq_capped_now && <div className="text-xs text-orange-400">Frequency capped</div>}
+                  {pi.throttled_now && <div className="text-xs text-orange-400">Thermal throttled</div>}
                 </div>
               )}
               {!pi.undervoltage_now && !pi.freq_capped_now && !pi.throttled_now && (pi.undervoltage_ever || pi.freq_capped_ever || pi.throttled_ever) && (
-                <div className="text-[10px] text-yellow-600 mt-1">
+                <div className="text-xs text-yellow-600 mt-1">
                   Past throttle events detected
                 </div>
               )}

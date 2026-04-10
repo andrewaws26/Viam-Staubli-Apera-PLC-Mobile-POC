@@ -174,7 +174,7 @@ export default function DevTruckPanel() {
             Pi Zero &mdash; Truck Diagnostics
           </h2>
           {protocol && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-900/30 text-blue-400 uppercase font-bold tracking-wider">
+            <span className="text-xs px-1.5 py-0.5 rounded bg-blue-900/30 text-blue-400 uppercase font-bold tracking-wider">
               {protocol}
             </span>
           )}

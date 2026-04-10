@@ -101,7 +101,7 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
               <h1 className="text-base sm:text-xl font-black tracking-widest uppercase text-gray-100 leading-none">
                 {currentTruck?.name || "TPS Monitor"}
               </h1>
-              <p className="text-[10px] text-gray-600 mt-0.5 tracking-wide truncate">
+              <p className="text-xs text-gray-600 mt-0.5 tracking-wide truncate">
                 IronSight — Live Production & Fleet Data
               </p>
             </div>
@@ -130,7 +130,7 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
             {isDeveloper && (
               <button
                 onClick={() => setDevMode((prev) => !prev)}
-                className={`text-[10px] sm:text-xs min-h-[44px] px-3 py-2 rounded-lg font-bold uppercase tracking-wider transition-colors ${
+                className={`text-xs sm:text-xs min-h-[44px] px-3 py-2 rounded-lg font-bold uppercase tracking-wider transition-colors ${
                   devMode
                     ? "bg-amber-700 text-white"
                     : "border border-gray-700 text-gray-500 hover:text-amber-400 hover:border-amber-700"
@@ -154,7 +154,7 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
           </div>
         </header>
         {simMode && (
-          <div className="bg-purple-900/30 border-b border-purple-700/50 px-3 sm:px-5 py-1.5 text-[10px] sm:text-xs text-purple-300">
+          <div className="bg-purple-900/30 border-b border-purple-700/50 px-3 sm:px-5 py-1.5 text-xs sm:text-xs text-purple-300">
             Demo Truck — showing simulated data. Select a production truck from the dropdown for live data.
           </div>
         )}
@@ -166,7 +166,7 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
 
         {/* Truck-off banner — clean messaging when no data flowing */}
         {!simMode && connectionStatus === "truck-off" && (
-          <div className="bg-gray-800/50 border-b border-gray-700/50 px-3 sm:px-5 py-2 text-[10px] sm:text-xs text-gray-400 flex items-center gap-2">
+          <div className="bg-gray-800/50 border-b border-gray-700/50 px-3 sm:px-5 py-2 text-xs sm:text-xs text-gray-400 flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-gray-600" />
             Truck is off — waiting for data. Readings will appear when the truck powers on.
           </div>
@@ -248,7 +248,7 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
         </main>
 
         {/* Footer */}
-        <footer className="border-t border-gray-800 px-3 sm:px-5 py-2 sm:py-3 text-[10px] sm:text-xs text-gray-700 flex items-center justify-between shrink-0">
+        <footer className="border-t border-gray-800 px-3 sm:px-5 py-2 sm:py-3 text-xs sm:text-xs text-gray-700 flex items-center justify-between shrink-0">
           <span>Polling every {pollIntervalMs / 1000}s{simMode ? " (demo)" : ""}</span>
           <span>
             Live — Viam Cloud ·{" "}

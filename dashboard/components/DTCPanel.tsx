@@ -148,7 +148,7 @@ export default function DTCPanel({
                 return (
                   <span
                     key={key}
-                    className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
+                    className={`text-xs px-1.5 py-0.5 rounded font-bold ${
                       key === "red_stop_lamp"
                         ? "bg-red-700 text-white"
                         : key === "amber_warning_lamp"
@@ -217,10 +217,10 @@ export default function DTCPanel({
                         {spnInfo.name}
                       </span>
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-gray-700 text-gray-200">
+                        <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-gray-700 text-gray-200">
                           {label}
                         </span>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
                           spnInfo.severity === "critical" ? "bg-red-700 text-white" :
                           spnInfo.severity === "warning" ? "bg-yellow-700 text-white" :
                           "bg-blue-700 text-white"
@@ -278,7 +278,7 @@ export default function DTCPanel({
                       <span className="text-xs font-mono font-bold text-red-200 bg-red-900/50 px-2 py-0.5 rounded">
                         {code}
                       </span>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
                         info.severity === "critical" ? "bg-red-700 text-white" :
                         info.severity === "warning" ? "bg-yellow-700 text-white" :
                         "bg-blue-700 text-white"
@@ -345,7 +345,7 @@ export default function DTCPanel({
           {/* VIN Result */}
           {vin && (
             <div className="bg-gray-800/50 rounded-lg px-3 py-2 mb-2">
-              <span className="text-[10px] text-gray-500 uppercase tracking-wider">Vehicle ID</span>
+              <span className="text-xs text-gray-500 uppercase tracking-wider">Vehicle ID</span>
               <p className="text-sm font-mono font-bold text-gray-100">{vin}</p>
             </div>
           )}
@@ -355,7 +355,7 @@ export default function DTCPanel({
             <div className="bg-gray-800/50 rounded-lg px-3 py-3 mb-2">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-gray-400 uppercase">Emission Readiness Monitors</span>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
                   readiness.ready_for_inspection
                     ? "bg-green-700 text-white"
                     : "bg-yellow-700 text-white"
@@ -377,7 +377,7 @@ export default function DTCPanel({
                   </div>
                 ))}
               </div>
-              <p className="text-[10px] text-gray-600 mt-2">
+              <p className="text-xs text-gray-600 mt-2">
                 {readiness.total_complete}/{readiness.total_supported} monitors complete
               </p>
             </div>

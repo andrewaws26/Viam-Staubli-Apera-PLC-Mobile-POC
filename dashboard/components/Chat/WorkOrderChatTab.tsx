@@ -40,10 +40,10 @@ export default function WorkOrderChatTab({ workOrderId }: WorkOrderChatTabProps)
   return (
     <div className={`${chatHeight} border border-gray-700/50 rounded-lg overflow-hidden bg-gray-900/50 mt-3 transition-all duration-200`}>
       <div className="px-3 py-1.5 border-b border-gray-700/50 bg-gray-900/80 flex items-center justify-between">
-        <h4 className="text-[10px] font-bold text-gray-300 uppercase tracking-wider">Discussion</h4>
+        <h4 className="text-xs font-bold text-gray-300 uppercase tracking-wider">Discussion</h4>
         <button
           onClick={() => setExpanded(!expanded)}
-          className="text-[10px] text-gray-400 hover:text-gray-200 transition-colors px-1.5 py-0.5 rounded hover:bg-gray-700/50"
+          className="text-xs text-gray-400 hover:text-gray-200 transition-colors px-1.5 py-0.5 rounded hover:bg-gray-700/50"
         >
           {expanded ? "▼ Collapse" : "▲ Expand"}
         </button>

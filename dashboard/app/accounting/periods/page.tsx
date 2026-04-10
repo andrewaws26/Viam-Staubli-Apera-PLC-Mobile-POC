@@ -90,7 +90,7 @@ function CloseNotesModal({
         </p>
 
         <div>
-          <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">
+          <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">
             Notes (optional)
           </label>
           <textarea
@@ -222,7 +222,7 @@ export default function AccountingPeriodsPage() {
             { label: "Locked", value: lockedCount, color: "text-red-400" },
           ].map((c) => (
             <div key={c.label} className="rounded-xl bg-gray-900/50 border border-gray-800 p-4">
-              <p className="text-[10px] uppercase tracking-wider text-gray-600 font-medium">
+              <p className="text-xs uppercase tracking-wider text-gray-600 font-medium">
                 {c.label}
               </p>
               <p className={`text-xl font-black mt-1 ${c.color}`}>{c.value}</p>
@@ -243,7 +243,7 @@ export default function AccountingPeriodsPage() {
           <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto mb-8">
             <table className="w-full text-sm min-w-[900px]">
               <thead>
-                <tr className="text-[10px] uppercase tracking-wider text-gray-600 border-b border-gray-800">
+                <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
                   <th className="text-left px-4 py-3 font-medium">Label</th>
                   <th className="text-left px-4 py-3 font-medium w-24">Type</th>
                   <th className="text-left px-4 py-3 font-medium w-48">Date Range</th>
@@ -266,7 +266,7 @@ export default function AccountingPeriodsPage() {
 
                     {/* Period Type */}
                     <td className="px-4 py-3">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-gray-800 text-gray-400">
+                      <span className="px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider bg-gray-800 text-gray-400">
                         {PERIOD_TYPE_LABELS[period.period_type] || period.period_type}
                       </span>
                     </td>
@@ -279,7 +279,7 @@ export default function AccountingPeriodsPage() {
                     {/* Status */}
                     <td className="px-4 py-3 text-center">
                       <span
-                        className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                        className={`inline-block px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider ${
                           STATUS_COLORS[period.status] || "bg-gray-800 text-gray-400"
                         }`}
                       >
@@ -293,7 +293,7 @@ export default function AccountingPeriodsPage() {
                         <div>
                           <span className="text-gray-300">{period.closed_by_name}</span>
                           {period.closed_at && (
-                            <div className="text-gray-600 text-[10px] mt-0.5">
+                            <div className="text-gray-600 text-xs mt-0.5">
                               {fmtDateTime(period.closed_at)}
                             </div>
                           )}
@@ -371,7 +371,7 @@ export default function AccountingPeriodsPage() {
 
           <div className="flex flex-wrap items-end gap-4">
             <div>
-              <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">
+              <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">
                 Fiscal Year
               </label>
               <input
@@ -405,7 +405,7 @@ export default function AccountingPeriodsPage() {
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
                 <div>
-                  <span className="text-[10px] uppercase tracking-wider text-gray-600">
+                  <span className="text-xs uppercase tracking-wider text-gray-600">
                     Net Income
                   </span>
                   <p className="text-white font-mono font-bold mt-0.5">
@@ -413,7 +413,7 @@ export default function AccountingPeriodsPage() {
                   </p>
                 </div>
                 <div>
-                  <span className="text-[10px] uppercase tracking-wider text-gray-600">
+                  <span className="text-xs uppercase tracking-wider text-gray-600">
                     Accounts Closed
                   </span>
                   <p className="text-white font-bold mt-0.5">
@@ -421,7 +421,7 @@ export default function AccountingPeriodsPage() {
                   </p>
                 </div>
                 <div>
-                  <span className="text-[10px] uppercase tracking-wider text-gray-600">
+                  <span className="text-xs uppercase tracking-wider text-gray-600">
                     Journal Entry
                   </span>
                   <p className="mt-0.5">

@@ -213,7 +213,7 @@ export default function DevPage() {
 
           {aiDebugExpanded && (
             <div className="px-4 sm:px-6 pb-4 sm:pb-6 space-y-4">
-              <p className="text-[10px] text-gray-600">
+              <p className="text-xs text-gray-600">
                 Shows the system prompt and historical data context the AI sees
                 when answering diagnostic questions. Fetched via{" "}
                 <code className="bg-gray-900 px-1 py-0.5 rounded text-gray-400">
@@ -268,10 +268,10 @@ export default function DevPage() {
                   {/* System prompt */}
                   {aiDebug.data.systemPrompt ? (
                     <div>
-                      <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-600 mb-2">
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2">
                         System Prompt (what the AI sees)
                       </h3>
-                      <pre className="bg-gray-900/50 border border-gray-800 rounded-lg p-3 text-[10px] sm:text-xs text-gray-400 font-mono overflow-x-auto max-h-96 overflow-y-auto whitespace-pre-wrap">
+                      <pre className="bg-gray-900/50 border border-gray-800 rounded-lg p-3 text-xs sm:text-xs text-gray-400 font-mono overflow-x-auto max-h-96 overflow-y-auto whitespace-pre-wrap">
                         {String(aiDebug.data.systemPrompt)}
                       </pre>
                     </div>
@@ -279,10 +279,10 @@ export default function DevPage() {
 
                   {/* Full debug JSON */}
                   <details>
-                    <summary className="text-[10px] font-bold uppercase tracking-widest text-gray-600 cursor-pointer hover:text-gray-400">
+                    <summary className="text-xs font-bold uppercase tracking-widest text-gray-600 cursor-pointer hover:text-gray-400">
                       Full Debug JSON
                     </summary>
-                    <pre className="mt-2 bg-gray-900/50 border border-gray-800 rounded-lg p-3 text-[10px] text-gray-500 font-mono overflow-x-auto max-h-64 overflow-y-auto">
+                    <pre className="mt-2 bg-gray-900/50 border border-gray-800 rounded-lg p-3 text-xs text-gray-500 font-mono overflow-x-auto max-h-64 overflow-y-auto">
                       {JSON.stringify(aiDebug.data, null, 2)}
                     </pre>
                   </details>
@@ -330,23 +330,23 @@ export default function DevPage() {
                   <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                     <div className="bg-gray-900 rounded-lg p-3 text-center">
                       <span className="text-2xl font-bold text-gray-100">{woStats.total}</span>
-                      <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-wider">Total</p>
+                      <p className="text-xs text-gray-500 mt-1 uppercase tracking-wider">Total</p>
                     </div>
                     <div className="bg-gray-900 rounded-lg p-3 text-center">
                       <span className="text-2xl font-bold text-gray-400">{woStats.open}</span>
-                      <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-wider">Open</p>
+                      <p className="text-xs text-gray-500 mt-1 uppercase tracking-wider">Open</p>
                     </div>
                     <div className="bg-gray-900 rounded-lg p-3 text-center">
                       <span className="text-2xl font-bold text-amber-400">{woStats.in_progress}</span>
-                      <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-wider">In Progress</p>
+                      <p className="text-xs text-gray-500 mt-1 uppercase tracking-wider">In Progress</p>
                     </div>
                     <div className="bg-gray-900 rounded-lg p-3 text-center">
                       <span className="text-2xl font-bold text-red-400">{woStats.blocked}</span>
-                      <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-wider">Blocked</p>
+                      <p className="text-xs text-gray-500 mt-1 uppercase tracking-wider">Blocked</p>
                     </div>
                     <div className="bg-gray-900 rounded-lg p-3 text-center">
                       <span className="text-2xl font-bold text-green-400">{woStats.done}</span>
-                      <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-wider">Done</p>
+                      <p className="text-xs text-gray-500 mt-1 uppercase tracking-wider">Done</p>
                     </div>
                   </div>
 
@@ -392,7 +392,7 @@ export default function DevPage() {
             <div className="px-4 sm:px-6 pb-4 sm:pb-6 space-y-4">
               {/* Dashboard info */}
               <div>
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
                   Dashboard
                 </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2">
@@ -413,7 +413,7 @@ export default function DevPage() {
 
               {/* Env vars */}
               <div>
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
                   Environment Variables (names only)
                 </h3>
                 <div className="space-y-1">
@@ -430,13 +430,13 @@ export default function DevPage() {
                         }`}
                       />
                       <span className="font-mono text-gray-400">{v.name}</span>
-                      <span className="text-[10px] text-gray-700">
+                      <span className="text-xs text-gray-700">
                         ({v.scope})
                       </span>
                     </div>
                   ))}
                 </div>
-                <p className="text-[10px] text-gray-700 mt-2">
+                <p className="text-xs text-gray-700 mt-2">
                   Server-side vars cannot be verified from the browser. Check
                   Vercel dashboard for actual values.
                 </p>
@@ -444,7 +444,7 @@ export default function DevPage() {
 
               {/* Fleet config */}
               <div>
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
                   Fleet Config
                 </h3>
                 {envCheck.loaded ? (
@@ -479,7 +479,7 @@ export default function DevPage() {
 
               {/* Viam Part IDs */}
               <div>
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
                   Viam Part IDs (defaults)
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -496,7 +496,7 @@ export default function DevPage() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-gray-800 px-3 sm:px-6 py-2 sm:py-3 text-[10px] sm:text-xs text-gray-700 flex items-center justify-between">
+      <footer className="border-t border-gray-800 px-3 sm:px-6 py-2 sm:py-3 text-xs sm:text-xs text-gray-700 flex items-center justify-between">
         <span>IronSight Dev Mode</span>
         <span>
           {new Date().getFullYear()}
@@ -521,7 +521,7 @@ function KV({
 }) {
   return (
     <div className="flex flex-col min-w-0">
-      <span className="text-[10px] text-gray-600 uppercase tracking-wide truncate">
+      <span className="text-xs text-gray-600 uppercase tracking-wide truncate">
         {label}
       </span>
       <span

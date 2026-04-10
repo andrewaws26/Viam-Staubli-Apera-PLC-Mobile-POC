@@ -130,7 +130,7 @@ function TrialBalanceReport({ data }: { data: TrialBalanceSummary }) {
       <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
         <table className="w-full text-sm min-w-[640px]">
           <thead>
-            <tr className="text-[10px] uppercase tracking-wider text-gray-600 border-b border-gray-800">
+            <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
               <th className="text-left px-4 py-3 font-medium w-28">Acct #</th>
               <th className="text-left px-4 py-3 font-medium">Account Name</th>
               <th className="text-left px-4 py-3 font-medium w-28">Type</th>
@@ -196,7 +196,7 @@ function TrialBalanceReport({ data }: { data: TrialBalanceSummary }) {
                   {/* Subtotal row */}
                   <tr className="border-t border-gray-700">
                     <td colSpan={3} className="px-4 py-2 text-right">
-                      <span className="text-[10px] uppercase tracking-wider text-gray-500">
+                      <span className="text-xs uppercase tracking-wider text-gray-500">
                         {ACCOUNT_TYPE_LABELS[type]} Subtotal
                       </span>
                     </td>
@@ -267,7 +267,7 @@ function ProfitLossReport({ data }: { data: TrialBalanceSummary }) {
       <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
         <table className="w-full text-sm min-w-[480px]">
           <thead>
-            <tr className="text-[10px] uppercase tracking-wider text-gray-600 border-b border-gray-800">
+            <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
               <th className="text-left px-4 py-3 font-medium w-28">Acct #</th>
               <th className="text-left px-4 py-3 font-medium">Account</th>
               <th className="text-right px-4 py-3 font-medium w-36">Amount</th>
@@ -320,7 +320,7 @@ function ProfitLossReport({ data }: { data: TrialBalanceSummary }) {
             {/* Revenue total */}
             <tr className="border-t border-gray-700">
               <td colSpan={2} className="px-4 py-2 text-right">
-                <span className="text-[10px] uppercase tracking-wider text-gray-500">
+                <span className="text-xs uppercase tracking-wider text-gray-500">
                   Total Revenue
                 </span>
               </td>
@@ -375,7 +375,7 @@ function ProfitLossReport({ data }: { data: TrialBalanceSummary }) {
             {/* Expense total */}
             <tr className="border-t border-gray-700">
               <td colSpan={2} className="px-4 py-2 text-right">
-                <span className="text-[10px] uppercase tracking-wider text-gray-500">
+                <span className="text-xs uppercase tracking-wider text-gray-500">
                   Total Expenses
                 </span>
               </td>
@@ -445,7 +445,7 @@ function BalanceSheetReport({ data }: { data: BalanceSheetData }) {
         )}
         <tr className="border-t border-gray-700">
           <td colSpan={2} className="px-4 py-2 text-right">
-            <span className="text-[10px] uppercase tracking-wider text-gray-500">
+            <span className="text-xs uppercase tracking-wider text-gray-500">
               Total {section.label}
             </span>
           </td>
@@ -479,7 +479,7 @@ function BalanceSheetReport({ data }: { data: BalanceSheetData }) {
       <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
         <table className="w-full text-sm min-w-[480px]">
           <thead>
-            <tr className="text-[10px] uppercase tracking-wider text-gray-600 border-b border-gray-800">
+            <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
               <th className="text-left px-4 py-3 font-medium w-28">Acct #</th>
               <th className="text-left px-4 py-3 font-medium">Account</th>
               <th className="text-right px-4 py-3 font-medium w-36">Balance</th>
@@ -592,7 +592,7 @@ function GeneralLedgerReport({ data }: { data: GLData }) {
 
             <table className="w-full text-sm min-w-[700px]">
               <thead>
-                <tr className="text-[10px] uppercase tracking-wider text-gray-600 border-b border-gray-800">
+                <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
                   <th className="text-left px-4 py-2 font-medium w-24">Date</th>
                   <th className="text-left px-4 py-2 font-medium">Description</th>
                   <th className="text-left px-4 py-2 font-medium w-20">Ref</th>
@@ -835,7 +835,7 @@ export default function FinancialReportsPage() {
         {/* Controls row */}
         <div className="flex flex-wrap items-end gap-3 mb-6 no-print">
           <div>
-            <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">
+            <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">
               As of
             </label>
             <input
@@ -849,7 +849,7 @@ export default function FinancialReportsPage() {
           {/* Aging type selector */}
           {activeTab === "aging" && (
             <div>
-              <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Type</label>
+              <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Type</label>
               <select value={agingType} onChange={(e) => setAgingType(e.target.value as "ar" | "ap")}
                 className="px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white">
                 <option value="ar">Accounts Receivable</option>
@@ -861,7 +861,7 @@ export default function FinancialReportsPage() {
           {/* Cash flow start date */}
           {activeTab === "cash-flow" && (
             <div>
-              <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Start Date</label>
+              <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Start Date</label>
               <input type="date" value={cfStartDate} onChange={(e) => setCfStartDate(e.target.value)}
                 className="px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white [color-scheme:dark]" />
             </div>
@@ -870,7 +870,7 @@ export default function FinancialReportsPage() {
           {/* Account filter for GL */}
           {activeTab === "general-ledger" && (
             <div>
-              <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">
+              <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">
                 Account
               </label>
               <select
@@ -966,7 +966,7 @@ function AgingReport({ data }: { data: AgingData }) {
       </div>
       <table className="w-full text-sm min-w-[700px]">
         <thead>
-          <tr className="text-[10px] uppercase tracking-wider text-gray-600 border-b border-gray-800">
+          <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
             <th className="text-left px-4 py-3 font-medium">{data.type === "ar" ? "Customer" : "Vendor"}</th>
             {buckets.map((b) => (
               <th key={b} className="text-right px-4 py-3 font-medium">{labels[b]}</th>

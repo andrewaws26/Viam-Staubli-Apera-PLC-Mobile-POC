@@ -43,7 +43,7 @@ export default function DevStatusBar() {
 
   return (
     <div className="sticky top-0 z-50 bg-gray-950/95 backdrop-blur-sm border-b border-gray-800">
-      <div className="px-3 sm:px-6 py-2 flex items-center gap-3 sm:gap-5 text-[10px] sm:text-xs overflow-x-auto">
+      <div className="px-3 sm:px-6 py-2 flex items-center gap-3 sm:gap-5 text-xs sm:text-xs overflow-x-auto">
         <PiIndicator
           label="Pi 5"
           detail="All Modules"
@@ -61,7 +61,7 @@ export default function DevStatusBar() {
         </div>
         <div className="ml-auto flex items-center gap-3 shrink-0">
           <span
-            className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+            className={`px-1.5 py-0.5 rounded text-xs font-bold uppercase tracking-wider ${
               process.env.NODE_ENV === "production"
                 ? "bg-red-900/30 text-red-400"
                 : "bg-green-900/30 text-green-400"
