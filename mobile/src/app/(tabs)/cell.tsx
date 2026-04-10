@@ -17,6 +17,8 @@ import Card from '@/components/ui/Card';
 import GaugeBar from '@/components/ui/GaugeBar';
 import Badge from '@/components/ui/Badge';
 import LoadingState from '@/components/ui/LoadingState';
+import ErrorBoundary from '@/components/ui/ErrorBoundary';
+import NetworkError from '@/components/ui/NetworkError';
 import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
@@ -229,7 +231,7 @@ function countAlerts(data: CellData): { critical: number; warning: number } {
 
 const POLL_MS = 3000;
 
-export default function CellScreen() {
+function CellScreenInner() {
   const [data, setData] = useState<CellData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -275,11 +277,7 @@ export default function CellScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
     >
       {/* Error banner */}
-      {error && (
-        <View style={styles.errorBanner}>
-          <Text style={styles.errorText}>{error}</Text>
-        </View>
-      )}
+      {error && <NetworkError message={error} onRetry={loadData} />}
 
       {/* ── Watchdog Status ── */}
       <Card style={styles.watchdogCard}>
@@ -425,7 +423,7 @@ export default function CellScreen() {
             <Text style={styles.subHeader}>System Health</Text>
             <View style={styles.kvRow}>
               <KV label="System" value={(a.system_status || 'unknown').toUpperCase()} color={a.system_status === 'alive' ? colors.successLight : a.system_status === 'down' ? colors.dangerLight : colors.warningLight} />
-              <KV label="App Mgr" value={a.app_manager_ok ? 'Online' : 'Offline'} color={a.app_manager_ok ? colors.successLight : colors.textTertiary} />
+              <KV label="App Mgr" value={a.app_manager_ok ? 'Online' : 'Offline'} color={a.app_manager_ok ? colors.successLight : colors.textDim} />
             </View>
           </>
         )}
@@ -505,21 +503,20 @@ export default function CellScreen() {
   );
 }
 
+export default function CellScreen() {
+  return (
+    <ErrorBoundary fallbackTitle="Cell screen crashed">
+      <CellScreenInner />
+    </ErrorBoundary>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Styles
 // ---------------------------------------------------------------------------
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  errorBanner: {
-    margin: spacing.md,
-    padding: spacing.md,
-    backgroundColor: '#dc262620',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#dc262640',
-  },
-  errorText: { color: colors.dangerLight, fontSize: typography.sizes.xs },
   watchdogCard: { marginBottom: spacing.sm },
   watchdogRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   watchdogTitle: {

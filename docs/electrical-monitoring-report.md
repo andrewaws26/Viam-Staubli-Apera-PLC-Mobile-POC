@@ -210,16 +210,18 @@ The dashboard runs client-side watchdog rules correlating all data sources. Elec
 
 **Solution:** Optoisolator on the load side of each fuse. Fuse intact = signal high. Blown = signal low.
 
-**Parts:**
+**Parts (scaled for 48 fuses — 3x MCP23017):**
 
 | Part | Qty | Unit Cost | Total | Source |
 |------|-----|-----------|-------|--------|
-| MCP23017 I2C GPIO Expander | 1 | $3.00 | $3.00 | Amazon/DigiKey |
-| PC817 Optoisolator | 7 | $0.50 | $3.50 | Amazon |
-| 10kΩ Resistors (voltage divider) | 7 | — | $0.50 | Resistor kit |
-| 1kΩ Resistors (current limit) | 7 | — | $0.50 | Resistor kit |
-| Protoboard + headers | 1 | $2.00 | $2.00 | Amazon |
-| **Subtotal** | | | **$9.50** | |
+| MCP23017 I2C GPIO Expander | 3 | $3.00 | $9.00 | Amazon/DigiKey |
+| PC817 Optoisolator (packs of 10) | 5 packs | $1.50 | $7.50 | Amazon |
+| 10kΩ Resistors (voltage divider) | 48 | — | $1.00 | Resistor kit |
+| 1kΩ Resistors (current limit) | 48 | — | $1.00 | Resistor kit |
+| Protoboard + headers + terminals | 2 | $4.00 | $8.00 | Amazon |
+| **Subtotal** | | | **$26.50** | |
+
+**Scaling:** Each MCP23017 monitors 16 fuses. 3 chips = 48 fuses. Add a 4th chip ($3) for 64 if needed. All share the same 2 I2C wires — addresses 0x20, 0x21, 0x22.
 
 **Wiring diagram (per fuse):**
 ```
@@ -237,7 +239,7 @@ PC817 collector ── MCP23017 input pin (with 10kΩ pull-up to 3.3V)
 PC817 emitter ── GND
 ```
 
-**Which fuses to monitor (from junction box labels):**
+**Known fuses (from junction box labels — need full panel mapping on truck):**
 
 | Fuse | Circuit | Rating | Location | Wire Color |
 |------|---------|--------|----------|------------|
@@ -248,11 +250,14 @@ PC817 emitter ── GND
 | F5 | OP STATION | 15A | Left panel, row 3 | Blue blade |
 | F6 | VISION (Apera) | 15A | Right panel, row 1 | Blue blade |
 | F7 | PLC (Click PLC) | 10A | Right panel, row 1 | Red blade |
+| F8-F48 | **TO BE MAPPED** — photograph every fuse position on the truck, label circuit, note rating | — | — | — |
+
+**Full panel mapping TODO:** Walk the truck with a camera. For every fuse (custom panel + OEM truck fuse box), record: position, circuit name, amp rating, blade color, what device it feeds. This map becomes `circuit_map.py` in the software.
 
 **Connection to Pi 5:**
-- MCP23017 → I2C bus (GPIO 2 SDA, GPIO 3 SCL)
-- I2C address: 0x20
-- 7 inputs used, 9 spare for future expansion
+- 3x MCP23017 → I2C bus (GPIO 2 SDA, GPIO 3 SCL)
+- I2C addresses: 0x20 (fuses 1-16), 0x21 (fuses 17-32), 0x22 (fuses 33-48)
+- 48 inputs total, expandable to 64 with a 4th chip ($3)
 
 ### 2.2 Voltage Monitoring — $12
 
@@ -362,7 +367,9 @@ Software scales back: `actual_voltage = adc_reading × 11.0`
 Pi 5 GPIO Header
   │
   ├── I2C Bus (GPIO 2 SDA, GPIO 3 SCL) ── shared by all I2C devices
-  │     ├── MCP23017 (0x20) ── 7 optoisolators ── 7 fuse load-side taps
+  │     ├── MCP23017 #1 (0x20) ── 16 optoisolators ── fuses 1-16
+  │     ├── MCP23017 #2 (0x21) ── 16 optoisolators ── fuses 17-32
+  │     ├── MCP23017 #3 (0x22) ── 16 optoisolators ── fuses 33-48
   │     ├── ADS1115 #1 (0x48) ── 4 voltage dividers ── 4 power rails
   │     ├── ADS1115 #2 (0x49) ── 4 voltage dividers ── 4 power rails
   │     ├── INA219 #1 (0x40) ── inline on robot power cable
@@ -376,21 +383,22 @@ Pi 5 GPIO Header
         └── DS18B20 #5 ── Ambient outside
 
 Total GPIO pins used: 3 (SDA, SCL, 1-Wire)
-Total I2C devices: 5 (all different addresses, no conflicts)
+Total I2C devices: 7 (3x MCP23017 + 2x ADS1115 + 2x INA219, all different addresses)
+Total fuse capacity: 48 (expandable to 64 with $3 4th chip)
 ```
 
 ### 2.6 Bill of Materials
 
 | Item | Qty | Cost | Source |
 |------|-----|------|--------|
-| MCP23017 I2C GPIO Expander | 1 | $3.00 | Amazon |
-| PC817 Optoisolator (pack of 10) | 1 | $3.50 | Amazon |
+| MCP23017 I2C GPIO Expander | 3 | $9.00 | Amazon |
+| PC817 Optoisolator (packs of 10) | 5 | $7.50 | Amazon |
 | ADS1115 16-bit ADC Breakout | 2 | $12.00 | Amazon/Adafruit |
 | INA219 Current/Voltage Sensor | 2 | $8.00 | Amazon/Adafruit |
 | DS18B20 Waterproof Temp Probe | 5 | $10.00 | Amazon |
 | Resistor assortment (1kΩ, 4.7kΩ, 10kΩ) | 1 kit | $3.00 | Amazon |
-| Protoboard + pin headers + terminal blocks | 1 | $5.00 | Amazon |
-| **TOTAL** | | **$44.50** | |
+| Protoboard + pin headers + terminal blocks | 2 | $8.00 | Amazon |
+| **TOTAL (48-fuse capacity)** | | **$57.50** | |
 
 ---
 

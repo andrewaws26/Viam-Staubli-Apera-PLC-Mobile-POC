@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, ScrollView, Text, StyleSheet, Alert } from 'react-native';
+import { View, ScrollView, Text, StyleSheet, Alert, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Crypto from 'expo-crypto';
 import * as Haptics from 'expo-haptics';
@@ -19,11 +19,12 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import TextInput from '@/components/ui/TextInput';
 import EmptyState from '@/components/ui/EmptyState';
+import ErrorBoundary from '@/components/ui/ErrorBoundary';
 import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
 
-export default function MoreScreen() {
+function MoreScreenInner() {
   const router = useRouter();
   const { currentUser, signOut } = useAppAuth();
   const { trucks, selectedTruckId, selectTruck } = useFleetStore();
@@ -111,8 +112,15 @@ export default function MoreScreen() {
     }
   }, [tracking, truckId, currentUser]);
 
+  const onRefresh = useCallback(async () => {
+    await loadNotes();
+  }, [loadNotes]);
+
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      refreshControl={<RefreshControl refreshing={false} onRefresh={onRefresh} tintColor={colors.primary} />}
+    >
       <TruckSelector trucks={trucks} selectedId={truckId || null} onSelect={selectTruck} />
 
       {/* Notes */}
@@ -194,16 +202,24 @@ export default function MoreScreen() {
   );
 }
 
+export default function MoreScreen() {
+  return (
+    <ErrorBoundary fallbackTitle="More screen crashed">
+      <MoreScreenInner />
+    </ErrorBoundary>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   section: { padding: spacing.lg, gap: spacing.md },
-  sectionTitle: { color: colors.text, fontSize: typography.sizes.base, fontWeight: typography.weights.bold as any },
+  sectionTitle: { color: colors.text, fontSize: typography.sizes.base, fontFamily: typography.fonts.heading },
   noteInput: { gap: spacing.sm },
   gpsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  gpsStatus: { fontSize: typography.sizes.base, fontWeight: typography.weights.semibold as any },
+  gpsStatus: { fontSize: typography.sizes.base, fontFamily: typography.fonts.heading },
   gpsDetail: { color: colors.textMuted, fontSize: typography.sizes.xs, marginTop: 2 },
-  userName: { color: colors.text, fontSize: typography.sizes.lg, fontWeight: typography.weights.bold as any },
-  userEmail: { color: colors.textSecondary, fontSize: typography.sizes.sm },
-  userRole: { color: colors.primaryLight, fontSize: typography.sizes.xs, fontWeight: typography.weights.bold as any, letterSpacing: 1, marginTop: spacing.xs },
+  userName: { color: colors.text, fontSize: typography.sizes.lg, fontFamily: typography.fonts.display },
+  userEmail: { color: colors.textSecondary, fontSize: typography.sizes.sm, fontFamily: typography.fonts.body },
+  userRole: { color: colors.primaryLight, fontSize: typography.sizes.xs, fontFamily: typography.fonts.mono, letterSpacing: typography.letterSpacing.widest, marginTop: spacing.xs },
   version: { color: colors.textMuted, fontSize: typography.sizes.xs, textAlign: 'center', marginTop: spacing.md },
 });
