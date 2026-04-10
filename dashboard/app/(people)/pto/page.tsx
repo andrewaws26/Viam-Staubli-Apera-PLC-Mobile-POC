@@ -41,7 +41,7 @@ export default function PTOPage() {
       .then((r) => r.json())
       .then((data: PTOBalance) => setBalance(data))
       .catch(() => toast("Failed to load PTO balance"));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!isLoaded) {
     return (

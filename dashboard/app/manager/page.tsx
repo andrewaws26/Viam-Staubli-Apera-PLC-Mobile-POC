@@ -226,7 +226,6 @@ export default function ManagerCommandCenter() {
     fetchDashboard();
     const interval = setInterval(fetchDashboard, 60_000);
     return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* ---------- seconds-ago ticker ----------------------------------- */

@@ -299,7 +299,7 @@ describe("schema context: does NOT contain wrong column names", () => {
   it("dtc_history has no 'code' column definition", () => {
     // "code" should not appear as a column in dtc_history's definition.
     // It may appear in other contexts (e.g., "dtc_code" alias), which is fine.
-    const dtcSection = schemaContextSource.match(/dtc_history:.*?(?=\n\n|- \w)/s)?.[0] || "";
+    const dtcSection = schemaContextSource.match(/dtc_history:[\s\S]*?(?=\n\n|- \w)/)?.[0] || "";
     expect(dtcSection).not.toMatch(/Columns:.*\bcode\b.*(?:TEXT|text)/);
   });
 
@@ -313,7 +313,7 @@ describe("schema context: does NOT contain wrong column names", () => {
   });
 
   it("work_orders status column definition uses open/in_progress/blocked/done", () => {
-    const woSection = schemaContextSource.match(/work_orders:.*?(?=\n\n|- \w)/s)?.[0] || "";
+    const woSection = schemaContextSource.match(/work_orders:[\s\S]*?(?=\n\n|- \w)/)?.[0] || "";
     // The Columns: line should list the correct values
     const columnsLine = woSection.match(/Columns:.*$/m)?.[0] || "";
     expect(columnsLine).toContain("open/in_progress/blocked/done");
@@ -321,7 +321,7 @@ describe("schema context: does NOT contain wrong column names", () => {
   });
 
   it("work_orders priority column definition uses low/normal/urgent", () => {
-    const woSection = schemaContextSource.match(/work_orders:.*?(?=\n\n|- \w)/s)?.[0] || "";
+    const woSection = schemaContextSource.match(/work_orders:[\s\S]*?(?=\n\n|- \w)/)?.[0] || "";
     const columnsLine = woSection.match(/Columns:.*$/m)?.[0] || "";
     expect(columnsLine).toContain("low/normal/urgent");
     expect(columnsLine).not.toContain("medium/high");
@@ -400,7 +400,7 @@ describe("report generate route: SQL generation rules", () => {
   });
 
   it("warns dtc_history has no code column", () => {
-    expect(generateRouteSource).toMatch(/no.*\"code\".*column/i);
+    expect(generateRouteSource).toMatch(/no.*"code".*column/i);
   });
 
   it("warns maintenance_events not maintenance_log", () => {
@@ -420,7 +420,7 @@ describe("report generate route: SQL generation rules", () => {
 
 describe("schema context: example queries use correct columns", () => {
   it("DTC example uses spn/fmi not code", () => {
-    expect(schemaContextSource).toMatch(/SELECT.*spn.*fmi.*FROM dtc_history/s);
+    expect(schemaContextSource).toMatch(/SELECT[\s\S]*spn[\s\S]*fmi[\s\S]*FROM dtc_history/);
   });
 
   it("DTC example uses first_seen_at not detected_at", () => {
@@ -563,7 +563,7 @@ describe("report generate route: query logging", () => {
   });
 
   it("logs prompt", () => {
-    expect(generateRouteSource).toMatch(/prompt.*logQuery|logQuery.*prompt/s);
+    expect(generateRouteSource).toMatch(/prompt[\s\S]*logQuery|logQuery[\s\S]*prompt/);
   });
 
   it("logs success status", () => {

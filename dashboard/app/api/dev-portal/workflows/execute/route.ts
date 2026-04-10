@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { getSupabase } from "@/lib/supabase";
 import { spawn } from "child_process";
 
@@ -155,6 +156,11 @@ async function executeWorkflow(
 }
 
 export async function POST(req: NextRequest) {
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
   // Local-only guard: only allow from localhost
   const host = req.headers.get("host") || "";
   const isLocal = host.startsWith("localhost") || host.startsWith("127.0.0.1");
@@ -244,6 +250,11 @@ export async function POST(req: NextRequest) {
 
 /** GET: Poll run status (for the UI to check progress) */
 export async function GET(req: NextRequest) {
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
   const host = req.headers.get("host") || "";
   const isLocal = host.startsWith("localhost") || host.startsWith("127.0.0.1");
   if (!isLocal) {

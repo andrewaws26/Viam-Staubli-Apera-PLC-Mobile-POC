@@ -169,7 +169,7 @@ async function build941(year: number, quarter: number) {
   }
   // Get all run IDs for prior quarters
   const priorEnd = quarter > 1 ? quarterDates(year, quarter - 1).end : null;
-  let priorGrossByEmployee: Record<string, number> = {};
+  const priorGrossByEmployee: Record<string, number> = {};
 
   if (priorEnd) {
     const { data: priorRuns } = await sb
