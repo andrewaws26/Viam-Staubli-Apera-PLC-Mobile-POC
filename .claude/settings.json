@@ -7,6 +7,10 @@
           {
             "type": "command",
             "command": "python3 \"$(git rev-parse --show-toplevel)/.claude/hooks/pre-tool-guard.py\""
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.claude/hooks/pre-commit-typecheck.py\""
           }
         ]
       }
@@ -18,6 +22,24 @@
           {
             "type": "command",
             "command": "python3 \"$(git rev-parse --show-toplevel)/.claude/hooks/post-tool-audit.py\""
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.claude/hooks/post-edit-test.py\""
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.claude/hooks/post-edit-test.py\""
           }
         ]
       }
