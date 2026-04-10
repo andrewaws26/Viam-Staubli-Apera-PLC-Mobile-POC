@@ -35,6 +35,30 @@ export interface StaubliReadings {
   temp_j6: number;
   temp_dsi: number;
 
+  // Extended temperatures (from CS9 internal I/O subsystems)
+  temp_encoder_j1: number; temp_encoder_j2: number; temp_encoder_j3: number;
+  temp_encoder_j4: number; temp_encoder_j5: number; temp_encoder_j6: number;
+  temp_drive_case_j1: number; temp_drive_case_j2: number; temp_drive_case_j3: number;
+  temp_drive_case_j4: number; temp_drive_case_j5: number; temp_drive_case_j6: number;
+  temp_winding_j1: number; temp_winding_j2: number; temp_winding_j3: number;
+  temp_winding_j4: number; temp_winding_j5: number; temp_winding_j6: number;
+  temp_junction_j1: number; temp_junction_j2: number; temp_junction_j3: number;
+  temp_junction_j4: number; temp_junction_j5: number; temp_junction_j6: number;
+  temp_cpu: number;
+  temp_cpu_board: number;
+  temp_rsi: number;
+  temp_starc_board: number;
+
+  // Joint torques (N*m from /api/arm/model/staticjnttorque)
+  torque_j1: number; torque_j2: number; torque_j3: number;
+  torque_j4: number; torque_j5: number; torque_j6: number;
+
+  // EtherCAT I/O board status
+  ioboard_connected: boolean;
+  ioboard_bus_state: string;
+  ioboard_slave_count: number;
+  ioboard_op_state: boolean;
+
   // Production (from HMI variables)
   task_selected: string;       // bTskSelected active key
   task_status: string;         // bTskStatus active key
@@ -72,6 +96,26 @@ export interface StaubliReadings {
   ethercat_errors_24h: number;
   last_error_code: string;
   last_error_time: string;
+}
+
+// ---------------------------------------------------------------------------
+// Staubli System Log Readings (from FTP log scraping)
+// ---------------------------------------------------------------------------
+export interface StaubliLogReadings {
+  log_connected: boolean;
+  urps_events_24h: number;
+  urps_last_time: string;
+  urps_last_code: string;
+  ethercat_events_24h: number;
+  ethercat_frame_loss_24h: number;
+  safety_stops_24h: number;
+  safety_last_cause: string;
+  servo_disable_count_24h: number;
+  servo_enable_count_24h: number;
+  app_restarts_24h: number;
+  arm_total_cycles: number;
+  arm_power_on_hours: number;
+  controller_cpu_load_pct: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -201,6 +245,7 @@ export interface PiHealth {
 // ---------------------------------------------------------------------------
 export interface CellState {
   staubli: StaubliReadings | null;
+  staubliLogs: StaubliLogReadings | null;
   apera: AperaReadings | null;
   network: NetworkDevice[];
   internet: InternetHealth | null;
@@ -220,6 +265,18 @@ export const TEMP_THRESHOLDS = {
   dsi_crit: 70,
   gpu_warn: 75,
   gpu_crit: 90,
+  encoder_warn: 70,
+  encoder_crit: 85,
+  drive_case_warn: 70,
+  drive_case_crit: 85,
+  winding_warn: 100,
+  winding_crit: 120,
+  junction_warn: 90,
+  junction_crit: 110,
+  cpu_warn: 75,
+  cpu_crit: 90,
+  board_warn: 60,
+  board_crit: 80,
 } as const;
 
 // ---------------------------------------------------------------------------

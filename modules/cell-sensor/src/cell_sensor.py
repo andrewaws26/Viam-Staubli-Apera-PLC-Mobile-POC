@@ -25,6 +25,7 @@ from network_monitor import (
     check_all_devices, check_internet_health, check_switch_vpn,
 )
 from staubli_client import StaubliClient, StaubliState
+from staubli_log_scraper import StaubliLogScraper, StaubliLogState
 from viam.components.sensor import Sensor
 from viam.logging import getLogger
 from viam.module.module import Module
@@ -42,6 +43,7 @@ _STAUBLI_INTERVAL = 2.0
 _APERA_INTERVAL = 2.0
 _NETWORK_INTERVAL = 30.0  # Pings are slow; don't hammer the network
 _INTERNET_INTERVAL = 60.0  # Internet health check (5-ping burst + DNS + Viam TCP)
+_STAUBLI_LOG_INTERVAL = 60.0  # FTP log scrape (heavy — once per minute)
 
 
 class CellSensor(Sensor):
@@ -76,10 +78,12 @@ class CellSensor(Sensor):
             host=apera_host, port=apera_port, pipeline=apera_pipeline
         )
         self._network_devices = network_devices or DEFAULT_DEVICES
+        self._staubli_logs = StaubliLogScraper(host=staubli_host)
 
         # Cached state from each subsystem
         self._staubli_state = StaubliState()
         self._apera_state = AperaState()
+        self._staubli_log_state = StaubliLogState()
         self._network_state: list[DeviceStatus] = []
         self._internet_health = InternetHealth()
         self._switch_vpn_health = SwitchVpnHealth()
@@ -89,12 +93,14 @@ class CellSensor(Sensor):
         self._last_apera_poll: float = 0.0
         self._last_network_poll: float = 0.0
         self._last_internet_poll: float = 0.0
+        self._last_staubli_log_poll: float = 0.0
 
         # Per-subsystem staleness — tracks when each last returned real data
         self._staubli_data_age: float = 0.0  # monotonic timestamp of last successful poll
         self._apera_data_age: float = 0.0
         self._network_data_age: float = 0.0
         self._internet_data_age: float = 0.0
+        self._staubli_log_data_age: float = 0.0
 
         # Module stats
         self._total_reads: int = 0
@@ -186,6 +192,8 @@ class CellSensor(Sensor):
             tasks.append(asyncio.create_task(self._poll_network()))
         if now - self._last_internet_poll >= _INTERNET_INTERVAL:
             tasks.append(asyncio.create_task(self._poll_internet()))
+        if now - self._last_staubli_log_poll >= _STAUBLI_LOG_INTERVAL:
+            tasks.append(asyncio.create_task(self._poll_staubli_logs()))
 
         # Run all due polls concurrently
         if tasks:
@@ -199,6 +207,9 @@ class CellSensor(Sensor):
 
         # Apera readings
         readings.update(self._apera_state.to_dict())
+
+        # Staubli FTP log readings
+        readings.update(self._staubli_log_state.to_dict())
 
         # Network readings
         for dev in self._network_state:
@@ -230,6 +241,7 @@ class CellSensor(Sensor):
         readings["cell_apera_data_age_s"] = round(now_mono - self._apera_data_age, 1) if self._apera_data_age else -1
         readings["cell_network_data_age_s"] = round(now_mono - self._network_data_age, 1) if self._network_data_age else -1
         readings["cell_internet_data_age_s"] = round(now_mono - self._internet_data_age, 1) if self._internet_data_age else -1
+        readings["cell_staubli_log_data_age_s"] = round(now_mono - self._staubli_log_data_age, 1) if self._staubli_log_data_age else -1
 
         return readings
 
@@ -288,6 +300,27 @@ class CellSensor(Sensor):
             self._internet_data_age = time.monotonic()
         except Exception as e:
             LOGGER.warning("Internet health check error: %s", e)
+
+    async def _poll_staubli_logs(self) -> None:
+        try:
+            self._staubli_log_state = await self._staubli_logs.scrape()
+            self._last_staubli_log_poll = time.monotonic()
+            if self._staubli_log_state.log_connected:
+                self._staubli_log_data_age = time.monotonic()
+                LOGGER.debug(
+                    "Staubli log scrape OK (%.0f ms, %d URPS, %d safety)",
+                    self._staubli_log_state.last_scrape_ms,
+                    self._staubli_log_state.urps_events_24h,
+                    self._staubli_log_state.safety_stops_24h,
+                )
+            else:
+                LOGGER.debug(
+                    "Staubli log scrape failed: %s", self._staubli_log_state.error
+                )
+        except Exception as e:
+            LOGGER.warning("Staubli log scrape error: %s", e)
+            self._staubli_log_state.log_connected = False
+            self._staubli_log_state.error = str(e)
 
     @staticmethod
     async def _read_pi_health() -> dict[str, Any]:
@@ -386,6 +419,7 @@ class CellSensor(Sensor):
           {"command": "apera_health"}     — check Apera Vue management ports
           {"command": "apera_reconnect"}  — force reconnect Apera socket
           {"command": "apera_restart"}    — restart Apera via app manager API
+          {"command": "raw_staubli_logs"} — last Staubli FTP log scrape state
         """
         cmd = command.get("command", "")
 
@@ -394,7 +428,7 @@ class CellSensor(Sensor):
                 "uptime_s": round(time.time() - self._start_time, 1),
                 "total_reads": self._total_reads,
                 "staubli_connected": self._staubli_state.connected,
-                "staubli_api": self._staubli._discovered_api or "none",
+                "staubli_api": self._staubli._discovered_endpoints.get("hmi", "none"),
                 "apera_connected": self._apera_state.connected,
                 "apera_pipeline_state": self._apera_state.pipeline_state,
                 "apera_system_status": self._apera_state.system_status,
@@ -429,6 +463,9 @@ class CellSensor(Sensor):
         if cmd == "raw_apera":
             return {"raw": self._apera.last_raw}
 
+        if cmd == "raw_staubli_logs":
+            return self._staubli_log_state.to_dict()
+
         if cmd == "apera_health":
             return await self._apera.check_health()
 
@@ -447,6 +484,7 @@ class CellSensor(Sensor):
         await asyncio.gather(
             self._staubli.close(),
             self._apera.close(),
+            asyncio.to_thread(self._staubli_logs.close),
             return_exceptions=True,
         )
 

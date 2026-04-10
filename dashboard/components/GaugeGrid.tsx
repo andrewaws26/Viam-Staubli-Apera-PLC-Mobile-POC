@@ -17,6 +17,9 @@ const THRESHOLDS: Record<string, { warn: number; crit: number; inverted?: boolea
   scr_efficiency_pct: { warn: 80, crit: 50, inverted: true },
   def_level_pct: { warn: 15, crit: 5, inverted: true },
   idle_fuel_pct: { warn: 25, crit: 35 },
+  alternator_voltage_v: { warn: 13.2, crit: 12.0, inverted: true },
+  alternator_current_a: { warn: 5, crit: 0, inverted: true },
+  charging_spread_v: { warn: 0.5, crit: 0, inverted: true },
 };
 
 function getValueColor(key: string, value: number): string {
@@ -47,6 +50,7 @@ function formatValue(key: string, value: unknown): string {
     if (key.includes("_pct") || key.includes("_pos")) return `${value.toFixed(1)}%`;
     if (key.endsWith("_f")) return `${value.toFixed(0)}\u00B0F`;
     if (key.endsWith("_v")) return `${value.toFixed(1)}V`;
+    if (key.endsWith("_a")) return `${Number(value).toFixed(1)} A`;
     if (key.endsWith("_psi")) return `${value.toFixed(1)} PSI`;
     if (key.endsWith("_mph")) return `${value.toFixed(0)} mph`;
     if (key.endsWith("_gph")) return `${value.toFixed(1)} gal/h`;
@@ -138,6 +142,16 @@ const VEHICLE_FIELDS = [
   { key: "fuel_level_pct", label: "Fuel Level" },
   { key: "battery_voltage_v", label: "Battery" },
   { key: "oil_level_pct", label: "Oil Level" },
+];
+
+const ELECTRICAL_FIELDS = [
+  { key: "battery_voltage_v", label: "Battery Voltage", highlight: true },
+  { key: "alternator_voltage_v", label: "Alternator Voltage" },
+  { key: "charging_spread_v", label: "Charge Spread" },
+  { key: "alternator_current_a", label: "Alternator Current" },
+  { key: "net_battery_current_a", label: "Net Battery Current" },
+  { key: "battery_voltage_switched_v", label: "Battery (Switched)" },
+  { key: "electrical_health", label: "Electrical Health" },
 ];
 
 const HYDRAULIC_FIELDS = [
@@ -368,6 +382,7 @@ export default function GaugeGrid({ readings, vehicleMode, hasData }: GaugeGridP
         "Vehicle", "\u{1F698}"
       )}
       {vehicleMode === "truck" && renderFields(AFTERTREATMENT_FIELDS, "Aftertreatment", "\u{2601}\uFE0F")}
+      {vehicleMode === "truck" && renderFields(ELECTRICAL_FIELDS, "Electrical", "\u{26A1}")}
       {vehicleMode === "truck" && renderFields(BRAKES_FIELDS, "Brakes & Safety", "\u{1F6D1}")}
       {vehicleMode === "truck" && renderFields(HYDRAULIC_FIELDS, "PTO / Hydraulics", "\u{1F527}")}
       {vehicleMode === "truck" && renderFields(IDLE_TRIP_FIELDS, "Idle / Trip / Service", "\u{23F1}\uFE0F")}
