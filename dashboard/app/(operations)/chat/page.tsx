@@ -67,7 +67,7 @@ function ChatPageInner() {
     <div className="h-screen bg-gray-950 flex">
       {/* Thread list sidebar */}
       <div
-        className={`w-full md:w-80 md:border-r border-gray-700/50 flex-shrink-0 ${
+        className={`w-full md:w-80 md:border-r border-gray-800/60 flex-shrink-0 ${
           selectedThreadId ? "hidden md:flex md:flex-col" : "flex flex-col"
         }`}
       >
@@ -87,7 +87,7 @@ function ChatPageInner() {
         {selectedThreadId ? (
           <>
             {/* Mobile back button */}
-            <div className="md:hidden px-3 py-2 border-b border-gray-700/50 bg-gray-900/80">
+            <div className="md:hidden px-3 py-2 border-b border-gray-800/60 bg-gray-900/80">
               <button
                 onClick={() => {
                   setSelectedThreadId(null);
@@ -99,7 +99,7 @@ function ChatPageInner() {
               </button>
             </div>
             {/* Thread header */}
-            <div className="px-4 py-2 border-b border-gray-700/50 bg-gray-900/80">
+            <div className="px-4 py-2 border-b border-gray-800/60 bg-gray-900/80">
               <h2 className="text-sm font-bold text-gray-100">
                 {threadDetails?.title || "Loading..."}
               </h2>
@@ -113,7 +113,7 @@ function ChatPageInner() {
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-600 text-sm">
+          <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
             Select a thread to start chatting
           </div>
         )}

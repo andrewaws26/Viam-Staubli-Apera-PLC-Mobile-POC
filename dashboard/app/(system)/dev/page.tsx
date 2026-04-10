@@ -201,19 +201,19 @@ export default function DevPage() {
         <section className="border border-gray-800 rounded-2xl overflow-hidden">
           <button
             onClick={() => setAiDebugExpanded((e) => !e)}
-            className="w-full p-4 sm:p-5 flex items-center justify-between gap-3 text-left hover:bg-gray-900/30 transition-colors"
+            className="w-full p-4 sm:p-5 flex items-center justify-between gap-3 text-left hover:bg-gray-800/50 transition-colors"
           >
             <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400">
               AI Diagnostics Debug
             </h2>
-            <span className="text-gray-600 text-xs shrink-0">
+            <span className="text-gray-500 text-xs shrink-0">
               {aiDebugExpanded ? "\u25B2" : "\u25BC"}
             </span>
           </button>
 
           {aiDebugExpanded && (
             <div className="px-4 sm:px-6 pb-4 sm:pb-6 space-y-4">
-              <p className="text-xs text-gray-600">
+              <p className="text-xs text-gray-500">
                 Shows the system prompt and historical data context the AI sees
                 when answering diagnostic questions. Fetched via{" "}
                 <code className="bg-gray-900 px-1 py-0.5 rounded text-gray-400">
@@ -268,7 +268,7 @@ export default function DevPage() {
                   {/* System prompt */}
                   {aiDebug.data.systemPrompt ? (
                     <div>
-                      <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2">
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">
                         System Prompt (what the AI sees)
                       </h3>
                       <pre className="bg-gray-900/50 border border-gray-800 rounded-lg p-3 text-xs sm:text-xs text-gray-400 font-mono overflow-x-auto max-h-96 overflow-y-auto whitespace-pre-wrap">
@@ -279,7 +279,7 @@ export default function DevPage() {
 
                   {/* Full debug JSON */}
                   <details>
-                    <summary className="text-xs font-bold uppercase tracking-widest text-gray-600 cursor-pointer hover:text-gray-400">
+                    <summary className="text-xs font-bold uppercase tracking-widest text-gray-500 cursor-pointer hover:text-gray-400">
                       Full Debug JSON
                     </summary>
                     <pre className="mt-2 bg-gray-900/50 border border-gray-800 rounded-lg p-3 text-xs text-gray-500 font-mono overflow-x-auto max-h-64 overflow-y-auto">
@@ -292,7 +292,7 @@ export default function DevPage() {
                     onClick={() => {
                       setAiDebug({ loaded: false, error: null, data: null });
                     }}
-                    className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs font-bold uppercase tracking-wider rounded-lg transition-colors"
+                    className="px-4 py-2 bg-gray-800 hover:bg-gray-800/50 text-gray-400 text-xs font-bold uppercase tracking-wider rounded-lg transition-colors"
                   >
                     Refresh
                   </button>
@@ -313,12 +313,12 @@ export default function DevPage() {
         <section className="border border-gray-800 rounded-2xl overflow-hidden">
           <button
             onClick={() => setWoExpanded((e) => !e)}
-            className="w-full p-4 sm:p-5 flex items-center justify-between gap-3 text-left hover:bg-gray-900/30 transition-colors"
+            className="w-full p-4 sm:p-5 flex items-center justify-between gap-3 text-left hover:bg-gray-800/50 transition-colors"
           >
             <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400">
               Work Orders
             </h2>
-            <span className="text-gray-600 text-xs shrink-0">
+            <span className="text-gray-500 text-xs shrink-0">
               {woExpanded ? "\u25B2" : "\u25BC"}
             </span>
           </button>
@@ -359,7 +359,7 @@ export default function DevPage() {
                     </a>
                     <button
                       onClick={() => setWoStats((prev) => ({ ...prev, loaded: false }))}
-                      className="text-xs px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-400 font-bold uppercase tracking-wider rounded-lg transition-colors"
+                      className="text-xs px-4 py-2 bg-gray-800 hover:bg-gray-800/50 text-gray-400 font-bold uppercase tracking-wider rounded-lg transition-colors"
                     >
                       Refresh
                     </button>
@@ -378,12 +378,12 @@ export default function DevPage() {
         <section className="border border-gray-800 rounded-2xl overflow-hidden">
           <button
             onClick={() => setEnvExpanded((e) => !e)}
-            className="w-full p-4 sm:p-5 flex items-center justify-between gap-3 text-left hover:bg-gray-900/30 transition-colors"
+            className="w-full p-4 sm:p-5 flex items-center justify-between gap-3 text-left hover:bg-gray-800/50 transition-colors"
           >
             <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400">
               Environment &amp; Config
             </h2>
-            <span className="text-gray-600 text-xs shrink-0">
+            <span className="text-gray-500 text-xs shrink-0">
               {envExpanded ? "\u25B2" : "\u25BC"}
             </span>
           </button>
@@ -392,7 +392,7 @@ export default function DevPage() {
             <div className="px-4 sm:px-6 pb-4 sm:pb-6 space-y-4">
               {/* Dashboard info */}
               <div>
-                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-800/50 pb-1">
                   Dashboard
                 </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2">
@@ -413,7 +413,7 @@ export default function DevPage() {
 
               {/* Env vars */}
               <div>
-                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-800/50 pb-1">
                   Environment Variables (names only)
                 </h3>
                 <div className="space-y-1">
@@ -444,7 +444,7 @@ export default function DevPage() {
 
               {/* Fleet config */}
               <div>
-                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-800/50 pb-1">
                   Fleet Config
                 </h3>
                 {envCheck.loaded ? (
@@ -460,13 +460,13 @@ export default function DevPage() {
                             <span className="font-mono text-gray-400">
                               {t.id}
                             </span>
-                            <span className="text-gray-600">{t.name}</span>
+                            <span className="text-gray-500">{t.name}</span>
                           </div>
                         )
                       )}
                     </div>
                   ) : (
-                    <p className="text-xs text-gray-600">
+                    <p className="text-xs text-gray-500">
                       Single-truck mode (no FLEET_TRUCKS configured)
                     </p>
                   )
@@ -479,7 +479,7 @@ export default function DevPage() {
 
               {/* Viam Part IDs */}
               <div>
-                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-800/50 pb-1">
                   Viam Part IDs (defaults)
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -521,7 +521,7 @@ function KV({
 }) {
   return (
     <div className="flex flex-col min-w-0">
-      <span className="text-xs text-gray-600 uppercase tracking-wide truncate">
+      <span className="text-xs text-gray-500 uppercase tracking-wide truncate">
         {label}
       </span>
       <span

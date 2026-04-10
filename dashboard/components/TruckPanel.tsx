@@ -563,7 +563,7 @@ export default function TruckPanel({ simMode = false, truckId, onReadingsChange 
 
       {/* Not connected state */}
       {!connected && (
-        <div className="text-center py-6 text-gray-600">
+        <div className="text-center py-6 text-gray-500">
           <p className="text-sm">Truck sensor offline</p>
           <p className="text-xs mt-1">{error}</p>
         </div>

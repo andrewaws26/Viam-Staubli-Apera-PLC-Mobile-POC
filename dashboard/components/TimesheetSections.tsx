@@ -328,7 +328,7 @@ export default function TimesheetSections({ timesheetId, canEdit }: Props) {
                   sectionEntries.map((entry) => (
                     <div
                       key={entry.id as string}
-                      className="flex items-start justify-between gap-3 p-3 rounded-lg bg-gray-800/50 border border-gray-700/50"
+                      className="flex items-start justify-between gap-3 p-3 rounded-lg bg-gray-800/50 border border-gray-800/60"
                     >
                       <div className="min-w-0 flex-1 text-sm text-gray-300">
                         {renderEntrySummary(section.key, entry)}
@@ -337,7 +337,7 @@ export default function TimesheetSections({ timesheetId, canEdit }: Props) {
                         <div className="flex gap-1 shrink-0">
                           <button
                             onClick={() => startEdit(section.key, entry)}
-                            className="px-2 py-1 rounded text-xs text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+                            className="px-2 py-1 rounded text-xs text-gray-400 hover:text-white hover:bg-gray-800/50 transition-colors"
                           >
                             Edit
                           </button>

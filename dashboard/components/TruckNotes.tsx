@@ -123,7 +123,7 @@ export default function TruckNotes({ truckId }: { truckId?: string }) {
 
           {/* Notes list */}
           {notes.length === 0 ? (
-            <p className="text-xs text-gray-600 py-4 text-center">
+            <p className="text-xs text-gray-500 py-4 text-center">
               No notes yet. Add one to share info with your team.
             </p>
           ) : (
@@ -138,12 +138,12 @@ export default function TruckNotes({ truckId }: { truckId?: string }) {
                       <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold text-white ${ROLE_COLORS[note.author_role] ?? "bg-gray-600"}`}>
                         {note.author_role}
                       </span>
-                      <span className="text-xs text-gray-600">{timeAgo(note.created_at)}</span>
+                      <span className="text-xs text-gray-500">{timeAgo(note.created_at)}</span>
                     </div>
                     {canDelete(note.author_id) && (
                       <button
                         onClick={() => handleDelete(note.id)}
-                        className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 transition-all p-1"
+                        className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-all p-1"
                         title="Delete note"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

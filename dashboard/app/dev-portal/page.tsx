@@ -132,7 +132,7 @@ export default function ControlPlanePage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-gray-600">
+          <span className="text-xs text-gray-500">
             {lastRefresh.toLocaleTimeString()}
           </span>
           <button
@@ -154,7 +154,7 @@ export default function ControlPlanePage() {
            overallStatus === "degraded" ? "Degraded Performance" :
            "Checking Systems..."}
         </span>
-        <span className="text-xs text-gray-600 ml-auto">
+        <span className="text-xs text-gray-500 ml-auto">
           {health.length} services monitored
         </span>
       </div>
@@ -190,7 +190,7 @@ export default function ControlPlanePage() {
                     {s.status}
                   </span>
                   {s.responseMs !== null && (
-                    <span className="text-xs text-gray-600">
+                    <span className="text-xs text-gray-500">
                       {s.responseMs}ms
                     </span>
                   )}
@@ -216,7 +216,7 @@ export default function ControlPlanePage() {
           <div className="space-y-2">
             {deployments.length === 0 ? (
               <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-6 text-center">
-                <p className="text-sm text-gray-600">No deployments recorded yet</p>
+                <p className="text-sm text-gray-500">No deployments recorded yet</p>
                 <p className="text-xs text-gray-700 mt-1">
                   Deployments will appear here as they happen
                 </p>
@@ -241,7 +241,7 @@ export default function ControlPlanePage() {
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
                       {d.commitSha && (
-                        <span className="text-xs text-gray-600 font-mono">
+                        <span className="text-xs text-gray-500 font-mono">
                           {d.commitSha.slice(0, 7)}
                         </span>
                       )}
@@ -269,7 +269,7 @@ export default function ControlPlanePage() {
           <div className="space-y-2">
             {testRuns.length === 0 ? (
               <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-6 text-center">
-                <p className="text-sm text-gray-600">No test runs recorded yet</p>
+                <p className="text-sm text-gray-500">No test runs recorded yet</p>
                 <p className="text-xs text-gray-700 mt-1">
                   Run tests to see results here
                 </p>
@@ -294,7 +294,7 @@ export default function ControlPlanePage() {
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
                       {t.durationMs !== null && (
-                        <span className="text-xs text-gray-600">
+                        <span className="text-xs text-gray-500">
                           {(t.durationMs / 1000).toFixed(1)}s
                         </span>
                       )}
@@ -317,7 +317,7 @@ export default function ControlPlanePage() {
         </h2>
         {sessions.length === 0 ? (
           <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-6 text-center">
-            <p className="text-sm text-gray-600">No active sessions</p>
+            <p className="text-sm text-gray-500">No active sessions</p>
             <p className="text-xs text-gray-700 mt-1">
               Sessions appear here when Claude Code or automated workflows are running
             </p>

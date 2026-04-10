@@ -24,7 +24,7 @@ export default function AdminPage() {
       <div className="flex items-center justify-center py-32">
         <div className="text-center">
           <h1 className="text-xl font-bold text-gray-300">Access Denied</h1>
-          <p className="text-sm text-gray-600 mt-2">This page is restricted to developers and managers.</p>
+          <p className="text-sm text-gray-500 mt-2">This page is restricted to developers and managers.</p>
           <a href="/" className="inline-block mt-4 text-sm text-purple-400 hover:text-purple-300 underline">Back to Dashboard</a>
         </div>
       </div>

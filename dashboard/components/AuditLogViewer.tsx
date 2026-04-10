@@ -86,7 +86,7 @@ export default function AuditLogViewer() {
           <div className="w-6 h-6 rounded-full border-2 border-gray-600 border-t-gray-300 animate-spin" />
         </div>
       ) : entries.length === 0 ? (
-        <p className="text-xs text-gray-600 py-8 text-center">No audit entries found.</p>
+        <p className="text-xs text-gray-500 py-8 text-center">No audit entries found.</p>
       ) : (
         <div className="space-y-1.5 max-h-[600px] overflow-y-auto">
           {entries.map((entry) => {
@@ -104,9 +104,9 @@ export default function AuditLogViewer() {
                       {entry.user_name}
                     </span>
                     {entry.truck_id && (
-                      <span className="text-gray-600">on {entry.truck_id}</span>
+                      <span className="text-gray-500">on {entry.truck_id}</span>
                     )}
-                    <span className="text-gray-600 ml-auto shrink-0">{formatTime(entry.created_at)}</span>
+                    <span className="text-gray-500 ml-auto shrink-0">{formatTime(entry.created_at)}</span>
                   </div>
                   {Object.keys(entry.details).length > 0 && (
                     <div className="text-xs text-gray-500 mt-0.5 truncate">

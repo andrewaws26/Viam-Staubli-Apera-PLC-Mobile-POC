@@ -220,7 +220,7 @@ export default function TimesheetAdmin() {
                     <div className="flex gap-2">
                       <a
                         href={`/timesheets/${ts.id}`}
-                        className="px-3 py-1 rounded text-xs font-medium bg-gray-800 text-gray-300 hover:text-white hover:bg-gray-700 transition-colors"
+                        className="px-3 py-1 rounded text-xs font-medium bg-gray-800 text-gray-300 hover:text-white hover:bg-gray-800/50 transition-colors"
                       >
                         View
                       </a>

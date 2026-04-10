@@ -62,7 +62,7 @@ export function PeakCard({
     <div className={`rounded-xl border p-3 sm:p-4 ${bgMap[color]}`}>
       <p className="text-xs sm:text-xs text-gray-500 uppercase tracking-widest">{label}</p>
       <p className={`text-xl sm:text-2xl font-bold mt-1 ${textMap[color]}`}>{value}</p>
-      {time && <p className="text-xs text-gray-600 mt-0.5">at {fmtTime(time)}</p>}
+      {time && <p className="text-xs text-gray-500 mt-0.5">at {fmtTime(time)}</p>}
     </div>
   );
 }
@@ -72,7 +72,7 @@ export function MiniStat({ label, value, sub }: { label: string; value: string; 
     <div className="bg-gray-800/50 rounded-lg px-3 py-2">
       <p className="text-xs text-gray-500 uppercase tracking-widest">{label}</p>
       <p className="text-lg font-bold text-gray-200 mt-0.5">{value}</p>
-      {sub && <p className="text-[9px] text-gray-600">{sub}</p>}
+      {sub && <p className="text-[9px] text-gray-500">{sub}</p>}
     </div>
   );
 }

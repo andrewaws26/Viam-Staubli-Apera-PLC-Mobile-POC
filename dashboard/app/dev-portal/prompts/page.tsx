@@ -207,7 +207,7 @@ export default function PromptLibraryPage() {
         {/* Template List */}
         <div className="lg:col-span-2 space-y-2">
           {loading ? (
-            <div className="text-center py-12 text-gray-600 text-sm">Loading...</div>
+            <div className="text-center py-12 text-gray-500 text-sm">Loading...</div>
           ) : templates.length === 0 ? (
             <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-8 text-center">
               <p className="text-sm text-gray-500">No templates yet</p>
@@ -238,7 +238,7 @@ export default function PromptLibraryPage() {
                     <p className="text-xs text-gray-500 truncate">{t.description}</p>
                   )}
                   <div className="flex items-center gap-2 mt-1.5">
-                    <span className="text-xs text-gray-600">
+                    <span className="text-xs text-gray-500">
                       {t.variables.length} var{t.variables.length !== 1 ? "s" : ""}
                     </span>
                     <span className="text-xs text-gray-700">{timeAgo(t.updated_at)}</span>
@@ -253,7 +253,7 @@ export default function PromptLibraryPage() {
         <div className="lg:col-span-3">
           {!selectedTemplate ? (
             <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-12 text-center">
-              <p className="text-sm text-gray-600">Select a template to view details</p>
+              <p className="text-sm text-gray-500">Select a template to view details</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -337,9 +337,9 @@ export default function PromptLibraryPage() {
                   Version History
                 </h3>
                 {loadingVersions ? (
-                  <p className="text-xs text-gray-600">Loading...</p>
+                  <p className="text-xs text-gray-500">Loading...</p>
                 ) : versions.length === 0 ? (
-                  <p className="text-xs text-gray-600">No versions recorded</p>
+                  <p className="text-xs text-gray-500">No versions recorded</p>
                 ) : (
                   <div className="space-y-2">
                     {versions.map((v) => (
@@ -353,7 +353,7 @@ export default function PromptLibraryPage() {
                         <span className="text-xs text-gray-400 flex-1 truncate">
                           {v.changelog || "No changelog"}
                         </span>
-                        <span className="text-xs text-gray-600 shrink-0">
+                        <span className="text-xs text-gray-500 shrink-0">
                           {timeAgo(v.created_at)}
                         </span>
                       </div>
@@ -412,7 +412,7 @@ export default function PromptLibraryPage() {
 
             <div>
               <label className="text-xs text-gray-500 block mb-1">
-                Prompt Body <span className="text-gray-600">(use {"{{variable_name}}"} for variables)</span>
+                Prompt Body <span className="text-gray-500">(use {"{{variable_name}}"} for variables)</span>
               </label>
               <textarea
                 value={formBody}

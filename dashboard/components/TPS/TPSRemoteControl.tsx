@@ -65,7 +65,7 @@ export default function TPSRemoteControl({ readings }: TPSRemoteControlProps) {
 
         {/* Eject */}
         <div>
-          <p className="text-xs uppercase tracking-wider text-gray-600 font-bold mb-1">Eject Plate</p>
+          <p className="text-xs uppercase tracking-wider text-gray-500 font-bold mb-1">Eject Plate</p>
           <button
             disabled={cmdLoading}
             onClick={() => sendCommand({ action: "software_eject" })}
@@ -77,7 +77,7 @@ export default function TPSRemoteControl({ readings }: TPSRemoteControlProps) {
 
         {/* Modes */}
         <div>
-          <p className="text-xs uppercase tracking-wider text-gray-600 font-bold mb-1">Operating Mode</p>
+          <p className="text-xs uppercase tracking-wider text-gray-500 font-bold mb-1">Operating Mode</p>
           <div className="flex flex-wrap gap-1.5">
             {[
               { mode: "single", label: "TPS-1 Single" },
@@ -102,7 +102,7 @@ export default function TPSRemoteControl({ readings }: TPSRemoteControlProps) {
 
         {/* Spacing */}
         <div>
-          <p className="text-xs uppercase tracking-wider text-gray-600 font-bold mb-1">
+          <p className="text-xs uppercase tracking-wider text-gray-500 font-bold mb-1">
             Tie Spacing (current: {readings?.ds2 ? `${Number(readings.ds2) * 0.5}"` : "\u2014"})
           </p>
           <div className="flex flex-wrap gap-1.5">
@@ -131,7 +131,7 @@ export default function TPSRemoteControl({ readings }: TPSRemoteControlProps) {
 
         {/* Toggles */}
         <div>
-          <p className="text-xs uppercase tracking-wider text-gray-600 font-bold mb-1">Toggles</p>
+          <p className="text-xs uppercase tracking-wider text-gray-500 font-bold mb-1">Toggles</p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
             {[
               { action: "toggle_drop_enable", label: "Drop Enable", key: "drop_enable", color: "bg-green-800" },
@@ -146,7 +146,7 @@ export default function TPSRemoteControl({ readings }: TPSRemoteControlProps) {
                   disabled={cmdLoading}
                   onClick={() => sendCommand({ action })}
                   className={`text-xs px-2 py-1.5 rounded-lg font-bold transition-colors ${
-                    isOn ? `${color} text-white` : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                    isOn ? `${color} text-white` : "bg-gray-800 text-gray-400 hover:bg-gray-800/50"
                   }`}
                 >
                   {label}: {isOn ? "ON" : "OFF"}
@@ -158,7 +158,7 @@ export default function TPSRemoteControl({ readings }: TPSRemoteControlProps) {
 
         {/* Utilities */}
         <div>
-          <p className="text-xs uppercase tracking-wider text-gray-600 font-bold mb-1">Utilities</p>
+          <p className="text-xs uppercase tracking-wider text-gray-500 font-bold mb-1">Utilities</p>
           <div className="flex flex-wrap gap-1.5">
             <button
               disabled={cmdLoading}

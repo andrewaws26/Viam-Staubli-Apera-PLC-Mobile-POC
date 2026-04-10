@@ -50,7 +50,7 @@ export default function UserPicker({ onSelect, onClose, currentUserId }: UserPic
         className="bg-gray-900 border border-gray-700 rounded-lg w-full max-w-sm mx-4 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-3 border-b border-gray-700/50">
+        <div className="p-3 border-b border-gray-800/60">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-bold text-gray-100">New Direct Message</h3>
             <button onClick={onClose} className="text-gray-500 hover:text-gray-300 text-lg">×</button>

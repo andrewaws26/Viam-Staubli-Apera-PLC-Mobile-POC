@@ -217,7 +217,7 @@ export default function DevDiagnostics({ components, truckReadings, connectionSt
                   <span className={`text-xs font-mono ${flag.level === "error" ? "text-red-400" : "text-yellow-400"}`}>
                     {typeof flag.value === "number" ? flag.value.toFixed(1) : flag.value}
                   </span>
-                  <p className="text-xs text-gray-600">{flag.reason}</p>
+                  <p className="text-xs text-gray-500">{flag.reason}</p>
                 </div>
               </div>
             ))}
@@ -298,13 +298,13 @@ export default function DevDiagnostics({ components, truckReadings, connectionSt
                 </div>
               ))}
               {healStatus.checks.filter(c => c.status !== "ok").map((c, i) => (
-                <div key={`d-${i}`} className="text-xs text-gray-600 pl-2 border-l border-gray-800">
+                <div key={`d-${i}`} className="text-xs text-gray-500 pl-2 border-l border-gray-800">
                   {c.check}: {c.detail}
                 </div>
               ))}
             </>
           ) : (
-            <p className="text-xs text-gray-600">No heal data yet — waiting for first check cycle</p>
+            <p className="text-xs text-gray-500">No heal data yet — waiting for first check cycle</p>
           )}
         </Section>
 
@@ -333,7 +333,7 @@ export default function DevDiagnostics({ components, truckReadings, connectionSt
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h4 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-1.5 border-b border-gray-800/30 pb-1">
+      <h4 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1.5 border-b border-gray-800/30 pb-1">
         {title}
       </h4>
       <div className="space-y-1">

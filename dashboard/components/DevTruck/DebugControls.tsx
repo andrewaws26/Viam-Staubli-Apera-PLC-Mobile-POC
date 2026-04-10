@@ -68,7 +68,7 @@ export default function DebugControls({ data, readingKeys, lastChangeTimestamps 
     <>
       {/* Live Readings Table */}
       <div>
-        <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+        <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-800/50 pb-1">
           Live Readings ({readingKeys.length} fields)
         </h3>
         {readingKeys.length === 0 ? (
@@ -102,10 +102,10 @@ export default function DebugControls({ data, readingKeys, lastChangeTimestamps 
                       <td className="py-1 pr-3 font-mono font-bold text-gray-200 whitespace-nowrap">
                         {fmtVal(val)}
                       </td>
-                      <td className="py-1 pr-3 text-gray-600 hidden sm:table-cell">
+                      <td className="py-1 pr-3 text-gray-500 hidden sm:table-cell">
                         {inferUnit(key)}
                       </td>
-                      <td className="py-1 text-gray-600 font-mono hidden sm:table-cell">
+                      <td className="py-1 text-gray-500 font-mono hidden sm:table-cell">
                         {freshnessAge(lastTs)}
                       </td>
                     </tr>
@@ -121,7 +121,7 @@ export default function DebugControls({ data, readingKeys, lastChangeTimestamps 
       <div>
         <button
           onClick={() => setShowRaw((r) => !r)}
-          className="min-h-[44px] text-xs font-bold uppercase tracking-widest text-gray-600 hover:text-gray-400 transition-colors"
+          className="min-h-[44px] text-xs font-bold uppercase tracking-widest text-gray-500 hover:text-gray-400 transition-colors"
         >
           {showRaw ? "\u25BC" : "\u25B6"} Raw JSON
         </button>
@@ -133,7 +133,7 @@ export default function DebugControls({ data, readingKeys, lastChangeTimestamps 
                 setCopied(true);
                 setTimeout(() => setCopied(false), 2000);
               }}
-              className="absolute top-2 right-2 min-h-[44px] px-2 py-1 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs rounded transition-colors"
+              className="absolute top-2 right-2 min-h-[44px] px-2 py-1 bg-gray-800 hover:bg-gray-800/50 text-gray-400 text-xs rounded transition-colors"
             >
               {copied ? "Copied!" : "Copy"}
             </button>

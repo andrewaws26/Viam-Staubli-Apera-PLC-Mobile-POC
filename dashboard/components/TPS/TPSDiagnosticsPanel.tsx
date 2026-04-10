@@ -11,7 +11,7 @@ interface TPSDiagnosticsPanelProps {
 export default function TPSDiagnosticsPanel({ diagnostics }: TPSDiagnosticsPanelProps) {
   return (
     <div>
-      <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+      <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-800/50 pb-1">
         Active Diagnostics ({diagnostics.length})
       </h3>
       {diagnostics.length === 0 ? (

@@ -75,7 +75,7 @@ export default function ConnectionDot({ status, dataAge, error }: Props) {
           {c.label}
         </span>
       </div>
-      <span className="text-[9px] sm:text-xs text-gray-600 tracking-wide">
+      <span className="text-[9px] sm:text-xs text-gray-500 tracking-wide">
         {c.subtitle}
       </span>
     </div>

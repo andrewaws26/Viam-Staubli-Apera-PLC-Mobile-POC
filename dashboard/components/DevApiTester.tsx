@@ -123,12 +123,12 @@ export default function DevApiTester() {
     <section className="border border-gray-800 rounded-2xl overflow-hidden">
       <button
         onClick={() => setExpanded((e) => !e)}
-        className="w-full p-4 sm:p-5 flex items-center justify-between gap-3 text-left hover:bg-gray-900/30 transition-colors"
+        className="w-full p-4 sm:p-5 flex items-center justify-between gap-3 text-left hover:bg-gray-800/50 transition-colors"
       >
         <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400">
           API Route Tester
         </h2>
-        <span className="text-gray-600 text-xs shrink-0">
+        <span className="text-gray-500 text-xs shrink-0">
           {expanded ? "\u25B2" : "\u25BC"}
         </span>
       </button>
@@ -138,7 +138,7 @@ export default function DevApiTester() {
           {/* Route selector */}
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1">
-              <label className="text-xs text-gray-600 uppercase tracking-wide block mb-1">
+              <label className="text-xs text-gray-500 uppercase tracking-wide block mb-1">
                 Route
               </label>
               <select
@@ -166,7 +166,7 @@ export default function DevApiTester() {
 
           {/* Query params */}
           <div>
-            <label className="text-xs text-gray-600 uppercase tracking-wide block mb-1">
+            <label className="text-xs text-gray-500 uppercase tracking-wide block mb-1">
               Query Parameters
             </label>
             <input
@@ -181,7 +181,7 @@ export default function DevApiTester() {
           {/* Request body (POST only) */}
           {route.method === "POST" && (
             <div>
-              <label className="text-xs text-gray-600 uppercase tracking-wide block mb-1">
+              <label className="text-xs text-gray-500 uppercase tracking-wide block mb-1">
                 Request Body (JSON)
               </label>
               <textarea
@@ -200,7 +200,7 @@ export default function DevApiTester() {
                 <span className={`font-bold font-mono ${statusColor}`}>
                   {response.status} {response.statusText}
                 </span>
-                <span className="text-gray-600 font-mono">
+                <span className="text-gray-500 font-mono">
                   {response.time}ms
                 </span>
                 <button
@@ -213,7 +213,7 @@ export default function DevApiTester() {
                     setCopied(true);
                     setTimeout(() => setCopied(false), 2000);
                   }}
-                  className="ml-auto px-2 py-1 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs rounded transition-colors"
+                  className="ml-auto px-2 py-1 bg-gray-800 hover:bg-gray-800/50 text-gray-400 text-xs rounded transition-colors"
                 >
                   {copied ? "Copied!" : "Copy"}
                 </button>

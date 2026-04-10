@@ -56,8 +56,8 @@ export default function SnapshotCard({ snapshot }: SnapshotCardProps) {
   const dtcs = snapshot.active_dtcs;
 
   return (
-    <div className="mt-1 rounded-md border border-gray-700/50 bg-gray-800/50 overflow-hidden max-w-xs">
-      <div className="px-2 py-1 bg-gray-800/80 border-b border-gray-700/50 flex justify-between items-center">
+    <div className="mt-1 rounded-md border border-gray-800/60 bg-gray-800/50 overflow-hidden max-w-xs">
+      <div className="px-2 py-1 bg-gray-800/80 border-b border-gray-800/60 flex justify-between items-center">
         <span className="text-xs text-gray-400 uppercase tracking-wider font-medium">
           Sensor Snapshot
         </span>
@@ -78,7 +78,7 @@ export default function SnapshotCard({ snapshot }: SnapshotCardProps) {
       {rest.length > 0 && (
         <button
           onClick={() => setExpanded(!expanded)}
-          className="w-full text-xs text-purple-400 hover:text-purple-300 py-0.5 border-t border-gray-700/50"
+          className="w-full text-xs text-purple-400 hover:text-purple-300 py-0.5 border-t border-gray-800/60"
         >
           {expanded ? "Show less" : `+${rest.length} more`}
         </button>

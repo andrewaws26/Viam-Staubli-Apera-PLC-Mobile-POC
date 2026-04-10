@@ -14,7 +14,7 @@ import { TEMP_THRESHOLDS, tempColor, tempBg } from "./CellTypes";
 function KV({ label, value, color, mono }: { label: string; value: string; color?: string; mono?: boolean }) {
   return (
     <div className="flex flex-col min-w-0">
-      <span className="text-xs text-gray-600 uppercase tracking-wide truncate">{label}</span>
+      <span className="text-xs text-gray-500 uppercase tracking-wide truncate">{label}</span>
       <span className={`text-xs sm:text-sm truncate ${mono ? "font-mono" : ""} ${color || "text-gray-300"}`}>{value}</span>
     </div>
   );
@@ -79,7 +79,7 @@ export default function StaubliPanel({ readings, pollError }: Props) {
       {/* Header */}
       <button
         onClick={() => setExpanded((e) => !e)}
-        className="w-full p-4 sm:p-5 flex items-center justify-between gap-3 text-left hover:bg-gray-900/30 transition-colors"
+        className="w-full p-4 sm:p-5 flex items-center justify-between gap-3 text-left hover:bg-gray-800/50 transition-colors"
       >
         <div className="flex items-center gap-2 min-w-0">
           <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${
@@ -89,7 +89,7 @@ export default function StaubliPanel({ readings, pollError }: Props) {
             Staubli TX2-140 &mdash; Robot Controller
           </h2>
         </div>
-        <span className="text-gray-600 text-xs shrink-0">{expanded ? "\u25B2" : "\u25BC"}</span>
+        <span className="text-gray-500 text-xs shrink-0">{expanded ? "\u25B2" : "\u25BC"}</span>
       </button>
 
       {expanded && (
@@ -106,7 +106,7 @@ export default function StaubliPanel({ readings, pollError }: Props) {
             <>
               {/* ---- Safety Status ---- */}
               <div>
-                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-800/50 pb-1">
                   Safety
                 </h3>
                 <div className="flex flex-wrap gap-3">
@@ -119,7 +119,7 @@ export default function StaubliPanel({ readings, pollError }: Props) {
 
               {/* ---- Motor Temperatures ---- */}
               <div>
-                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-800/50 pb-1">
                   Motor Temperatures
                 </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -135,7 +135,7 @@ export default function StaubliPanel({ readings, pollError }: Props) {
 
               {/* ---- Production ---- */}
               <div>
-                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-800/50 pb-1">
                   Production
                 </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2">
@@ -163,7 +163,7 @@ export default function StaubliPanel({ readings, pollError }: Props) {
 
               {/* ---- Robot Position ---- */}
               <div>
-                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-800/50 pb-1">
                   Position
                 </h3>
                 <div className="flex flex-wrap gap-1.5 mb-3">
@@ -186,7 +186,7 @@ export default function StaubliPanel({ readings, pollError }: Props) {
                 </div>
                 <button
                   onClick={() => setShowJoints(!showJoints)}
-                  className="mt-2 text-xs text-gray-600 hover:text-gray-400 uppercase tracking-wider"
+                  className="mt-2 text-xs text-gray-500 hover:text-gray-400 uppercase tracking-wider"
                 >
                   {showJoints ? "\u25BC" : "\u25B6"} Joint angles
                 </button>
@@ -204,7 +204,7 @@ export default function StaubliPanel({ readings, pollError }: Props) {
 
               {/* ---- System Health ---- */}
               <div>
-                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-800/50 pb-1">
                   System Health
                 </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2">

@@ -122,7 +122,7 @@ export default function AIChatPanel({
             <h4 className="text-sm sm:text-base font-black text-purple-300 uppercase tracking-wider">
               AI Mechanic
             </h4>
-            <p className="text-xs text-gray-600">
+            <p className="text-xs text-gray-500">
               Ask anything — Claude sees live vehicle data in real-time
             </p>
           </div>
@@ -249,7 +249,7 @@ export default function AIChatPanel({
           {chatMessages.length > 0 && (
             <button
               onClick={() => setChatMessages([])}
-              className="text-xs text-gray-600 hover:text-gray-400 mt-2 self-end"
+              className="text-xs text-gray-500 hover:text-gray-400 mt-2 self-end"
             >
               Clear conversation
             </button>

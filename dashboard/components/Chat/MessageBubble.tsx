@@ -57,7 +57,7 @@ export default function MessageBubble({ message, isOwn, onToggleReaction }: Mess
             ? "bg-purple-600/20 border border-purple-500/30"
             : isAi
             ? "bg-cyan-900/20 border border-cyan-700/30"
-            : "bg-gray-800 border border-gray-700/50"
+            : "bg-gray-800 border border-gray-800/60"
         }`}
       >
         {/* Sender info */}

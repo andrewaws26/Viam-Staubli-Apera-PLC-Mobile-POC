@@ -8,7 +8,7 @@ const FleetOverview = dynamic(() => import("../../../components/FleetOverview"),
   loading: () => (
     <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center gap-3">
       <div className="w-10 h-10 rounded-full border-2 border-gray-600 border-t-gray-300 animate-spin" />
-      <p className="text-gray-600 text-sm uppercase tracking-widest">Loading Fleet</p>
+      <p className="text-gray-500 text-sm uppercase tracking-widest">Loading Fleet</p>
     </div>
   ),
 });
@@ -31,7 +31,7 @@ export default function FleetPage() {
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-xl font-bold text-gray-300">Access Denied</h1>
-          <p className="text-sm text-gray-600 mt-2">This page is restricted to developers, managers, and mechanics.</p>
+          <p className="text-sm text-gray-500 mt-2">This page is restricted to developers, managers, and mechanics.</p>
           <a href="/" className="inline-block mt-4 text-sm text-purple-400 hover:text-purple-300 underline">Back to Dashboard</a>
         </div>
       </div>

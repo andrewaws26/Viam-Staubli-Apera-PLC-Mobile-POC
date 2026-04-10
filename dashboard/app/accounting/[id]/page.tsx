@@ -184,7 +184,7 @@ export default function JournalEntryDetailPage() {
     return (
       <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center gap-3">
         <div className="w-10 h-10 rounded-full border-2 border-gray-600 border-t-gray-300 animate-spin" />
-        <p className="text-gray-600 text-sm uppercase tracking-widest">
+        <p className="text-gray-500 text-sm uppercase tracking-widest">
           Loading Entry
         </p>
       </div>
@@ -222,7 +222,7 @@ export default function JournalEntryDetailPage() {
           <h1 className="text-xl sm:text-2xl font-black tracking-widest uppercase text-gray-100">
             Journal Entry
           </h1>
-          <p className="text-xs text-gray-600 mt-0.5 tracking-wide">
+          <p className="text-xs text-gray-500 mt-0.5 tracking-wide">
             IronSight — {entry.description}
           </p>
         </div>
@@ -254,7 +254,7 @@ export default function JournalEntryDetailPage() {
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
                 <div>
-                  <div className="text-xs text-gray-600 uppercase tracking-wider">
+                  <div className="text-xs text-gray-500 uppercase tracking-wider">
                     Date
                   </div>
                   <div className="text-gray-300 font-mono">
@@ -262,7 +262,7 @@ export default function JournalEntryDetailPage() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-600 uppercase tracking-wider">
+                  <div className="text-xs text-gray-500 uppercase tracking-wider">
                     Reference
                   </div>
                   <div className="text-gray-300 font-mono">
@@ -270,7 +270,7 @@ export default function JournalEntryDetailPage() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-600 uppercase tracking-wider">
+                  <div className="text-xs text-gray-500 uppercase tracking-wider">
                     Source
                   </div>
                   <div className="text-gray-300">
@@ -278,7 +278,7 @@ export default function JournalEntryDetailPage() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-600 uppercase tracking-wider">
+                  <div className="text-xs text-gray-500 uppercase tracking-wider">
                     Created By
                   </div>
                   <div className="text-gray-300">
@@ -288,14 +288,14 @@ export default function JournalEntryDetailPage() {
               </div>
 
               {entry.posted_at && (
-                <div className="text-xs text-gray-600">
+                <div className="text-xs text-gray-500">
                   Posted {fmtDateTime(entry.posted_at)}
                 </div>
               )}
             </div>
 
             <div className="text-right">
-              <div className="text-xs text-gray-600 uppercase tracking-wider">
+              <div className="text-xs text-gray-500 uppercase tracking-wider">
                 Total Amount
               </div>
               <div className="text-2xl font-black font-mono text-gray-100">
@@ -338,7 +338,7 @@ export default function JournalEntryDetailPage() {
         <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
           <table className="w-full text-sm min-w-[600px]">
             <thead>
-              <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
+              <tr className="text-xs uppercase tracking-wider text-gray-500 border-b border-gray-800">
                 <th className="text-left px-4 py-3 font-medium w-24">
                   Acct #
                 </th>

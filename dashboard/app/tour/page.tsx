@@ -298,7 +298,7 @@ export default function TourPage() {
           </div>
           <div>
             <span className="text-sm font-bold text-gray-100 tracking-wide">IronSight Tour</span>
-            <span className="text-xs text-gray-600 ml-2">
+            <span className="text-xs text-gray-500 ml-2">
               {currentStop + 1} of {STOPS.length}
             </span>
           </div>
@@ -384,7 +384,7 @@ export default function TourPage() {
 
         {/* Tip */}
         {!isFirst && (
-          <p className="text-xs text-gray-600 mb-6">
+          <p className="text-xs text-gray-500 mb-6">
             Your progress is saved. You can close this tab and come back anytime — you&apos;ll pick up right where you left off.
           </p>
         )}
@@ -397,7 +397,7 @@ export default function TourPage() {
             className={`px-5 py-2.5 rounded-lg text-sm font-bold transition-colors ${
               isFirst
                 ? "text-gray-700 cursor-not-allowed"
-                : "text-gray-400 hover:text-white hover:bg-gray-800"
+                : "text-gray-400 hover:text-white hover:bg-gray-800/50"
             }`}
           >
             Back

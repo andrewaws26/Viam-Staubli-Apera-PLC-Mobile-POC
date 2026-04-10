@@ -121,7 +121,7 @@ function AddAccountModal({
             }
             className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white text-sm font-mono placeholder-gray-600 focus:outline-none focus:border-gray-500"
           />
-          <p className="text-xs text-gray-600 mt-1">
+          <p className="text-xs text-gray-500 mt-1">
             Range for {ACCOUNT_TYPE_LABELS[form.account_type]}:{" "}
             {ACCOUNT_NUMBER_RANGES[form.account_type].label}
           </p>
@@ -266,7 +266,7 @@ function ChartOfAccountsTab() {
       <div className="flex items-center gap-3">
         <div className="flex-1 relative">
           <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600"
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500"
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 20 20"
             fill="currentColor"
@@ -317,12 +317,12 @@ function ChartOfAccountsTab() {
                 <span className="text-sm font-bold uppercase tracking-wider text-gray-200">
                   {ACCOUNT_TYPE_LABELS[type]}
                 </span>
-                <span className="text-xs text-gray-600 font-mono">
+                <span className="text-xs text-gray-500 font-mono">
                   ({group.length})
                 </span>
               </div>
               <svg
-                className={`w-4 h-4 text-gray-600 transition-transform ${
+                className={`w-4 h-4 text-gray-500 transition-transform ${
                   isCollapsed ? "" : "rotate-180"
                 }`}
                 xmlns="http://www.w3.org/2000/svg"
@@ -342,7 +342,7 @@ function ChartOfAccountsTab() {
               <div className="border-t border-gray-800">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-xs uppercase tracking-wider text-gray-600">
+                    <tr className="text-xs uppercase tracking-wider text-gray-500">
                       <th className="text-left px-4 py-2 font-medium w-28">
                         Acct #
                       </th>
@@ -368,12 +368,12 @@ function ChartOfAccountsTab() {
                         <td className="px-4 py-2.5 text-gray-200">
                           <span>{a.name}</span>
                           {!a.is_active && (
-                            <span className="ml-2 text-xs uppercase tracking-wider text-gray-600 bg-gray-800 px-1.5 py-0.5 rounded">
+                            <span className="ml-2 text-xs uppercase tracking-wider text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">
                               Inactive
                             </span>
                           )}
                           {a.is_system && (
-                            <span className="ml-2 text-xs uppercase tracking-wider text-gray-600 bg-gray-800 px-1.5 py-0.5 rounded">
+                            <span className="ml-2 text-xs uppercase tracking-wider text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">
                               System
                             </span>
                           )}
@@ -389,7 +389,7 @@ function ChartOfAccountsTab() {
             )}
 
             {!isCollapsed && group.length === 0 && (
-              <div className="border-t border-gray-800 px-4 py-4 text-center text-sm text-gray-600">
+              <div className="border-t border-gray-800 px-4 py-4 text-center text-sm text-gray-500">
                 No {ACCOUNT_TYPE_LABELS[type].toLowerCase()} accounts
                 {search ? " matching your search" : ""}
               </div>
@@ -451,7 +451,7 @@ function JournalEntriesTab() {
         </select>
 
         <div className="flex items-center gap-2">
-          <label className="text-xs text-gray-600 uppercase tracking-wider">
+          <label className="text-xs text-gray-500 uppercase tracking-wider">
             From
           </label>
           <input
@@ -463,7 +463,7 @@ function JournalEntriesTab() {
         </div>
 
         <div className="flex items-center gap-2">
-          <label className="text-xs text-gray-600 uppercase tracking-wider">
+          <label className="text-xs text-gray-500 uppercase tracking-wider">
             To
           </label>
           <input
@@ -491,13 +491,13 @@ function JournalEntriesTab() {
         </div>
       ) : entries.length === 0 ? (
         <div className="text-center py-20">
-          <p className="text-gray-600 text-sm">No journal entries found</p>
+          <p className="text-gray-500 text-sm">No journal entries found</p>
         </div>
       ) : (
         <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
           <table className="w-full text-sm min-w-[640px]">
             <thead>
-              <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
+              <tr className="text-xs uppercase tracking-wider text-gray-500 border-b border-gray-800">
                 <th className="text-left px-4 py-3 font-medium w-28">
                   Date
                 </th>

@@ -121,7 +121,7 @@ export default function DeploymentsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         <div className="lg:col-span-3 space-y-2">
           {loading ? (
-            <div className="text-center py-12 text-gray-600 text-sm">Loading...</div>
+            <div className="text-center py-12 text-gray-500 text-sm">Loading...</div>
           ) : deployments.length === 0 ? (
             <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-8 text-center">
               <p className="text-sm text-gray-500">No deployments recorded</p>
@@ -143,7 +143,7 @@ export default function DeploymentsPage() {
                 </div>
                 <div className="flex items-center gap-2 ml-4">
                   {d.branch && <span className="text-xs px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">{d.branch}</span>}
-                  {d.commitSha && <span className="text-xs text-gray-600 font-mono">{d.commitSha.slice(0, 7)}</span>}
+                  {d.commitSha && <span className="text-xs text-gray-500 font-mono">{d.commitSha.slice(0, 7)}</span>}
                   <span className="text-xs text-gray-700">{d.trigger}</span>
                 </div>
               </button>
@@ -154,7 +154,7 @@ export default function DeploymentsPage() {
         <div className="lg:col-span-2">
           {!selected ? (
             <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-12 text-center">
-              <p className="text-sm text-gray-600">Select a deployment to view details</p>
+              <p className="text-sm text-gray-500">Select a deployment to view details</p>
             </div>
           ) : (
             <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-4 space-y-4">
@@ -163,10 +163,10 @@ export default function DeploymentsPage() {
                 <h2 className={`text-lg font-bold capitalize ${(STATUS_COLORS[selected.status] || STATUS_COLORS.failed).text}`}>{selected.status}</h2>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><span className="text-xs text-gray-600 uppercase block">Branch</span><span className="text-sm text-gray-300 font-mono">{selected.branch || "--"}</span></div>
-                <div><span className="text-xs text-gray-600 uppercase block">Commit</span><span className="text-sm text-gray-300 font-mono">{selected.commitSha?.slice(0, 7) || "--"}</span></div>
-                <div><span className="text-xs text-gray-600 uppercase block">Trigger</span><span className="text-sm text-gray-300">{selected.trigger}</span></div>
-                <div><span className="text-xs text-gray-600 uppercase block">Started</span><span className="text-sm text-gray-300">{new Date(selected.startedAt).toLocaleString()}</span></div>
+                <div><span className="text-xs text-gray-500 uppercase block">Branch</span><span className="text-sm text-gray-300 font-mono">{selected.branch || "--"}</span></div>
+                <div><span className="text-xs text-gray-500 uppercase block">Commit</span><span className="text-sm text-gray-300 font-mono">{selected.commitSha?.slice(0, 7) || "--"}</span></div>
+                <div><span className="text-xs text-gray-500 uppercase block">Trigger</span><span className="text-sm text-gray-300">{selected.trigger}</span></div>
+                <div><span className="text-xs text-gray-500 uppercase block">Started</span><span className="text-sm text-gray-300">{new Date(selected.startedAt).toLocaleString()}</span></div>
               </div>
               {selected.deployUrl && (
                 <a href={selected.deployUrl} target="_blank" rel="noopener noreferrer" className="block text-xs text-cyan-400 hover:text-cyan-300 underline">View deployment</a>

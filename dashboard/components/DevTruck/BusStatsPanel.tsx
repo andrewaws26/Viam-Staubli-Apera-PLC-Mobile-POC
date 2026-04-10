@@ -25,7 +25,7 @@ export default function BusStatsPanel({ data, isOffline, protocol, pollCount }: 
     <>
       {/* Connection & Protocol */}
       <div>
-        <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+        <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-800/50 pb-1">
           Connection &amp; Protocol
         </h3>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-2">
@@ -74,7 +74,7 @@ export default function BusStatsPanel({ data, isOffline, protocol, pollCount }: 
 
       {/* Pi System Health */}
       <div>
-        <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+        <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-800/50 pb-1">
           Pi System Health
         </h3>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-2">
@@ -156,7 +156,7 @@ export default function BusStatsPanel({ data, isOffline, protocol, pollCount }: 
 
       {/* Viam Data Sync */}
       <div>
-        <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+        <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-800/50 pb-1">
           Viam Data Sync
           {data?.sync_ok === true && (
             <span className="ml-2 text-green-400 normal-case tracking-normal font-normal">
@@ -205,7 +205,7 @@ export default function BusStatsPanel({ data, isOffline, protocol, pollCount }: 
 export function KV({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="flex flex-col min-w-0">
-      <span className="text-xs text-gray-600 uppercase tracking-wide truncate">
+      <span className="text-xs text-gray-500 uppercase tracking-wide truncate">
         {label}
       </span>
       <span className={`text-xs sm:text-sm text-gray-300 truncate ${mono ? "font-mono" : ""}`}>

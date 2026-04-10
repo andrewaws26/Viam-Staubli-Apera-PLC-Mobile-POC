@@ -294,13 +294,13 @@ export default function ManagerCommandCenter() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-600">
+            <span className="text-xs text-gray-500">
               Updated {secondsAgo}s ago
             </span>
             <button
               onClick={fetchDashboard}
               disabled={loading}
-              className="min-h-[36px] px-4 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-700 text-xs text-gray-300 font-semibold transition-colors disabled:opacity-40"
+              className="min-h-[36px] px-4 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-800/50 border border-gray-700 text-xs text-gray-300 font-semibold transition-colors disabled:opacity-40"
             >
               {loading ? "Refreshing..." : "Refresh"}
             </button>
@@ -510,7 +510,7 @@ export default function ManagerCommandCenter() {
                               Week ending {formatDate(ts.week_ending)}
                             </p>
                           </div>
-                          <span className="text-xs text-gray-600 whitespace-nowrap">
+                          <span className="text-xs text-gray-500 whitespace-nowrap">
                             {timeAgo(ts.submitted_at)}
                           </span>
                         </button>
@@ -583,7 +583,7 @@ export default function ManagerCommandCenter() {
                               <p className="text-xs text-gray-500 mt-0.5 truncate">
                                 {alert.requirement_name}
                               </p>
-                              <p className="text-xs text-gray-600 mt-0.5">
+                              <p className="text-xs text-gray-500 mt-0.5">
                                 {formatDate(alert.expiry_date)}
                               </p>
                             </div>
@@ -622,7 +622,7 @@ export default function ManagerCommandCenter() {
                   </div>
                   {data.recentActivity.length === 0 ? (
                     <div className="px-5 py-8 text-center">
-                      <p className="text-sm text-gray-600">
+                      <p className="text-sm text-gray-500">
                         No recent activity.
                       </p>
                     </div>
@@ -644,7 +644,7 @@ export default function ManagerCommandCenter() {
                               {actionLabel(entry.action)}
                             </p>
                           </div>
-                          <span className="text-xs text-gray-600 whitespace-nowrap shrink-0 mt-0.5">
+                          <span className="text-xs text-gray-500 whitespace-nowrap shrink-0 mt-0.5">
                             {timeAgo(entry.created_at)}
                           </span>
                         </div>
@@ -754,7 +754,7 @@ function ActionCard({
       <p className="text-sm font-semibold text-gray-300 mt-1 leading-tight">
         {label}
       </p>
-      <p className="text-xs text-gray-600 mt-0.5">
+      <p className="text-xs text-gray-500 mt-0.5">
         {showClear ? "All clear" : subtitle}
       </p>
     </button>

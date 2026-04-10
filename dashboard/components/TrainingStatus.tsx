@@ -73,7 +73,7 @@ export default function TrainingStatus({ currentUserId }: Props) {
         <p className="text-red-400 mb-4">{error}</p>
         <button
           onClick={loadStatus}
-          className="px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-white text-sm font-bold uppercase tracking-wider transition-colors"
+          className="px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-800/50 text-white text-sm font-bold uppercase tracking-wider transition-colors"
         >
           Retry
         </button>
@@ -227,7 +227,7 @@ function TrainingDetailCard({ detail }: { detail: TrainingComplianceDetail }) {
             </div>
           )}
           {detail.status === "missing" && (
-            <span className="text-xs text-gray-600">Not completed</span>
+            <span className="text-xs text-gray-500">Not completed</span>
           )}
           {days_until_expiry === null && detail.status === "current" && (
             <span className="text-xs text-green-500">No expiry</span>

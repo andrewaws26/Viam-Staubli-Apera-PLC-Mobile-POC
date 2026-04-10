@@ -547,7 +547,7 @@ function PartDetailPanel({
 
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-gray-800/50 rounded-lg px-3 py-2">
-            <div className="text-xs text-gray-600 uppercase tracking-wider">
+            <div className="text-xs text-gray-500 uppercase tracking-wider">
               Category
             </div>
             <div className="flex items-center gap-2 mt-1">
@@ -561,7 +561,7 @@ function PartDetailPanel({
             </div>
           </div>
           <div className="bg-gray-800/50 rounded-lg px-3 py-2">
-            <div className="text-xs text-gray-600 uppercase tracking-wider">
+            <div className="text-xs text-gray-500 uppercase tracking-wider">
               Location
             </div>
             <div className="text-sm text-gray-200 mt-1">
@@ -569,7 +569,7 @@ function PartDetailPanel({
             </div>
           </div>
           <div className="bg-gray-800/50 rounded-lg px-3 py-2">
-            <div className="text-xs text-gray-600 uppercase tracking-wider">
+            <div className="text-xs text-gray-500 uppercase tracking-wider">
               On Hand
             </div>
             <div
@@ -585,7 +585,7 @@ function PartDetailPanel({
             </div>
           </div>
           <div className="bg-gray-800/50 rounded-lg px-3 py-2">
-            <div className="text-xs text-gray-600 uppercase tracking-wider">
+            <div className="text-xs text-gray-500 uppercase tracking-wider">
               Reorder Point
             </div>
             <div className="text-sm text-gray-200 font-mono mt-1">
@@ -593,7 +593,7 @@ function PartDetailPanel({
             </div>
           </div>
           <div className="bg-gray-800/50 rounded-lg px-3 py-2">
-            <div className="text-xs text-gray-600 uppercase tracking-wider">
+            <div className="text-xs text-gray-500 uppercase tracking-wider">
               Unit Cost
             </div>
             <div className="text-sm text-gray-200 font-mono mt-1">
@@ -601,7 +601,7 @@ function PartDetailPanel({
             </div>
           </div>
           <div className="bg-gray-800/50 rounded-lg px-3 py-2">
-            <div className="text-xs text-gray-600 uppercase tracking-wider">
+            <div className="text-xs text-gray-500 uppercase tracking-wider">
               Total Value
             </div>
             <div className="text-sm text-gray-200 font-mono mt-1">
@@ -612,14 +612,14 @@ function PartDetailPanel({
 
         {part.supplier && (
           <div className="bg-gray-800/50 rounded-lg px-3 py-2">
-            <div className="text-xs text-gray-600 uppercase tracking-wider">
+            <div className="text-xs text-gray-500 uppercase tracking-wider">
               Supplier
             </div>
             <div className="text-sm text-gray-200 mt-1">{part.supplier}</div>
           </div>
         )}
 
-        <div className="flex items-center gap-4 text-xs text-gray-600 uppercase tracking-wider">
+        <div className="flex items-center gap-4 text-xs text-gray-500 uppercase tracking-wider">
           {part.last_ordered && (
             <span>Last ordered: {fmtDate(part.last_ordered)}</span>
           )}
@@ -716,7 +716,7 @@ function PartsCatalogTab({
 
       {filtered.length === 0 ? (
         <div className="text-center py-20">
-          <p className="text-gray-600 text-sm">
+          <p className="text-gray-500 text-sm">
             No parts found{search ? " matching your search" : ""}
           </p>
         </div>
@@ -724,7 +724,7 @@ function PartsCatalogTab({
         <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
           <table className="w-full text-sm min-w-[900px]">
             <thead>
-              <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
+              <tr className="text-xs uppercase tracking-wider text-gray-500 border-b border-gray-800">
                 <th className="text-left px-4 py-3 font-medium w-28">
                   Part #
                 </th>
@@ -866,13 +866,13 @@ function UsageLogTab({ parts }: { parts: Part[] }) {
 
       {usage.length === 0 ? (
         <div className="text-center py-20">
-          <p className="text-gray-600 text-sm">No usage records found</p>
+          <p className="text-gray-500 text-sm">No usage records found</p>
         </div>
       ) : (
         <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
           <table className="w-full text-sm min-w-[800px]">
             <thead>
-              <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
+              <tr className="text-xs uppercase tracking-wider text-gray-500 border-b border-gray-800">
                 <th className="text-left px-4 py-3 font-medium w-28">Date</th>
                 <th className="text-left px-4 py-3 font-medium">Part</th>
                 <th className="text-right px-4 py-3 font-medium w-20">
@@ -984,7 +984,7 @@ function AlertsTab() {
         <p className="text-gray-500 text-sm font-bold uppercase tracking-wider">
           All stock levels healthy
         </p>
-        <p className="text-gray-600 text-xs mt-1">
+        <p className="text-gray-500 text-xs mt-1">
           No items need reordering at this time
         </p>
       </div>
@@ -1045,7 +1045,7 @@ function AlertsTab() {
                   </span>
                 </div>
                 {p.supplier && (
-                  <div className="text-xs text-gray-600">
+                  <div className="text-xs text-gray-500">
                     Supplier: {p.supplier}
                   </div>
                 )}
@@ -1113,7 +1113,7 @@ function AlertsTab() {
                   </span>
                 </div>
                 {p.supplier && (
-                  <div className="text-xs text-gray-600">
+                  <div className="text-xs text-gray-500">
                     Supplier: {p.supplier}
                   </div>
                 )}
@@ -1205,7 +1205,7 @@ export default function InventoryPage() {
         <div className="flex flex-wrap items-center gap-3 mb-6">
           <div className="flex-1 min-w-[200px] relative">
             <svg
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600"
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500"
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 20 20"
               fill="currentColor"

@@ -13,7 +13,7 @@ import type { AperaReadings } from "./CellTypes";
 function KV({ label, value, color, mono }: { label: string; value: string; color?: string; mono?: boolean }) {
   return (
     <div className="flex flex-col min-w-0">
-      <span className="text-xs text-gray-600 uppercase tracking-wide truncate">{label}</span>
+      <span className="text-xs text-gray-500 uppercase tracking-wide truncate">{label}</span>
       <span className={`text-xs sm:text-sm truncate ${mono ? "font-mono" : ""} ${color || "text-gray-300"}`}>{value}</span>
     </div>
   );
@@ -21,7 +21,7 @@ function KV({ label, value, color, mono }: { label: string; value: string; color
 
 function PipelineStateBadge({ state }: { state: AperaReadings["pipeline_state"] }) {
   const styles: Record<string, string> = {
-    idle: "bg-gray-800/50 text-gray-500 border-gray-700/50",
+    idle: "bg-gray-800/50 text-gray-500 border-gray-800/60",
     capturing: "bg-blue-950/40 text-blue-400 border-blue-800/50",
     detecting: "bg-purple-950/40 text-purple-400 border-purple-800/50",
     planning: "bg-cyan-950/40 text-cyan-400 border-cyan-800/50",
@@ -39,8 +39,8 @@ function SystemStatusBadge({ status }: { status: AperaReadings["system_status"] 
     alive: "bg-emerald-950/40 text-emerald-400 border-emerald-800/50",
     busy: "bg-blue-950/40 text-blue-400 border-blue-800/50",
     down: "bg-red-950/40 text-red-400 border-red-800/50",
-    unreachable: "bg-gray-800/50 text-gray-500 border-gray-700/50",
-    unknown: "bg-gray-800/50 text-gray-500 border-gray-700/50",
+    unreachable: "bg-gray-800/50 text-gray-500 border-gray-800/60",
+    unknown: "bg-gray-800/50 text-gray-500 border-gray-800/60",
   };
   return (
     <span className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border ${styles[status] || styles.unknown}`}>
@@ -54,7 +54,7 @@ function CalibrationBadge({ status }: { status: AperaReadings["calibration_statu
     ok: "bg-emerald-950/40 text-emerald-400 border-emerald-800/50",
     drift: "bg-orange-950/40 text-orange-400 border-orange-800/50",
     failed: "bg-red-950/40 text-red-400 border-red-800/50",
-    unchecked: "bg-gray-800/50 text-gray-500 border-gray-700/50",
+    unchecked: "bg-gray-800/50 text-gray-500 border-gray-800/60",
   };
   return (
     <span className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border ${styles[status] || styles.unchecked}`}>
@@ -113,7 +113,7 @@ export default function AperaPanel({ readings, pollError }: Props) {
       {/* Header */}
       <button
         onClick={() => setExpanded((e) => !e)}
-        className="w-full p-4 sm:p-5 flex items-center justify-between gap-3 text-left hover:bg-gray-900/30 transition-colors"
+        className="w-full p-4 sm:p-5 flex items-center justify-between gap-3 text-left hover:bg-gray-800/50 transition-colors"
       >
         <div className="flex items-center gap-2 min-w-0">
           <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${
@@ -123,7 +123,7 @@ export default function AperaPanel({ readings, pollError }: Props) {
             Apera Vue &mdash; AI Vision System
           </h2>
         </div>
-        <span className="text-gray-600 text-xs shrink-0">{expanded ? "\u25B2" : "\u25BC"}</span>
+        <span className="text-gray-500 text-xs shrink-0">{expanded ? "\u25B2" : "\u25BC"}</span>
       </button>
 
       {expanded && (
@@ -140,7 +140,7 @@ export default function AperaPanel({ readings, pollError }: Props) {
             <>
               {/* ---- Pipeline Status ---- */}
               <div>
-                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-800/50 pb-1">
                   Pipeline
                 </h3>
                 <div className="flex items-center gap-3 mb-3">
@@ -157,7 +157,7 @@ export default function AperaPanel({ readings, pollError }: Props) {
 
               {/* ---- Detection Results ---- */}
               <div>
-                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-800/50 pb-1">
                   Detections
                 </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2 mb-3">
@@ -184,7 +184,7 @@ export default function AperaPanel({ readings, pollError }: Props) {
 
               {/* ---- Calibration ---- */}
               <div>
-                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-800/50 pb-1">
                   Calibration
                 </h3>
                 <div className="flex items-center gap-3 mb-2">
@@ -198,7 +198,7 @@ export default function AperaPanel({ readings, pollError }: Props) {
 
               {/* ---- System Health & Controls ---- */}
               <div>
-                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-2 border-b border-gray-800/50 pb-1">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-800/50 pb-1">
                   System Health
                 </h3>
                 <div className="flex items-center gap-3 mb-3">

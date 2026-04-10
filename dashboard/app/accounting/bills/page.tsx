@@ -231,7 +231,7 @@ export default function BillsPage() {
             { label: "Paid", value: fmt(totalPaid), color: "text-emerald-400" },
           ].map((c) => (
             <div key={c.label} className="rounded-xl bg-gray-900/50 border border-gray-800 p-4">
-              <p className="text-xs uppercase tracking-wider text-gray-600 font-medium">{c.label}</p>
+              <p className="text-xs uppercase tracking-wider text-gray-500 font-medium">{c.label}</p>
               <p className={`text-xl font-black mt-1 ${c.color}`}>{c.value}</p>
             </div>
           ))}
@@ -257,7 +257,7 @@ export default function BillsPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Vendor *</label>
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Vendor *</label>
                 <select value={formVendor} onChange={(e) => setFormVendor(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white">
                   <option value="">Select vendor...</option>
@@ -265,22 +265,22 @@ export default function BillsPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Vendor Invoice #</label>
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Vendor Invoice #</label>
                 <input value={formBillNumber} onChange={(e) => setFormBillNumber(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" placeholder="e.g. INV-2026-001" />
               </div>
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Bill Date *</label>
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Bill Date *</label>
                 <input type="date" value={formBillDate} onChange={(e) => setFormBillDate(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
               </div>
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Due Date *</label>
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Due Date *</label>
                 <input type="date" value={formDueDate} onChange={(e) => setFormDueDate(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
               </div>
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Job</label>
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Job</label>
                 <select value={formJob} onChange={(e) => setFormJob(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white">
                   <option value="">No job</option>
@@ -291,27 +291,27 @@ export default function BillsPage() {
 
             {/* Line Items */}
             <div>
-              <label className="block text-xs text-gray-600 uppercase tracking-wider mb-2">Line Items *</label>
+              <label className="block text-xs text-gray-500 uppercase tracking-wider mb-2">Line Items *</label>
               <div className="space-y-2">
                 {formLines.map((line, idx) => (
                   <div key={idx} className="grid grid-cols-12 gap-2 items-end">
                     <div className="col-span-4">
-                      {idx === 0 && <span className="text-[9px] text-gray-600 uppercase">Description</span>}
+                      {idx === 0 && <span className="text-[9px] text-gray-500 uppercase">Description</span>}
                       <input value={line.description} onChange={(e) => updateLine(idx, "description", e.target.value)}
                         className="w-full px-2 py-1.5 rounded bg-gray-900 border border-gray-800 text-sm text-white" />
                     </div>
                     <div className="col-span-2">
-                      {idx === 0 && <span className="text-[9px] text-gray-600 uppercase">Qty</span>}
+                      {idx === 0 && <span className="text-[9px] text-gray-500 uppercase">Qty</span>}
                       <input type="number" value={line.quantity} onChange={(e) => updateLine(idx, "quantity", parseFloat(e.target.value) || 0)}
                         className="w-full px-2 py-1.5 rounded bg-gray-900 border border-gray-800 text-sm text-white" min="0" step="0.01" />
                     </div>
                     <div className="col-span-2">
-                      {idx === 0 && <span className="text-[9px] text-gray-600 uppercase">Unit Price</span>}
+                      {idx === 0 && <span className="text-[9px] text-gray-500 uppercase">Unit Price</span>}
                       <input type="number" value={line.unit_price} onChange={(e) => updateLine(idx, "unit_price", parseFloat(e.target.value) || 0)}
                         className="w-full px-2 py-1.5 rounded bg-gray-900 border border-gray-800 text-sm text-white" min="0" step="0.01" />
                     </div>
                     <div className="col-span-3">
-                      {idx === 0 && <span className="text-[9px] text-gray-600 uppercase">Expense Account</span>}
+                      {idx === 0 && <span className="text-[9px] text-gray-500 uppercase">Expense Account</span>}
                       <select value={line.account_id} onChange={(e) => updateLine(idx, "account_id", e.target.value)}
                         className="w-full px-2 py-1.5 rounded bg-gray-900 border border-gray-800 text-sm text-white">
                         <option value="">Account...</option>
@@ -330,7 +330,7 @@ export default function BillsPage() {
             </div>
 
             <div>
-              <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Notes</label>
+              <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Notes</label>
               <textarea value={formNotes} onChange={(e) => setFormNotes(e.target.value)} rows={2}
                 className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
             </div>
@@ -363,7 +363,7 @@ export default function BillsPage() {
           <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
             <table className="w-full text-sm min-w-[800px]">
               <thead>
-                <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
+                <tr className="text-xs uppercase tracking-wider text-gray-500 border-b border-gray-800">
                   <th className="text-left px-4 py-3 font-medium">Vendor</th>
                   <th className="text-left px-4 py-3 font-medium">Bill #</th>
                   <th className="text-left px-4 py-3 font-medium">Date</th>
@@ -387,7 +387,7 @@ export default function BillsPage() {
                       </td>
                       <td className="px-4 py-3 text-right text-gray-200 font-mono">{fmt(Number(bill.total))}</td>
                       <td className="px-4 py-3 text-right font-mono">
-                        <span className={Number(bill.balance_due) > 0 ? "text-amber-400" : "text-gray-600"}>
+                        <span className={Number(bill.balance_due) > 0 ? "text-amber-400" : "text-gray-500"}>
                           {fmt(Number(bill.balance_due))}
                         </span>
                       </td>
@@ -422,7 +422,7 @@ export default function BillsPage() {
                 })}
                 {bills.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-gray-600">
+                    <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
                       No bills yet. Click &quot;+ New Bill&quot; to create one.
                     </td>
                   </tr>
@@ -440,34 +440,34 @@ export default function BillsPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Payment Date</label>
+                  <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Payment Date</label>
                   <input type="date" value={pmtDate} onChange={(e) => setPmtDate(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-sm text-white" />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Amount</label>
+                  <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Amount</label>
                   <input type="number" value={pmtAmount} onChange={(e) => setPmtAmount(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-sm text-white" min="0.01" step="0.01" />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Method</label>
+                  <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Method</label>
                   <select value={pmtMethod} onChange={(e) => setPmtMethod(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-sm text-white">
                     {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{m.replace("_", " ")}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Check #</label>
+                  <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Check #</label>
                   <input value={pmtCheckNum} onChange={(e) => setPmtCheckNum(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-sm text-white" />
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Reference</label>
+                  <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Reference</label>
                   <input value={pmtRef} onChange={(e) => setPmtRef(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-sm text-white" />
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Notes</label>
+                  <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Notes</label>
                   <textarea value={pmtNotes} onChange={(e) => setPmtNotes(e.target.value)} rows={2}
                     className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-sm text-white" />
                 </div>

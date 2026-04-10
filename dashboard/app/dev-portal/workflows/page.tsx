@@ -283,7 +283,7 @@ export default function WorkflowsPage() {
         <div className="rounded-xl border border-green-800/50 bg-green-900/10 p-5 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-green-400">Dev Pi 5 — Self-Hosted Automation Server</h2>
-            <button onClick={() => setShowSetup(false)} className="text-xs text-gray-600 hover:text-gray-400">Close</button>
+            <button onClick={() => setShowSetup(false)} className="text-xs text-gray-500 hover:text-gray-400">Close</button>
           </div>
           <p className="text-sm text-gray-400">
             Your personal Pi 5 serves as the third execution engine — an always-on automation
@@ -404,7 +404,7 @@ ssh andrew@100.112.68.52`}</pre>
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         <div className="lg:col-span-3 space-y-2">
           {loading ? (
-            <div className="text-center py-12 text-gray-600 text-sm">Loading...</div>
+            <div className="text-center py-12 text-gray-500 text-sm">Loading...</div>
           ) : workflows.length === 0 ? (
             <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-8 text-center">
               <p className="text-sm text-gray-500">No workflows yet</p>
@@ -456,7 +456,7 @@ ssh andrew@100.112.68.52`}</pre>
         <div className="lg:col-span-2">
           {!selected ? (
             <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-12 text-center">
-              <p className="text-sm text-gray-600">Select a workflow to view details</p>
+              <p className="text-sm text-gray-500">Select a workflow to view details</p>
             </div>
           ) : (
             <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-4 space-y-4">
@@ -500,21 +500,21 @@ ssh andrew@100.112.68.52`}</pre>
               {/* Config */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <span className="text-xs text-gray-600 uppercase block">Schedule</span>
+                  <span className="text-xs text-gray-500 uppercase block">Schedule</span>
                   <span className="text-sm text-gray-300 font-mono">
                     {selected.cronExpression ? describeCron(selected.cronExpression) : "Manual only"}
                   </span>
                 </div>
                 <div>
-                  <span className="text-xs text-gray-600 uppercase block">Cron</span>
+                  <span className="text-xs text-gray-500 uppercase block">Cron</span>
                   <span className="text-sm text-gray-300 font-mono">{selected.cronExpression || "--"}</span>
                 </div>
                 <div>
-                  <span className="text-xs text-gray-600 uppercase block">Engine</span>
+                  <span className="text-xs text-gray-500 uppercase block">Engine</span>
                   <span className="text-sm text-gray-300">{ENGINE_META[selected.engine]?.desc || selected.engine}</span>
                 </div>
                 <div>
-                  <span className="text-xs text-gray-600 uppercase block">Created</span>
+                  <span className="text-xs text-gray-500 uppercase block">Created</span>
                   <span className="text-sm text-gray-300">{new Date(selected.createdAt).toLocaleDateString()}</span>
                 </div>
               </div>
@@ -524,7 +524,7 @@ ssh andrew@100.112.68.52`}</pre>
                 <div className="space-y-2">
                   {selected.config.command ? (
                     <div>
-                      <span className="text-xs text-gray-600 uppercase block">Command</span>
+                      <span className="text-xs text-gray-500 uppercase block">Command</span>
                       <code className="text-xs text-cyan-400 bg-gray-950 rounded px-2 py-1 block mt-0.5 font-mono">
                         {String(selected.config.command)}
                       </code>
@@ -532,7 +532,7 @@ ssh andrew@100.112.68.52`}</pre>
                   ) : null}
                   {selected.config.prompt ? (
                     <div>
-                      <span className="text-xs text-gray-600 uppercase block">Claude Prompt</span>
+                      <span className="text-xs text-gray-500 uppercase block">Claude Prompt</span>
                       <p className="text-xs text-gray-400 bg-gray-950 rounded px-2 py-1 mt-0.5 whitespace-pre-wrap">
                         {String(selected.config.prompt)}
                       </p>
@@ -545,7 +545,7 @@ ssh andrew@100.112.68.52`}</pre>
               <div>
                 <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">Recent Runs</h3>
                 {selected.recentRuns.length === 0 ? (
-                  <p className="text-xs text-gray-600">No runs recorded yet</p>
+                  <p className="text-xs text-gray-500">No runs recorded yet</p>
                 ) : (
                   <div className="space-y-1">
                     {selected.recentRuns.map((r) => {
@@ -555,7 +555,7 @@ ssh andrew@100.112.68.52`}</pre>
                           <span className={`h-2 w-2 rounded-full ${sc.dot} shrink-0`} />
                           <span className={`text-xs capitalize ${sc.text} w-16`}>{r.status}</span>
                           <span className="text-xs px-1 py-0.5 rounded bg-gray-800 text-gray-500">{r.trigger}</span>
-                          <span className="text-xs text-gray-600 ml-auto">
+                          <span className="text-xs text-gray-500 ml-auto">
                             {duration(r.startedAt, r.endedAt)}
                           </span>
                           <span className="text-xs text-gray-700">{timeAgo(r.startedAt)}</span>
@@ -728,7 +728,7 @@ ssh andrew@100.112.68.52`}</pre>
 
               {(formEngine === "dev-pi" || formEngine === "vercel-cron") && (
                 <div>
-                  <label className="text-xs text-gray-600 block mb-1">
+                  <label className="text-xs text-gray-500 block mb-1">
                     {formEngine === "dev-pi" ? "SSH Command (runs on Pi 5)" : "Shell Command (runs locally)"}
                   </label>
                   <input value={formCommand} onChange={(e) => setFormCommand(e.target.value)}
@@ -739,7 +739,7 @@ ssh andrew@100.112.68.52`}</pre>
 
               {formEngine === "github-actions" && (
                 <div>
-                  <label className="text-xs text-gray-600 block mb-1">Workflow File</label>
+                  <label className="text-xs text-gray-500 block mb-1">Workflow File</label>
                   <input value={formCommand} onChange={(e) => setFormCommand(e.target.value)}
                     className="w-full px-3 py-2 text-sm rounded-lg border border-gray-700 bg-gray-800/50 text-gray-200 font-mono"
                     placeholder="dev-pi.yml" />
@@ -747,7 +747,7 @@ ssh andrew@100.112.68.52`}</pre>
               )}
 
               <div>
-                <label className="text-xs text-gray-600 block mb-1">Claude Prompt (optional — runs Claude CLI)</label>
+                <label className="text-xs text-gray-500 block mb-1">Claude Prompt (optional — runs Claude CLI)</label>
                 <textarea value={formPrompt} onChange={(e) => setFormPrompt(e.target.value)} rows={3}
                   className="w-full px-3 py-2 text-sm rounded-lg border border-gray-700 bg-gray-800/50 text-gray-200 font-mono"
                   placeholder="Analyze the last 24h of fleet data and generate a summary report..." />

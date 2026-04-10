@@ -51,7 +51,7 @@ export default function DTCTimeline({ events, onClear }: DTCTimelineProps) {
         </button>
         <button
           onClick={onClear}
-          className="text-xs text-gray-600 hover:text-gray-400 px-2 py-1"
+          className="text-xs text-gray-500 hover:text-gray-400 px-2 py-1"
         >
           Clear History
         </button>
@@ -82,7 +82,7 @@ export default function DTCTimeline({ events, onClear }: DTCTimelineProps) {
                 key={e.id}
                 className="flex items-start gap-2 text-xs"
               >
-                <span className="text-gray-600 whitespace-nowrap shrink-0 w-28 text-right">
+                <span className="text-gray-500 whitespace-nowrap shrink-0 w-28 text-right">
                   {fmtTime(e.timestamp)}
                 </span>
                 <span
@@ -97,7 +97,7 @@ export default function DTCTimeline({ events, onClear }: DTCTimelineProps) {
                   <span className="text-gray-400 ml-1.5">
                     {e.spnName}
                   </span>
-                  <span className="text-gray-600 ml-1">
+                  <span className="text-gray-500 ml-1">
                     SPN {e.spn} / FMI {e.fmi}
                   </span>
                   <span className="text-gray-700 ml-1">

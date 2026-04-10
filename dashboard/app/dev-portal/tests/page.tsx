@@ -163,7 +163,7 @@ export default function TestRunsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         <div className="lg:col-span-3 space-y-2">
           {loading ? (
-            <div className="text-center py-12 text-gray-600 text-sm">Loading...</div>
+            <div className="text-center py-12 text-gray-500 text-sm">Loading...</div>
           ) : runs.length === 0 ? (
             <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-8 text-center">
               <p className="text-sm text-gray-500">No test runs recorded</p>
@@ -185,13 +185,13 @@ export default function TestRunsPage() {
                     <span className="text-xs text-gray-400">
                       <span className="text-green-400">{r.passed}</span>
                       {r.failed ? <> / <span className="text-red-400">{r.failed}</span></> : null}
-                      <span className="text-gray-600"> / {r.totalTests}</span>
+                      <span className="text-gray-500"> / {r.totalTests}</span>
                     </span>
                   )}
                 </div>
                 <div className="flex items-center gap-3 ml-4">
                   {r.branch && <span className="text-xs px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">{r.branch}</span>}
-                  {r.durationMs !== null && <span className="text-xs text-gray-600">{(r.durationMs / 1000).toFixed(1)}s</span>}
+                  {r.durationMs !== null && <span className="text-xs text-gray-500">{(r.durationMs / 1000).toFixed(1)}s</span>}
                   <span className="text-xs text-gray-700">{r.trigger}</span>
                   <span className="text-xs text-gray-700 ml-auto">{timeAgo(r.startedAt)}</span>
                 </div>
@@ -203,7 +203,7 @@ export default function TestRunsPage() {
         <div className="lg:col-span-2">
           {!selected ? (
             <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-12 text-center">
-              <p className="text-sm text-gray-600">Select a run to view details</p>
+              <p className="text-sm text-gray-500">Select a run to view details</p>
             </div>
           ) : (
             <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-4 space-y-4">
@@ -235,12 +235,12 @@ export default function TestRunsPage() {
               )}
 
               <div className="grid grid-cols-2 gap-3">
-                <div><span className="text-xs text-gray-600 uppercase block">Duration</span><span className="text-sm text-gray-300">{selected.durationMs ? `${(selected.durationMs / 1000).toFixed(1)}s` : "--"}</span></div>
-                <div><span className="text-xs text-gray-600 uppercase block">Trigger</span><span className="text-sm text-gray-300">{selected.trigger}</span></div>
-                <div><span className="text-xs text-gray-600 uppercase block">Branch</span><span className="text-sm text-gray-300 font-mono">{selected.branch || "--"}</span></div>
-                <div><span className="text-xs text-gray-600 uppercase block">Commit</span><span className="text-sm text-gray-300 font-mono">{selected.commitSha?.slice(0, 7) || "--"}</span></div>
-                <div><span className="text-xs text-gray-600 uppercase block">Started</span><span className="text-sm text-gray-300">{new Date(selected.startedAt).toLocaleString()}</span></div>
-                <div><span className="text-xs text-gray-600 uppercase block">Ended</span><span className="text-sm text-gray-300">{selected.endedAt ? new Date(selected.endedAt).toLocaleString() : "ongoing"}</span></div>
+                <div><span className="text-xs text-gray-500 uppercase block">Duration</span><span className="text-sm text-gray-300">{selected.durationMs ? `${(selected.durationMs / 1000).toFixed(1)}s` : "--"}</span></div>
+                <div><span className="text-xs text-gray-500 uppercase block">Trigger</span><span className="text-sm text-gray-300">{selected.trigger}</span></div>
+                <div><span className="text-xs text-gray-500 uppercase block">Branch</span><span className="text-sm text-gray-300 font-mono">{selected.branch || "--"}</span></div>
+                <div><span className="text-xs text-gray-500 uppercase block">Commit</span><span className="text-sm text-gray-300 font-mono">{selected.commitSha?.slice(0, 7) || "--"}</span></div>
+                <div><span className="text-xs text-gray-500 uppercase block">Started</span><span className="text-sm text-gray-300">{new Date(selected.startedAt).toLocaleString()}</span></div>
+                <div><span className="text-xs text-gray-500 uppercase block">Ended</span><span className="text-sm text-gray-300">{selected.endedAt ? new Date(selected.endedAt).toLocaleString() : "ongoing"}</span></div>
               </div>
 
               {selected.outputUrl && (

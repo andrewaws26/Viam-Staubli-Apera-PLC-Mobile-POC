@@ -278,7 +278,7 @@ export default function BudgetPage() {
                 {/* Fiscal Year + Save */}
                 <div className="flex flex-wrap items-end gap-4">
                   <div>
-                    <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">
+                    <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">
                       Fiscal Year
                     </label>
                     <input
@@ -321,7 +321,7 @@ export default function BudgetPage() {
                             </div>
                           </th>
                         </tr>
-                        <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
+                        <tr className="text-xs uppercase tracking-wider text-gray-500 border-b border-gray-800">
                           <th className="text-left px-4 py-3 font-medium w-28">Acct #</th>
                           <th className="text-left px-4 py-3 font-medium">Account Name</th>
                           <th className="text-right px-4 py-3 font-medium w-44">Budget</th>
@@ -388,7 +388,7 @@ export default function BudgetPage() {
                             </div>
                           </th>
                         </tr>
-                        <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
+                        <tr className="text-xs uppercase tracking-wider text-gray-500 border-b border-gray-800">
                           <th className="text-left px-4 py-3 font-medium w-28">Acct #</th>
                           <th className="text-left px-4 py-3 font-medium">Account Name</th>
                           <th className="text-right px-4 py-3 font-medium w-44">Budget</th>
@@ -443,7 +443,7 @@ export default function BudgetPage() {
                 {/* Net Budget */}
                 <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs uppercase tracking-wider text-gray-600 font-medium">
+                    <span className="text-xs uppercase tracking-wider text-gray-500 font-medium">
                       Net Budgeted Income
                     </span>
                     <span
@@ -466,7 +466,7 @@ export default function BudgetPage() {
                 {/* Controls */}
                 <div className="flex flex-wrap items-end gap-4">
                   <div>
-                    <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">
+                    <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">
                       Fiscal Year
                     </label>
                     <input
@@ -502,7 +502,7 @@ export default function BudgetPage() {
                     {/* Summary Cards */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                       <div className="rounded-xl bg-gray-900/50 border border-gray-800 p-4">
-                        <p className="text-xs uppercase tracking-wider text-gray-600 font-medium">
+                        <p className="text-xs uppercase tracking-wider text-gray-500 font-medium">
                           Revenue
                         </p>
                         <p className="text-lg font-black text-emerald-400 mt-1">
@@ -514,7 +514,7 @@ export default function BudgetPage() {
                       </div>
 
                       <div className="rounded-xl bg-gray-900/50 border border-gray-800 p-4">
-                        <p className="text-xs uppercase tracking-wider text-gray-600 font-medium">
+                        <p className="text-xs uppercase tracking-wider text-gray-500 font-medium">
                           Expenses
                         </p>
                         <p className="text-lg font-black text-red-400 mt-1">
@@ -526,7 +526,7 @@ export default function BudgetPage() {
                       </div>
 
                       <div className="rounded-xl bg-gray-900/50 border border-gray-800 p-4">
-                        <p className="text-xs uppercase tracking-wider text-gray-600 font-medium">
+                        <p className="text-xs uppercase tracking-wider text-gray-500 font-medium">
                           Net Income
                         </p>
                         <p
@@ -544,7 +544,7 @@ export default function BudgetPage() {
                       </div>
 
                       <div className="rounded-xl bg-gray-900/50 border border-gray-800 p-4">
-                        <p className="text-xs uppercase tracking-wider text-gray-600 font-medium">
+                        <p className="text-xs uppercase tracking-wider text-gray-500 font-medium">
                           Overall Variance
                         </p>
                         <p
@@ -576,7 +576,7 @@ export default function BudgetPage() {
                     <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
                       <table className="w-full text-sm min-w-[800px]">
                         <thead>
-                          <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
+                          <tr className="text-xs uppercase tracking-wider text-gray-500 border-b border-gray-800">
                             <th className="text-left px-4 py-3 font-medium">Account</th>
                             <th className="text-right px-4 py-3 font-medium w-28">Budget</th>
                             <th className="text-right px-4 py-3 font-medium w-28">Actual</th>
@@ -827,7 +827,7 @@ export default function BudgetPage() {
                 {/* Empty state */}
                 {!reportData && !reportLoading && (
                   <div className="text-center py-20">
-                    <p className="text-gray-600 text-sm">
+                    <p className="text-gray-500 text-sm">
                       Select a fiscal year and click Generate Report
                     </p>
                   </div>

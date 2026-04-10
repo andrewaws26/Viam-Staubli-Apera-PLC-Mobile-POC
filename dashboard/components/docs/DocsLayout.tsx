@@ -59,7 +59,7 @@ export function DocsLayout({
                     className={`w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors ${
                       activeSection === s.id
                         ? "bg-violet-600/20 text-violet-300 font-semibold"
-                        : "text-gray-500 hover:text-gray-300 hover:bg-gray-900"
+                        : "text-gray-500 hover:text-gray-300 hover:bg-gray-800/50"
                     }`}
                   >
                     {s.label}

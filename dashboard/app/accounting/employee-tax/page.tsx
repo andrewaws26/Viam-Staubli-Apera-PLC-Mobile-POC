@@ -343,7 +343,7 @@ export default function EmployeeTaxPage() {
             { label: "Benefits Enrolled", value: benefitsEnrolled, color: "text-amber-400" },
           ].map((c) => (
             <div key={c.label} className="rounded-xl bg-gray-900/50 border border-gray-800 p-4">
-              <p className="text-xs uppercase tracking-wider text-gray-600 font-medium">
+              <p className="text-xs uppercase tracking-wider text-gray-500 font-medium">
                 {c.label}
               </p>
               <p className={`text-xl font-black mt-1 ${c.color}`}>{c.value}</p>
@@ -375,7 +375,7 @@ export default function EmployeeTaxPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">
                   Clerk User ID *
                 </label>
                 <input
@@ -386,7 +386,7 @@ export default function EmployeeTaxPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">
                   Employee Name *
                 </label>
                 <input
@@ -423,14 +423,14 @@ export default function EmployeeTaxPage() {
           </div>
         ) : employees.length === 0 ? (
           <div className="text-center py-20">
-            <p className="text-gray-600 text-sm">No employee tax profiles found</p>
+            <p className="text-gray-500 text-sm">No employee tax profiles found</p>
           </div>
         ) : (
           /* Employee Table */
           <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
             <table className="w-full text-sm min-w-[1000px]">
               <thead>
-                <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
+                <tr className="text-xs uppercase tracking-wider text-gray-500 border-b border-gray-800">
                   <th className="text-left px-4 py-3 font-medium w-8" />
                   <th className="text-left px-4 py-3 font-medium">Name</th>
                   <th className="text-left px-4 py-3 font-medium">Pay Type</th>
@@ -457,7 +457,7 @@ export default function EmployeeTaxPage() {
                         }
                       >
                         {/* Expand Chevron */}
-                        <td className="px-4 py-3 text-gray-600">
+                        <td className="px-4 py-3 text-gray-500">
                           <svg
                             className={`w-4 h-4 transition-transform ${isExpanded ? "rotate-90" : ""}`}
                             xmlns="http://www.w3.org/2000/svg"
@@ -541,7 +541,7 @@ export default function EmployeeTaxPage() {
                               e.stopPropagation();
                               openEdit(emp);
                             }}
-                            className="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-[11px] font-bold uppercase tracking-wider transition-colors"
+                            className="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-800/50 text-gray-300 text-[11px] font-bold uppercase tracking-wider transition-colors"
                           >
                             Edit
                           </button>
@@ -555,7 +555,7 @@ export default function EmployeeTaxPage() {
                             <div className="px-8 py-5 space-y-5">
                               {/* W-4 Details */}
                               <div>
-                                <p className="text-xs text-gray-600 uppercase tracking-wider mb-2">
+                                <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">
                                   W-4 Details
                                 </p>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -568,7 +568,7 @@ export default function EmployeeTaxPage() {
                                     { label: "Extra Withholding", value: fmt(emp.extra_withholding) },
                                   ].map((item) => (
                                     <div key={item.label}>
-                                      <p className="text-[9px] text-gray-600 uppercase tracking-wider">{item.label}</p>
+                                      <p className="text-[9px] text-gray-500 uppercase tracking-wider">{item.label}</p>
                                       <p className="text-sm text-gray-300 font-medium mt-0.5">{item.value}</p>
                                     </div>
                                   ))}
@@ -577,16 +577,16 @@ export default function EmployeeTaxPage() {
 
                               {/* Benefits */}
                               <div>
-                                <p className="text-xs text-gray-600 uppercase tracking-wider mb-2">
+                                <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">
                                   Benefits Enrollment
                                 </p>
                                 {emp.benefits.length === 0 ? (
-                                  <p className="text-sm text-gray-600">No benefits enrolled</p>
+                                  <p className="text-sm text-gray-500">No benefits enrolled</p>
                                 ) : (
                                   <div className="overflow-x-auto">
                                     <table className="w-full text-sm">
                                       <thead>
-                                        <tr className="text-[9px] uppercase tracking-wider text-gray-600">
+                                        <tr className="text-[9px] uppercase tracking-wider text-gray-500">
                                           <th className="text-left py-1 font-medium">Plan</th>
                                           <th className="text-left py-1 font-medium">Type</th>
                                           <th className="text-right py-1 font-medium">Employee</th>
@@ -610,7 +610,7 @@ export default function EmployeeTaxPage() {
 
                               {/* Workers Comp */}
                               <div>
-                                <p className="text-xs text-gray-600 uppercase tracking-wider mb-2">
+                                <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">
                                   Workers Comp Class
                                 </p>
                                 {emp.workers_comp ? (
@@ -622,13 +622,13 @@ export default function EmployeeTaxPage() {
                                     <span className="text-sm text-gray-400 font-mono">{emp.workers_comp.rate_per_100}/100</span>
                                   </div>
                                 ) : (
-                                  <p className="text-sm text-gray-600">No class assigned</p>
+                                  <p className="text-sm text-gray-500">No class assigned</p>
                                 )}
                               </div>
 
                               {/* YTD Summary */}
                               <div>
-                                <p className="text-xs text-gray-600 uppercase tracking-wider mb-2">
+                                <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">
                                   YTD Summary
                                 </p>
                                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
@@ -640,7 +640,7 @@ export default function EmployeeTaxPage() {
                                     { label: "Medicare", value: fmt(emp.ytd_medicare_employee), color: "text-red-400/80" },
                                   ].map((item) => (
                                     <div key={item.label}>
-                                      <p className="text-[9px] text-gray-600 uppercase tracking-wider">{item.label}</p>
+                                      <p className="text-[9px] text-gray-500 uppercase tracking-wider">{item.label}</p>
                                       <p className={`text-sm font-mono font-bold mt-0.5 ${item.color}`}>{item.value}</p>
                                     </div>
                                   ))}
@@ -682,10 +682,10 @@ export default function EmployeeTaxPage() {
 
               {/* W-4 Section */}
               <div>
-                <p className="text-xs text-gray-600 uppercase tracking-wider mb-3">W-4 Information</p>
+                <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">W-4 Information</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Filing Status</label>
+                    <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Filing Status</label>
                     <select
                       value={editForm.filing_status}
                       onChange={(e) => setEditForm({ ...editForm, filing_status: e.target.value })}
@@ -706,7 +706,7 @@ export default function EmployeeTaxPage() {
                     <label className="text-sm text-gray-300">Multiple Jobs (Step 2c)</label>
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Dependents Credit</label>
+                    <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Dependents Credit</label>
                     <input
                       type="number"
                       value={editForm.dependents_credit}
@@ -717,7 +717,7 @@ export default function EmployeeTaxPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Other Income</label>
+                    <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Other Income</label>
                     <input
                       type="number"
                       value={editForm.other_income}
@@ -728,7 +728,7 @@ export default function EmployeeTaxPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Deductions</label>
+                    <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Deductions</label>
                     <input
                       type="number"
                       value={editForm.deductions}
@@ -739,7 +739,7 @@ export default function EmployeeTaxPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Extra Withholding</label>
+                    <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Extra Withholding</label>
                     <input
                       type="number"
                       value={editForm.extra_withholding}
@@ -754,10 +754,10 @@ export default function EmployeeTaxPage() {
 
               {/* Pay Section */}
               <div>
-                <p className="text-xs text-gray-600 uppercase tracking-wider mb-3">Pay Configuration</p>
+                <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">Pay Configuration</p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Pay Type</label>
+                    <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Pay Type</label>
                     <select
                       value={editForm.pay_type}
                       onChange={(e) => setEditForm({ ...editForm, pay_type: e.target.value })}
@@ -769,7 +769,7 @@ export default function EmployeeTaxPage() {
                   </div>
                   {editForm.pay_type === "hourly" ? (
                     <div>
-                      <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Hourly Rate</label>
+                      <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Hourly Rate</label>
                       <input
                         type="number"
                         value={editForm.hourly_rate}
@@ -781,7 +781,7 @@ export default function EmployeeTaxPage() {
                     </div>
                   ) : (
                     <div>
-                      <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Annual Salary</label>
+                      <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Annual Salary</label>
                       <input
                         type="number"
                         value={editForm.salary_annual}
@@ -793,7 +793,7 @@ export default function EmployeeTaxPage() {
                     </div>
                   )}
                   <div>
-                    <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Pay Frequency</label>
+                    <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Pay Frequency</label>
                     <select
                       value={editForm.pay_frequency}
                       onChange={(e) => setEditForm({ ...editForm, pay_frequency: e.target.value })}
@@ -810,10 +810,10 @@ export default function EmployeeTaxPage() {
 
               {/* State Section */}
               <div>
-                <p className="text-xs text-gray-600 uppercase tracking-wider mb-3">State Withholding</p>
+                <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">State Withholding</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">State</label>
+                    <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">State</label>
                     <input
                       value={editForm.state}
                       onChange={(e) => setEditForm({ ...editForm, state: e.target.value.toUpperCase() })}
@@ -823,7 +823,7 @@ export default function EmployeeTaxPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">State WH Rate (decimal)</label>
+                    <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">State WH Rate (decimal)</label>
                     <input
                       type="number"
                       value={editForm.state_withholding}
@@ -839,9 +839,9 @@ export default function EmployeeTaxPage() {
 
               {/* Benefits Section */}
               <div>
-                <p className="text-xs text-gray-600 uppercase tracking-wider mb-3">Benefits Enrollment</p>
+                <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">Benefits Enrollment</p>
                 {benefitPlans.length === 0 ? (
-                  <p className="text-sm text-gray-600">No benefit plans configured</p>
+                  <p className="text-sm text-gray-500">No benefit plans configured</p>
                 ) : (
                   <div className="space-y-2">
                     {benefitPlans.map((plan) => (
@@ -879,7 +879,7 @@ export default function EmployeeTaxPage() {
 
               {/* Workers Comp Section */}
               <div>
-                <p className="text-xs text-gray-600 uppercase tracking-wider mb-3">Workers Comp Class</p>
+                <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">Workers Comp Class</p>
                 <select
                   value={editWcCode}
                   onChange={(e) => setEditWcCode(e.target.value)}

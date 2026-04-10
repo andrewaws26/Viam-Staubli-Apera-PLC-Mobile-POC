@@ -21,7 +21,7 @@ function Metric({ label, value, unit, warn }: { label: string; value: string | n
     <div className="flex justify-between items-baseline gap-2">
       <span className="text-[11px] text-gray-500">{label}</span>
       <span className={`text-xs font-mono ${warn ? "text-orange-400" : "text-gray-300"}`}>
-        {value}{unit && <span className="text-gray-600 ml-0.5">{unit}</span>}
+        {value}{unit && <span className="text-gray-500 ml-0.5">{unit}</span>}
       </span>
     </div>
   );
@@ -45,7 +45,7 @@ export default function InfraPanel({ internet, switchVpn, piHealth }: Props) {
 
   return (
     <div className="border border-gray-800 rounded-2xl p-4 sm:p-5 space-y-4">
-      <h3 className="text-xs font-bold uppercase tracking-widest text-gray-600">
+      <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500">
         Infrastructure
       </h3>
 
@@ -56,7 +56,7 @@ export default function InfraPanel({ internet, switchVpn, piHealth }: Props) {
             <StatusDot ok={inet?.reachable ?? false} />
             <span className="text-xs font-semibold text-gray-300">Internet</span>
             {inet?.reachable && (
-              <span className="ml-auto text-xs text-gray-600">via {inet.gateway_ip}</span>
+              <span className="ml-auto text-xs text-gray-500">via {inet.gateway_ip}</span>
             )}
           </div>
           {inet ? (
@@ -67,7 +67,7 @@ export default function InfraPanel({ internet, switchVpn, piHealth }: Props) {
               <Metric label="DNS" value={inet.dns_ok ? `${ms(inet.dns_resolve_ms)}ms` : "FAIL"} warn={!inet.dns_ok} />
               <Metric label="Viam Cloud" value={inet.viam_reachable ? `${ms(inet.viam_latency_ms)}ms` : "DOWN"} warn={!inet.viam_reachable} />
               <Metric label="Link" value={`${inet.link_speed_mbps} Mbps`} />
-              <div className="flex justify-between text-xs text-gray-600 mt-1 pt-1 border-t border-gray-800/50">
+              <div className="flex justify-between text-xs text-gray-500 mt-1 pt-1 border-t border-gray-800/50">
                 <span>RX {formatBytes(inet.rx_bytes)}</span>
                 <span>TX {formatBytes(inet.tx_bytes)}</span>
               </div>
@@ -78,7 +78,7 @@ export default function InfraPanel({ internet, switchVpn, piHealth }: Props) {
               )}
             </>
           ) : (
-            <div className="text-xs text-gray-600">No data</div>
+            <div className="text-xs text-gray-500">No data</div>
           )}
         </div>
 
@@ -99,10 +99,10 @@ export default function InfraPanel({ internet, switchVpn, piHealth }: Props) {
               <Metric label="VPN Latency" value={ms1(sw.vpn_latency_ms)} unit="ms" />
               <Metric label="Web UI" value={sw.vpn_web_ok ? "OK" : "DOWN"} warn={!sw.vpn_web_ok} />
               <Metric label="Is Gateway" value={sw.vpn_is_gateway ? "Yes" : "No"} />
-              <div className="text-xs text-gray-600 mt-1">{sw.vpn_ip}</div>
+              <div className="text-xs text-gray-500 mt-1">{sw.vpn_ip}</div>
             </>
           ) : (
-            <div className="text-xs text-gray-600">No data</div>
+            <div className="text-xs text-gray-500">No data</div>
           )}
         </div>
 
@@ -112,7 +112,7 @@ export default function InfraPanel({ internet, switchVpn, piHealth }: Props) {
             <StatusDot ok={pi ? !pi.throttled_now && !pi.undervoltage_now : false} />
             <span className="text-xs font-semibold text-gray-300">Pi 5</span>
             {pi && (
-              <span className="ml-auto text-xs text-gray-600">{pi.uptime_hours.toFixed(1)}h up</span>
+              <span className="ml-auto text-xs text-gray-500">{pi.uptime_hours.toFixed(1)}h up</span>
             )}
           </div>
           {pi ? (
@@ -143,7 +143,7 @@ export default function InfraPanel({ internet, switchVpn, piHealth }: Props) {
               )}
             </>
           ) : (
-            <div className="text-xs text-gray-600">No data</div>
+            <div className="text-xs text-gray-500">No data</div>
           )}
         </div>
       </div>

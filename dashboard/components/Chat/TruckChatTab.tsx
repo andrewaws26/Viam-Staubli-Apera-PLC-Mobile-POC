@@ -63,14 +63,14 @@ export default function TruckChatTab({ truckId, currentReadings }: TruckChatTabP
   const chatHeight = expanded ? "h-[700px]" : "h-[450px]";
 
   return (
-    <div className={`${chatHeight} border border-gray-700/50 rounded-lg overflow-hidden bg-gray-900/50 transition-all duration-200`}>
-      <div className="px-3 py-2 border-b border-gray-700/50 bg-gray-900/80 flex items-center justify-between">
+    <div className={`${chatHeight} border border-gray-800/60 rounded-lg overflow-hidden bg-gray-900/50 transition-all duration-200`}>
+      <div className="px-3 py-2 border-b border-gray-800/60 bg-gray-900/80 flex items-center justify-between">
         <h3 className="text-xs font-bold text-gray-200 uppercase tracking-wider">
           Team Chat — {thread.title}
         </h3>
         <button
           onClick={() => setExpanded(!expanded)}
-          className="text-xs text-gray-400 hover:text-gray-200 transition-colors px-2 py-0.5 rounded hover:bg-gray-700/50"
+          className="text-xs text-gray-400 hover:text-gray-200 transition-colors px-2 py-0.5 rounded hover:bg-gray-800/50"
           title={expanded ? "Collapse chat" : "Expand chat"}
         >
           {expanded ? "▼ Collapse" : "▲ Expand"}

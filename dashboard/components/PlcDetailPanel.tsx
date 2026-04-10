@@ -48,7 +48,7 @@ export default function PlcDetailPanel({ readings }: Props) {
                 : "";
             return (
               <div key={key} className="flex flex-col min-w-0">
-                <span className="text-xs sm:text-xs text-gray-600 uppercase tracking-wide truncate">
+                <span className="text-xs sm:text-xs text-gray-500 uppercase tracking-wide truncate">
                   {label}
                 </span>
                 <span
@@ -62,7 +62,7 @@ export default function PlcDetailPanel({ readings }: Props) {
                 >
                   {typeof val === "number" ? (Number.isInteger(val) ? val : val.toFixed(2)) : String(val)}
                   {unit && (
-                    <span className="text-gray-600 font-normal ml-0.5 text-xs sm:text-sm">
+                    <span className="text-gray-500 font-normal ml-0.5 text-xs sm:text-sm">
                       {unit}
                     </span>
                   )}
@@ -133,14 +133,14 @@ export default function PlcDetailPanel({ readings }: Props) {
             {/* 3 big numbers */}
             <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-3 sm:mb-4">
               <div className="flex flex-col items-center">
-                <span className="text-xs sm:text-xs text-gray-600 uppercase tracking-wide">Rate</span>
+                <span className="text-xs sm:text-xs text-gray-500 uppercase tracking-wide">Rate</span>
                 <span className="font-mono font-bold text-lg sm:text-2xl text-blue-400">
                   {rate.toFixed(1)}
-                  <span className="text-gray-600 font-normal text-xs sm:text-sm ml-0.5">/min</span>
+                  <span className="text-gray-500 font-normal text-xs sm:text-sm ml-0.5">/min</span>
                 </span>
               </div>
               <div className="flex flex-col items-center">
-                <span className="text-xs sm:text-xs text-gray-600 uppercase tracking-wide">Last</span>
+                <span className="text-xs sm:text-xs text-gray-500 uppercase tracking-wide">Last</span>
                 <span className={`font-mono font-bold text-lg sm:text-2xl ${
                   lastSpacing && target > 0
                     ? Math.abs(lastSpacing - target) / target <= 0.1
@@ -151,16 +151,16 @@ export default function PlcDetailPanel({ readings }: Props) {
                     : "text-gray-400"
                 }`}>
                   {lastSpacing !== undefined ? lastSpacing.toFixed(1) : "—"}
-                  <span className="text-gray-600 font-normal text-xs sm:text-sm ml-0.5">in</span>
+                  <span className="text-gray-500 font-normal text-xs sm:text-sm ml-0.5">in</span>
                 </span>
                 {target > 0 && (
-                  <span className="text-xs text-gray-600">
+                  <span className="text-xs text-gray-500">
                     target {target}
                   </span>
                 )}
               </div>
               <div className="flex flex-col items-center">
-                <span className="text-xs sm:text-xs text-gray-600 uppercase tracking-wide">Total</span>
+                <span className="text-xs sm:text-xs text-gray-500 uppercase tracking-wide">Total</span>
                 <span className="font-mono font-bold text-lg sm:text-2xl text-gray-200">
                   {count}
                 </span>
@@ -189,29 +189,29 @@ export default function PlcDetailPanel({ readings }: Props) {
               return (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3 py-2 border-t border-b border-gray-800/50">
                   <div className="flex flex-col items-center">
-                    <span className="text-xs text-gray-600 uppercase">Avg Spacing</span>
+                    <span className="text-xs text-gray-500 uppercase">Avg Spacing</span>
                     <span className={`font-mono font-bold text-sm ${perPlateColor}`}>
-                      {actualPerPlate.toFixed(1)}<span className="text-gray-600 font-normal text-xs ml-0.5">in</span>
+                      {actualPerPlate.toFixed(1)}<span className="text-gray-500 font-normal text-xs ml-0.5">in</span>
                     </span>
-                    <span className="text-xs text-gray-600">target {target}&quot;</span>
+                    <span className="text-xs text-gray-500">target {target}&quot;</span>
                   </div>
                   <div className="flex flex-col items-center">
-                    <span className="text-xs text-gray-600 uppercase">Expected</span>
+                    <span className="text-xs text-gray-500 uppercase">Expected</span>
                     <span className="font-mono font-bold text-sm text-gray-400">
                       {expectedPlates}
                     </span>
-                    <span className="text-xs text-gray-600">for {distFt.toFixed(0)} ft</span>
+                    <span className="text-xs text-gray-500">for {distFt.toFixed(0)} ft</span>
                   </div>
                   <div className="flex flex-col items-center">
-                    <span className="text-xs text-gray-600 uppercase">Missed</span>
+                    <span className="text-xs text-gray-500 uppercase">Missed</span>
                     <span className={`font-mono font-bold text-sm ${missed > 0 ? "text-red-400" : "text-green-400"}`}>
                       {missed > 0 ? missed : 0}
                     </span>
                   </div>
                   <div className="flex flex-col items-center">
-                    <span className="text-xs text-gray-600 uppercase">Efficiency</span>
+                    <span className="text-xs text-gray-500 uppercase">Efficiency</span>
                     <span className={`font-mono font-bold text-sm ${effColor}`}>
-                      {efficiency.toFixed(0)}<span className="text-gray-600 font-normal text-xs ml-0.5">%</span>
+                      {efficiency.toFixed(0)}<span className="text-gray-500 font-normal text-xs ml-0.5">%</span>
                     </span>
                   </div>
                 </div>
@@ -219,7 +219,7 @@ export default function PlcDetailPanel({ readings }: Props) {
             })()}
 
             {/* Reference values */}
-            <div className="flex items-center justify-center gap-4 mb-2 sm:mb-3 text-xs sm:text-xs text-gray-600">
+            <div className="flex items-center justify-center gap-4 mb-2 sm:mb-3 text-xs sm:text-xs text-gray-500">
               <span>Target: <span className="text-gray-400 font-mono">{target}&quot;</span></span>
               <span className="text-gray-700">|</span>
               <span>Offset: <span className="text-gray-400 font-mono">{detectorOffset}&quot; ({(detectorOffset / 12).toFixed(1)} ft)</span></span>
@@ -241,7 +241,7 @@ export default function PlcDetailPanel({ readings }: Props) {
                   }
                   return (
                     <div key={label} className="flex flex-col min-w-0">
-                      <span className="text-xs text-gray-600 uppercase">{label}</span>
+                      <span className="text-xs text-gray-500 uppercase">{label}</span>
                       <span className={`font-mono font-bold text-sm ${color}`}>
                         {val !== undefined ? val.toFixed(1) : "—"} in
                       </span>
@@ -392,7 +392,7 @@ export default function PlcDetailPanel({ readings }: Props) {
       {/* Section 8: PLC Raw Registers — button opens full-screen modal */}
       <button
         onClick={() => setShowRegisters(true)}
-        className="w-full border border-gray-800/50 rounded-2xl p-3 sm:p-4 text-xs font-bold uppercase tracking-widest text-gray-600 text-left tap-target flex items-center justify-between"
+        className="w-full border border-gray-800/50 rounded-2xl p-3 sm:p-4 text-xs font-bold uppercase tracking-widest text-gray-500 text-left tap-target flex items-center justify-between"
       >
         <span>PLC Raw Registers (DS1–DS25)</span>
         <span className="text-gray-700 text-sm">›</span>

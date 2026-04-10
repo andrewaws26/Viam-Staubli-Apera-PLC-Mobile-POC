@@ -206,7 +206,7 @@ export default function ArchitecturePage() {
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         <div className="lg:col-span-3 space-y-6">
           {loading ? (
-            <div className="text-center py-12 text-gray-600 text-sm">Loading...</div>
+            <div className="text-center py-12 text-gray-500 text-sm">Loading...</div>
           ) : nodes.length === 0 ? (
             <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-8 text-center">
               <p className="text-sm text-gray-500">No architecture nodes defined</p>
@@ -235,7 +235,7 @@ export default function ArchitecturePage() {
                           <span className={`h-2 w-2 rounded-full ${STATUS_DOT[n.status] || STATUS_DOT.inactive}`} />
                         </div>
                         <div className="text-sm font-semibold text-gray-200 truncate">{n.name}</div>
-                        <div className="text-xs text-gray-600 mt-0.5">{connCount} connection{connCount !== 1 ? "s" : ""}</div>
+                        <div className="text-xs text-gray-500 mt-0.5">{connCount} connection{connCount !== 1 ? "s" : ""}</div>
                       </button>
                     );
                   })}
@@ -249,7 +249,7 @@ export default function ArchitecturePage() {
         <div className="lg:col-span-2">
           {!selectedNode ? (
             <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-12 text-center">
-              <p className="text-sm text-gray-600">Select a node to view details</p>
+              <p className="text-sm text-gray-500">Select a node to view details</p>
             </div>
           ) : (
             <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-4 space-y-4">
@@ -269,7 +269,7 @@ export default function ArchitecturePage() {
               <div>
                 <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">Connections ({selectedEdges.length})</h3>
                 {selectedEdges.length === 0 ? (
-                  <p className="text-xs text-gray-600">No connections</p>
+                  <p className="text-xs text-gray-500">No connections</p>
                 ) : (
                   <div className="space-y-1">
                     {selectedEdges.map((e) => {
@@ -282,7 +282,7 @@ export default function ArchitecturePage() {
                           <span className="text-xs text-gray-500 font-mono">{direction}</span>
                           <span className="text-xs text-gray-300 flex-1">{other?.name || "?"}</span>
                           <span className="text-xs px-1.5 py-0.5 rounded bg-gray-800 text-gray-500">{e.edge_type}</span>
-                          {e.label && <span className="text-xs text-gray-600">{e.label}</span>}
+                          {e.label && <span className="text-xs text-gray-500">{e.label}</span>}
                           <button onClick={() => deleteEdge(e.id)} className="text-xs text-red-500 hover:text-red-400">x</button>
                         </div>
                       );

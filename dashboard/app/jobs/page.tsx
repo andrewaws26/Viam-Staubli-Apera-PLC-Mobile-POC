@@ -461,7 +461,7 @@ export default function JobsPage() {
                   return (
                     <tr
                       key={j.id}
-                      className="hover:bg-gray-900/50 transition"
+                      className="hover:bg-gray-800/50 transition"
                     >
                       <td className="px-4 py-3 font-mono text-gray-500">
                         {j.job_number}

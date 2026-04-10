@@ -169,41 +169,41 @@ export default function CustomersVendorsPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Company Name *</label>
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Company Name *</label>
                 <input value={formName} onChange={(e) => setFormName(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
               </div>
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Contact Name</label>
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Contact Name</label>
                 <input value={formContact} onChange={(e) => setFormContact(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
               </div>
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Email</label>
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Email</label>
                 <input type="email" value={formEmail} onChange={(e) => setFormEmail(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
               </div>
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Phone</label>
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Phone</label>
                 <input value={formPhone} onChange={(e) => setFormPhone(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
               </div>
               <div className="sm:col-span-2">
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">
                   {tab === "customers" ? "Billing Address" : "Address"}
                 </label>
                 <input value={formAddress} onChange={(e) => setFormAddress(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
               </div>
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Payment Terms</label>
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Payment Terms</label>
                 <select value={formTerms} onChange={(e) => setFormTerms(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white">
                   {TERMS_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Tax ID / EIN</label>
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Tax ID / EIN</label>
                 <input value={formTaxId} onChange={(e) => setFormTaxId(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" placeholder="XX-XXXXXXX" />
               </div>
@@ -215,7 +215,7 @@ export default function CustomersVendorsPage() {
                 </div>
               )}
               <div className="sm:col-span-2">
-                <label className="block text-xs text-gray-600 uppercase tracking-wider mb-1">Notes</label>
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Notes</label>
                 <textarea value={formNotes} onChange={(e) => setFormNotes(e.target.value)} rows={2}
                   className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-800 text-sm text-white" />
               </div>
@@ -246,7 +246,7 @@ export default function CustomersVendorsPage() {
           <div className="rounded-xl border border-gray-800 bg-gray-900/50 overflow-hidden overflow-x-auto">
             <table className="w-full text-sm min-w-[700px]">
               <thead>
-                <tr className="text-xs uppercase tracking-wider text-gray-600 border-b border-gray-800">
+                <tr className="text-xs uppercase tracking-wider text-gray-500 border-b border-gray-800">
                   <th className="text-left px-4 py-3 font-medium">Company</th>
                   <th className="text-left px-4 py-3 font-medium">Contact</th>
                   <th className="text-left px-4 py-3 font-medium">Email</th>
@@ -283,7 +283,7 @@ export default function CustomersVendorsPage() {
                 ))}
                 {activeItems.length === 0 && (
                   <tr>
-                    <td colSpan={tab === "vendors" ? 6 : 5} className="px-4 py-8 text-center text-gray-600">
+                    <td colSpan={tab === "vendors" ? 6 : 5} className="px-4 py-8 text-center text-gray-500">
                       No {tab} yet. Click &quot;+ Add&quot; to create one.
                     </td>
                   </tr>
@@ -296,15 +296,15 @@ export default function CustomersVendorsPage() {
         {/* Inactive section */}
         {!loading && inactiveItems.length > 0 && (
           <div className="mt-6">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-gray-600 mb-2">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">
               Inactive ({inactiveItems.length})
             </h3>
             <div className="rounded-xl border border-gray-800/50 bg-gray-900/30 overflow-hidden">
               {inactiveItems.map((item) => (
                 <div key={item.id} className="px-4 py-2 border-t border-gray-800/30 flex items-center justify-between">
-                  <span className="text-sm text-gray-600">{item.company_name}</span>
+                  <span className="text-sm text-gray-500">{item.company_name}</span>
                   <button onClick={() => startEdit(item)}
-                    className="text-xs text-gray-600 hover:text-gray-400 font-bold uppercase">
+                    className="text-xs text-gray-500 hover:text-gray-400 font-bold uppercase">
                     Edit
                   </button>
                 </div>

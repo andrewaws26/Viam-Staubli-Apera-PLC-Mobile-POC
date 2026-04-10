@@ -100,8 +100,8 @@ function PiIndicator({
     <div className="flex items-center gap-1.5 shrink-0">
       <Dot color={online === null ? "gray" : online ? "green" : "red"} />
       <span className="text-gray-400 font-medium">{label}</span>
-      <span className="hidden sm:inline text-gray-600">({detail})</span>
-      <span className="hidden md:inline font-mono text-gray-600">{ip}</span>
+      <span className="hidden sm:inline text-gray-500">({detail})</span>
+      <span className="hidden md:inline font-mono text-gray-500">{ip}</span>
       {age !== undefined && (
         <span
           className={`hidden sm:inline font-mono ${

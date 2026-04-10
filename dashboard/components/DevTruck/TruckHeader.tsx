@@ -37,7 +37,7 @@ export default function TruckHeader({
           <h3 className="text-sm sm:text-lg font-black tracking-widest uppercase text-gray-100 truncate">
             {vehicleMode === "truck" ? "Truck Diagnostics" : "Vehicle Diagnostics"}
           </h3>
-          <p className="text-xs sm:text-xs text-gray-600 truncate">
+          <p className="text-xs sm:text-xs text-gray-500 truncate">
             {vehicleMode === "truck" ? "J1939 CAN Bus — Heavy Duty" : "OBD-II CAN Bus — Live Data"}
           </p>
           {readings?.vehicle_vin && String(readings.vehicle_vin) !== "UNKNOWN" && String(readings.vehicle_vin) !== "0" ? (
@@ -45,7 +45,7 @@ export default function TruckHeader({
               VIN: {String(readings.vehicle_vin)}
             </p>
           ) : readings?.vehicle_vin === "UNKNOWN" ? (
-            <p className="text-xs sm:text-xs text-gray-600 italic">VIN: Unknown</p>
+            <p className="text-xs sm:text-xs text-gray-500 italic">VIN: Unknown</p>
           ) : null}
         </div>
       </div>

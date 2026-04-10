@@ -285,7 +285,7 @@ function ModuleCardComponent({ card }: { card: ModuleCard }) {
         <h3 className="text-sm font-bold text-gray-100 group-hover:text-white transition-colors">
           {card.label}
         </h3>
-        <p className="text-xs text-gray-600 mt-0.5">{card.desc}</p>
+        <p className="text-xs text-gray-400 mt-0.5">{card.desc}</p>
       </div>
     </a>
   );
@@ -311,7 +311,7 @@ function ModuleSection({
 
   return (
     <div>
-      <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-gray-600 mb-3 px-1">
+      <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-gray-500 mb-3 px-1">
         {title}
       </h2>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -388,7 +388,7 @@ export default function HomeScreen() {
                 Run the setup wizard to configure company profile and verify system readiness
               </p>
             </div>
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-600 group-hover:text-amber-400 transition-colors shrink-0" viewBox="0 0 20 20" fill="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-500 group-hover:text-amber-400 transition-colors shrink-0" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
             </svg>
           </a>
@@ -412,7 +412,7 @@ export default function HomeScreen() {
               Interactive walkthrough of every feature — 10 minutes, self-guided
             </p>
           </div>
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-600 group-hover:text-violet-400 transition-colors shrink-0" viewBox="0 0 20 20" fill="currentColor">
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-500 group-hover:text-violet-400 transition-colors shrink-0" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
           </svg>
         </a>

@@ -115,7 +115,7 @@ export default function DTCHistory({ truckId }: { truckId?: string }) {
               <div className="w-6 h-6 rounded-full border-2 border-gray-600 border-t-gray-300 animate-spin" />
             </div>
           ) : records.length === 0 ? (
-            <p className="text-xs text-gray-600 py-4 text-center">
+            <p className="text-xs text-gray-500 py-4 text-center">
               {showAll ? "No DTC history recorded yet." : "No active DTCs."}
             </p>
           ) : (
@@ -134,10 +134,10 @@ export default function DTCHistory({ truckId }: { truckId?: string }) {
                         SPN {rec.spn} / FMI {rec.fmi}
                       </span>
                       {rec.source_address != null && (
-                        <span className="text-xs text-gray-600">SA 0x{rec.source_address.toString(16).padStart(2, "0")}</span>
+                        <span className="text-xs text-gray-500">SA 0x{rec.source_address.toString(16).padStart(2, "0")}</span>
                       )}
                     </div>
-                    <span className={`text-xs font-bold ${rec.active ? "text-red-400" : "text-gray-600"}`}>
+                    <span className={`text-xs font-bold ${rec.active ? "text-red-400" : "text-gray-500"}`}>
                       {rec.active ? "ACTIVE" : "CLEARED"}
                     </span>
                   </div>

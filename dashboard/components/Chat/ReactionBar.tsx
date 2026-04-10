@@ -24,7 +24,7 @@ export default function ReactionBar({ reactions, onToggle }: ReactionBarProps) {
               className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs transition-colors ${
                 r.reacted
                   ? "bg-purple-600/30 border border-purple-500/50 text-purple-200"
-                  : "bg-gray-700/50 border border-gray-600/50 text-gray-300 hover:border-gray-500"
+                  : "bg-gray-700/50 border border-gray-800/60 text-gray-300 hover:border-gray-500"
               }`}
               title={label.label}
             >
@@ -50,7 +50,7 @@ export default function ReactionBar({ reactions, onToggle }: ReactionBarProps) {
                   onToggle(r);
                   setShowPicker(false);
                 }}
-                className="w-7 h-7 rounded hover:bg-gray-700 flex items-center justify-center text-sm"
+                className="w-7 h-7 rounded hover:bg-gray-800/50 flex items-center justify-center text-sm"
                 title={REACTION_LABELS[r].label}
               >
                 {REACTION_LABELS[r].emoji}

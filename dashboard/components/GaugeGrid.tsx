@@ -316,7 +316,7 @@ export default function GaugeGrid({ readings, vehicleMode, hasData }: GaugeGridP
           <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
             {icon} {title}
           </h4>
-          <p className="text-xs text-gray-600">Waiting for data...</p>
+          <p className="text-xs text-gray-500">Waiting for data...</p>
         </div>
       );
     }

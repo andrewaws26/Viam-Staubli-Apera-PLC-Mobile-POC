@@ -60,7 +60,7 @@ function Card({
   accent?: string;
 }) {
   const borderColors: Record<string, string> = {
-    gray: "border-gray-700/50",
+    gray: "border-gray-800/60",
     purple: "border-purple-500/30",
     emerald: "border-emerald-500/30",
     amber: "border-amber-500/30",
@@ -112,7 +112,7 @@ function RoadmapCard({
         <ul className="mt-3 space-y-1.5">
           {details.map((d, i) => (
             <li key={i} className="text-gray-400 text-sm flex items-start gap-2">
-              <span className="text-gray-600 mt-0.5">-</span>
+              <span className="text-gray-500 mt-0.5">-</span>
               <span>{d}</span>
             </li>
           ))}
@@ -237,7 +237,7 @@ export default function VisionPage() {
           </div>
 
           {/* What B&B uses today vs IronSight */}
-          <div className="mt-8 bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl border border-gray-700/50 overflow-hidden">
+          <div className="mt-8 bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl border border-gray-800/60 overflow-hidden">
             <div className="grid grid-cols-2 divide-x divide-gray-800">
               <div className="p-5">
                 <p className="text-xs text-red-400 uppercase tracking-wider font-bold mb-3">Today (Fragmented)</p>
@@ -701,7 +701,7 @@ export default function VisionPage() {
       {/* Footer                                                              */}
       {/* ------------------------------------------------------------------ */}
       <footer className="border-t border-gray-800 py-8 text-center">
-        <p className="text-gray-600 text-xs uppercase tracking-widest">
+        <p className="text-gray-500 text-xs uppercase tracking-widest">
           IronSight — B&B Metals, Inc. — Shepherdsville, KY — Confidential
         </p>
       </footer>

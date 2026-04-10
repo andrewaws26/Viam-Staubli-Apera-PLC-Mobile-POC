@@ -150,7 +150,7 @@ export default function KnowledgeBasePage() {
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         <div className="lg:col-span-2 space-y-2">
           {loading ? (
-            <div className="text-center py-12 text-gray-600 text-sm">Loading...</div>
+            <div className="text-center py-12 text-gray-500 text-sm">Loading...</div>
           ) : entries.length === 0 ? (
             <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-8 text-center">
               <p className="text-sm text-gray-500">No entries yet</p>
@@ -180,7 +180,7 @@ export default function KnowledgeBasePage() {
         <div className="lg:col-span-3">
           {!selected ? (
             <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-12 text-center">
-              <p className="text-sm text-gray-600">Select an entry to read</p>
+              <p className="text-sm text-gray-500">Select an entry to read</p>
             </div>
           ) : (
             <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-4 space-y-4">
@@ -189,7 +189,7 @@ export default function KnowledgeBasePage() {
                   <h2 className="text-lg font-bold text-gray-100">{selected.title}</h2>
                   <div className="flex items-center gap-2 mt-1">
                     <span className={`text-xs px-1.5 py-0.5 rounded ${(CATEGORY_COLORS[selected.category] || CATEGORY_COLORS.convention).bg} ${(CATEGORY_COLORS[selected.category] || CATEGORY_COLORS.convention).text}`}>{selected.category}</span>
-                    <span className="text-xs text-gray-600">{timeAgo(selected.updated_at)}</span>
+                    <span className="text-xs text-gray-500">{timeAgo(selected.updated_at)}</span>
                   </div>
                 </div>
                 <div className="flex gap-2 shrink-0">
@@ -213,7 +213,7 @@ export default function KnowledgeBasePage() {
               )}
 
               {selected.source && (
-                <div className="text-xs text-gray-600">Source: <span className="text-gray-400 font-mono">{selected.source}</span></div>
+                <div className="text-xs text-gray-500">Source: <span className="text-gray-400 font-mono">{selected.source}</span></div>
               )}
             </div>
           )}

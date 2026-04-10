@@ -280,7 +280,7 @@ export default function MaintenanceTracker({ truckId }: { truckId?: string }) {
 
           {/* Events list */}
           {events.length === 0 ? (
-            <p className="text-xs text-gray-600 py-4 text-center">
+            <p className="text-xs text-gray-500 py-4 text-center">
               No maintenance records. Log your first service event.
             </p>
           ) : (
@@ -313,7 +313,7 @@ export default function MaintenanceTracker({ truckId }: { truckId?: string }) {
                       {canDelete && (
                         <button
                           onClick={() => handleDelete(event.id)}
-                          className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 transition-all p-1"
+                          className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-all p-1"
                         >
                           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
