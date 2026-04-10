@@ -9,7 +9,13 @@
 
 ## Executive Summary
 
-The RAIV 3 robot truck currently has **zero visibility** into its custom electrical systems. When the robot stops, the vision system goes dark, or a fuse blows, the only way to diagnose is to physically walk to the truck and open panels. This report documents what we've built, what we can already monitor, and what $45 in hardware will add to make this the most instrumented mobile robot cell in the industry.
+The RAIV 3 has **two completely independent power systems** with no cross-connection:
+1. **Truck electrical** (battery + alternator) — powers the Pi 5, CAN bus, cab systems
+2. **Winco W6010DE diesel generator** — powers the ENTIRE robot cell (Staubli CS9, Apera vision, Click PLC, pneumatics, servos)
+
+**The generator has ZERO telemetry.** There is no monitoring of generator voltage, frequency, fuel, or load. A frequency drift could be slowly killing the Apera PC's power supply and you'd never know until it dies. The J1939 alternator/battery readings from the CAN bus tell us about the truck's system only — NOT the robot's power.
+
+This report documents what we've built, what we can already monitor, and what $45 in hardware will add to make this the most instrumented mobile robot cell in the industry. **The ADS1115 voltage monitoring hardware is especially critical because it provides the FIRST visibility into generator output quality.**
 
 **What's already done (software — deployed April 10, 2026):**
 - 33 robot temperatures (every motor, encoder, drive, winding, junction, CPU, safety board)
