@@ -1,0 +1,11 @@
+{
+  "name": "ironsight-mcp-server",
+  "version": "1.0.0",
+  "description": "IronSight fleet diagnostics MCP server",
+  "type": "module",
+  "main": "index.js",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "@supabase/supabase-js": "^2.49.0"
+  }
+}
