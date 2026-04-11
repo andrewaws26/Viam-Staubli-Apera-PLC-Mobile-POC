@@ -58,7 +58,7 @@ const styles = StyleSheet.create({
   author: {
     color: colors.text,
     fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.semibold,
+    fontFamily: typography.fonts.heading,
   },
   time: {
     color: colors.textMuted,

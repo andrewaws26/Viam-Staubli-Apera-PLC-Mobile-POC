@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
   roleLabel: {
     color: colors.textMuted,
     fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.bold,
+    fontFamily: typography.fonts.heading,
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginBottom: 4,

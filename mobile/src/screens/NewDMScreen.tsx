@@ -22,12 +22,7 @@ interface OrgUser {
   role: string;
 }
 
-const ROLE_COLORS: Record<string, string> = {
-  developer: '#a855f7',
-  manager: '#3b82f6',
-  mechanic: '#22c55e',
-  operator: '#eab308',
-};
+import { ROLE_COLORS } from '@/utils/role-colors';
 
 function NewDMScreenInner() {
   const router = useRouter();

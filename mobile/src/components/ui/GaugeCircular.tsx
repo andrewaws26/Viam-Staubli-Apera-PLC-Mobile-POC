@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
   },
   value: {
     fontSize: typography.sizes.xl,
-    fontWeight: typography.weights.black,
+    fontFamily: typography.fonts.display,
   },
   unit: {
     color: colors.textMuted,
@@ -104,6 +104,6 @@ const styles = StyleSheet.create({
     bottom: 4,
     color: colors.textSecondary,
     fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.medium,
+    fontFamily: typography.fonts.label,
   },
 });

@@ -177,7 +177,7 @@ const styles = StyleSheet.create({
   emptyTitle: {
     color: colors.text,
     fontSize: typography.sizes.lg,
-    fontWeight: typography.weights.bold as any,
+    fontFamily: typography.fonts.heading,
     marginBottom: spacing.xs,
   },
   emptyMessage: {
@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
   calloutName: {
     color: colors.text,
     fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.bold as any,
+    fontFamily: typography.fonts.heading,
   },
   calloutMetrics: {
     flexDirection: 'row',
@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
   calloutMetricValue: {
     color: colors.text,
     fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.semibold as any,
+    fontFamily: typography.fonts.heading,
   },
   calloutDtc: {
     backgroundColor: '#dc262630',
@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
   calloutDtcText: {
     color: colors.dangerLight,
     fontSize: 10,
-    fontWeight: typography.weights.bold as any,
+    fontFamily: typography.fonts.heading,
   },
   calloutTap: {
     color: colors.primaryLight,
@@ -260,6 +260,6 @@ const styles = StyleSheet.create({
   countText: {
     color: colors.textSecondary,
     fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.semibold as any,
+    fontFamily: typography.fonts.heading,
   },
 });

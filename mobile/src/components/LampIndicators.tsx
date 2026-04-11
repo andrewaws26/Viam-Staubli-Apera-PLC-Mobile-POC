@@ -62,6 +62,6 @@ const styles = StyleSheet.create({
   label: {
     color: colors.textMuted,
     fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.medium,
+    fontFamily: typography.fonts.label,
   },
 });

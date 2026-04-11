@@ -155,7 +155,7 @@ function KV({ label, value, color }: { label: string; value: string; color?: str
 const kvStyles = StyleSheet.create({
   container: { alignItems: 'center' as const, minWidth: 60 },
   label: { color: colors.textMuted, fontSize: 10, textTransform: 'uppercase' as const },
-  value: { color: colors.text, fontSize: typography.sizes.sm, fontWeight: typography.weights.bold as any, fontVariant: ['tabular-nums'] },
+  value: { color: colors.text, fontSize: typography.sizes.sm, fontFamily: typography.fonts.heading, fontVariant: ['tabular-nums'] },
 });
 
 // ---------------------------------------------------------------------------
@@ -522,7 +522,7 @@ const styles = StyleSheet.create({
   watchdogTitle: {
     color: colors.textMuted,
     fontSize: 10,
-    fontWeight: typography.weights.bold as any,
+    fontFamily: typography.fonts.heading,
     textTransform: 'uppercase' as any,
     letterSpacing: 1.5,
   },
@@ -531,14 +531,14 @@ const styles = StyleSheet.create({
   sectionTitle: {
     color: colors.textMuted,
     fontSize: 10,
-    fontWeight: typography.weights.bold as any,
+    fontFamily: typography.fonts.heading,
     textTransform: 'uppercase' as any,
     letterSpacing: 1.5,
   },
   subHeader: {
     color: colors.textMuted,
     fontSize: 10,
-    fontWeight: typography.weights.semibold as any,
+    fontFamily: typography.fonts.heading,
     textTransform: 'uppercase' as any,
     letterSpacing: 1,
     marginTop: spacing.md,

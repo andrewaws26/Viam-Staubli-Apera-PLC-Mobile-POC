@@ -66,17 +66,17 @@ const styles = StyleSheet.create({
   spn: {
     color: colors.primaryLight,
     fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.bold,
+    fontFamily: typography.fonts.heading,
   },
   fmi: {
     color: colors.textSecondary,
     fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.medium,
+    fontFamily: typography.fonts.label,
   },
   name: {
     color: colors.text,
     fontSize: typography.sizes.base,
-    fontWeight: typography.weights.semibold,
+    fontFamily: typography.fonts.heading,
   },
   description: {
     color: colors.textSecondary,
@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
   askText: {
     color: '#ffffff',
     fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.bold,
+    fontFamily: typography.fonts.heading,
     textTransform: 'uppercase',
   },
 });
