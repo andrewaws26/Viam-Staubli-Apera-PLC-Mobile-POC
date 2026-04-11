@@ -31,6 +31,8 @@ export interface DemoEvent {
   chatFrom?: string;
   interactive?: boolean;       // if true, pauses until viewer taps
   interactivePrompt?: string;  // CTA text shown during pause
+  image?: string;              // path to photo in /public/demo/
+  imageCaption?: string;       // caption shown below image
 }
 
 // ---------------------------------------------------------------------------
@@ -47,6 +49,8 @@ export const DEMO_TIMELINE: DemoEvent[] = [
       "Your robot stopped. Production is down. Nobody knows why. What do you do?",
     interactive: true,
     interactivePrompt: "Tap to see what IronSight shows you",
+    image: "/demo/robot-arm.jpg",
+    imageCaption: "RAIV 3 — Staubli TX2-140 sorting tie plates",
   },
 
   // ACT 1: The calm before (short — establish the baseline fast)
@@ -56,6 +60,8 @@ export const DEMO_TIMELINE: DemoEvent[] = [
     title: "30 Minutes Earlier",
     narration:
       "Everything was green. 14 plates per minute. Robot cycling. Vision at 91% confidence.",
+    image: "/demo/vision-camera.jpg",
+    imageCaption: "Apera Vue AI vision — overhead stereo cameras guiding the robot",
   },
 
   // ACT 2: Escalation (fast beats — tension building)
@@ -65,6 +71,8 @@ export const DEMO_TIMELINE: DemoEvent[] = [
     title: "Then This Happened",
     narration:
       "Cabinet temperature started climbing. IronSight caught it before anyone on the truck noticed.",
+    image: "/demo/command-center.jpg",
+    imageCaption: "The command center cabinet — CS9 controller, Dell PCs, power supplies, all in one enclosure",
   },
   {
     time: 18,
@@ -98,6 +106,8 @@ export const DEMO_TIMELINE: DemoEvent[] = [
     chatMessage:
       "Jake \u2014 open the cabinet panels and point the shop fan at the drive module. It's thermal, not electrical.",
     chatFrom: "You",
+    image: "/demo/operator-panel.jpg",
+    imageCaption: "Operator panel on the truck — Jake is standing here when he gets the message",
   },
 
   // ACT 5: Resolution (let it breathe)
@@ -120,6 +130,8 @@ export const DEMO_TIMELINE: DemoEvent[] = [
     chatFrom: "Jake",
     interactive: true,
     interactivePrompt: "Tap to see how the shift ends",
+    image: "/demo/truck-exterior.jpg",
+    imageCaption: "RAIV 3 — back in production",
   },
 
   // ACT 6: Payoff

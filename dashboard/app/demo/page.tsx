@@ -397,6 +397,22 @@ export default function DemoPage() {
               {event.narration}
             </p>
 
+            {/* Phase image */}
+            {event.image && (
+              <div className="mt-4 rounded-xl overflow-hidden border border-white/[0.06]">
+                <img
+                  src={event.image}
+                  alt={event.imageCaption || event.title}
+                  className="w-full h-40 sm:h-56 object-cover"
+                />
+                {event.imageCaption && (
+                  <div className="px-3 py-2 bg-black/40 text-xs text-gray-400 italic">
+                    {event.imageCaption}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Interactive tap CTA */}
             {waitingForTap && event.interactivePrompt && (
               <button
