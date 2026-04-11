@@ -7,6 +7,7 @@ thread. Never delays sensor readings.
 import json
 import threading
 import time
+from urllib.parse import quote
 
 from viam.logging import getLogger
 
@@ -67,7 +68,7 @@ class _LocationWeatherCache:
                     self.timezone = data.get("timezone", "")
             # Weather
             if city:
-                url = f"http://wttr.in/{city}?format=%c+%t+%h+%w&u"
+                url = f"http://wttr.in/{quote(city)}?format=%c+%t+%h+%w&u"
                 with urllib.request.urlopen(url, timeout=5) as resp:
                     raw = resp.read().decode("utf-8").strip()
                     with self._lock:

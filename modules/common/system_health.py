@@ -6,6 +6,7 @@ as a flat dict suitable for merging into get_readings() output.
 
 import os
 import subprocess
+from pathlib import Path
 
 
 def get_system_health() -> dict:
@@ -121,7 +122,7 @@ def get_system_health() -> dict:
     try:
         import time as _time
         # viam-server runs as root but capture dir is under the andrew user home
-        capture_dir = "/home/andrew/.viam/capture"
+        capture_dir = str(Path.home() / ".viam/capture")
         failed_dir = os.path.join(capture_dir, "failed")
         pending_count = 0
         pending_bytes = 0

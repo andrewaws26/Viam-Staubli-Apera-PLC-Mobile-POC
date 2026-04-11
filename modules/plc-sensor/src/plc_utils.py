@@ -1,5 +1,6 @@
 """Standalone utility functions for the PLC sensor module."""
 
+import fcntl
 import json
 import os
 from typing import Any
@@ -21,13 +22,14 @@ def _read_chat_queue() -> list:
     try:
         if not os.path.exists(_CHAT_QUEUE_FILE):
             return []
-        with open(_CHAT_QUEUE_FILE) as f:
+        with open(_CHAT_QUEUE_FILE, "r+") as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
             lines = f.readlines()
+            f.seek(0)
+            f.truncate()
+            fcntl.flock(f, fcntl.LOCK_UN)
         if not lines:
             return []
-        # Clear the queue (atomic: truncate, don't delete — avoids race)
-        with open(_CHAT_QUEUE_FILE, "w") as f:
-            pass
         events = []
         for line in lines:
             line = line.strip()
