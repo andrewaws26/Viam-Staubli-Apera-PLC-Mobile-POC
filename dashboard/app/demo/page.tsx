@@ -72,6 +72,8 @@ export default function DemoPage() {
   const [linkCopied, setLinkCopied] = useState(false);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const currentIdxRef = useRef(currentIdx);
+  currentIdxRef.current = currentIdx;
   const prevPhaseRef = useRef<DemoPhase>("intro");
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -153,8 +155,9 @@ export default function DemoPage() {
     timerRef.current = setInterval(() => {
       setElapsed((prev) => {
         const next = prev + 0.1;
-        // Check if we should advance to next phase
-        const nextIdx = currentIdx + 1;
+        // Check if we should advance to next phase (use ref to avoid stale closure)
+        const idx = currentIdxRef.current;
+        const nextIdx = idx + 1;
         if (nextIdx < DEMO_TIMELINE.length) {
           const nextEvent = DEMO_TIMELINE[nextIdx];
           // Skip auto-advance for interactive phases (time=0 means wait for tap)
@@ -481,7 +484,7 @@ export default function DemoPage() {
               {/* Key metric */}
               <div className="text-right shrink-0">
                 <div className="text-2xl font-bold tabular-nums text-white">
-                  {cToF(dsiTempC)}<span className="text-sm text-gray-500">\u00B0F</span>
+                  {cToF(dsiTempC)}<span className="text-sm text-gray-500">°F</span>
                 </div>
                 <div className="text-xs text-gray-500">DSI Temp</div>
               </div>
@@ -524,7 +527,7 @@ export default function DemoPage() {
               />
               <SensorCell
                 label="CPU"
-                value={`${cToF(cpuTempC)}\u00B0F`}
+                value={`${cToF(cpuTempC)}°F`}
                 warn={cpuTempC > 70}
               />
             </div>
