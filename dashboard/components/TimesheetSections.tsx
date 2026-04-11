@@ -61,12 +61,15 @@ type EntryRecord = Record<string, unknown>;
 interface Props {
   timesheetId: string;
   canEdit: boolean;
+  iftaOdometerStart?: number | null;
+  iftaOdometerEnd?: number | null;
+  onIftaOdometerStartChange?: (val: number | null) => void;
+  onIftaOdometerEndChange?: (val: number | null) => void;
 }
 
 // ── Component ──────────────────────────────────────────────────────────
 
-export default function TimesheetSections({ timesheetId, canEdit }: Props) {
-  const [openSection, setOpenSection] = useState<string | null>(null);
+export default function TimesheetSections({ timesheetId, canEdit, iftaOdometerStart, iftaOdometerEnd, onIftaOdometerStartChange, onIftaOdometerEndChange }: Props) {
   const [entries, setEntries] = useState<Record<string, EntryRecord[]>>({});
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [showForm, setShowForm] = useState<string | null>(null);
@@ -158,21 +161,10 @@ export default function TimesheetSections({ timesheetId, canEdit }: Props) {
     [timesheetId],
   );
 
-  // Load entries when a section is opened
+  // Load all section entries on mount
   useEffect(() => {
-    if (openSection && !entries[openSection]) {
-      fetchSection(openSection);
-    }
-  }, [openSection, entries, fetchSection]);
-
-  // ── Toggle section ─────────────────────────────────────────────────
-
-  function toggleSection(key: string) {
-    setOpenSection((prev) => (prev === key ? null : key));
-    setShowForm(null);
-    setEditingEntry(null);
-    setFormData({});
-  }
+    SECTIONS.forEach(s => fetchSection(s.key));
+  }, [fetchSection]);
 
   // ── Save entry (create or update) ──────────────────────────────────
 
@@ -262,14 +254,9 @@ export default function TimesheetSections({ timesheetId, canEdit }: Props) {
   // ── Render ─────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider mb-4">
-        Sub-Sections
-      </h3>
-
+    <div className="space-y-6">
       {SECTIONS.map((section) => {
         const colors = COLOR_MAP[section.color];
-        const isOpen = openSection === section.key;
         const sectionEntries = entries[section.key] ?? [];
         const isLoading = loading[section.key];
         const isFormOpen = showForm === section.key;
@@ -277,51 +264,66 @@ export default function TimesheetSections({ timesheetId, canEdit }: Props) {
         return (
           <div
             key={section.key}
-            className={`rounded-xl border transition-colors ${
-              isOpen ? colors.border + " " + colors.bg : "border-gray-800 bg-gray-900/30"
-            }`}
+            className={`p-6 rounded-xl border ${colors.border} ${colors.bg}`}
           >
             {/* Section header */}
-            <button
-              onClick={() => toggleSection(section.key)}
-              className="w-full flex items-center justify-between px-4 py-3 text-left"
-            >
-              <div className="flex items-center gap-3">
-                <span className="text-lg">{section.icon}</span>
-                <span className={`text-sm font-bold ${isOpen ? colors.text : "text-gray-300"}`}>
-                  {section.label}
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-xl">{section.icon}</span>
+              <h2 className={`text-lg font-bold ${colors.text}`}>
+                {section.label}
+              </h2>
+              {sectionEntries.length > 0 && (
+                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${colors.badge}`}>
+                  {sectionEntries.length}
                 </span>
-                {sectionEntries.length > 0 && (
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${colors.badge}`}>
-                    {sectionEntries.length}
-                  </span>
-                )}
+              )}
+            </div>
+
+            {/* IFTA Odometer fields — only in IFTA section */}
+            {section.key === "ifta_entries" && onIftaOdometerStartChange && onIftaOdometerEndChange && (
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
+                    IFTA Odometer Start
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={iftaOdometerStart ?? ""}
+                    onChange={(e) => onIftaOdometerStartChange(e.target.value ? parseInt(e.target.value) : null)}
+                    disabled={!canEdit}
+                    placeholder="Week start mileage"
+                    className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-green-500 disabled:opacity-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
+                    IFTA Odometer End
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={iftaOdometerEnd ?? ""}
+                    onChange={(e) => onIftaOdometerEndChange(e.target.value ? parseInt(e.target.value) : null)}
+                    disabled={!canEdit}
+                    placeholder="Week end mileage"
+                    className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-green-500 disabled:opacity-50"
+                  />
+                </div>
               </div>
-              <svg
-                className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? "rotate-180" : ""}`}
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </button>
+            )}
 
-            {/* Expanded content */}
-            {isOpen && (
-              <div className="px-4 pb-4 space-y-3">
-                {isLoading && (
-                  <div className="flex justify-center py-4">
-                    <div className="w-5 h-5 rounded-full border-2 border-gray-600 border-t-gray-300 animate-spin" />
-                  </div>
-                )}
+            {/* Section content */}
+            <div className="space-y-3">
+              {isLoading && (
+                <div className="flex justify-center py-4">
+                  <div className="w-5 h-5 rounded-full border-2 border-gray-600 border-t-gray-300 animate-spin" />
+                </div>
+              )}
 
-                {!isLoading && sectionEntries.length === 0 && !isFormOpen && (
-                  <p className="text-gray-500 text-sm py-2">No entries yet</p>
-                )}
+              {!isLoading && sectionEntries.length === 0 && !isFormOpen && (
+                <p className="text-gray-500 text-sm italic">No {section.label.toLowerCase()} entered for this week</p>
+              )}
 
                 {/* Existing entries */}
                 {!isLoading &&
@@ -533,13 +535,12 @@ export default function TimesheetSections({ timesheetId, canEdit }: Props) {
                 {canEdit && !isFormOpen && (
                   <button
                     onClick={() => startAdd(section.key)}
-                    className={`w-full py-2 rounded-lg border border-dashed border-gray-700 text-gray-500 hover:text-white hover:border-gray-500 text-sm font-medium transition-colors`}
+                    className={`w-full py-2.5 rounded-lg border ${colors.border} text-sm font-bold ${colors.text} hover:bg-gray-800/50 transition-colors`}
                   >
                     + Add {section.label.replace(/s$/, "").replace(/ies$/, "y")}
                   </button>
                 )}
               </div>
-            )}
           </div>
         );
       })}
