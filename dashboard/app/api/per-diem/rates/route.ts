@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
 
     if (error) throw error;
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "per_diem_rate_updated",
       details: {
         rate_id: data.id,
@@ -222,7 +222,7 @@ export async function PATCH(request: NextRequest) {
 
     if (error) throw error;
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "per_diem_rate_updated",
       details: {
         rate_id: rateId,

@@ -6,7 +6,7 @@ the dashboard can read one reading and get 7 days of pre-aggregated history.
 
 Usage in j1939_sensor.py:
     from .j1939_rollup import HourlyRollup
-    rollup = HourlyRollup("/home/andrew/.viam/rollup")
+    rollup = HourlyRollup(str(Path.home() / ".viam/rollup"))
     # In get_readings():
     rollup.ingest(readings)
     readings.update(rollup.to_summary())
@@ -15,7 +15,6 @@ Usage in j1939_sensor.py:
 
 import json
 import os
-import pickle
 import time
 from collections import defaultdict
 from typing import Any
@@ -109,7 +108,7 @@ class HourlyRollup:
 
         if persist_dir:
             os.makedirs(persist_dir, exist_ok=True)
-            self._persist_path = os.path.join(persist_dir, "j1939_rollup.pkl")
+            self._persist_path = os.path.join(persist_dir, "j1939_rollup.json")
             self._load()
 
     def _current_hour_key(self) -> str:
@@ -172,9 +171,19 @@ class HourlyRollup:
         if not self._persist_path:
             return
         try:
+            serializable = {}
+            for key, bucket in self._buckets.items():
+                serializable[key] = {
+                    "hour_key": bucket.hour_key,
+                    "count": bucket.count,
+                    "sums": dict(bucket.sums),
+                    "mins": dict(bucket.mins),
+                    "maxs": dict(bucket.maxs),
+                    "bool_true_counts": dict(bucket.bool_true_counts),
+                }
             tmp = self._persist_path + ".tmp"
-            with open(tmp, "wb") as f:
-                pickle.dump(self._buckets, f, protocol=pickle.HIGHEST_PROTOCOL)
+            with open(tmp, "w") as f:
+                json.dump(serializable, f, separators=(",", ":"))
             os.replace(tmp, self._persist_path)
         except Exception as exc:
             LOGGER.warning("Rollup save failed: %s", exc)
@@ -183,10 +192,24 @@ class HourlyRollup:
         if not self._persist_path or not os.path.exists(self._persist_path):
             return
         try:
-            with open(self._persist_path, "rb") as f:
-                self._buckets = pickle.load(f)
+            with open(self._persist_path, "r") as f:
+                raw = json.load(f)
+            self._buckets = {}
+            for key, data in raw.items():
+                bucket = HourlyBucket(data["hour_key"])
+                bucket.count = data["count"]
+                bucket.sums = defaultdict(float, data.get("sums", {}))
+                bucket.mins = data.get("mins", {})
+                bucket.maxs = data.get("maxs", {})
+                bucket.bool_true_counts = defaultdict(int, {
+                    k: int(v) for k, v in data.get("bool_true_counts", {}).items()
+                })
+                self._buckets[key] = bucket
             LOGGER.info("Loaded rollup: %d hourly buckets", len(self._buckets))
             self._prune()
+        except (json.JSONDecodeError, KeyError, TypeError) as exc:
+            LOGGER.warning("Rollup file is not valid JSON (old pickle format?), starting fresh: %s", exc)
+            self._buckets = {}
         except Exception as exc:
             LOGGER.warning("Rollup load failed (starting fresh): %s", exc)
             self._buckets = {}

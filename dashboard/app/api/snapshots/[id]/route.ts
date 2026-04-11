@@ -48,6 +48,6 @@ export async function DELETE(
     return NextResponse.json({ error: "Failed to delete" }, { status: 500 });
   }
 
-  logAudit({ action: "snapshot_deleted", details: { snapshot_id: id } });
+  await logAudit({ action: "snapshot_deleted", details: { snapshot_id: id } });
   return NextResponse.json({ ok: true });
 }

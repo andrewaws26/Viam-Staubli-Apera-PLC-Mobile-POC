@@ -117,8 +117,8 @@ class TestHourlyRollup:
 
     def test_persistence_survives_corruption(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            pkl_path = os.path.join(tmpdir, "plc_rollup.pkl")
-            with open(pkl_path, "w") as f:
-                f.write("not a pickle file")
+            json_path = os.path.join(tmpdir, "plc_rollup.json")
+            with open(json_path, "w") as f:
+                f.write("not valid json")
             r = HourlyRollup(tmpdir)
             assert len(r._buckets) == 0  # graceful fallback

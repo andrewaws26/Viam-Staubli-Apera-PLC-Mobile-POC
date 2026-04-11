@@ -295,7 +295,7 @@ export async function POST(request: NextRequest) {
 
       if (error) throw error;
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "account_created",
         details: { entity: "sales_tax_rate", rate_id: data.id, name, jurisdiction, rate },
       });
@@ -356,7 +356,7 @@ export async function POST(request: NextRequest) {
 
       if (error) throw error;
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "account_created",
         details: {
           entity: "sales_tax_exemption",
@@ -468,7 +468,7 @@ export async function PATCH(request: NextRequest) {
 
       if (error) throw error;
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "account_updated",
         details: { entity: "sales_tax_rate", rate_id: id, updates },
       });
@@ -499,7 +499,7 @@ export async function PATCH(request: NextRequest) {
 
       if (error) throw error;
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "account_updated",
         details: { entity: "sales_tax_exemption", exemption_id: id, updates },
       });
@@ -559,7 +559,7 @@ export async function DELETE(request: NextRequest) {
 
       if (error) throw error;
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "account_deactivated",
         details: { entity: "sales_tax_rate", rate_id: id },
       });
@@ -577,7 +577,7 @@ export async function DELETE(request: NextRequest) {
 
       if (error) throw error;
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "account_deactivated",
         details: { entity: "sales_tax_exemption", exemption_id: id },
       });

@@ -11,6 +11,7 @@ import struct
 import subprocess
 import time
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 from viam.logging import getLogger
@@ -27,14 +28,14 @@ from .pgn_decoder import (
 
 LOGGER = getLogger(__name__)
 
-# Default offline buffer config — hardcoded to the Pi's deploy user home dir.
+# Default offline buffer config — resolves to the current user's home dir.
 # Overridable via Viam machine config attributes "buffer_dir" and "buffer_max_mb".
-DEFAULT_BUFFER_DIR = "/home/andrew/.viam/offline-buffer/truck"
+DEFAULT_BUFFER_DIR = str(Path.home() / ".viam/offline-buffer/truck")
 DEFAULT_BUFFER_MAX_MB = 50.0
 
 # Default proprietary PGN capture config — same deploy user convention.
 # Overridable via config attribute "prop_log_dir".
-DEFAULT_PROP_LOG_DIR = "/home/andrew/.viam/proprietary-pgns"
+DEFAULT_PROP_LOG_DIR = str(Path.home() / ".viam/proprietary-pgns")
 DEFAULT_PROP_LOG_MAX_MB = 100.0
 _PROP_SAMPLE_INTERVAL = 10.0  # seconds between logging same PGN (avoid flooding)
 
@@ -384,6 +385,24 @@ def start_can_listener(can_interface: str, bus_type: str, bitrate: int):
     """
     try:
         import can
+        # Verify listen-only mode is active
+        try:
+            result = subprocess.run(
+                ["ip", "-d", "link", "show", can_interface],
+                capture_output=True, text=True, timeout=5,
+            )
+            if "LISTEN-ONLY" not in result.stdout.upper() and "listen-only" not in result.stdout:
+                LOGGER.critical(
+                    "SAFETY: CAN interface %s is NOT in listen-only mode! "
+                    "Refusing to start — normal mode would disrupt truck ECU communication. "
+                    "Fix: sudo ip link set %s type can listen-only on",
+                    can_interface, can_interface,
+                )
+                return None
+            LOGGER.info("CAN listen-only mode verified for %s", can_interface)
+        except Exception as e:
+            LOGGER.warning("Could not verify listen-only mode: %s (proceeding with caution)", e)
+
         bus = can.Bus(
             channel=can_interface,
             interface=bus_type,

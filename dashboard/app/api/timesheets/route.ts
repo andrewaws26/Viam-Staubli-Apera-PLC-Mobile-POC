@@ -215,7 +215,7 @@ export async function POST(request: NextRequest) {
       await sb.from("timesheet_daily_logs").insert(logRows);
     }
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "timesheet_created",
       details: {
         timesheet_id: data.id,

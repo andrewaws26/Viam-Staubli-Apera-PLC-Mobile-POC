@@ -162,7 +162,7 @@ export async function PATCH(request: NextRequest) {
 
     if (error) throw error;
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "profile_updated",
       details: {
         target_user_id: targetUserId,

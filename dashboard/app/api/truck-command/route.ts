@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
 
     // Audit log for commands
     const auditAction = command === "clear_dtcs" ? "dtc_clear" as const : "plc_command" as const;
-    logAudit({
+    await logAudit({
       action: auditAction,
       truckId: truck.id,
       details: { command, params: body, result_preview: JSON.stringify(result).substring(0, 500) },

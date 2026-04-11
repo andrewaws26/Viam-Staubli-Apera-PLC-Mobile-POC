@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
 
     if (error) throw error;
 
-    logAuditDirect(userId, authorName, role, {
+    await logAuditDirect(userId, authorName, role, {
       action: "note_created",
       truckId: truck_id,
       details: { note_id: data.id, body_preview: noteBody.trim().substring(0, 100) },
@@ -176,7 +176,7 @@ export async function DELETE(request: NextRequest) {
     const { error: delErr } = await sb.from("truck_notes").delete().eq("id", noteId);
     if (delErr) throw delErr;
 
-    logAudit({ action: "note_deleted", details: { note_id: noteId } });
+    await logAudit({ action: "note_deleted", details: { note_id: noteId } });
 
     return NextResponse.json({ ok: true });
   } catch (err) {

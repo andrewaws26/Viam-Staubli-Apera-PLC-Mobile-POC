@@ -323,7 +323,7 @@ export async function POST(request: NextRequest) {
       })
       .eq("id", batchId);
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "import_completed",
       details: {
         batch_id: batchId,
@@ -456,7 +456,7 @@ export async function DELETE(request: NextRequest) {
 
     if (updateErr) throw updateErr;
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "import_rolled_back",
       details: {
         batch_id: body.batch_id,

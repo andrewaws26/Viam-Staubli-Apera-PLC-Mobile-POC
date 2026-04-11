@@ -11,6 +11,7 @@ import os
 import struct
 import threading
 import time
+from pathlib import Path
 
 from viam.logging import getLogger
 
@@ -28,7 +29,7 @@ from .vehicle_profiles import (
 LOGGER = getLogger(__name__)
 
 # VIN cache -- persists last successful VIN read across restarts
-VIN_CACHE_PATH = "/home/andrew/.viam/last-vin.json"
+VIN_CACHE_PATH = str(Path.home() / ".viam/last-vin.json")
 
 
 def auto_detect_protocol(can_interface: str, bus_type: str, bitrate: int) -> str:

@@ -129,7 +129,7 @@ export async function PATCH(
 
     if (error) throw error;
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "account_updated",
       details: {
         account_id: id,
@@ -238,7 +238,7 @@ export async function DELETE(
 
     if (error) throw error;
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "account_deactivated",
       details: {
         account_id: id,

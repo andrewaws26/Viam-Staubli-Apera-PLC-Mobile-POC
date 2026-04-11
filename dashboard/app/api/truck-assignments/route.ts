@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
 
     if (error) throw error;
 
-    logAudit({
+    await logAudit({
       action: "assignment_created",
       truckId: truck_id,
       details: { assigned_user: user_name, assigned_role: user_role ?? "operator", user_id },
@@ -138,7 +138,7 @@ export async function DELETE(request: NextRequest) {
     const { error } = await sb.from("truck_assignments").delete().eq("id", assignmentId);
     if (error) throw error;
 
-    logAudit({ action: "assignment_deleted", details: { assignment_id: assignmentId } });
+    await logAudit({ action: "assignment_deleted", details: { assignment_id: assignmentId } });
 
     return NextResponse.json({ ok: true });
   } catch (err) {

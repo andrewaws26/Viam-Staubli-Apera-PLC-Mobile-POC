@@ -250,7 +250,7 @@ export async function POST(request: NextRequest) {
         sql: gen1.sql, success: true, errorMessage: null,
         rowCount: results.length, executionMs: ms1, retryCount: 0,
       });
-      logAudit({
+      await logAudit({
         action: "report_generated",
         details: { prompt, sql: gen1.sql, row_count: results.length, execution_time_ms: ms1, retry: false },
       });
@@ -321,7 +321,7 @@ export async function POST(request: NextRequest) {
       sql: gen2.sql, success: true, errorMessage: null,
       rowCount: results2.length, executionMs: ms2, retryCount: 1,
     });
-    logAudit({
+    await logAudit({
       action: "report_generated",
       details: {
         prompt,

@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
 
     if (linesErr) throw linesErr;
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "invoice_created",
       details: {
         invoice_id: invoice.id,
@@ -287,7 +287,7 @@ export async function PATCH(request: NextRequest) {
 
       if (upErr) throw upErr;
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "invoice_sent",
         details: { invoice_id: id, invoice_number: invoice.invoice_number, total: invoice.total },
       });
@@ -363,7 +363,7 @@ export async function PATCH(request: NextRequest) {
 
       if (upErr) throw upErr;
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "invoice_payment_recorded",
         details: { invoice_id: id, invoice_number: invoice.invoice_number, amount: paymentAmount, new_status: newStatus },
       });
@@ -392,7 +392,7 @@ export async function PATCH(request: NextRequest) {
 
       if (upErr) throw upErr;
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "invoice_voided",
         details: { invoice_id: id, invoice_number: invoice.invoice_number },
       });

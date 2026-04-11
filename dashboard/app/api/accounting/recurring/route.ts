@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
 
     if (linesErr) throw linesErr;
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "recurring_entry_created",
       details: { id: entry.id, description, frequency },
     });
@@ -272,7 +272,7 @@ export async function PATCH(request: NextRequest) {
         generated++;
       }
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "recurring_entries_generated",
         details: { generated, checked: dueTemplates.length },
       });
@@ -310,7 +310,7 @@ export async function DELETE(request: NextRequest) {
     const { error } = await sb.from("recurring_journal_entries").delete().eq("id", id);
     if (error) throw error;
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "recurring_entry_deleted",
       details: { id },
     });

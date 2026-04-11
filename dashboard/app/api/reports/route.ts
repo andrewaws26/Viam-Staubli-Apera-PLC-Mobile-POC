@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  logAudit({
+  await logAudit({
     action: "report_saved",
     details: { report_id: data.id, name: parsed.data.name },
   });
@@ -165,7 +165,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  logAudit({
+  await logAudit({
     action: "report_updated",
     details: { report_id: parsed.data.id },
   });
@@ -202,7 +202,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  logAudit({
+  await logAudit({
     action: "report_deleted",
     details: { report_id: id },
   });

@@ -221,7 +221,7 @@ export async function POST(request: NextRequest) {
 
       if (error) throw error;
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "expense_rule_created",
         details: { rule_id: data.id, name, match_type, match_pattern, category },
       });
@@ -297,7 +297,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "cc_transactions_categorized",
         details: { matched, total_pending: pending.length },
       });
@@ -406,7 +406,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "cc_transactions_imported",
         details: {
           cc_account_id: ccAccountId,
@@ -615,7 +615,7 @@ export async function POST(request: NextRequest) {
         journalEntryIds.push(entry.id);
       }
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "cc_transactions_posted",
         details: {
           transaction_count: txns.length,
@@ -695,7 +695,7 @@ export async function PATCH(request: NextRequest) {
 
       if (error) throw error;
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "expense_rule_updated",
         details: { rule_id: id, updates },
       });
@@ -780,7 +780,7 @@ export async function DELETE(request: NextRequest) {
 
       if (error) throw error;
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "expense_rule_deleted",
         details: { rule_id: id },
       });

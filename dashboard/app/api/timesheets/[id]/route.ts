@@ -647,7 +647,7 @@ export async function PATCH(
       : body.status === "rejected" ? "timesheet_rejected"
       : "timesheet_updated";
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action,
       details: {
         timesheet_id: id,
@@ -701,7 +701,7 @@ export async function DELETE(
     const { error } = await sb.from("timesheets").delete().eq("id", id);
     if (error) throw error;
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "timesheet_updated",
       details: { timesheet_id: id, action: "deleted", week_ending: existing.week_ending },
     });

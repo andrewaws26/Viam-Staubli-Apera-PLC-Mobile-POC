@@ -184,7 +184,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Audit log after stream completes
-        logAudit({
+        void logAudit({
           action: "help_query",
           details: {
             message_count: messages.length,

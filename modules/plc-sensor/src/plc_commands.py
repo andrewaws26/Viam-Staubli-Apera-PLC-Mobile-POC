@@ -58,7 +58,7 @@ async def dispatch_command(
         _handle_set_mode(client, command, result)
 
     elif action == "set_spacing":
-        _handle_set_spacing(client, command, result)
+        await _handle_set_spacing(client, command, result)
 
     elif action == "toggle_drop_enable":
         _handle_toggle_coil(client, result, address=15, name="Drop enable", c_label="C16")
@@ -73,7 +73,7 @@ async def dispatch_command(
         _handle_toggle_coil(client, result, address=13, name="Drop Ties", c_label="C14")
 
     elif action == "set_detector_offset":
-        _handle_set_detector_offset(client, command, result)
+        await _handle_set_detector_offset(client, command, result)
 
     elif action == "clear_data_counts":
         await _handle_clear_data_counts(client, result)
@@ -184,7 +184,7 @@ def _handle_set_mode(client: Any, command: dict[str, Any], result: dict[str, Any
         result["message"] = f"Modbus write failed: {e}"
 
 
-def _handle_set_spacing(client: Any, command: dict[str, Any], result: dict[str, Any]) -> None:
+async def _handle_set_spacing(client: Any, command: dict[str, Any], result: dict[str, Any]) -> None:
     value = command.get("value")
     if value is None:
         result["message"] = "Missing 'value' parameter (DS2 in 0.5\" units, e.g. 39 = 19.5\")"
@@ -202,12 +202,38 @@ def _handle_set_spacing(client: Any, command: dict[str, Any], result: dict[str, 
             f"Standard is 39 (19.5\")."
         )
         return
+    # Interlock: TPS must be stopped before changing spacing
+    try:
+        di = client.read_discrete_inputs(address=0, count=8)
+        if not di.isError() and bool(di.bits[3]):
+            result["status"] = "error"
+            result["error"] = "TPS must be stopped to change this setting"
+            result["tps_running"] = True
+            return
+    except Exception:
+        LOGGER.debug("Failed to read TPS power state for interlock check")
     spacing_in = value * 0.5
     try:
         # Read current value first for logging
         old = client.read_holding_registers(address=1, count=1)
         old_val = old.registers[0] if not old.isError() else "?"
         client.write_register(address=1, value=value)
+        # Write-verify: wait one PLC scan then read back
+        await asyncio.sleep(0.15)
+        verify = client.read_holding_registers(address=1, count=1)
+        if verify.isError():
+            result["status"] = "error"
+            result["error"] = "Write-verify read failed"
+            result["expected"] = value
+            result["actual"] = None
+            return
+        actual = verify.registers[0]
+        if actual != value:
+            result["status"] = "error"
+            result["error"] = "Write-verify mismatch"
+            result["expected"] = value
+            result["actual"] = actual
+            return
         result["status"] = "ok"
         result["message"] = (
             f"Tie spacing changed: DS2={old_val} ({float(old_val)*0.5 if old_val != '?' else '?'}\")"
@@ -239,7 +265,7 @@ def _handle_toggle_coil(client: Any, result: dict[str, Any], *, address: int, na
         result["message"] = f"Modbus write failed: {e}"
 
 
-def _handle_set_detector_offset(client: Any, command: dict[str, Any], result: dict[str, Any]) -> None:
+async def _handle_set_detector_offset(client: Any, command: dict[str, Any], result: dict[str, Any]) -> None:
     value = command.get("value")
     if value is None:
         result["message"] = "Missing 'value' (DS5 in encoder bits)"
@@ -252,10 +278,36 @@ def _handle_set_detector_offset(client: Any, command: dict[str, Any], result: di
     if value < 100 or value > 5000:
         result["message"] = f"Value {value} out of range (100-5000 bits)."
         return
+    # Interlock: TPS must be stopped before changing detector offset
+    try:
+        di = client.read_discrete_inputs(address=0, count=8)
+        if not di.isError() and bool(di.bits[3]):
+            result["status"] = "error"
+            result["error"] = "TPS must be stopped to change this setting"
+            result["tps_running"] = True
+            return
+    except Exception:
+        LOGGER.debug("Failed to read TPS power state for interlock check")
     try:
         old = client.read_holding_registers(address=4, count=1)
         old_val = old.registers[0] if not old.isError() else "?"
         client.write_register(address=4, value=value)
+        # Write-verify: wait one PLC scan then read back
+        await asyncio.sleep(0.15)
+        verify = client.read_holding_registers(address=4, count=1)
+        if verify.isError():
+            result["status"] = "error"
+            result["error"] = "Write-verify read failed"
+            result["expected"] = value
+            result["actual"] = None
+            return
+        actual = verify.registers[0]
+        if actual != value:
+            result["status"] = "error"
+            result["error"] = "Write-verify mismatch"
+            result["expected"] = value
+            result["actual"] = actual
+            return
         result["status"] = "ok"
         result["message"] = f"Detector offset: DS5={old_val} → {value} bits"
         LOGGER.warning("DO_COMMAND: set_detector_offset DS5=%d — was %s", value, old_val)

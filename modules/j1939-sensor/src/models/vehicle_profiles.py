@@ -10,13 +10,14 @@ import json
 import os
 import time
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Any
 
 from viam.logging import getLogger
 
 LOGGER = getLogger(__name__)
 
-PROFILE_DIR = "/home/andrew/.viam/vehicle-profiles"
+PROFILE_DIR = str(Path.home() / ".viam/vehicle-profiles")
 PROFILE_MAX_AGE_DAYS = 30
 
 # OBD-II CAN IDs (standard 11-bit)

@@ -316,7 +316,7 @@ export async function POST(request: NextRequest) {
 
     if (error) throw error;
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "training_recorded",
       details: {
         record_id: data.id,
@@ -384,7 +384,7 @@ export async function DELETE(request: NextRequest) {
     // Supabase join returns an object (or null) for singular FK relationships
     const reqInfo = existing.training_requirements as unknown as Record<string, unknown> | null;
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "training_deleted",
       details: {
         record_id: recordId,

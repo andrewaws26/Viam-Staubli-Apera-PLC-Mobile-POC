@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
 
     if (error) throw error;
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "fleet_truck_created",
       truckId: data.id,
       details: {
@@ -236,7 +236,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "fleet_truck_updated",
       truckId: data.id,
       details: {
@@ -303,7 +303,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "fleet_truck_decommissioned",
       truckId: data.id,
       details: {

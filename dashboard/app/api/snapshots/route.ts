@@ -219,7 +219,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Failed to save snapshot" }, { status: 500 });
     }
 
-    logAudit({
+    await logAudit({
       action: "snapshot_captured",
       truckId: truck_id,
       details: {

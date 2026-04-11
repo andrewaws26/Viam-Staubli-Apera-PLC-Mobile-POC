@@ -131,7 +131,7 @@ export async function PATCH(request: NextRequest) {
       : action === "lock" ? "accounting_period_lock" as const
       : "accounting_period_reopen" as const;
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: auditAction,
       details: {
         period_id: id,
@@ -305,7 +305,7 @@ export async function POST(request: NextRequest) {
 
     if (lineInsertErr) throw lineInsertErr;
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "year_end_close",
       details: {
         fiscal_year: fiscalYear,

@@ -204,7 +204,7 @@ export async function PATCH(
         ? "pto_rejected" as const
         : "pto_cancelled" as const;
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: auditAction,
       details: {
         pto_id: id,
@@ -263,7 +263,7 @@ export async function DELETE(
     const { error } = await sb.from("pto_requests").delete().eq("id", id);
     if (error) throw error;
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "pto_cancelled",
       details: {
         pto_id: id,
