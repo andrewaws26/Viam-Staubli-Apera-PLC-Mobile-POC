@@ -519,33 +519,6 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
           </div>
         </div>
 
-        {/* IFTA Odometer */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-400 mb-2">IFTA Odometer Start</label>
-            <input
-              type="number"
-              min={0}
-              value={iftaOdometerStart ?? ""}
-              onChange={(e) => setIftaOdometerStart(e.target.value ? parseInt(e.target.value) : null)}
-              disabled={!canEdit}
-              placeholder="Week start mileage"
-              className="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-700 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 disabled:opacity-50"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-400 mb-2">IFTA Odometer End</label>
-            <input
-              type="number"
-              min={0}
-              value={iftaOdometerEnd ?? ""}
-              onChange={(e) => setIftaOdometerEnd(e.target.value ? parseInt(e.target.value) : null)}
-              disabled={!canEdit}
-              placeholder="Week end mileage"
-              className="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-700 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 disabled:opacity-50"
-            />
-          </div>
-        </div>
       </section>
 
       {/* Daily Logs Section */}
@@ -724,6 +697,10 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
           <TimesheetSections
             timesheetId={existingTimesheet.id}
             canEdit={canEdit}
+            iftaOdometerStart={iftaOdometerStart}
+            iftaOdometerEnd={iftaOdometerEnd}
+            onIftaOdometerStartChange={setIftaOdometerStart}
+            onIftaOdometerEndChange={setIftaOdometerEnd}
           />
         </section>
       )}
