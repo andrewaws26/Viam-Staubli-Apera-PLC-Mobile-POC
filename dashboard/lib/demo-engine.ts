@@ -44,28 +44,28 @@ export const DEMO_TIMELINE: DemoEvent[] = [
       "It's 6 AM. You're the operations manager at B&B Metals. You open IronSight on your phone while drinking coffee. Three trucks are scheduled today.",
   },
   {
-    time: 8,
+    time: 14,
     phase: "normal",
     title: "All Systems Normal",
     narration:
       "Everything's green. RAIV 3 is sorting plates \u2014 14 per minute. Engine's at operating temp, robot is cycling, vision system locked in at 91% confidence. You put your phone down.",
   },
   {
-    time: 18,
+    time: 28,
     phase: "temp_rising",
     title: "Something's Brewing",
     narration:
       "The Command Center shifts from green to orange. Cabinet temperature trending up on RAIV 3. The DSI drive module reads 118\u00B0F and climbing. The URPS power supply is getting warm.",
   },
   {
-    time: 28,
+    time: 42,
     phase: "warning",
     title: "Warning Fired",
     narration:
       "Orange alert: URPS thermal warning \u2014 DSI drive module at 131\u00B0F, approaching shutdown threshold. The system is predicting a problem before it becomes one.",
   },
   {
-    time: 38,
+    time: 56,
     phase: "shutdown",
     title: "Thermal Shutdown",
     narration:
@@ -75,7 +75,7 @@ export const DEMO_TIMELINE: DemoEvent[] = [
     chatFrom: "IronSight Bot",
   },
   {
-    time: 50,
+    time: 72,
     phase: "response",
     title: "Team Responds",
     narration:
@@ -85,14 +85,14 @@ export const DEMO_TIMELINE: DemoEvent[] = [
     chatFrom: "Jake (Operator)",
   },
   {
-    time: 62,
+    time: 86,
     phase: "recovery",
     title: "Cooling Down",
     narration:
-      "Cabinet temp is dropping \u2014 125\u00B0F\u2026 120\u00B0F\u2026 115\u00B0F. The system shows the recovery in real-time. You didn't drive to the truck. You didn't open a panel. You didn't guess.",
+      "Cabinet temp is dropping \u2014 118\u00B0F and stabilizing. The system shows the recovery in real-time. You didn't drive to the truck. You didn't open a panel. You didn't guess.",
   },
   {
-    time: 74,
+    time: 100,
     phase: "resolved",
     title: "Back Online",
     narration:
@@ -101,14 +101,14 @@ export const DEMO_TIMELINE: DemoEvent[] = [
     chatFrom: "Jake (Operator)",
   },
   {
-    time: 86,
+    time: 116,
     phase: "shift_end",
     title: "End of Shift",
     narration:
       "5 PM. Jake taps 'Log Time' on his phone \u2014 10 hours, NS Track Repair, 312 plates sorted. You approve with one tap. The shift report generates automatically: 92% uptime, 1 thermal event, 312 plates, all DTCs documented.",
   },
   {
-    time: 98,
+    time: 134,
     phase: "complete",
     title: "That's IronSight",
     narration:
@@ -271,7 +271,7 @@ export function getDemoSimData(phase: DemoPhase): Record<string, unknown> {
       return {
         ...base,
         staubli_connected: false,                // Robot stopped
-        staubli_temp_dsi: 62 + jitter(1),        // ~143F — above crit
+        staubli_temp_dsi: 61 + jitter(1),        // ~142F — above crit
         staubli_temp_cpu: 72 + jitter(2),
         staubli_temp_j3: 62 + jitter(2),
         staubli_urps_errors_24h: 2,

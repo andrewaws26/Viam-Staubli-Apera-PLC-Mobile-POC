@@ -98,7 +98,7 @@ const TIMELINE: TimelineEvent[] = [
   { time: "14:31:49", message: "F5 (OP STATION) fuse blown \u2014 0V on load side", severity: "critical" },
   { time: "14:31:50", message: "Apera Vue PC \u2014 ping timeout (192.168.3.151)", severity: "critical" },
   { time: "14:31:51", message: "Staubli CS9 reports: No trajectory available", severity: "warning" },
-  { time: "14:32:03", message: "Watchdog: Vision System Offline \u2014 Blown Fuse F5", severity: "critical" },
+  { time: "14:32:03", message: "Watchdog: Vision System Offline \u2014 Blown Fuse F6", severity: "critical" },
 ];
 
 // ---------------------------------------------------------------------------
