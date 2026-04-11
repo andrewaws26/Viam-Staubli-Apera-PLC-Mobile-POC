@@ -108,6 +108,40 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // --- Authorization: verify user owns the timesheet or is a manager ---
+  const sb = getSupabase();
+  const { data: tsRow, error: tsErr } = await sb
+    .from("timesheets")
+    .select("id, user_id, status")
+    .eq("id", timesheet_id)
+    .single();
+
+  if (tsErr || !tsRow) {
+    return NextResponse.json({ error: "Timesheet not found" }, { status: 404 });
+  }
+
+  const isManager = userInfo.role === "developer" || userInfo.role === "manager";
+  const isOwner = tsRow.user_id === userId;
+
+  if (!isOwner && !isManager) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  // Verify the expense entry exists and belongs to this timesheet
+  const { data: entryRow, error: entryErr } = await sb
+    .from("timesheet_expenses")
+    .select("id")
+    .eq("id", entry_id)
+    .eq("timesheet_id", timesheet_id)
+    .single();
+
+  if (entryErr || !entryRow) {
+    return NextResponse.json(
+      { error: "Expense entry not found or does not belong to this timesheet" },
+      { status: 404 },
+    );
+  }
+
   // Decode base64 and check file size
   let buffer: Buffer;
   try {
@@ -132,8 +166,6 @@ export async function POST(request: NextRequest) {
   const bucketName = "expense-receipts";
 
   try {
-    const sb = getSupabase();
-
     // Ensure the bucket exists (no-op if it already does)
     const { error: bucketErr } = await sb.storage.createBucket(bucketName, {
       public: true,

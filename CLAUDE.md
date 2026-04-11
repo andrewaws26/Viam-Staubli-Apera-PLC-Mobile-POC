@@ -423,29 +423,33 @@ Weekly field operations time tracking with approval workflow and 12 specialized 
 **API routes (`dashboard/app/api/timesheets/`):**
 - `timesheets/` — List (own) / create timesheets
 - `timesheets/[id]/` — Get / update / delete individual timesheet
-- `timesheets/[id]/sections?section=<name>` — Sub-section CRUD (GET/POST/PATCH/DELETE for any of the 12 section types)
+- `timesheets/[id]/sections?section=<name>` — Sub-section CRUD (GET/POST/PATCH/DELETE for any of the 10 section types)
 - `timesheets/admin/` — Manager overview with aggregated stats (developer/manager only)
 - `timesheets/vehicles/` — Company vehicle reference data for dropdowns
+- `timesheets/upload/` — Receipt/odometer image upload for expenses (auth + ownership verified)
 
 **Dashboard pages:**
 - `/timesheets` — My Timesheets list (all roles)
-- `/timesheets/new` — Create new timesheet
-- `/timesheets/[id]` — View/edit timesheet with all 12 sections (owner edits drafts, managers approve/reject)
+- `/timesheets/new` — Auto-creates a draft timesheet and redirects to edit page so all sections are visible immediately (matches legacy B&B form UX)
+- `/timesheets/[id]` — View/edit timesheet with all sections flat (owner edits drafts, managers approve/reject)
 - `/timesheets/admin` — Manager overview with pending approvals, employee summaries, bulk approve/reject
 
-**12 sub-sections:**
-1. Railroad Time — hours worked on railroad jobs, Norfolk Southern job code field
-2. Railroad Timecards — formal timecard entries per railroad
-3. Inspections — field inspection records
-4. IFTA — fuel tax tracking with odometer start/end readings
-5. Expenses — categorized expense line items
-6. Maintenance Time — equipment maintenance hours
-7. Shop Time — in-shop work hours
-8. Mileage Pay — mileage-based compensation
-9. Flight Pay — travel flight compensation
-10. Holiday Pay — holiday hours
-11. Vacation Pay — vacation hours used
-12. Daily Logs — start/end time, hours, travel, description per day, lunch_minutes, semi truck travel fields
+**Layout:** Flat sections matching the legacy B&B Metals timesheet — no accordion, all sections always visible with plain bold headers and green "Add" buttons. Daily logs are entry-based (add one at a time via inline form), not a 7-day grid.
+
+**Core daily logs** (part of main timesheet, not a sub-section):
+- Railroad Daily Logs — per-day start/end time, hours, lunch, semi truck travel, travel from/to/miles
+
+**10 sub-sections** (separate tables, managed via sections API):
+1. Railroad Timecards — formal timecard entries per railroad with supervisor/engineer
+2. Inspections — field inspection records with images
+3. IFTA — fuel tax tracking with odometer start/end readings + per-state entries
+4. Expenses — categorized expense line items with receipt/odometer photo upload
+5. Maintenance Time — equipment maintenance hours with parts used
+6. Shop Time — in-shop work hours with lunch break
+7. Mileage Pay — mileage-based compensation with chase vehicle
+8. Flight Pay — travel flight compensation
+9. Holiday Pay — holiday hours
+10. Vacation Pay — vacation hours with start/end date and hours per day
 
 **Workflow:** draft → submitted → approved/rejected. Rejected timesheets can be edited and resubmitted. Managers can also withdraw submissions.
 
