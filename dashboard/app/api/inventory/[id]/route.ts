@@ -171,7 +171,7 @@ export async function PATCH(
       throw error;
     }
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "inventory_updated",
       details: {
         operation: "update",
@@ -257,7 +257,7 @@ export async function DELETE(
 
     if (error) throw error;
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "inventory_updated",
       details: {
         operation: "soft_delete",

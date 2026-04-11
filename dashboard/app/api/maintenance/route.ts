@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
 
     if (error) throw error;
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "maintenance_logged",
       truckId: truck_id as string,
       details: { event_type, performed_by, mileage, description: (description as string)?.substring(0, 100) },
@@ -113,7 +113,7 @@ export async function DELETE(request: NextRequest) {
     const { error } = await sb.from("maintenance_events").delete().eq("id", id);
     if (error) throw error;
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "maintenance_deleted",
       details: { event_id: id },
     });

@@ -198,7 +198,7 @@ export async function PATCH(request: NextRequest) {
 
     if (error) throw error;
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "pto_approved", // Reusing closest audit action for balance adjustments
       details: {
         action: "balance_adjusted",

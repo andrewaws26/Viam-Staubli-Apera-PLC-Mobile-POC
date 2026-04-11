@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
       }))
     );
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "bill_created",
       details: { bill_id: bill.id, vendor_id, total },
     });
@@ -275,7 +275,7 @@ export async function PATCH(request: NextRequest) {
 
       if (upErr) throw upErr;
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "bill_payment_recorded",
         details: { bill_id: id, amount: paymentAmount },
       });
@@ -300,7 +300,7 @@ export async function PATCH(request: NextRequest) {
 
       if (upErr) throw upErr;
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "bill_voided",
         details: { bill_id: id },
       });

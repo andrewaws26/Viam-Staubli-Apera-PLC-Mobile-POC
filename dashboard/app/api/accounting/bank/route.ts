@@ -376,7 +376,7 @@ export async function PATCH(request: NextRequest) {
           .eq("cleared", true)
           .lte("transaction_date", session.statement_date);
 
-        logAuditDirect(userId, userInfo.name, userInfo.role, {
+        await logAuditDirect(userId, userInfo.name, userInfo.role, {
           action: "bank_reconciliation_completed",
           details: {
             reconciliation_id: reconId,

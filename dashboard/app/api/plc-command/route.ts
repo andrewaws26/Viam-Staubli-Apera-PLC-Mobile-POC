@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = await sensor.doCommand(body as any);
 
-    logAudit({
+    await logAudit({
       action: "plc_command",
       truckId: truck.id,
       details: { action: _action, params: body },

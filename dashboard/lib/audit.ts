@@ -1,6 +1,6 @@
 /**
- * Audit log helper — fire-and-forget writes to the audit_log table.
- * Import and call logAudit() from any API route.
+ * Audit log helper — awaitable writes to the audit_log table with retry.
+ * Import and call `await logAudit()` from any async API route handler.
  */
 
 import { auth, clerkClient } from "@clerk/nextjs/server";
@@ -122,48 +122,60 @@ async function getAuditUser(): Promise<{
 
 /**
  * Write an audit log entry for the current authenticated user.
- * Non-blocking — errors are logged but never thrown.
+ * Awaitable with one retry on failure (500ms delay).
+ * If both attempts fail, logs to console (hits Vercel logs).
  */
-export function logAudit(entry: AuditEntry): void {
-  getAuditUser().then((user) => {
-    if (!user) return;
-    const sb = getSupabase();
-    sb.from("audit_log")
-      .insert({
-        user_id: user.userId,
-        user_name: user.userName,
-        user_role: user.userRole,
-        action: entry.action,
-        truck_id: entry.truckId ?? null,
-        details: entry.details ?? {},
-      })
-      .then(({ error }) => {
-        if (error) console.error("[AUDIT-ERROR]", error.message);
-      });
-  });
+export async function logAudit(entry: AuditEntry): Promise<void> {
+  const user = await getAuditUser();
+  if (!user) return;
+
+  const sb = getSupabase();
+  const row = {
+    user_id: user.userId,
+    user_name: user.userName,
+    user_role: user.userRole,
+    action: entry.action,
+    truck_id: entry.truckId ?? null,
+    details: entry.details ?? {},
+  };
+
+  const { error } = await sb.from("audit_log").insert(row);
+  if (!error) return;
+
+  // Retry once after 500ms
+  await new Promise((r) => setTimeout(r, 500));
+  const { error: retryError } = await sb.from("audit_log").insert(row);
+  if (retryError) {
+    console.error("[AUDIT] Failed after retry:", retryError.message);
+  }
 }
 
 /**
  * Write an audit log entry with explicit user info (when you already have it).
- * Non-blocking — errors are logged but never thrown.
+ * Awaitable with one retry on failure (500ms delay).
  */
-export function logAuditDirect(
+export async function logAuditDirect(
   userId: string,
   userName: string,
   userRole: string,
   entry: AuditEntry,
-): void {
+): Promise<void> {
   const sb = getSupabase();
-  sb.from("audit_log")
-    .insert({
-      user_id: userId,
-      user_name: userName,
-      user_role: userRole,
-      action: entry.action,
-      truck_id: entry.truckId ?? null,
-      details: entry.details ?? {},
-    })
-    .then(({ error }) => {
-      if (error) console.error("[AUDIT-ERROR]", error.message);
-    });
+  const row = {
+    user_id: userId,
+    user_name: userName,
+    user_role: userRole,
+    action: entry.action,
+    truck_id: entry.truckId ?? null,
+    details: entry.details ?? {},
+  };
+
+  const { error } = await sb.from("audit_log").insert(row);
+  if (!error) return;
+
+  await new Promise((r) => setTimeout(r, 500));
+  const { error: retryError } = await sb.from("audit_log").insert(row);
+  if (retryError) {
+    console.error("[AUDIT] Failed after retry:", retryError.message);
+  }
 }

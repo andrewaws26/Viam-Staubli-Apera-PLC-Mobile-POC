@@ -19,8 +19,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAiHistorySummary } from "@/lib/ai-history";
 import { runDiagnostics, formatDiagnosticNotes } from "@/lib/ai-diagnostics";
 import { AiChatBody, parseBody } from "@/lib/api-schemas";
-import { requireRole } from "@/lib/auth-guard";
+import { requireRole, getAuthUserId } from "@/lib/auth-guard";
 import { logAudit } from "@/lib/audit";
+import { aiEndpointLimiter } from "@/lib/rate-limit";
 import { getVehicleHistoryText } from "@/lib/vehicle-history";
 import { compactReadings, appendTruncationNotice, TRUNCATION_NOTICE } from "@/lib/ai-utils";
 
@@ -104,6 +105,18 @@ FOLLOW-UP QUESTIONS: At the end of EVERY response, include 2-3 suggested follow-
 export async function POST(request: NextRequest) {
   const denied = await requireRole("/api/ai-chat");
   if (denied) return denied;
+
+  // Rate limit: 20 requests per minute per user
+  const userId = await getAuthUserId();
+  if (userId) {
+    const rateCheck = aiEndpointLimiter.check(userId);
+    if (!rateCheck.allowed) {
+      return NextResponse.json(
+        { error: "Rate limited", retryAfterMs: rateCheck.retryAfterMs },
+        { status: 429, headers: { "Retry-After": String(Math.ceil(rateCheck.retryAfterMs / 1000)) } },
+      );
+    }
+  }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -278,7 +291,7 @@ export async function POST(request: NextRequest) {
 
           // Log after stream completes
           logConversation(apiMessages, fullReply, readings).catch(() => {});
-          logAudit({
+          void logAudit({
             action: "ai_chat",
             details: {
               message_count: messages.length,
@@ -315,7 +328,7 @@ export async function POST(request: NextRequest) {
 
     logConversation(apiMessages, reply, readings).catch(() => {});
 
-    logAudit({
+    await logAudit({
       action: "ai_chat",
       details: {
         message_count: messages.length,

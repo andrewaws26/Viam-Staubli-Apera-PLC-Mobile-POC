@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
 
     if (linesErr) throw linesErr;
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "estimate_created",
       details: {
         estimate_id: estimate.id,
@@ -225,7 +225,7 @@ export async function PATCH(request: NextRequest) {
 
       if (upErr) throw upErr;
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "estimate_sent",
         details: { estimate_id: id, estimate_number: estimate.estimate_number, total: estimate.total },
       });
@@ -244,7 +244,7 @@ export async function PATCH(request: NextRequest) {
 
       if (upErr) throw upErr;
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "estimate_accepted",
         details: { estimate_id: id, estimate_number: estimate.estimate_number },
       });
@@ -262,7 +262,7 @@ export async function PATCH(request: NextRequest) {
 
       if (upErr) throw upErr;
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "estimate_rejected",
         details: { estimate_id: id, estimate_number: estimate.estimate_number },
       });
@@ -280,7 +280,7 @@ export async function PATCH(request: NextRequest) {
 
       if (upErr) throw upErr;
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "estimate_expired",
         details: { estimate_id: id, estimate_number: estimate.estimate_number },
       });
@@ -342,7 +342,7 @@ export async function PATCH(request: NextRequest) {
 
       if (upErr) throw upErr;
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "estimate_converted",
         details: {
           estimate_id: id,
@@ -398,7 +398,7 @@ export async function DELETE(request: NextRequest) {
       const { error: delErr } = await sb.from("estimates").delete().eq("id", id);
       if (delErr) throw delErr;
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "estimate_deleted",
         details: { estimate_id: id, estimate_number: estimate.estimate_number },
       });
@@ -413,7 +413,7 @@ export async function DELETE(request: NextRequest) {
 
       if (upErr) throw upErr;
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "estimate_voided",
         details: { estimate_id: id, estimate_number: estimate.estimate_number },
       });

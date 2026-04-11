@@ -40,14 +40,16 @@ export async function getAuthUserId(): Promise<string | null> {
 
 /**
  * Fetch the user's role from Clerk publicMetadata.
+ * Returns null when Clerk is unreachable (callers should treat as 503).
+ * Returns "operator" only as a legitimate default for new users with no role set.
  */
-async function getUserRole(userId: string): Promise<string> {
+async function getUserRole(userId: string): Promise<string | null> {
   try {
     const client = await clerkClient();
     const user = await client.users.getUser(userId);
     return (user.publicMetadata as Record<string, unknown>)?.role as string || "operator";
   } catch {
-    return "operator";
+    return null;
   }
 }
 
@@ -65,6 +67,9 @@ export async function requireRole(pathname: string) {
   const requiredRoles = ROUTE_PERMISSIONS[pathname];
   if (requiredRoles) {
     const role = await getUserRole(userId);
+    if (role === null) {
+      return NextResponse.json({ error: "Auth service unavailable" }, { status: 503 });
+    }
     if (!hasRole(role, requiredRoles)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -88,6 +93,9 @@ export async function requireTruckAccess(requestedTruckId: string | null) {
   }
 
   const role = await getUserRole(userId);
+  if (role === null) {
+    return NextResponse.json({ error: "Auth service unavailable" }, { status: 503 });
+  }
   if (canSeeAllTrucks(role)) return null;
 
   try {

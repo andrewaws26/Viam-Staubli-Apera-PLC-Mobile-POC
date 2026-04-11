@@ -87,3 +87,9 @@ export const aiMentionLimiter = createRateLimiter({
   windowMs: 60_000,
   max: 5,
 });
+
+/** Rate limiter for AI endpoints (ai-chat, ai-diagnose): 20 per minute per user. */
+export const aiEndpointLimiter = createRateLimiter({
+  windowMs: 60_000,
+  max: 20,
+});

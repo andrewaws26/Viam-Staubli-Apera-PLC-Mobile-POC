@@ -283,7 +283,7 @@ export async function POST(request: NextRequest) {
 
     if (linesErr) throw linesErr;
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "journal_entry_created",
       details: {
         entry_id: entry.id,

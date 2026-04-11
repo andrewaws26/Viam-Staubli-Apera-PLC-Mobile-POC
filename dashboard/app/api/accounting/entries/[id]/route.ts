@@ -218,7 +218,7 @@ export async function PATCH(
           .eq("id", line.account_id);
       }
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "journal_entry_posted",
         details: {
           entry_id: id,
@@ -309,7 +309,7 @@ export async function PATCH(
           .eq("id", line.account_id);
       }
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "journal_entry_voided",
         details: {
           entry_id: id,
@@ -503,7 +503,7 @@ export async function DELETE(
 
     if (entryDelErr) throw entryDelErr;
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "journal_entry_deleted",
       details: {
         entry_id: id,

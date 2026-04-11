@@ -225,7 +225,7 @@ export async function POST(request: NextRequest) {
 
       if (assetErr) throw assetErr;
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "fixed_asset_created",
         details: { asset_id: asset.id, name, purchase_cost, category },
       });
@@ -422,7 +422,7 @@ export async function POST(request: NextRequest) {
         await sb.from("fixed_assets").update(updates).eq("id", calc.asset.id);
       }
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "depreciation_run",
         details: {
           period_date: periodDate,
@@ -628,7 +628,7 @@ export async function PATCH(request: NextRequest) {
 
       if (upErr) throw upErr;
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "fixed_asset_disposed",
         details: {
           asset_id: id,
@@ -687,7 +687,7 @@ export async function PATCH(request: NextRequest) {
 
       if (upErr) throw upErr;
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "fixed_asset_updated",
         details: { asset_id: id, fields: Object.keys(updates).filter((k) => k !== "updated_at") },
       });

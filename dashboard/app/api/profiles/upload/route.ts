@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
       })
       .eq("user_id", userId);
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "profile_picture_uploaded",
       details: {
         file_path: filePath,

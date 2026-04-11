@@ -148,7 +148,7 @@ export async function POST(request: NextRequest) {
       await sb.from("work_order_subtasks").insert(subtaskRows);
     }
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "work_order_created",
       truckId: (truck_id as string) ?? undefined,
       details: {
@@ -293,7 +293,7 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "work_order_updated",
       truckId: existing.truck_id ?? undefined,
       details: {
@@ -336,7 +336,7 @@ export async function DELETE(request: NextRequest) {
     const { error } = await sb.from("work_orders").delete().eq("id", id);
     if (error) throw error;
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "work_order_deleted",
       details: { work_order_id: id },
     });

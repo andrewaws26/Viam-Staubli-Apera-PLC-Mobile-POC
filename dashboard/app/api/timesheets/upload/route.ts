@@ -187,7 +187,7 @@ export async function POST(request: NextRequest) {
       console.error("[DOCUMENTS-INSERT-WARN]", docErr.message);
     }
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "timesheet_updated",
       details: {
         timesheet_id,

@@ -200,7 +200,7 @@ export async function POST(request: NextRequest) {
 
     if (updateErr) throw updateErr;
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "inventory_updated",
       details: {
         operation: "usage_logged",

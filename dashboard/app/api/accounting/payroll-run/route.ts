@@ -619,7 +619,7 @@ export async function POST(request: NextRequest) {
 
     if (linesErr) throw linesErr;
 
-    logAuditDirect(userId, userInfo.name, userInfo.role, {
+    await logAuditDirect(userId, userInfo.name, userInfo.role, {
       action: "journal_entry_created" as const,
       details: {
         type: "payroll_run_created",
@@ -1084,7 +1084,7 @@ export async function PATCH(request: NextRequest) {
         }
       }
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "journal_entry_posted" as const,
         details: {
           type: "payroll_run_posted",
@@ -1215,7 +1215,7 @@ export async function PATCH(request: NextRequest) {
 
       if (updateErr) throw updateErr;
 
-      logAuditDirect(userId, userInfo.name, userInfo.role, {
+      await logAuditDirect(userId, userInfo.name, userInfo.role, {
         action: "journal_entry_voided" as const,
         details: {
           type: "payroll_run_voided",

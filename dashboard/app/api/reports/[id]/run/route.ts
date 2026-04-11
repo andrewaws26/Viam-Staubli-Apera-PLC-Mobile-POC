@@ -76,7 +76,7 @@ export async function POST(
     })
     .eq("id", id);
 
-  logAudit({
+  await logAudit({
     action: "report_run",
     details: { report_id: id, report_name: report.name, row_count: results.length },
   });
