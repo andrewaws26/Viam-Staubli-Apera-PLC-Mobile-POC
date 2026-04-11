@@ -19,13 +19,7 @@ import { colors } from '@/theme/colors';
 import { spacing, radii } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
 
-const ROLE_COLORS: Record<string, string> = {
-  developer: '#a855f7',
-  manager: '#3b82f6',
-  mechanic: '#22c55e',
-  operator: '#eab308',
-  ai: '#06b6d4',
-};
+import { ROLE_COLORS } from '@/utils/role-colors';
 
 function MessageItem({
   message,

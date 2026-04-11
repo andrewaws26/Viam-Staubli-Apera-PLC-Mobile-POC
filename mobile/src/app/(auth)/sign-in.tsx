@@ -156,13 +156,13 @@ const styles = StyleSheet.create({
   logoText: {
     color: colors.primaryLight,
     fontSize: typography.sizes['4xl'],
-    fontWeight: typography.weights.black,
+    fontFamily: typography.fonts.display,
     letterSpacing: 4,
   },
   subtitle: {
     color: colors.textSecondary,
     fontSize: typography.sizes.base,
-    fontWeight: typography.weights.medium,
+    fontFamily: typography.fonts.label,
     letterSpacing: 2,
     textTransform: 'uppercase',
     marginTop: spacing.xs,
@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
   heading: {
     color: colors.text,
     fontSize: typography.sizes['2xl'],
-    fontWeight: typography.weights.bold,
+    fontFamily: typography.fonts.heading,
   },
   description: {
     color: colors.textSecondary,

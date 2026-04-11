@@ -372,13 +372,7 @@ export default function WorkOrderDetailScreen() {
 
 // ── Inline Work Order Chat ───────────────────────────────────────────
 
-const ROLE_COLORS: Record<string, string> = {
-  developer: '#a855f7',
-  manager: '#3b82f6',
-  mechanic: '#22c55e',
-  operator: '#eab308',
-  ai: '#06b6d4',
-};
+import { ROLE_COLORS } from '@/utils/role-colors';
 
 function WorkOrderChat({ workOrderId, currentUserId }: { workOrderId: string; currentUserId: string }) {
   const { getOrCreateEntityThread, sendMessage, fetchMessages, messages, toggleReaction } = useChatStore();
@@ -540,7 +534,7 @@ const chatStyles = StyleSheet.create({
   loadingContainer: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md },
   loadingText: { color: colors.textMuted, fontSize: typography.sizes.xs },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.md, backgroundColor: colors.card },
-  headerLabel: { color: colors.textSecondary, fontSize: typography.sizes.xs, fontWeight: typography.weights.bold as any, textTransform: 'uppercase', letterSpacing: 1 },
+  headerLabel: { color: colors.textSecondary, fontSize: typography.sizes.xs, fontFamily: typography.fonts.heading, textTransform: 'uppercase', letterSpacing: 1 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   msgCount: { color: colors.textMuted, fontSize: typography.sizes.xs },
   chevron: { color: colors.textMuted, fontSize: typography.sizes.xs },
@@ -554,8 +548,8 @@ const chatStyles = StyleSheet.create({
   bubbleOther: { alignSelf: 'flex-start', backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border },
   bubbleAi: { alignSelf: 'flex-start', backgroundColor: '#0891b210', borderWidth: 1, borderColor: '#0891b230' },
   senderRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 },
-  senderName: { color: colors.text, fontSize: 11, fontWeight: typography.weights.semibold as any },
-  senderRole: { fontSize: 9, fontWeight: typography.weights.bold as any },
+  senderName: { color: colors.text, fontSize: 11, fontFamily: typography.fonts.heading },
+  senderRole: { fontSize: 9, fontFamily: typography.fonts.heading },
   msgBody: { color: colors.text, fontSize: typography.sizes.sm, lineHeight: 18 },
   timestamp: { color: colors.textMuted, fontSize: 9, marginTop: 2 },
   reactionRow: { flexDirection: 'row', gap: 4, marginTop: 4, flexWrap: 'wrap' },
@@ -565,7 +559,7 @@ const chatStyles = StyleSheet.create({
   textInput: { flex: 1, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, color: colors.text, fontSize: typography.sizes.sm, maxHeight: 80 },
   sendBtn: { backgroundColor: '#7c3aed', paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: 10 },
   sendBtnDisabled: { backgroundColor: colors.border },
-  sendBtnText: { color: '#fff', fontSize: typography.sizes.sm, fontWeight: typography.weights.semibold as any },
+  sendBtnText: { color: '#fff', fontSize: typography.sizes.sm, fontFamily: typography.fonts.heading },
 });
 
 // ── Snapshot Metric ──────────────────────────────────────────────────
@@ -586,31 +580,31 @@ const styles = StyleSheet.create({
   header: { padding: spacing.lg, gap: spacing.sm },
   titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
   priorityDot: { width: 12, height: 12, borderRadius: 6, marginTop: 4 },
-  title: { color: colors.text, fontSize: typography.sizes.lg, fontWeight: typography.weights.bold as any, flex: 1 },
+  title: { color: colors.text, fontSize: typography.sizes.lg, fontFamily: typography.fonts.heading, flex: 1 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   metaText: { color: colors.textMuted, fontSize: typography.sizes.xs },
   section: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, gap: spacing.sm },
-  sectionLabel: { color: colors.textSecondary, fontSize: typography.sizes.xs, fontWeight: typography.weights.bold as any, textTransform: 'uppercase', letterSpacing: 1 },
+  sectionLabel: { color: colors.textSecondary, fontSize: typography.sizes.xs, fontFamily: typography.fonts.heading, textTransform: 'uppercase', letterSpacing: 1 },
   assignee: { color: colors.text, fontSize: typography.sizes.base, flex: 1 },
   assignRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   assignBtn: { backgroundColor: colors.border, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: 8 },
-  assignBtnText: { color: colors.textSecondary, fontSize: typography.sizes.xs, fontWeight: typography.weights.semibold as any },
+  assignBtnText: { color: colors.textSecondary, fontSize: typography.sizes.xs, fontFamily: typography.fonts.heading },
   assignSheet: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginTop: spacing.sm, overflow: 'hidden' },
   assignOption: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md, paddingVertical: spacing.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   assignOptionUnassign: { color: colors.textMuted, fontSize: typography.sizes.sm },
   assignOptionName: { color: colors.text, fontSize: typography.sizes.sm, flex: 1 },
   assignOptionRole: { color: colors.textMuted, fontSize: typography.sizes.xs },
   assignAvatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.border, alignItems: 'center', justifyContent: 'center' },
-  assignAvatarText: { color: colors.textSecondary, fontSize: typography.sizes.xs, fontWeight: typography.weights.bold as any },
+  assignAvatarText: { color: colors.textSecondary, fontSize: typography.sizes.xs, fontFamily: typography.fonts.heading },
   description: { color: colors.textSecondary, fontSize: typography.sizes.sm, lineHeight: 20 },
   blockerCard: { marginHorizontal: spacing.lg, marginBottom: spacing.lg, backgroundColor: '#dc262615', borderColor: '#dc262640', borderWidth: 1 },
-  blockerLabel: { color: colors.dangerLight, fontSize: typography.sizes.xs, fontWeight: typography.weights.bold as any, textTransform: 'uppercase', letterSpacing: 1 },
+  blockerLabel: { color: colors.dangerLight, fontSize: typography.sizes.xs, fontFamily: typography.fonts.heading, textTransform: 'uppercase', letterSpacing: 1 },
   blockerReason: { color: colors.text, fontSize: typography.sizes.sm, marginTop: spacing.xs },
   // Subtasks
   subtaskRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.xs },
   checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   checkboxDone: { backgroundColor: colors.success, borderColor: colors.success },
-  checkmark: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  checkmark: { color: '#fff', fontSize: 12, fontFamily: typography.fonts.heading },
   subtaskText: { color: colors.text, fontSize: typography.sizes.sm, flex: 1 },
   subtaskDone: { color: colors.textMuted, textDecorationLine: 'line-through' },
   // DTCs
@@ -619,9 +613,9 @@ const styles = StyleSheet.create({
   dtcName: { color: colors.textSecondary, fontSize: typography.sizes.xs, flex: 1 },
   // Snapshot
   snapshotCard: { marginHorizontal: spacing.lg, marginBottom: spacing.lg },
-  snapshotTitle: { color: colors.textMuted, fontSize: typography.sizes.xs, fontWeight: typography.weights.bold as any, textTransform: 'uppercase', letterSpacing: 1, marginBottom: spacing.sm },
+  snapshotTitle: { color: colors.textMuted, fontSize: typography.sizes.xs, fontFamily: typography.fonts.heading, textTransform: 'uppercase', letterSpacing: 1, marginBottom: spacing.sm },
   snapshotGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   snapshotMetric: { alignItems: 'center', minWidth: 70 },
   snapshotMetricLabel: { color: colors.textMuted, fontSize: 10 },
-  snapshotMetricValue: { color: colors.text, fontSize: typography.sizes.sm, fontWeight: typography.weights.semibold as any },
+  snapshotMetricValue: { color: colors.text, fontSize: typography.sizes.sm, fontFamily: typography.fonts.heading },
 });

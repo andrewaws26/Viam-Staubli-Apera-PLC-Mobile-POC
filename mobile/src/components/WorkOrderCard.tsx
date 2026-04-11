@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
   title: {
     color: colors.text,
     fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.bold as any,
+    fontFamily: typography.fonts.heading,
     flex: 1,
   },
   metaRow: {
@@ -157,7 +157,7 @@ const styles = StyleSheet.create({
   blockerText: {
     color: colors.dangerLight,
     fontSize: 10,
-    fontWeight: typography.weights.semibold as any,
+    fontFamily: typography.fonts.heading,
   },
   footer: {
     flexDirection: 'row',

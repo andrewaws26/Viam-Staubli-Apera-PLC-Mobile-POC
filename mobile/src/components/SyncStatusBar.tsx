@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
   title: {
     color: colors.text,
     fontSize: typography.sizes.base,
-    fontWeight: typography.weights.bold,
+    fontFamily: typography.fonts.heading,
     marginBottom: spacing.md,
   },
   row: {
@@ -85,7 +85,7 @@ const styles = StyleSheet.create({
   value: {
     color: colors.text,
     fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.semibold,
+    fontFamily: typography.fonts.heading,
   },
   buttonRow: {
     marginTop: spacing.md,

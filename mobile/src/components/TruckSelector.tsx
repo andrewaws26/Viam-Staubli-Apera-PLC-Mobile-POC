@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
   label: {
     color: colors.textSecondary,
     fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.semibold,
+    fontFamily: typography.fonts.heading,
   },
   labelSelected: {
     color: '#ffffff',

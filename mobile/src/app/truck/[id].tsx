@@ -240,12 +240,12 @@ function TruckWorkOrdersSection({ truckId, router }: { truckId: string; router: 
 
 const woStyles = StyleSheet.create({
   container: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, gap: spacing.sm },
-  title: { color: colors.text, fontSize: typography.sizes.base, fontWeight: typography.weights.bold as any, marginBottom: spacing.xs },
+  title: { color: colors.text, fontSize: typography.sizes.base, fontFamily: typography.fonts.heading, marginBottom: spacing.xs },
   empty: { color: colors.textMuted, fontSize: typography.sizes.sm },
   card: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: spacing.sm },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  cardTitle: { color: colors.text, fontSize: typography.sizes.sm, fontWeight: typography.weights.semibold as any, flex: 1 },
+  cardTitle: { color: colors.text, fontSize: typography.sizes.sm, fontFamily: typography.fonts.heading, flex: 1 },
   cardMeta: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: 4, marginLeft: 16 },
   metaText: { color: colors.textMuted, fontSize: typography.sizes.xs },
   blocker: { color: colors.dangerLight, fontSize: typography.sizes.xs, marginTop: 4, marginLeft: 16, fontStyle: 'italic' },
@@ -259,6 +259,6 @@ const styles = StyleSheet.create({
   updated: { color: colors.textMuted, fontSize: typography.sizes.xs, textAlign: 'center', paddingVertical: spacing.xs },
   gaugeRow: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: spacing.lg },
   section: { padding: spacing.lg, gap: spacing.md },
-  sectionTitle: { color: colors.text, fontSize: typography.sizes.base, fontWeight: typography.weights.bold as any, marginBottom: spacing.sm },
+  sectionTitle: { color: colors.text, fontSize: typography.sizes.base, fontFamily: typography.fonts.heading, marginBottom: spacing.sm },
   actions: { padding: spacing.lg },
 });

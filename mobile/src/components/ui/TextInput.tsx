@@ -53,7 +53,7 @@ export default function TextInput({
   return (
     <View style={containerStyle}>
       {label && (
-        <Text style={{ color: colors.textSecondary, fontSize: typography.sizes.sm, fontWeight: typography.weights.medium }}>
+        <Text style={{ color: colors.textSecondary, fontSize: typography.sizes.sm, fontFamily: typography.fonts.label }}>
           {label}
         </Text>
       )}

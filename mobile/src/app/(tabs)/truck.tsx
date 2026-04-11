@@ -179,8 +179,8 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', padding: spacing.lg, gap: spacing.md },
   gridItem: { width: '47%' as any, alignItems: 'center' as any, padding: spacing.md },
   gridLabel: { color: colors.textMuted, fontSize: typography.sizes.xs },
-  gridValue: { color: colors.text, fontSize: typography.sizes.lg, fontWeight: typography.weights.bold as any, marginTop: 4 },
+  gridValue: { color: colors.text, fontSize: typography.sizes.lg, fontFamily: typography.fonts.heading, marginTop: 4 },
   section: { padding: spacing.lg, gap: spacing.md },
-  sectionTitle: { color: colors.text, fontSize: typography.sizes.base, fontWeight: typography.weights.bold as any, marginBottom: spacing.sm },
+  sectionTitle: { color: colors.text, fontSize: typography.sizes.base, fontFamily: typography.fonts.heading, marginBottom: spacing.sm },
   actions: { flexDirection: 'row', padding: spacing.lg, gap: spacing.md },
 });

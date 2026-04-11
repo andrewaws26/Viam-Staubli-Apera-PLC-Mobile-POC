@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
   label: {
     color: colors.textSecondary,
     fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.semibold as any,
+    fontFamily: typography.fonts.heading,
   },
   // Assignment
   assignTrigger: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.md, paddingVertical: spacing.md },
@@ -321,23 +321,23 @@ const styles = StyleSheet.create({
   assignItemName: { color: colors.text, fontSize: typography.sizes.sm, flex: 1 },
   assignItemRole: { color: colors.textMuted, fontSize: typography.sizes.xs },
   assignAvatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.border, alignItems: 'center', justifyContent: 'center' },
-  assignAvatarText: { color: colors.textSecondary, fontSize: typography.sizes.xs, fontWeight: typography.weights.bold as any },
+  assignAvatarText: { color: colors.textSecondary, fontSize: typography.sizes.xs, fontFamily: typography.fonts.heading },
   // Steps
   stepsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   suggestBtn: { backgroundColor: colors.info + '20', borderWidth: 1, borderColor: colors.info + '40', borderRadius: 8, paddingHorizontal: spacing.md, paddingVertical: spacing.xs },
   suggestBtnDisabled: { opacity: 0.4 },
-  suggestBtnText: { color: colors.infoLight, fontSize: typography.sizes.xs, fontWeight: typography.weights.semibold as any },
+  suggestBtnText: { color: colors.infoLight, fontSize: typography.sizes.xs, fontFamily: typography.fonts.heading },
   stepRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   stepNumber: { color: colors.textMuted, fontSize: typography.sizes.xs, width: 20, textAlign: 'right' },
   stepRemove: { paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
-  stepRemoveText: { color: colors.textMuted, fontSize: typography.sizes.sm, fontWeight: typography.weights.bold as any },
+  stepRemoveText: { color: colors.textMuted, fontSize: typography.sizes.sm, fontFamily: typography.fonts.heading },
   addStepBtn: { paddingVertical: spacing.xs, paddingLeft: 28 },
   addStepText: { color: colors.textMuted, fontSize: typography.sizes.xs },
   snapshotCard: { gap: spacing.xs },
   snapshotTitle: {
     color: colors.textMuted,
     fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.semibold as any,
+    fontFamily: typography.fonts.heading,
   },
   snapshotDetail: {
     color: colors.textSecondary,
@@ -346,6 +346,6 @@ const styles = StyleSheet.create({
   snapshotDtc: {
     color: colors.warningLight,
     fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.semibold as any,
+    fontFamily: typography.fonts.heading,
   },
 });
