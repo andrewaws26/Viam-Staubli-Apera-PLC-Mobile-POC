@@ -244,50 +244,102 @@ async def test_set_mode_write_fails(client):
 
 
 @pytest.mark.asyncio
-async def test_set_spacing_valid(client):
-    result = await dispatch_command(client, {"action": "set_spacing", "value": 39})
+async def test_set_spacing_valid(client_tps_off):
+    # Verify read-back returns the written value
+    call_count = {"n": 0}
+    def read_hr(address, count):
+        call_count["n"] += 1
+        r = MagicMock()
+        r.isError.return_value = False
+        r.registers = [0] if call_count["n"] == 1 else [39]
+        return r
+    client_tps_off.read_holding_registers.side_effect = read_hr
+    result = await dispatch_command(client_tps_off, {"action": "set_spacing", "value": 39})
     assert result["status"] == "ok"
     assert "19.5" in result["message"]
-    client.write_register.assert_called_once_with(address=1, value=39)
+    client_tps_off.write_register.assert_called_once_with(address=1, value=39)
 
 
 @pytest.mark.asyncio
-async def test_set_spacing_missing_value(client):
-    result = await dispatch_command(client, {"action": "set_spacing"})
+async def test_set_spacing_blocked_when_tps_running(client):
+    """TPS interlock: spacing change must be rejected when TPS is running."""
+    result = await dispatch_command(client, {"action": "set_spacing", "value": 39})
+    assert result["status"] == "error"
+    assert result["tps_running"] is True
+    assert "stopped" in result["error"]
+    client.write_register.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_set_spacing_verify_mismatch(client_tps_off):
+    """Write-verify: if read-back doesn't match, return error with expected/actual."""
+    call_count = {"n": 0}
+    def read_hr(address, count):
+        call_count["n"] += 1
+        r = MagicMock()
+        r.isError.return_value = False
+        r.registers = [0] if call_count["n"] == 1 else [38]  # Wrong value
+        return r
+    client_tps_off.read_holding_registers.side_effect = read_hr
+    result = await dispatch_command(client_tps_off, {"action": "set_spacing", "value": 39})
+    assert result["status"] == "error"
+    assert result["expected"] == 39
+    assert result["actual"] == 38
+
+
+@pytest.mark.asyncio
+async def test_set_spacing_missing_value(client_tps_off):
+    result = await dispatch_command(client_tps_off, {"action": "set_spacing"})
     assert result["status"] == "error"
     assert "Missing" in result["message"]
 
 
 @pytest.mark.asyncio
-async def test_set_spacing_invalid_type(client):
-    result = await dispatch_command(client, {"action": "set_spacing", "value": "abc"})
+async def test_set_spacing_invalid_type(client_tps_off):
+    result = await dispatch_command(client_tps_off, {"action": "set_spacing", "value": "abc"})
     assert result["status"] == "error"
     assert "Invalid" in result["message"]
 
 
 @pytest.mark.asyncio
-async def test_set_spacing_too_low(client):
-    result = await dispatch_command(client, {"action": "set_spacing", "value": 10})
+async def test_set_spacing_too_low(client_tps_off):
+    result = await dispatch_command(client_tps_off, {"action": "set_spacing", "value": 10})
     assert result["status"] == "error"
     assert "out of range" in result["message"]
 
 
 @pytest.mark.asyncio
-async def test_set_spacing_too_high(client):
-    result = await dispatch_command(client, {"action": "set_spacing", "value": 100})
+async def test_set_spacing_too_high(client_tps_off):
+    result = await dispatch_command(client_tps_off, {"action": "set_spacing", "value": 100})
     assert result["status"] == "error"
     assert "out of range" in result["message"]
 
 
 @pytest.mark.asyncio
-async def test_set_spacing_boundary_low(client):
-    result = await dispatch_command(client, {"action": "set_spacing", "value": 20})
+async def test_set_spacing_boundary_low(client_tps_off):
+    call_count = {"n": 0}
+    def read_hr(address, count):
+        call_count["n"] += 1
+        r = MagicMock()
+        r.isError.return_value = False
+        r.registers = [0] if call_count["n"] == 1 else [20]
+        return r
+    client_tps_off.read_holding_registers.side_effect = read_hr
+    result = await dispatch_command(client_tps_off, {"action": "set_spacing", "value": 20})
     assert result["status"] == "ok"
 
 
 @pytest.mark.asyncio
-async def test_set_spacing_boundary_high(client):
-    result = await dispatch_command(client, {"action": "set_spacing", "value": 60})
+async def test_set_spacing_boundary_high(client_tps_off):
+    call_count = {"n": 0}
+    def read_hr(address, count):
+        call_count["n"] += 1
+        r = MagicMock()
+        r.isError.return_value = False
+        r.registers = [0] if call_count["n"] == 1 else [60]
+        return r
+    client_tps_off.read_holding_registers.side_effect = read_hr
+    result = await dispatch_command(client_tps_off, {"action": "set_spacing", "value": 60})
     assert result["status"] == "ok"
 
 
@@ -349,36 +401,71 @@ async def test_toggle_write_fails(client):
 
 
 @pytest.mark.asyncio
-async def test_set_detector_offset_valid(client):
-    result = await dispatch_command(client, {"action": "set_detector_offset", "value": 500})
+async def test_set_detector_offset_valid(client_tps_off):
+    call_count = {"n": 0}
+    def read_hr(address, count):
+        call_count["n"] += 1
+        r = MagicMock()
+        r.isError.return_value = False
+        r.registers = [0] if call_count["n"] == 1 else [500]
+        return r
+    client_tps_off.read_holding_registers.side_effect = read_hr
+    result = await dispatch_command(client_tps_off, {"action": "set_detector_offset", "value": 500})
     assert result["status"] == "ok"
-    client.write_register.assert_called_once_with(address=4, value=500)
+    client_tps_off.write_register.assert_called_once_with(address=4, value=500)
 
 
 @pytest.mark.asyncio
-async def test_set_detector_offset_missing(client):
-    result = await dispatch_command(client, {"action": "set_detector_offset"})
+async def test_set_detector_offset_blocked_when_tps_running(client):
+    """TPS interlock: detector offset change must be rejected when TPS is running."""
+    result = await dispatch_command(client, {"action": "set_detector_offset", "value": 500})
+    assert result["status"] == "error"
+    assert result["tps_running"] is True
+    assert "stopped" in result["error"]
+    client.write_register.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_set_detector_offset_verify_mismatch(client_tps_off):
+    """Write-verify: if read-back doesn't match, return error with expected/actual."""
+    call_count = {"n": 0}
+    def read_hr(address, count):
+        call_count["n"] += 1
+        r = MagicMock()
+        r.isError.return_value = False
+        r.registers = [0] if call_count["n"] == 1 else [499]  # Wrong value
+        return r
+    client_tps_off.read_holding_registers.side_effect = read_hr
+    result = await dispatch_command(client_tps_off, {"action": "set_detector_offset", "value": 500})
+    assert result["status"] == "error"
+    assert result["expected"] == 500
+    assert result["actual"] == 499
+
+
+@pytest.mark.asyncio
+async def test_set_detector_offset_missing(client_tps_off):
+    result = await dispatch_command(client_tps_off, {"action": "set_detector_offset"})
     assert result["status"] == "error"
     assert "Missing" in result["message"]
 
 
 @pytest.mark.asyncio
-async def test_set_detector_offset_too_low(client):
-    result = await dispatch_command(client, {"action": "set_detector_offset", "value": 50})
+async def test_set_detector_offset_too_low(client_tps_off):
+    result = await dispatch_command(client_tps_off, {"action": "set_detector_offset", "value": 50})
     assert result["status"] == "error"
     assert "out of range" in result["message"]
 
 
 @pytest.mark.asyncio
-async def test_set_detector_offset_too_high(client):
-    result = await dispatch_command(client, {"action": "set_detector_offset", "value": 9999})
+async def test_set_detector_offset_too_high(client_tps_off):
+    result = await dispatch_command(client_tps_off, {"action": "set_detector_offset", "value": 9999})
     assert result["status"] == "error"
     assert "out of range" in result["message"]
 
 
 @pytest.mark.asyncio
-async def test_set_detector_offset_invalid_type(client):
-    result = await dispatch_command(client, {"action": "set_detector_offset", "value": "nope"})
+async def test_set_detector_offset_invalid_type(client_tps_off):
+    result = await dispatch_command(client_tps_off, {"action": "set_detector_offset", "value": "nope"})
     assert result["status"] == "error"
     assert "Invalid" in result["message"]
 
