@@ -18,6 +18,8 @@ import ConnectionDot from "./ConnectionDot";
 import DevDiagnostics from "./DevDiagnostics";
 import ElectricalPanel from "./ElectricalPanel";
 import CommandCenter from "./CommandCenter";
+import TruckNotes from "./TruckNotes";
+import TruckChatTab from "./Chat/TruckChatTab";
 import { UserButton, useUser } from "@clerk/nextjs";
 import { useAlarm, FlashOverlay } from "./DashboardAudio";
 import { useSensorPolling } from "../hooks/useSensorPolling";
@@ -183,6 +185,12 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
             {components.map((comp) => (
               <StatusCard key={comp.id} component={comp} />
             ))}
+          </div>
+
+          {/* Team Chat + Truck Notes — top level for quick access */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-4">
+            <TruckChatTab truckId={truckId || currentTruck?.id || "default"} currentReadings={null} />
+            <TruckNotes truckId={truckId || currentTruck?.id} />
           </div>
 
           {/* Location & Weather bar */}

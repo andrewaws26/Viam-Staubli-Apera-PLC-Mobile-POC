@@ -566,11 +566,7 @@ export default function TruckPanel({ simMode = false, truckId, onReadingsChange 
       {/* Work Orders */}
       <TruckWorkOrders truckId={truckId} />
 
-      {/* Team Chat */}
-      <TruckChatTab truckId={truckId || "default"} currentReadings={readings} />
-
-      {/* Truck Notes */}
-      <TruckNotes truckId={truckId} />
+      {/* Team Chat + Truck Notes moved to Dashboard.tsx (top-level, near Command Center) */}
 
       {/* Not connected state */}
       {!connected && (
