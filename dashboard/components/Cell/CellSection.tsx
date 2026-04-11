@@ -3,13 +3,15 @@
 // and CellWatchdog. Follows the same self-polling pattern as TruckPanel.
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import StaubliPanel from "./StaubliPanel";
 import AperaPanel from "./AperaPanel";
 import CellWatchdog from "./CellWatchdog";
+import InsightsPanel from "./InsightsPanel";
 import LogPanel from "./LogPanel";
 import InfraPanel from "./InfraPanel";
 import type { CellState } from "./CellTypes";
+import { analyzeCell } from "@/lib/insights-engine";
 
 const CELL_POLL_MS = 2000;
 
@@ -27,6 +29,11 @@ export default function CellSection({ simMode = false, truckId }: Props) {
   const [connected, setConnected] = useState(false);
   const [hasCell, setHasCell] = useState(true);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const { insights, shift } = useMemo(
+    () => data ? analyzeCell(data) : { insights: [], shift: null },
+    [data]
+  );
 
   const poll = useCallback(async () => {
     try {
@@ -92,7 +99,12 @@ export default function CellSection({ simMode = false, truckId }: Props) {
         )}
       </div>
 
-      {/* Watchdog first — alerts at the top */}
+      {/* Insights panel — top-level "here's what's happening" view */}
+      {insights.length > 0 && shift && (
+        <InsightsPanel insights={insights} shift={shift} />
+      )}
+
+      {/* Watchdog — detailed alerts */}
       <CellWatchdog
         staubli={data?.staubli ?? null}
         apera={data?.apera ?? null}
