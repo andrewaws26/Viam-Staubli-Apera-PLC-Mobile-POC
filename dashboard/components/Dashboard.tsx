@@ -16,6 +16,7 @@ import TruckPanel from "./TruckPanel";
 import { CellSection } from "./Cell";
 import ConnectionDot from "./ConnectionDot";
 import DevDiagnostics from "./DevDiagnostics";
+import ElectricalPanel from "./ElectricalPanel";
 import { UserButton, useUser } from "@clerk/nextjs";
 import { useAlarm, FlashOverlay } from "./DashboardAudio";
 import { useSensorPolling } from "../hooks/useSensorPolling";
@@ -231,6 +232,11 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
           {/* Robot Cell Monitoring — Staubli + Apera + Watchdog */}
           <div id="cell-section">
             <CellSection simMode={simMode} truckId={truckId} />
+          </div>
+
+          {/* Electrical Systems — Future Hardware Integration */}
+          <div id="electrical-section">
+            <ElectricalPanel />
           </div>
 
           {/* Dev Diagnostics — developer role only */}
