@@ -57,8 +57,8 @@ function initFuses(): FuseState[] {
     { id: "F2", name: "SERVO 2", rating: 30, blown: false, location: "Left panel, row 1, red blade", color: "red" },
     { id: "F3", name: "BELT", rating: 15, blown: false, location: "Left panel, row 2, blue blade", color: "blue" },
     { id: "F4", name: "MAIN STATION", rating: 20, blown: false, location: "Left panel, row 2, yellow blade", color: "yellow" },
-    { id: "F5", name: "OP STATION", rating: 15, blown: true, location: "Left panel, row 3, blue blade", color: "blue" },
-    { id: "F6", name: "VISION", rating: 15, blown: false, location: "Right panel, row 1, blue blade", color: "blue" },
+    { id: "F5", name: "OP STATION", rating: 15, blown: false, location: "Left panel, row 3, blue blade", color: "blue" },
+    { id: "F6", name: "VISION", rating: 15, blown: true, location: "Right panel, row 1, blue blade", color: "blue" },
     { id: "F7", name: "PLC", rating: 10, blown: false, location: "Right panel, row 1, red blade", color: "red" },
   ];
 }
@@ -70,7 +70,7 @@ function initVoltages(): VoltageRail[] {
     { channel: "A2", label: "Vision Supply", nominal: 24, value: 0.0, unit: "V" },
     { channel: "A3", label: "PLC Supply", nominal: 24, value: 24.0, unit: "V" },
     { channel: "A4", label: "Pneumatic Supply", nominal: 24, value: 23.5, unit: "V" },
-    { channel: "A5", label: "Truck Battery", nominal: 12, value: 12.8, unit: "V" },
+    { channel: "A5", label: "Truck Battery", nominal: 12, value: 13.85, unit: "V" },
     { channel: "A6", label: "Pi 5V Rail", nominal: 5, value: 5.02, unit: "V" },
     { channel: "A7", label: "Generator Output", nominal: 120, value: 121.3, unit: "V" },
   ];
@@ -78,8 +78,8 @@ function initVoltages(): VoltageRail[] {
 
 function initCurrents(): CurrentSensor[] {
   return [
-    { label: "Robot Circuit", circuit: "F1 SERVO", value: 15.2, fuseRating: 30 },
-    { label: "Vision Circuit", circuit: "F6 VISION", value: 0.0, fuseRating: 15 },
+    { label: "Robot 24V Field I/O", circuit: "F1 SERVO", value: 6.8, fuseRating: 30 },
+    { label: "Vision + Cameras", circuit: "F6 VISION", value: 0.0, fuseRating: 15 },
   ];
 }
 

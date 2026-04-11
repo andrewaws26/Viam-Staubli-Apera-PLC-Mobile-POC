@@ -21,8 +21,8 @@ const INIT_FUSES: FuseState[] = [
   { id: "F2", name: "SERVO 2", rating: 30, blown: false, location: "Left panel, row 1, red blade", color: "red" },
   { id: "F3", name: "BELT", rating: 15, blown: false, location: "Left panel, row 2, blue blade", color: "blue" },
   { id: "F4", name: "MAIN STATION", rating: 20, blown: false, location: "Left panel, row 2, yellow blade", color: "yellow" },
-  { id: "F5", name: "OP STATION", rating: 15, blown: true, location: "Left panel, row 3, blue blade", color: "blue" },
-  { id: "F6", name: "VISION", rating: 15, blown: false, location: "Right panel, row 1, blue blade", color: "blue" },
+  { id: "F5", name: "OP STATION", rating: 15, blown: false, location: "Left panel, row 3, blue blade", color: "blue" },
+  { id: "F6", name: "VISION", rating: 15, blown: true, location: "Right panel, row 1, blue blade", color: "blue" },
   { id: "F7", name: "PLC", rating: 10, blown: false, location: "Right panel, row 1, red blade", color: "red" },
 ];
 
@@ -32,14 +32,14 @@ const INIT_VOLTAGES: VoltageRail[] = [
   { channel: "A2", label: "Vision Supply", nominal: 24, value: 0.0, unit: "V" },
   { channel: "A3", label: "PLC Supply", nominal: 24, value: 24.0, unit: "V" },
   { channel: "A4", label: "Pneumatic Supply", nominal: 24, value: 23.5, unit: "V" },
-  { channel: "A5", label: "Truck Battery", nominal: 12, value: 12.8, unit: "V" },
+  { channel: "A5", label: "Truck Battery", nominal: 12, value: 13.85, unit: "V" },
   { channel: "A6", label: "Pi 5V Rail", nominal: 5, value: 5.02, unit: "V" },
   { channel: "A7", label: "Generator Output", nominal: 120, value: 121.3, unit: "V" },
 ];
 
 const INIT_CURRENTS: CurrentSensor[] = [
-  { label: "Robot Circuit", circuit: "F1 SERVO", value: 15.2, fuseRating: 30 },
-  { label: "Vision Circuit", circuit: "F6 VISION", value: 0.0, fuseRating: 15 },
+  { label: "Robot 24V Field I/O", circuit: "F1 SERVO", value: 6.8, fuseRating: 30 },
+  { label: "Vision + Cameras", circuit: "F6 VISION", value: 0.0, fuseRating: 15 },
 ];
 
 const INIT_TEMPS: JunctionTemp[] = [
@@ -51,8 +51,8 @@ const INIT_TEMPS: JunctionTemp[] = [
 ];
 
 const TIMELINE: TimelineEvent[] = [
-  { time: "14:31:47", message: "Vision current spiked to 16.2A (F5 rated 15A)", severity: "warning" },
-  { time: "14:31:49", message: "F5 (OP STATION) fuse blown — 0V on load side", severity: "critical" },
+  { time: "14:31:47", message: "Vision current spiked to 16.2A (F6 rated 15A)", severity: "warning" },
+  { time: "14:31:49", message: "F6 (VISION) fuse blown — 0V on load side", severity: "critical" },
   { time: "14:31:50", message: "Apera Vue PC — ping timeout (192.168.3.151)", severity: "critical" },
   { time: "14:31:51", message: "Staubli CS9 reports: No trajectory available", severity: "warning" },
   { time: "14:32:03", message: "Watchdog: Vision System Offline — Blown Fuse F5", severity: "critical" },
@@ -94,7 +94,7 @@ export default function ElectricalPanel() {
   const updateSim = useCallback(() => {
     setVoltages(p => p.map(r => ({
       ...r,
-      value: r.label === "Vision Supply" ? 0.0 : +(r.value + j() * (r.nominal > 50 ? 0.5 : 0.1)).toFixed(2),
+      value: r.label === "Vision Supply" ? 0.0 : +(r.value + j() * (r.nominal > 50 ? 0.3 : 0.05)).toFixed(2),
     })));
     setCurrents(p => p.map(s => ({
       ...s,
@@ -295,7 +295,7 @@ export default function ElectricalPanel() {
             <div className="text-red-400 font-bold text-sm mb-3">VISION SYSTEM OFFLINE</div>
             <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5">
               <span className="text-gray-500">Power:</span>
-              <span className="text-red-400">F5 (OP STATION, 15A) = BLOWN</span>
+              <span className="text-red-400">F6 (VISION, 15A) = BLOWN</span>
               <span className="text-gray-500">Voltage:</span>
               <span className="text-red-400">Vision rail = 0.0V (was 24.1V)</span>
               <span className="text-gray-500">Current:</span>
@@ -308,11 +308,11 @@ export default function ElectricalPanel() {
             <div className="border-t border-gray-800 pt-2 mt-3">
               <div className="text-gray-400 mb-1">
                 <span className="text-gray-500">Diagnosis: </span>
-                Fuse F5 blew due to overcurrent. Vision PC lost power.
+                Fuse F6 blew due to overcurrent. Vision PC + cameras lost power.
               </div>
               <div className="text-emerald-400">
                 <span className="text-gray-500">Action: </span>
-                Replace F5 (blue 15A, left panel row 3). Investigate why current exceeded 15A.
+                Replace F6 (blue 15A, right panel row 1). Investigate why current exceeded 15A.
               </div>
             </div>
           </div>
