@@ -245,6 +245,7 @@ def read_modbus_io(client, uint16_fn) -> dict[str, Any]:
     """
     import time
     _modbus_start = time.time()
+    _read_failures: list[str] = []
 
     # -- DS holding registers (0-24) -- all 25 TPS registers
     ds_result = client.read_holding_registers(address=0, count=25)
@@ -260,7 +261,7 @@ def read_modbus_io(client, uint16_fn) -> dict[str, Any]:
             enc_lo = uint16_fn(enc_result.registers[0])
             enc_hi = uint16_fn(enc_result.registers[1])
     except Exception:
-        pass
+        _read_failures.append("encoder_dd1")
     encoder_count = (enc_hi << 16) | enc_lo
     if encoder_count > 0x7FFFFFFF:
         encoder_count -= 0x100000000
@@ -273,6 +274,7 @@ def read_modbus_io(client, uint16_fn) -> dict[str, Any]:
             discrete_bits = list(di_result.bits[:8])
     except Exception as exc:
         LOGGER.warning("Error reading discrete inputs: %s", exc, exc_info=True)
+        _read_failures.append("discrete_inputs")
 
     # -- Output coils (Y1-Y3) --
     output_coils = [False] * 3
@@ -282,6 +284,7 @@ def read_modbus_io(client, uint16_fn) -> dict[str, Any]:
             output_coils = list(oc_result.bits[:3])
     except Exception as exc:
         LOGGER.warning("Error reading output coils: %s", exc, exc_info=True)
+        _read_failures.append("output_coils")
 
     # -- Internal coils (C1999, C2000) --
     internal_coils = [False] * 2
@@ -291,6 +294,7 @@ def read_modbus_io(client, uint16_fn) -> dict[str, Any]:
             internal_coils = list(ic_result.bits[:2])
     except Exception as exc:
         LOGGER.warning("Error reading internal coils: %s", exc, exc_info=True)
+        _read_failures.append("internal_coils")
 
     # -- C-bits C1-C34 for operating mode, drop pipeline, detection --
     c_app_bits = [False] * 34
@@ -299,7 +303,7 @@ def read_modbus_io(client, uint16_fn) -> dict[str, Any]:
         if not cb_result.isError():
             c_app_bits = list(cb_result.bits[:34])
     except Exception:
-        pass
+        _read_failures.append("c_bits")
 
     # Derived operating mode name
     _mode_map = [
@@ -322,7 +326,7 @@ def read_modbus_io(client, uint16_fn) -> dict[str, Any]:
             td5_laying = (td_result.registers[9] << 16) | td_result.registers[8]
             td6_travel = (td_result.registers[11] << 16) | td_result.registers[10]
     except Exception:
-        pass
+        _read_failures.append("td_timers")
 
     _modbus_elapsed_ms = (time.time() - _modbus_start) * 1000
 
@@ -337,6 +341,8 @@ def read_modbus_io(client, uint16_fn) -> dict[str, Any]:
         "td5_laying": td5_laying,
         "td6_travel": td6_travel,
         "modbus_elapsed_ms": _modbus_elapsed_ms,
+        "_read_status": "partial" if _read_failures else "ok",
+        "_read_failures": _read_failures,
     }
 
 
