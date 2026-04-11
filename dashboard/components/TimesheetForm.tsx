@@ -198,6 +198,67 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
   const totalHours = dailyLogs.reduce((s, l) => s + (l.hours_worked || 0), 0);
   const totalTravel = dailyLogs.reduce((s, l) => s + (l.travel_hours || 0), 0);
 
+  // ── Daily log entry-based form state ──────────────────────────────
+  const [dailyLogFormIdx, setDailyLogFormIdx] = useState<number | null>(null);
+  const [dlForm, setDlForm] = useState({
+    start_time: "", end_time: "", hours_worked: 0, travel_hours: 0,
+    description: "", lunch_minutes: 0, semi_truck_travel: false,
+    traveling_from: "", destination: "", travel_miles: null as number | null,
+  });
+
+  function updateDlForm(field: string, value: string | number | boolean | null) {
+    setDlForm(prev => {
+      const next = { ...prev, [field]: value };
+      if ((field === "start_time" || field === "end_time" || field === "lunch_minutes") && next.start_time && next.end_time) {
+        const [sh, sm] = next.start_time.split(":").map(Number);
+        const [eh, em] = next.end_time.split(":").map(Number);
+        let hours = eh + em / 60 - (sh + sm / 60);
+        if (hours < 0) hours += 24;
+        hours -= (next.lunch_minutes || 0) / 60;
+        if (hours < 0) hours = 0;
+        next.hours_worked = Math.round(hours * 100) / 100;
+      }
+      return next;
+    });
+  }
+
+  function openDailyLogAdd() {
+    const availIdx = dailyLogs.findIndex(l => !l.start_time && !(l.hours_worked > 0));
+    if (availIdx >= 0) {
+      setDailyLogFormIdx(availIdx);
+      setDlForm({ start_time: "", end_time: "", hours_worked: 0, travel_hours: 0, description: "", lunch_minutes: 0, semi_truck_travel: false, traveling_from: "", destination: "", travel_miles: null });
+    }
+  }
+
+  function editDailyLog(idx: number) {
+    setDailyLogFormIdx(idx);
+    const log = dailyLogs[idx];
+    setDlForm({
+      start_time: log.start_time, end_time: log.end_time, hours_worked: log.hours_worked,
+      travel_hours: log.travel_hours, description: log.description, lunch_minutes: log.lunch_minutes,
+      semi_truck_travel: log.semi_truck_travel, traveling_from: log.traveling_from,
+      destination: log.destination, travel_miles: log.travel_miles,
+    });
+  }
+
+  function saveDailyLogForm() {
+    if (dailyLogFormIdx === null) return;
+    setDailyLogs(prev => {
+      const next = [...prev];
+      next[dailyLogFormIdx] = { ...next[dailyLogFormIdx], ...dlForm };
+      return next;
+    });
+    setDailyLogFormIdx(null);
+  }
+
+  function clearDailyLog(idx: number) {
+    setDailyLogs(prev => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], start_time: "", end_time: "", hours_worked: 0, travel_hours: 0, description: "", lunch_minutes: 0, semi_truck_travel: false, traveling_from: "", destination: "", travel_miles: null };
+      return next;
+    });
+  }
+
   async function handleSave(andSubmit = false) {
     setError("");
     setSuccess("");
@@ -316,13 +377,8 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
       </section>
 
       {/* Railroad Time Section */}
-      <section className="mb-8 p-6 rounded-xl bg-gray-900/50 border border-gray-800">
-        <h2 className="text-lg font-bold text-gray-100 mb-6 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-purple-400" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.828a1 1 0 101.415-1.414L11 9.586V6z" clipRule="evenodd" />
-          </svg>
-          Railroad Time
-        </h2>
+      <section className="mb-6">
+        <h2 className="text-lg font-bold text-gray-100 mb-4">Railroad Time</h2>
 
         {/* Co-workers */}
         <div className="mb-6">
@@ -521,174 +577,147 @@ export default function TimesheetForm({ existingTimesheet, currentUserId, curren
 
       </section>
 
-      {/* Daily Logs Section */}
-      <section className="mb-8 p-6 rounded-xl bg-gray-900/50 border border-gray-800">
-        <h2 className="text-lg font-bold text-gray-100 mb-2 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-          </svg>
-          Daily Logs
-        </h2>
-        <p className="text-xs text-gray-500 mb-6">Hours auto-calculate from start/end times, or enter manually.</p>
+      {/* Railroad Daily Logs */}
+      <section className="mb-8">
+        <h2 className="text-lg font-bold text-gray-100 mb-3">Railroad Daily Logs</h2>
 
-        <div className="space-y-4">
+        {dailyLogs.filter(l => l.start_time || l.hours_worked > 0).length === 0 && dailyLogFormIdx === null && (
+          <p className="text-gray-400 text-sm italic mb-3">No railroad time entered for this week</p>
+        )}
+
+        <div className="space-y-2 mb-3">
           {dailyLogs.map((log, idx) => {
+            if (!log.start_time && !(log.hours_worked > 0)) return null;
             const dayLabel = WEEKDAY_LABELS[idx] || "";
             const dateLabel = log.log_date
               ? new Date(log.log_date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })
               : "";
             return (
-              <div key={log.log_date} className="p-4 rounded-lg bg-gray-800/50 border border-gray-800/60">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-bold text-gray-200">
-                    {dayLabel} <span className="text-gray-500 font-normal">{dateLabel}</span>
-                  </span>
-                  {log.hours_worked > 0 && (
-                    <span className="text-xs font-mono text-green-400">{log.hours_worked}h work</span>
-                  )}
+              <div key={log.log_date} className="flex items-center justify-between p-3 rounded-lg bg-gray-800/50 border border-gray-800/60">
+                <div className="text-sm text-gray-300">
+                  <span className="font-medium text-gray-200">{dayLabel} {dateLabel}</span>
+                  <span className="text-gray-500 mx-2">|</span>
+                  <span>{log.start_time} - {log.end_time}</span>
+                  <span className="text-gray-500 mx-2">|</span>
+                  <span className="text-green-400 font-bold">{log.hours_worked}h</span>
+                  {log.lunch_minutes > 0 && <span className="text-gray-500 ml-2">({log.lunch_minutes}min lunch)</span>}
+                  {log.semi_truck_travel && <span className="text-gray-500 ml-2">| Semi travel</span>}
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1 uppercase">Start</label>
-                    <input
-                      type="time"
-                      value={log.start_time}
-                      onChange={(e) => updateDailyLog(idx, "start_time", e.target.value)}
-                      disabled={!canEdit}
-                      className="w-full px-2 py-1.5 rounded bg-gray-900 border border-gray-700 text-white text-sm focus:outline-none focus:border-purple-500 disabled:opacity-50"
-                    />
+                {canEdit && (
+                  <div className="flex gap-1 shrink-0">
+                    <button onClick={() => editDailyLog(idx)} className="px-2 py-1 rounded text-xs text-gray-400 hover:text-white hover:bg-gray-800/50 transition-colors">Edit</button>
+                    <button onClick={() => clearDailyLog(idx)} className="px-2 py-1 rounded text-xs text-gray-400 hover:text-red-300 hover:bg-red-900/30 transition-colors">Del</button>
                   </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1 uppercase">End</label>
-                    <input
-                      type="time"
-                      value={log.end_time}
-                      onChange={(e) => updateDailyLog(idx, "end_time", e.target.value)}
-                      disabled={!canEdit}
-                      className="w-full px-2 py-1.5 rounded bg-gray-900 border border-gray-700 text-white text-sm focus:outline-none focus:border-purple-500 disabled:opacity-50"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1 uppercase">Hours</label>
-                    <input
-                      type="number"
-                      step="0.25"
-                      min={0}
-                      max={24}
-                      value={log.hours_worked || ""}
-                      onChange={(e) => updateDailyLog(idx, "hours_worked", parseFloat(e.target.value) || 0)}
-                      disabled={!canEdit}
-                      className="w-full px-2 py-1.5 rounded bg-gray-900 border border-gray-700 text-white text-sm focus:outline-none focus:border-purple-500 disabled:opacity-50"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1 uppercase">Travel</label>
-                    <input
-                      type="number"
-                      step="0.25"
-                      min={0}
-                      max={24}
-                      value={log.travel_hours || ""}
-                      onChange={(e) => updateDailyLog(idx, "travel_hours", parseFloat(e.target.value) || 0)}
-                      disabled={!canEdit}
-                      className="w-full px-2 py-1.5 rounded bg-gray-900 border border-gray-700 text-white text-sm focus:outline-none focus:border-purple-500 disabled:opacity-50"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-2">
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs text-gray-500 mb-1 uppercase">Description</label>
-                    <input
-                      type="text"
-                      value={log.description}
-                      onChange={(e) => updateDailyLog(idx, "description", e.target.value)}
-                      disabled={!canEdit}
-                      placeholder="Work description..."
-                      className="w-full px-2 py-1.5 rounded bg-gray-900 border border-gray-700 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-purple-500 disabled:opacity-50"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1 uppercase">Lunch</label>
-                    <select
-                      value={log.lunch_minutes}
-                      onChange={(e) => updateDailyLog(idx, "lunch_minutes", Number(e.target.value))}
-                      disabled={!canEdit}
-                      className="w-full px-2 py-1.5 rounded bg-gray-900 border border-gray-700 text-white text-sm focus:outline-none focus:border-purple-500 disabled:opacity-50"
-                    >
-                      {LUNCH_OPTIONS.map((m) => <option key={m} value={m}>{m} min</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1 uppercase">From</label>
-                    <input
-                      type="text"
-                      value={log.traveling_from}
-                      onChange={(e) => updateDailyLog(idx, "traveling_from", e.target.value)}
-                      disabled={!canEdit}
-                      placeholder="Origin"
-                      className="w-full px-2 py-1.5 rounded bg-gray-900 border border-gray-700 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-purple-500 disabled:opacity-50"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1 uppercase">To</label>
-                    <input
-                      type="text"
-                      value={log.destination}
-                      onChange={(e) => updateDailyLog(idx, "destination", e.target.value)}
-                      disabled={!canEdit}
-                      placeholder="Destination"
-                      className="w-full px-2 py-1.5 rounded bg-gray-900 border border-gray-700 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-purple-500 disabled:opacity-50"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-2">
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1 uppercase">Travel Miles</label>
-                    <input
-                      type="number"
-                      min={0}
-                      value={log.travel_miles ?? ""}
-                      onChange={(e) => updateDailyLog(idx, "travel_miles", e.target.value ? parseFloat(e.target.value) : 0)}
-                      disabled={!canEdit}
-                      className="w-full px-2 py-1.5 rounded bg-gray-900 border border-gray-700 text-white text-sm focus:outline-none focus:border-purple-500 disabled:opacity-50"
-                    />
-                  </div>
-                  <div className="flex items-end pb-1">
-                    <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={log.semi_truck_travel}
-                        onChange={(e) => updateDailyLog(idx, "semi_truck_travel", e.target.checked)}
-                        disabled={!canEdit}
-                        className="rounded"
-                      />
-                      Semi Truck Travel
-                    </label>
-                  </div>
-                </div>
+                )}
               </div>
             );
           })}
         </div>
 
-        {/* Totals bar */}
-        <div className="mt-4 p-3 rounded-lg bg-gray-800 border border-gray-700 flex items-center justify-between">
-          <span className="text-sm font-semibold text-gray-300">Week Totals</span>
-          <div className="flex gap-6">
-            <span className="text-sm">
-              <span className="text-gray-500">Work:</span>{" "}
-              <span className="font-bold text-green-400">{totalHours.toFixed(2)}h</span>
-            </span>
-            <span className="text-sm">
-              <span className="text-gray-500">Travel:</span>{" "}
-              <span className="font-bold text-blue-400">{totalTravel.toFixed(2)}h</span>
-            </span>
-            <span className="text-sm">
-              <span className="text-gray-500">Total:</span>{" "}
-              <span className="font-bold text-white">{(totalHours + totalTravel).toFixed(2)}h</span>
-            </span>
+        {/* Add/Edit daily log form */}
+        {dailyLogFormIdx !== null && (
+          <div className="p-4 rounded-lg bg-gray-800 border border-gray-700 space-y-3 mb-3">
+            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+              {dailyLogs[dailyLogFormIdx]?.start_time ? "Edit" : "Add"} Log Entry
+            </h4>
+            <div>
+              <label className="block text-sm font-semibold text-gray-400 mb-1">Date</label>
+              <select
+                value={dailyLogFormIdx}
+                onChange={(e) => {
+                  const newIdx = Number(e.target.value);
+                  setDailyLogFormIdx(newIdx);
+                  const log = dailyLogs[newIdx];
+                  if (log.start_time || log.hours_worked > 0) {
+                    setDlForm({ start_time: log.start_time, end_time: log.end_time, hours_worked: log.hours_worked, travel_hours: log.travel_hours, description: log.description, lunch_minutes: log.lunch_minutes, semi_truck_travel: log.semi_truck_travel, traveling_from: log.traveling_from, destination: log.destination, travel_miles: log.travel_miles });
+                  }
+                }}
+                className="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-purple-500"
+              >
+                {dailyLogs.map((log, idx) => (
+                  <option key={idx} value={idx}>
+                    {new Date(log.log_date + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-sm font-semibold text-gray-400 mb-1">Start Time</label>
+                <input type="time" value={dlForm.start_time} onChange={(e) => updateDlForm("start_time", e.target.value)} className="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-purple-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-400 mb-1">Stop Time</label>
+                <input type="time" value={dlForm.end_time} onChange={(e) => updateDlForm("end_time", e.target.value)} className="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-purple-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-400 mb-1">Lunch</label>
+                <select value={dlForm.lunch_minutes} onChange={(e) => updateDlForm("lunch_minutes", Number(e.target.value))} className="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-purple-500">
+                  {LUNCH_OPTIONS.map((m) => <option key={m} value={m}>{m} minutes</option>)}
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-400 mb-1">Did Semi Truck Travel?</label>
+              <div className="flex gap-6">
+                <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                  <input type="radio" checked={dlForm.semi_truck_travel} onChange={() => updateDlForm("semi_truck_travel", true)} className="w-5 h-5" /> Yes
+                </label>
+                <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                  <input type="radio" checked={!dlForm.semi_truck_travel} onChange={() => updateDlForm("semi_truck_travel", false)} className="w-5 h-5" /> No
+                </label>
+              </div>
+            </div>
+            {dlForm.semi_truck_travel && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-400 mb-1">Traveling From</label>
+                  <input type="text" value={dlForm.traveling_from} onChange={(e) => updateDlForm("traveling_from", e.target.value)} className="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-purple-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-400 mb-1">Destination</label>
+                  <input type="text" value={dlForm.destination} onChange={(e) => updateDlForm("destination", e.target.value)} className="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-purple-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-400 mb-1">Miles</label>
+                  <input type="number" min={0} value={dlForm.travel_miles ?? ""} onChange={(e) => updateDlForm("travel_miles", e.target.value ? parseFloat(e.target.value) : null)} className="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-purple-500" />
+                </div>
+              </div>
+            )}
+            <div className="flex gap-2 pt-2">
+              <button onClick={saveDailyLogForm} className="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-bold transition-colors">Add Entry</button>
+              <button onClick={() => setDailyLogFormIdx(null)} className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-bold transition-colors">Cancel</button>
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Add button */}
+        {canEdit && dailyLogFormIdx === null && (
+          <button onClick={openDailyLogAdd} className="w-full py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold transition-colors">
+            Add Railroad Daily Log
+          </button>
+        )}
+
+        {/* Totals bar */}
+        {totalHours > 0 && (
+          <div className="mt-4 p-3 rounded-lg bg-gray-800 border border-gray-700 flex items-center justify-between">
+            <span className="text-sm font-semibold text-gray-300">Week Totals</span>
+            <div className="flex gap-6">
+              <span className="text-sm">
+                <span className="text-gray-500">Work:</span>{" "}
+                <span className="font-bold text-green-400">{totalHours.toFixed(2)}h</span>
+              </span>
+              <span className="text-sm">
+                <span className="text-gray-500">Travel:</span>{" "}
+                <span className="font-bold text-blue-400">{totalTravel.toFixed(2)}h</span>
+              </span>
+              <span className="text-sm">
+                <span className="text-gray-500">Total:</span>{" "}
+                <span className="font-bold text-white">{(totalHours + totalTravel).toFixed(2)}h</span>
+              </span>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Sub-Sections (only for existing timesheets) */}

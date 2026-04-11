@@ -24,35 +24,22 @@ import {
 interface SectionConfig {
   key: string;
   label: string;
-  icon: string;
-  color: string;
+  emptyText: string;
+  addLabel: string;
 }
 
 const SECTIONS: SectionConfig[] = [
-  { key: "railroad_timecards", label: "Railroad Timecards", icon: "📋", color: "blue" },
-  { key: "inspections", label: "Inspections", icon: "🔍", color: "amber" },
-  { key: "ifta_entries", label: "IFTA Entries", icon: "⛽", color: "green" },
-  { key: "expenses", label: "Expenses", icon: "💰", color: "rose" },
-  { key: "maintenance_time", label: "Maintenance Time", icon: "🔧", color: "purple" },
-  { key: "shop_time", label: "Shop Time", icon: "🏭", color: "cyan" },
-  { key: "mileage_pay", label: "Mileage Pay", icon: "🚗", color: "orange" },
-  { key: "flight_pay", label: "Flight Pay", icon: "✈️", color: "sky" },
-  { key: "holiday_pay", label: "Holiday Pay", icon: "🎄", color: "red" },
-  { key: "vacation_pay", label: "Vacation Pay", icon: "🏖️", color: "teal" },
+  { key: "railroad_timecards", label: "Railroad Timecards", emptyText: "No railroad time cards entered for this week", addLabel: "Add Time Card" },
+  { key: "inspections", label: "Inspections", emptyText: "No equipment inspections entered for this week", addLabel: "Add Inspection" },
+  { key: "ifta_entries", label: "IFTA", emptyText: "No IFTA entered for this week", addLabel: "Add IFTA" },
+  { key: "expenses", label: "Expenses", emptyText: "No expenses entered for this week", addLabel: "Add Expense" },
+  { key: "maintenance_time", label: "Maintenance Time", emptyText: "No maintenance time entered for this week", addLabel: "Add Maintenance Time" },
+  { key: "shop_time", label: "Shop Time", emptyText: "No shop time entered for this week", addLabel: "Add Shop Time" },
+  { key: "mileage_pay", label: "Mileage Pay", emptyText: "No mileage pay entries entered for this week", addLabel: "Add Mileage Pay" },
+  { key: "flight_pay", label: "Flight Pay", emptyText: "No flight pay entries entered for this week", addLabel: "Add Flight Pay" },
+  { key: "holiday_pay", label: "Holiday Pay", emptyText: "No holiday pay entries entered for this week", addLabel: "Add Holiday Pay" },
+  { key: "vacation_pay", label: "Vacation Pay", emptyText: "No Vacation pay entries entered for this week", addLabel: "Add Vacation Pay" },
 ];
-
-const COLOR_MAP: Record<string, { border: string; bg: string; text: string; badge: string }> = {
-  blue:   { border: "border-blue-800",   bg: "bg-blue-900/20",   text: "text-blue-300",   badge: "bg-blue-900/50 text-blue-300" },
-  amber:  { border: "border-amber-800",  bg: "bg-amber-900/20",  text: "text-amber-300",  badge: "bg-amber-900/50 text-amber-300" },
-  green:  { border: "border-green-800",  bg: "bg-green-900/20",  text: "text-green-300",  badge: "bg-green-900/50 text-green-300" },
-  rose:   { border: "border-rose-800",   bg: "bg-rose-900/20",   text: "text-rose-300",   badge: "bg-rose-900/50 text-rose-300" },
-  purple: { border: "border-purple-800", bg: "bg-purple-900/20", text: "text-purple-300", badge: "bg-purple-900/50 text-purple-300" },
-  cyan:   { border: "border-cyan-800",   bg: "bg-cyan-900/20",   text: "text-cyan-300",   badge: "bg-cyan-900/50 text-cyan-300" },
-  orange: { border: "border-orange-800", bg: "bg-orange-900/20", text: "text-orange-300", badge: "bg-orange-900/50 text-orange-300" },
-  sky:    { border: "border-sky-800",    bg: "bg-sky-900/20",    text: "text-sky-300",    badge: "bg-sky-900/50 text-sky-300" },
-  red:    { border: "border-red-800",    bg: "bg-red-900/20",    text: "text-red-300",    badge: "bg-red-900/50 text-red-300" },
-  teal:   { border: "border-teal-800",   bg: "bg-teal-900/20",   text: "text-teal-300",   badge: "bg-teal-900/50 text-teal-300" },
-};
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -254,62 +241,43 @@ export default function TimesheetSections({ timesheetId, canEdit, iftaOdometerSt
   // ── Render ─────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {SECTIONS.map((section) => {
-        const colors = COLOR_MAP[section.color];
         const sectionEntries = entries[section.key] ?? [];
         const isLoading = loading[section.key];
         const isFormOpen = showForm === section.key;
 
         return (
-          <div
-            key={section.key}
-            className={`p-6 rounded-xl border ${colors.border} ${colors.bg}`}
-          >
+          <div key={section.key}>
             {/* Section header */}
-            <div className="flex items-center gap-3 mb-4">
-              <span className="text-xl">{section.icon}</span>
-              <h2 className={`text-lg font-bold ${colors.text}`}>
-                {section.label}
-              </h2>
-              {sectionEntries.length > 0 && (
-                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${colors.badge}`}>
-                  {sectionEntries.length}
-                </span>
-              )}
-            </div>
+            <h2 className="text-lg font-bold text-gray-100 mb-3">{section.label}</h2>
 
             {/* IFTA Odometer fields — only in IFTA section */}
             {section.key === "ifta_entries" && onIftaOdometerStartChange && onIftaOdometerEndChange && (
-              <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="space-y-4 mb-4">
                 <div>
-                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
-                    IFTA Odometer Start
-                  </label>
+                  <label className="block text-sm font-semibold text-gray-300 mb-1">IFTA Odometer Start</label>
                   <input
                     type="number"
                     min={0}
                     value={iftaOdometerStart ?? ""}
                     onChange={(e) => onIftaOdometerStartChange(e.target.value ? parseInt(e.target.value) : null)}
                     disabled={!canEdit}
-                    placeholder="Week start mileage"
-                    className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-green-500 disabled:opacity-50"
+                    className="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-purple-500 disabled:opacity-50"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
-                    IFTA Odometer End
-                  </label>
+                  <label className="block text-sm font-semibold text-gray-300 mb-1">IFTA Odometer End</label>
                   <input
                     type="number"
                     min={0}
                     value={iftaOdometerEnd ?? ""}
                     onChange={(e) => onIftaOdometerEndChange(e.target.value ? parseInt(e.target.value) : null)}
                     disabled={!canEdit}
-                    placeholder="Week end mileage"
-                    className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-green-500 disabled:opacity-50"
+                    className="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-purple-500 disabled:opacity-50"
                   />
                 </div>
+                <h3 className="text-base font-bold text-gray-200">IFTA Entries</h3>
               </div>
             )}
 
@@ -322,7 +290,7 @@ export default function TimesheetSections({ timesheetId, canEdit, iftaOdometerSt
               )}
 
               {!isLoading && sectionEntries.length === 0 && !isFormOpen && (
-                <p className="text-gray-500 text-sm italic">No {section.label.toLowerCase()} entered for this week</p>
+                <p className="text-gray-400 text-sm italic mb-3">{section.emptyText}</p>
               )}
 
                 {/* Existing entries */}
@@ -517,7 +485,7 @@ export default function TimesheetSections({ timesheetId, canEdit, iftaOdometerSt
                       <button
                         onClick={() => saveEntry(section.key)}
                         disabled={saving}
-                        className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-sm font-bold transition-colors disabled:opacity-50"
+                        className="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-bold transition-colors disabled:opacity-50"
                       >
                         {saving ? "Saving..." : editingEntry ? "Update" : "Add"}
                       </button>
@@ -535,9 +503,9 @@ export default function TimesheetSections({ timesheetId, canEdit, iftaOdometerSt
                 {canEdit && !isFormOpen && (
                   <button
                     onClick={() => startAdd(section.key)}
-                    className={`w-full py-2.5 rounded-lg border ${colors.border} text-sm font-bold ${colors.text} hover:bg-gray-800/50 transition-colors`}
+                    className="w-full py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold transition-colors"
                   >
-                    + Add {section.label.replace(/s$/, "").replace(/ies$/, "y")}
+                    {section.addLabel}
                   </button>
                 )}
               </div>
