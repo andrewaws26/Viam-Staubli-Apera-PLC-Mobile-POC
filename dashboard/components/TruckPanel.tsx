@@ -18,6 +18,7 @@
  * the same pattern: self-contained component with props from TruckPanel.
  */
 
+import TruckHealthPanel from "./TruckHealthPanel";
 import AIChatPanel from "./AIChatPanel";
 import DTCPanel from "./DTCPanel";
 import GaugeGrid from "./GaugeGrid";
@@ -34,13 +35,14 @@ import dynamic from "next/dynamic";
 
 const TruckMap = dynamic(() => import("./TruckMap"), { ssr: false });
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { lookupSPN, lookupFMI } from "../lib/spn-lookup";
 import {
   loadDTCHistory, saveDTCHistory, clearDTCHistory,
   buildDTCSnapshot, computeDTCDiff,
   type DTCHistoryEvent, type DTCSnapshot,
 } from "../lib/dtc-history";
+import { assessTruckHealth } from "../lib/truck-baseline";
 
 interface TruckReadings {
   [key: string]: unknown;
@@ -425,6 +427,12 @@ export default function TruckPanel({ simMode = false, truckId, onReadingsChange 
   // Suppress unused variable warning — driverScore is tracked for future dashboard display
   void driverScore;
 
+  // Baseline health assessment — recomputes when readings change
+  const truckHealth = useMemo(
+    () => readings ? assessTruckHealth(readings as Record<string, unknown>) : null,
+    [readings]
+  );
+
   return (
     <div className="bg-gray-900/30 rounded-2xl border border-gray-800 p-3 sm:p-5">
       {/* Header */}
@@ -525,6 +533,9 @@ export default function TruckPanel({ simMode = false, truckId, onReadingsChange 
           setDtcHistory([]);
         }}
       />
+
+      {/* Baseline Health Assessment */}
+      <TruckHealthPanel health={truckHealth} />
 
       {/* Sensor Gauges by category */}
       <GaugeGrid readings={readings} vehicleMode={vehicleMode} hasData={!!hasData} />
