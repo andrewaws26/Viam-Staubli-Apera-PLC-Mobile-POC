@@ -86,6 +86,8 @@ export default function DemoPage() {
 
   const progress = ((currentIdx + 1) / DEMO_TIMELINE.length) * 100;
   const isComplete = phase === "complete";
+  const isInteractive = event.interactive === true;
+  const [waitingForTap, setWaitingForTap] = useState(false);
 
   // --- Persist progress ---
   useEffect(() => {
@@ -134,9 +136,16 @@ export default function DemoPage() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatHistory]);
 
+  // --- Interactive pause: set waitingForTap when reaching an interactive phase ---
+  useEffect(() => {
+    if (isInteractive) {
+      setWaitingForTap(true);
+    }
+  }, [currentIdx, isInteractive]);
+
   // --- Auto-advance timer ---
   useEffect(() => {
-    if (paused || isComplete) {
+    if (paused || isComplete || waitingForTap) {
       if (timerRef.current) clearInterval(timerRef.current);
       return;
     }
@@ -146,8 +155,12 @@ export default function DemoPage() {
         const next = prev + 0.1;
         // Check if we should advance to next phase
         const nextIdx = currentIdx + 1;
-        if (nextIdx < DEMO_TIMELINE.length && next >= DEMO_TIMELINE[nextIdx].time) {
-          setCurrentIdx(nextIdx);
+        if (nextIdx < DEMO_TIMELINE.length) {
+          const nextEvent = DEMO_TIMELINE[nextIdx];
+          // Skip auto-advance for interactive phases (time=0 means wait for tap)
+          if (nextEvent.time > 0 && next >= nextEvent.time) {
+            setCurrentIdx(nextIdx);
+          }
         }
         return next;
       });
@@ -156,12 +169,13 @@ export default function DemoPage() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [paused, isComplete, currentIdx]);
+  }, [paused, isComplete, waitingForTap, currentIdx]);
 
   // --- Navigation ---
   const goToPhase = useCallback((idx: number) => {
     if (idx < 0 || idx >= DEMO_TIMELINE.length) return;
     setCurrentIdx(idx);
+    setWaitingForTap(false);
     setElapsed(DEMO_TIMELINE[idx].time);
     // Rebuild chat history up to this point
     const msgs: { from: string; message: string; time: number }[] = [];
@@ -173,6 +187,13 @@ export default function DemoPage() {
     }
     setChatHistory(msgs);
   }, []);
+
+  // Handle interactive tap — advance to next phase
+  const handleInteractiveTap = useCallback(() => {
+    setWaitingForTap(false);
+    const next = Math.min(currentIdx + 1, DEMO_TIMELINE.length - 1);
+    goToPhase(next);
+  }, [currentIdx, goToPhase]);
 
   const skipNext = useCallback(() => {
     const next = Math.min(currentIdx + 1, DEMO_TIMELINE.length - 1);
@@ -372,6 +393,16 @@ export default function DemoPage() {
             <p className="text-base sm:text-lg leading-relaxed text-gray-300 max-w-[65ch] whitespace-pre-line">
               {event.narration}
             </p>
+
+            {/* Interactive tap CTA */}
+            {waitingForTap && event.interactivePrompt && (
+              <button
+                onClick={handleInteractiveTap}
+                className="mt-6 w-full sm:w-auto px-8 py-4 rounded-xl bg-violet-600 hover:bg-violet-500 active:scale-[0.98] text-white font-bold text-sm sm:text-base tracking-wide transition-all duration-200 animate-pulse hover:animate-none shadow-lg shadow-violet-900/30"
+              >
+                {event.interactivePrompt} &rarr;
+              </button>
+            )}
           </div>
         </section>
 

@@ -23,12 +23,14 @@ export type DemoPhase =
   | "complete";
 
 export interface DemoEvent {
-  time: number;          // seconds from start
+  time: number;          // seconds from start (0 = waits for interactive tap)
   phase: DemoPhase;
   title: string;
   narration: string;
   chatMessage?: string;
   chatFrom?: string;
+  interactive?: boolean;       // if true, pauses until viewer taps
+  interactivePrompt?: string;  // CTA text shown during pause
 }
 
 // ---------------------------------------------------------------------------
@@ -36,83 +38,106 @@ export interface DemoEvent {
 // ---------------------------------------------------------------------------
 
 export const DEMO_TIMELINE: DemoEvent[] = [
+  // HOOK: Problem statement in first 5 seconds (research: viewers decide relevance in 5s)
   {
     time: 0,
     phase: "intro",
-    title: "Shift Starting",
+    title: "The Robot Just Stopped",
     narration:
-      "It's 6 AM. You're the operations manager at B&B Metals. You open IronSight on your phone while drinking coffee. Three trucks are scheduled today.",
+      "Your robot stopped. Production is down. Nobody knows why. What do you do?",
+    interactive: true,
+    interactivePrompt: "Tap to see what IronSight shows you",
   },
+
+  // ACT 1: The calm before (short — establish the baseline fast)
+  {
+    time: 0,  // starts on tap
+    phase: "normal",
+    title: "30 Minutes Earlier",
+    narration:
+      "Everything was green. 14 plates per minute. Robot cycling. Vision at 91% confidence.",
+  },
+
+  // ACT 2: Escalation (fast beats — tension building)
+  {
+    time: 10,
+    phase: "temp_rising",
+    title: "Then This Happened",
+    narration:
+      "Cabinet temperature started climbing. IronSight caught it before anyone on the truck noticed.",
+  },
+  {
+    time: 18,
+    phase: "warning",
+    title: "131\u00B0F and Rising",
+    narration:
+      "Without monitoring, nothing happens here. The robot just\u2026 stops. But you're watching.",
+  },
+
+  // ACT 3: The crisis (instant, punchy)
+  {
+    time: 26,
+    phase: "shutdown",
+    title: "Down",
+    narration:
+      "Robot locked. Bus down. Production halted. But the diagnosis is already on your screen.",
+    chatMessage:
+      "RAIV 3 down \u2014 URPS thermal shutdown. Cabinet overheating. Root cause: insufficient ventilation.",
+    chatFrom: "IronSight",
+    interactive: true,
+    interactivePrompt: "Tap the diagnosis to see the root cause",
+  },
+
+  // ACT 4: The VALUE moment (interactive — viewer participates)
+  {
+    time: 0,  // starts on tap
+    phase: "response",
+    title: "The Old Way Takes an Hour",
+    narration:
+      "Before: phone call, 30-minute drive, open panels, guess. Now: one message.",
+    chatMessage:
+      "Jake \u2014 open the cabinet panels and point the shop fan at the drive module. It's thermal, not electrical.",
+    chatFrom: "You",
+  },
+
+  // ACT 5: Resolution (let it breathe)
   {
     time: 14,
-    phase: "normal",
-    title: "All Systems Normal",
-    narration:
-      "Everything's green. RAIV 3 is sorting plates \u2014 14 per minute. Engine's at operating temp, robot is cycling, vision system locked in at 91% confidence. You put your phone down.",
-  },
-  {
-    time: 28,
-    phase: "temp_rising",
-    title: "Something's Brewing",
-    narration:
-      "The Command Center shifts from green to orange. Cabinet temperature trending up on RAIV 3. The DSI drive module reads 118\u00B0F and climbing. The URPS power supply is getting warm.",
-  },
-  {
-    time: 42,
-    phase: "warning",
-    title: "Warning Fired",
-    narration:
-      "Orange alert: URPS thermal warning \u2014 DSI drive module at 131\u00B0F, approaching shutdown threshold. The system is predicting a problem before it becomes one.",
-  },
-  {
-    time: 56,
-    phase: "shutdown",
-    title: "Thermal Shutdown",
-    narration:
-      "Red. ACTION NEEDED \u2014 URPS thermal protection triggered. Robot arm stopped. EtherCAT bus down. The auto-diagnosis shows: cabinet overheating \u2192 bus degraded \u2192 power cut. Root cause: insufficient ventilation.",
-    chatMessage:
-      "RAIV 3 just stopped \u2014 URPS thermal shutdown. Cabinet is overheating.",
-    chatFrom: "IronSight Bot",
-  },
-  {
-    time: 72,
-    phase: "response",
-    title: "Team Responds",
-    narration:
-      "You tap the chat notification. The truck operator is already in the thread.",
-    chatMessage:
-      "Opening cabinet panels and pointing the shop fan at it. Give it 10 minutes.",
-    chatFrom: "Jake (Operator)",
-  },
-  {
-    time: 86,
     phase: "recovery",
-    title: "Cooling Down",
+    title: "Already Fixing It",
     narration:
-      "Cabinet temp is dropping \u2014 118\u00B0F and stabilizing. The system shows the recovery in real-time. You didn't drive to the truck. You didn't open a panel. You didn't guess.",
+      "You never left your desk. You never opened a panel. You never guessed.",
+    chatMessage: "Fan running. Temp is dropping.",
+    chatFrom: "Jake",
   },
   {
-    time: 100,
+    time: 24,
     phase: "resolved",
-    title: "Back Online",
+    title: "12 Minutes. Done.",
     narration:
-      "Green. ALL CLEAR \u2014 all systems operating normally. Total downtime: 12 minutes. Without IronSight, this would have been 45 minutes of driving and guessing. The entire event is logged with full sensor data.",
-    chatMessage: "Back up and running. Sorted 8 plates since restart.",
-    chatFrom: "Jake (Operator)",
+      "Green. Back online. Every reading, every timestamp, every message \u2014 logged automatically.",
+    chatMessage: "Back up. 8 more plates sorted already.",
+    chatFrom: "Jake",
+    interactive: true,
+    interactivePrompt: "Tap to see how the shift ends",
   },
+
+  // ACT 6: Payoff
   {
-    time: 116,
+    time: 0,  // starts on tap
     phase: "shift_end",
-    title: "End of Shift",
+    title: "5:00 PM",
     narration:
-      "5 PM. Jake taps 'Log Time' on his phone \u2014 10 hours, NS Track Repair, 312 plates sorted. You approve with one tap. The shift report generates automatically: 92% uptime, 1 thermal event, 312 plates, all DTCs documented.",
+      "Jake logs 10 hours from his phone. You approve with one tap. Shift report generates itself. 312 plates, 92% uptime, 1 thermal event fully documented.",
   },
+
+  // ACT 7: Close (mic drop)
   {
-    time: 134,
+    time: 12,
     phase: "complete",
-    title: "That's IronSight",
+    title: "That's One Shift",
     narration:
-      "You just experienced one shift as a manager with IronSight. A thermal shutdown was detected, diagnosed, communicated, fixed, and documented \u2014 in 12 minutes, from your phone, without leaving your desk.\n\nThis is what every shift looks like when your trucks can talk to you.",
+      "Caught before it happened. Diagnosed instantly. Fixed in 12 minutes. Documented automatically.\n\nEvery truck. Every shift. Every day.",
   },
 ];
 
