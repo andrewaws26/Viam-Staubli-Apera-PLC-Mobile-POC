@@ -385,6 +385,24 @@ def start_can_listener(can_interface: str, bus_type: str, bitrate: int):
     """
     try:
         import can
+        # Verify listen-only mode is active
+        try:
+            result = subprocess.run(
+                ["ip", "-d", "link", "show", can_interface],
+                capture_output=True, text=True, timeout=5,
+            )
+            if "LISTEN-ONLY" not in result.stdout.upper() and "listen-only" not in result.stdout:
+                LOGGER.critical(
+                    "SAFETY: CAN interface %s is NOT in listen-only mode! "
+                    "Refusing to start — normal mode would disrupt truck ECU communication. "
+                    "Fix: sudo ip link set %s type can listen-only on",
+                    can_interface, can_interface,
+                )
+                return None
+            LOGGER.info("CAN listen-only mode verified for %s", can_interface)
+        except Exception as e:
+            LOGGER.warning("Could not verify listen-only mode: %s (proceeding with caution)", e)
+
         bus = can.Bus(
             channel=can_interface,
             interface=bus_type,
