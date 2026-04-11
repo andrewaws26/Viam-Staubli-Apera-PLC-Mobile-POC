@@ -417,6 +417,29 @@ export default function HomeScreen() {
           </svg>
         </a>
 
+        {/* Live Demo banner */}
+        <a
+          href="/demo"
+          className="group mb-10 sm:mb-14 -mt-6 sm:-mt-10 flex items-center gap-4 rounded-2xl border border-gray-800/60 hover:border-violet-700/50 bg-gray-900/30 hover:bg-gray-900/50 p-4 sm:p-5 transition-all duration-200"
+        >
+          <div className="shrink-0 w-10 h-10 rounded-xl bg-gray-800/50 flex items-center justify-center text-gray-400 group-hover:bg-violet-600/20 group-hover:text-violet-400 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-bold text-gray-100 group-hover:text-white transition-colors">
+              Watch the Live Demo
+            </h3>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Experience a full shift as a manager in 5 minutes — scripted walkthrough with real data
+            </p>
+          </div>
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-500 group-hover:text-violet-400 transition-colors shrink-0" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+          </svg>
+        </a>
+
         {/* Module grid */}
         <div className="space-y-8">
           <ModuleSection title="Management" modules={MANAGER_MODULES} role={role} />
