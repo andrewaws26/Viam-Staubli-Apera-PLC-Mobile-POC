@@ -17,6 +17,7 @@ import { CellSection } from "./Cell";
 import ConnectionDot from "./ConnectionDot";
 import DevDiagnostics from "./DevDiagnostics";
 import ElectricalPanel from "./ElectricalPanel";
+import CommandCenter from "./CommandCenter";
 import { UserButton, useUser } from "@clerk/nextjs";
 import { useAlarm, FlashOverlay } from "./DashboardAudio";
 import { useSensorPolling } from "../hooks/useSensorPolling";
@@ -175,6 +176,9 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
 
         {/* Status Grid */}
         <main className="flex-1 px-2 sm:px-5 py-2 sm:py-8 flex flex-col gap-2 sm:gap-6">
+          {/* Command Center — top-level operational summary */}
+          <CommandCenter simMode={simMode} truckId={truckId} />
+
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-6">
             {components.map((comp) => (
               <StatusCard key={comp.id} component={comp} />
@@ -227,7 +231,9 @@ export default function Dashboard({ truckId }: { truckId?: string }) {
           />
 
           {/* Truck Diagnostics */}
-          <TruckPanel simMode={simMode} truckId={truckId} onReadingsChange={devMode ? setTruckReadings : undefined} />
+          <div id="truck-section">
+            <TruckPanel simMode={simMode} truckId={truckId} onReadingsChange={devMode ? setTruckReadings : undefined} />
+          </div>
 
           {/* Robot Cell Monitoring — Staubli + Apera + Watchdog */}
           <div id="cell-section">
