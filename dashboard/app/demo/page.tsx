@@ -502,7 +502,7 @@ export default function DemoPage() {
                 <div className="text-2xl font-bold tabular-nums text-white">
                   {cToF(dsiTempC)}<span className="text-sm text-gray-500">°F</span>
                 </div>
-                <div className="text-xs text-gray-500">DSI Temp</div>
+                <div className="text-xs text-gray-500">Cabinet Temp</div>
               </div>
             </div>
 
@@ -533,18 +533,18 @@ export default function DemoPage() {
                 label="Vision"
                 value={`${(
                   (simData.apera_detection_confidence_avg as number) * 100
-                ).toFixed(0)}%`}
+                ).toFixed(0)}% accuracy`}
                 warn={false}
               />
               <SensorCell
-                label="EtherCAT"
-                value={`${slaveCount}/3 slaves`}
+                label="Controls"
+                value={slaveCount >= 3 ? "All Online" : `${slaveCount}/3 online`}
                 warn={slaveCount < 3}
               />
               <SensorCell
-                label="CPU"
-                value={`${cToF(cpuTempC)}°F`}
-                warn={cpuTempC > 70}
+                label="Cabinet"
+                value={`${cToF(dsiTempC)}°F`}
+                warn={dsiTempC > 50}
               />
             </div>
           </div>

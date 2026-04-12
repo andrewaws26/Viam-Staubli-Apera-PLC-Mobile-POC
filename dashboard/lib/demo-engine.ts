@@ -455,50 +455,45 @@ export function getActiveIssues(phase: DemoPhase): ActiveIssue[] {
       return [
         {
           severity: "warning",
-          title: "DSI Drive Module Warm",
-          detail: "Drive module at 118\u00B0F \u2014 trending toward thermal protection threshold. Check cabinet fans.",
+          title: "Cabinet Getting Hot",
+          detail: "118\u00B0F inside the command center cabinet. If this keeps climbing, the robot will shut down to protect itself.",
         },
       ];
     case "warning":
       return [
         {
           severity: "warning",
-          title: "URPS Thermal Warning",
-          detail: "DSI drive module at 131\u00B0F \u2014 approaching shutdown threshold. URPS power supply event logged.",
+          title: "Shutdown Warning \u2014 131\u00B0F",
+          detail: "The power supply is approaching its thermal limit. At this rate, the robot will stop in about 10 minutes.",
         },
       ];
     case "shutdown":
       return [
         {
           severity: "critical",
-          title: "URPS Thermal Shutdown",
-          detail: "Robot arm stopped. EtherCAT bus down. Cabinet temperature exceeded safe limit.",
+          title: "Robot Stopped \u2014 Cabinet Overheating",
+          detail: "The power supply shut down to protect itself. The cabinet is too hot. Production is halted.",
         },
         {
           severity: "critical",
-          title: "EtherCAT Bus Failure",
-          detail: "0 of 3 slaves connected. I/O board in INIT state.",
+          title: "All Robot Systems Offline",
+          detail: "Arm, conveyor, and gripper are down. Vision system still running.",
         },
       ];
     case "response":
       return [
         {
           severity: "critical",
-          title: "URPS Thermal Shutdown",
-          detail: "Robot arm stopped. Team responding \u2014 cabinet panels opened, fan directed at enclosure.",
-        },
-        {
-          severity: "critical",
-          title: "EtherCAT Bus Offline",
-          detail: "0 of 3 slaves connected. Awaiting thermal recovery.",
+          title: "Robot Stopped \u2014 Team Responding",
+          detail: "Jake is opening cabinet panels and directing airflow. Waiting for cooldown.",
         },
       ];
     case "recovery":
       return [
         {
           severity: "warning",
-          title: "Thermal Recovery In Progress",
-          detail: "Cabinet temp dropping. 2 of 3 EtherCAT slaves reconnected. Bus in PREOP state.",
+          title: "Cooling Down \u2014 Coming Back Online",
+          detail: "Temperature dropping. Robot reconnecting. Should be back in a few minutes.",
         },
       ];
     default:
@@ -515,7 +510,7 @@ export function getSubsystems(phase: DemoPhase): SubsystemStatus[] {
   const base: SubsystemStatus[] = [
     { name: "Robot Arm", status: "online" },
     { name: "Vision", status: "online" },
-    { name: "EtherCAT", status: "online" },
+    { name: "Controls", status: "online" },
     { name: "Conveyor", status: "online" },
     { name: "Network", status: "online" },
   ];
@@ -528,7 +523,7 @@ export function getSubsystems(phase: DemoPhase): SubsystemStatus[] {
     case "warning":
       return base.map((s) => {
         if (s.name === "Robot Arm") return { ...s, status: "warning" as const };
-        if (s.name === "EtherCAT") return { ...s, status: "warning" as const };
+        if (s.name === "Controls") return { ...s, status: "warning" as const };
         return s;
       });
     case "shutdown":
@@ -536,7 +531,7 @@ export function getSubsystems(phase: DemoPhase): SubsystemStatus[] {
       return [
         { name: "Robot Arm", status: "offline" },
         { name: "Vision", status: "warning" },
-        { name: "EtherCAT", status: "offline" },
+        { name: "Controls", status: "offline" },
         { name: "Conveyor", status: "offline" },
         { name: "Network", status: "online" },
       ];
@@ -544,7 +539,7 @@ export function getSubsystems(phase: DemoPhase): SubsystemStatus[] {
       return [
         { name: "Robot Arm", status: "recovering" },
         { name: "Vision", status: "online" },
-        { name: "EtherCAT", status: "recovering" },
+        { name: "Controls", status: "recovering" },
         { name: "Conveyor", status: "offline" },
         { name: "Network", status: "online" },
       ];
@@ -565,22 +560,22 @@ export function getDiagnosis(phase: DemoPhase): DiagnosisStep[] | null {
   return [
     {
       label: "Cabinet Overheating",
-      detail: "DSI drive module at 143\u00B0F \u2014 exceeded 140\u00B0F thermal protection threshold",
+      detail: "143\u00B0F inside the cabinet \u2014 past the safe limit of 140\u00B0F",
       status: "detected",
     },
     {
-      label: "EtherCAT Bus Degraded",
-      detail: "Frame loss detected before shutdown. 0 of 3 slaves responding.",
+      label: "Robot Communication Lost",
+      detail: "The heat caused the robot's internal network to drop. All systems went offline.",
       status: "confirmed",
     },
     {
-      label: "URPS Power Cut",
-      detail: "Uninterruptible Robot Power Supply triggered emergency stop to protect servo drives.",
+      label: "Power Supply Shut Down",
+      detail: "The controller cut power to protect the motors from heat damage.",
       status: "confirmed",
     },
     {
-      label: "Insufficient Ventilation",
-      detail: "Cabinet intake temperature 15\u00B0F above ambient. Fan filter likely clogged or airflow blocked.",
+      label: "Not Enough Airflow",
+      detail: "The cabinet is 15\u00B0F hotter than outside air. Needs better ventilation or a fan.",
       status: "root_cause",
     },
   ];
