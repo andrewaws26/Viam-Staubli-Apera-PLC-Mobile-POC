@@ -127,21 +127,23 @@ export const DEMO_TIMELINE: DemoEvent[] = [
     chatFrom: "Jake",
     interactive: true,
     interactivePrompt: "Tap to see how the shift ends",
-    image: "/demo/comic-shift-report.jpg",
   },
 
-  // ACT 6: Payoff
+  // ACT 6: Payoff — this is the TIMESHEET sell, give it room
   {
     time: 0,  // starts on tap
     phase: "shift_end",
     title: "5:00 PM",
     narration:
-      "Jake logs 10 hours from his phone. You approve with one tap. Shift report generates itself. 312 plates, 92% uptime, 1 thermal event fully documented.",
+      "Jake taps 'Log Time' on his phone. 10 hours, NS Track Repair. You approve with one tap. The shift report generates itself.",
+    image: "/demo/comic-shift-report.jpg",
+    chatMessage: "Hours logged. 312 plates today. Good shift despite the shutdown.",
+    chatFrom: "Jake",
   },
 
-  // ACT 7: Close (mic drop)
+  // ACT 7: Close (mic drop) — longer pause so shift_end sinks in
   {
-    time: 12,
+    time: 16,
     phase: "complete",
     title: "That's One Shift",
     narration:

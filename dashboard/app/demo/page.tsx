@@ -403,7 +403,7 @@ export default function DemoPage() {
                 <img
                   src={event.image}
                   alt={event.imageCaption || event.title}
-                  className="w-full h-40 sm:h-56 object-cover"
+                  className="w-full object-contain"
                 />
                 {event.imageCaption && (
                   <div className="px-3 py-2 bg-black/40 text-xs text-gray-400 italic">
