@@ -537,12 +537,12 @@ export default function DemoPage() {
                 warn={false}
               />
               <SensorCell
-                label="Controls"
-                value={slaveCount >= 3 ? "All Online" : `${slaveCount}/3 online`}
+                label="EtherCAT"
+                value={slaveCount >= 3 ? "3/3 OP" : `${slaveCount}/3`}
                 warn={slaveCount < 3}
               />
               <SensorCell
-                label="Cabinet"
+                label="DSI"
                 value={`${cToF(dsiTempC)}°F`}
                 warn={dsiTempC > 50}
               />
